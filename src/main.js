@@ -66,6 +66,7 @@ const newConversationBtn = document.getElementById('newConversationBtn');
 const chatForm = document.querySelector('.composer');
 const messageInput = document.getElementById('messageInput');
 const chatTranscript = document.getElementById('chatTranscript');
+const chatMain = document.querySelector('.chat-main');
 const welcomePanel = document.querySelector('.welcome-panel');
 const chatTitle = document.getElementById('chatTitle');
 const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -220,8 +221,15 @@ function addMessageElement(message) {
     bubble.textContent = message.text;
   }
   chatTranscript.appendChild(item);
-  item.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  scrollTranscriptToBottom();
   return bubble;
+}
+
+function scrollTranscriptToBottom() {
+  if (!chatMain) {
+    return;
+  }
+  chatMain.scrollTop = chatMain.scrollHeight;
 }
 
 function renderTranscript() {
@@ -236,6 +244,7 @@ function renderTranscript() {
   conversation.messages.forEach((message) => {
     addMessageElement(message);
   });
+  scrollTranscriptToBottom();
 }
 
 function updateWelcomePanelVisibility() {
@@ -677,12 +686,14 @@ if (chatForm && messageInput && chatTranscript) {
           if (modelBubble) {
             modelBubble.textContent = modelMessage.text;
           }
+          scrollTranscriptToBottom();
         },
         onComplete: (finalText) => {
           modelMessage.text = finalText || streamedText.trimStart() || '[No output]';
           if (modelBubble) {
             modelBubble.textContent = modelMessage.text;
           }
+          scrollTranscriptToBottom();
 
           if (!activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
             activeConversation.name = deriveConversationName(activeConversation);
@@ -700,6 +711,7 @@ if (chatForm && messageInput && chatTranscript) {
           if (modelBubble) {
             modelBubble.textContent = modelMessage.text;
           }
+          scrollTranscriptToBottom();
           isGenerating = false;
           updateActionButtons();
           setStatus('Generation failed');
@@ -711,6 +723,7 @@ if (chatForm && messageInput && chatTranscript) {
       if (modelBubble) {
         modelBubble.textContent = modelMessage.text;
       }
+      scrollTranscriptToBottom();
       isGenerating = false;
       updateActionButtons();
       setStatus('Generation failed');
