@@ -41,15 +41,21 @@ function getBackendAttemptOrder(preference) {
 }
 
 function resolvePrompt(rawPrompt) {
-  return `User: ${rawPrompt}\nAssistant:`;
+  return [
+    {
+      role: 'user',
+      content: rawPrompt,
+    },
+  ];
 }
 
 async function initialize(payload) {
-  const requestedModelId = payload.modelId || 'Xenova/distilgpt2';
+  const requestedModelId = payload.modelId || 'onnx-community/Qwen3-0.6B-ONNX';
   const modelId =
     requestedModelId === 'onnx-community/gemma-3-1b-it-ONNX-GQA' ||
-    requestedModelId === 'onnx-community/gemma-3-1b-ONNX-GQA'
-      ? 'Xenova/distilgpt2'
+    requestedModelId === 'onnx-community/gemma-3-1b-ONNX-GQA' ||
+    requestedModelId === 'Xenova/distilgpt2'
+      ? 'onnx-community/Qwen3-0.6B-ONNX'
       : requestedModelId;
   const backendPreference = payload.backendPreference || 'auto';
   const attempts = getBackendAttemptOrder(backendPreference);
@@ -74,6 +80,7 @@ async function initialize(payload) {
       postProgress({ percent: 5, message: `Preparing ${backend.toUpperCase()} backend...` });
       model = await pipeline('text-generation', modelId, {
         device: backend,
+        dtype: 'q4f16',
         progress_callback: (progress) => {
           const rawProgress = progress?.progress;
           const normalizedProgress =
@@ -101,7 +108,7 @@ async function initialize(payload) {
       const isUnauthorized = /unauthorized|401|403/i.test(rawMessage);
       if (isUnauthorized) {
         errors.push(
-          `${backend.toUpperCase()}: ${rawMessage} (This model appears gated or blocked for direct browser access. Use a public model like Xenova/distilgpt2, or self-host pinned model files for static delivery.)`,
+          `${backend.toUpperCase()}: ${rawMessage} (This model appears gated or blocked for direct browser access. Use a public model like onnx-community/Qwen3-0.6B-ONNX, or self-host pinned model files for static delivery.)`,
         );
       } else {
         errors.push(`${backend.toUpperCase()}: ${rawMessage}`);
@@ -163,7 +170,12 @@ async function generate(payload) {
         do_sample: true,
         return_full_text: false,
       });
-      streamedText = output?.[0]?.generated_text || '';
+      const generated = output?.[0]?.generated_text;
+      if (Array.isArray(generated)) {
+        streamedText = generated[generated.length - 1]?.content || '';
+      } else {
+        streamedText = generated || '';
+      }
       self.postMessage({
         type: 'token',
         payload: { requestId, text: streamedText },

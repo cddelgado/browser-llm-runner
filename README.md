@@ -17,10 +17,11 @@ Student-facing browser chat UI with local model inference.
 
 ## Supported model
 
-- `Xenova/distilgpt2`
+- `onnx-community/Qwen3-0.6B-ONNX`
 - Legacy stored IDs are automatically remapped to the supported model:
   - `onnx-community/gemma-3-1b-it-ONNX-GQA`
   - `onnx-community/gemma-3-1b-ONNX-GQA`
+  - `Xenova/distilgpt2`
 
 ## Scripts
 

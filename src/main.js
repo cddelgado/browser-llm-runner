@@ -6,10 +6,11 @@ import { LLMEngineClient } from './llm/engine-client.js';
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
-const DEFAULT_MODEL = 'Xenova/distilgpt2';
+const DEFAULT_MODEL = 'onnx-community/Qwen3-0.6B-ONNX';
 const LEGACY_MODEL_ALIASES = {
   'onnx-community/gemma-3-1b-it-ONNX-GQA': DEFAULT_MODEL,
   'onnx-community/gemma-3-1b-ONNX-GQA': DEFAULT_MODEL,
+  'Xenova/distilgpt2': DEFAULT_MODEL,
 };
 const SUPPORTED_MODELS = new Set([DEFAULT_MODEL]);
 

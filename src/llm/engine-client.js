@@ -8,7 +8,7 @@ export class LLMEngineClient {
     this.pendingInit = null;
     this.pendingGeneration = null;
     this.config = {
-      modelId: 'Xenova/distilgpt2',
+      modelId: 'onnx-community/Qwen3-0.6B-ONNX',
       backendPreference: 'auto',
     };
     this.onStatus = () => {};
@@ -20,8 +20,9 @@ export class LLMEngineClient {
     const requestedModel = config.modelId || this.config.modelId;
     const modelId =
       requestedModel === 'onnx-community/gemma-3-1b-it-ONNX-GQA' ||
-      requestedModel === 'onnx-community/gemma-3-1b-ONNX-GQA'
-        ? 'Xenova/distilgpt2'
+      requestedModel === 'onnx-community/gemma-3-1b-ONNX-GQA' ||
+      requestedModel === 'Xenova/distilgpt2'
+        ? 'onnx-community/Qwen3-0.6B-ONNX'
         : requestedModel;
     this.config = { ...this.config, ...config, modelId };
     this.#ensureWorker();
