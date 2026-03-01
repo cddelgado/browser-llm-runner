@@ -16,7 +16,12 @@ export class LLMEngineClient {
   }
 
   async initialize(config = {}) {
-    this.config = { ...this.config, ...config };
+    const requestedModel = config.modelId || this.config.modelId;
+    const modelId =
+      requestedModel === 'onnx-community/gemma-3-1b-it-ONNX-GQA'
+        ? 'onnx-community/gemma-3-1b-ONNX-GQA'
+        : requestedModel;
+    this.config = { ...this.config, ...config, modelId };
     this.#ensureWorker();
     this.pendingInit = this.#sendAndWait({
       type: 'init',

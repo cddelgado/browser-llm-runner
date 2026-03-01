@@ -34,7 +34,11 @@ function resolvePrompt(rawPrompt) {
 }
 
 async function initialize(payload) {
-  const modelId = payload.modelId || 'onnx-community/gemma-3-1b-ONNX-GQA';
+  const requestedModelId = payload.modelId || 'onnx-community/gemma-3-1b-ONNX-GQA';
+  const modelId =
+    requestedModelId === 'onnx-community/gemma-3-1b-it-ONNX-GQA'
+      ? 'onnx-community/gemma-3-1b-ONNX-GQA'
+      : requestedModelId;
   const backendPreference = payload.backendPreference || 'auto';
   const attempts = getBackendAttemptOrder(backendPreference);
   const errors = [];
@@ -50,6 +54,9 @@ async function initialize(payload) {
     }
 
     try {
+      if (requestedModelId !== modelId) {
+        postStatus(`Model ${requestedModelId} is unavailable. Falling back to ${modelId}.`);
+      }
       postStatus(`Loading ${modelId} with ${backend.toUpperCase()}...`);
       model = await pipeline('text-generation', modelId, {
         device: backend,

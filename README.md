@@ -15,6 +15,7 @@ Student-facing browser chat UI with local model inference.
 ## Supported model
 
 - `onnx-community/gemma-3-1b-ONNX-GQA`
+- Legacy stored ID `onnx-community/gemma-3-1b-it-ONNX-GQA` is automatically remapped to the supported model.
 
 ## Scripts
 

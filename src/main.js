@@ -7,6 +7,10 @@ const THEME_STORAGE_KEY = 'ui-theme-preference';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
 const DEFAULT_MODEL = 'onnx-community/gemma-3-1b-ONNX-GQA';
+const LEGACY_MODEL_ALIASES = {
+  'onnx-community/gemma-3-1b-it-ONNX-GQA': DEFAULT_MODEL,
+};
+const SUPPORTED_MODELS = new Set([DEFAULT_MODEL]);
 
 const themeSelect = document.getElementById('themeSelect');
 const modelSelect = document.getElementById('modelSelect');
@@ -69,22 +73,36 @@ function restoreInferencePreferences() {
   const storedModel = localStorage.getItem(MODEL_STORAGE_KEY);
   const storedBackend = localStorage.getItem(BACKEND_STORAGE_KEY);
   if (modelSelect && storedModel) {
-    modelSelect.value = storedModel;
+    const normalizedModel = normalizeModelId(storedModel);
+    modelSelect.value = normalizedModel;
+    localStorage.setItem(MODEL_STORAGE_KEY, normalizedModel);
   }
   if (backendSelect && storedBackend) {
     backendSelect.value = storedBackend;
   }
 }
 
+function normalizeModelId(modelId) {
+  const canonical = LEGACY_MODEL_ALIASES[modelId] || modelId;
+  if (SUPPORTED_MODELS.has(canonical)) {
+    return canonical;
+  }
+  return DEFAULT_MODEL;
+}
+
 function readEngineConfigFromUI() {
+  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  if (modelSelect && modelSelect.value !== selectedModel) {
+    modelSelect.value = selectedModel;
+  }
   return {
-    modelId: modelSelect?.value || DEFAULT_MODEL,
+    modelId: selectedModel,
     backendPreference: backendSelect?.value || 'auto',
   };
 }
 
 function persistInferencePreferences() {
-  localStorage.setItem(MODEL_STORAGE_KEY, modelSelect?.value || DEFAULT_MODEL);
+  localStorage.setItem(MODEL_STORAGE_KEY, normalizeModelId(modelSelect?.value || DEFAULT_MODEL));
   localStorage.setItem(BACKEND_STORAGE_KEY, backendSelect?.value || 'auto');
 }
 
