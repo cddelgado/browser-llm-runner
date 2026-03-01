@@ -89,6 +89,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .top-bar {
@@ -136,6 +137,9 @@
 
 .chat-main {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: auto;
   padding: 1.25rem 1rem;
 }
@@ -148,8 +152,10 @@
 }
 
 .chat-transcript-wrap {
+  flex: 1;
   max-width: 900px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .chat-transcript {
@@ -200,6 +206,9 @@
 }
 
 .composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   border-top: 1px solid var(--border-soft);
   background: color-mix(in srgb, var(--surface) 95%, transparent);
   padding: 0.85rem 1rem 1rem;

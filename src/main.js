@@ -67,6 +67,8 @@ const newConversationBtn = document.getElementById('newConversationBtn');
 const chatForm = document.querySelector('.composer');
 const messageInput = document.getElementById('messageInput');
 const chatTranscript = document.getElementById('chatTranscript');
+const welcomePanel = document.querySelector('.welcome-panel');
+const chatTitle = document.getElementById('chatTitle');
 const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
 const engine = new LLMEngineClient();
@@ -237,6 +239,25 @@ function renderTranscript() {
   });
 }
 
+function updateWelcomePanelVisibility() {
+  if (!welcomePanel) {
+    return;
+  }
+  welcomePanel.classList.toggle('d-none', modelReady);
+}
+
+function updateChatTitle() {
+  if (!chatTitle) {
+    return;
+  }
+  const activeConversation = getActiveConversation();
+  if (activeConversation?.hasGeneratedName) {
+    chatTitle.textContent = activeConversation.name;
+    return;
+  }
+  chatTitle.textContent = modelReady ? 'Start Your Chat Now' : 'Choose a Model to Chat';
+}
+
 function setActiveConversationById(conversationId) {
   if (activeConversationId === conversationId) {
     return;
@@ -244,6 +265,7 @@ function setActiveConversationById(conversationId) {
   activeConversationId = conversationId;
   renderConversationList();
   renderTranscript();
+  updateChatTitle();
 }
 
 function ensureConversation() {
@@ -412,6 +434,8 @@ async function initializeEngine() {
     }, 300);
     appendDebug('Model initialization succeeded.');
     updateActionButtons();
+    updateWelcomePanelVisibility();
+    updateChatTitle();
   } catch (error) {
     modelReady = false;
     isLoadingModel = false;
@@ -419,6 +443,8 @@ async function initializeEngine() {
     showLoadError(error.message);
     appendDebug(`Model initialization failed: ${error.message}`);
     updateActionButtons();
+    updateWelcomePanelVisibility();
+    updateChatTitle();
     throw error;
   }
 }
@@ -429,6 +455,8 @@ async function reinitializeEngineFromSettings() {
   setStatus('Settings updated. Select Load model to apply.');
   appendDebug('Inference settings changed; awaiting manual load.');
   updateActionButtons();
+  updateWelcomePanelVisibility();
+  updateChatTitle();
   if (isGenerating) {
     return;
   }
@@ -457,6 +485,8 @@ renderTranscript();
 setStatus('Welcome. Choose a model, then select Load model.');
 showProgressRegion(false);
 updateActionButtons();
+updateWelcomePanelVisibility();
+updateChatTitle();
 
 if (themeSelect) {
   themeSelect.addEventListener('change', (event) => {
@@ -511,6 +541,7 @@ if (newConversationBtn) {
     activeConversationId = conversation.id;
     renderConversationList();
     renderTranscript();
+    updateChatTitle();
   });
 }
 
@@ -551,6 +582,7 @@ if (conversationList) {
       }
       renderConversationList();
       renderTranscript();
+      updateChatTitle();
       return;
     }
 
@@ -639,6 +671,7 @@ if (chatForm && messageInput && chatTranscript) {
             activeConversation.name = deriveConversationName(activeConversation);
             activeConversation.hasGeneratedName = true;
             renderConversationList();
+            updateChatTitle();
           }
 
           appendDebug('Generation completed.');
