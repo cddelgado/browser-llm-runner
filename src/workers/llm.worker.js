@@ -6,6 +6,25 @@ let TextStreamer = null;
 let backendInUse = null;
 let loadedModelId = null;
 let cachedModule = null;
+let generationConfig = {
+  maxOutputTokens: 1024,
+  maxContextTokens: 32768,
+};
+
+function normalizeGenerationConfig(rawConfig) {
+  const parsedMaxContext = Number.parseInt(String(rawConfig?.maxContextTokens ?? ''), 10);
+  const parsedMaxOutput = Number.parseInt(String(rawConfig?.maxOutputTokens ?? ''), 10);
+  const maxContextTokens = Number.isInteger(parsedMaxContext) && parsedMaxContext > 0 ? parsedMaxContext : 32768;
+  const maxOutputCap = maxContextTokens;
+  const maxOutputTokens =
+    Number.isInteger(parsedMaxOutput) && parsedMaxOutput > 0
+      ? Math.min(parsedMaxOutput, maxOutputCap)
+      : Math.min(1024, maxOutputCap);
+  return {
+    maxOutputTokens,
+    maxContextTokens,
+  };
+}
 
 function postStatus(message) {
   self.postMessage({ type: 'status', payload: { message } });
@@ -58,6 +77,7 @@ async function initialize(payload) {
       ? 'onnx-community/Qwen3-0.6B-ONNX'
       : requestedModelId;
   const backendPreference = payload.backendPreference || 'auto';
+  generationConfig = normalizeGenerationConfig(payload.generationConfig);
   const attempts = getBackendAttemptOrder(backendPreference);
   const errors = [];
 
@@ -141,6 +161,8 @@ async function generate(payload) {
   try {
     let streamedText = '';
     const formattedPrompt = resolvePrompt(prompt);
+    const requestGenerationConfig = normalizeGenerationConfig(payload.generationConfig || generationConfig);
+    generationConfig = requestGenerationConfig;
 
     if (TextStreamer) {
       const streamer = new TextStreamer(tokenizer, {
@@ -155,7 +177,8 @@ async function generate(payload) {
       });
 
       await model(formattedPrompt, {
-        max_new_tokens: 192,
+        max_new_tokens: requestGenerationConfig.maxOutputTokens,
+        max_length: requestGenerationConfig.maxContextTokens,
         temperature: 0.7,
         top_p: 0.9,
         do_sample: true,
@@ -164,7 +187,8 @@ async function generate(payload) {
       });
     } else {
       const output = await model(formattedPrompt, {
-        max_new_tokens: 192,
+        max_new_tokens: requestGenerationConfig.maxOutputTokens,
+        max_length: requestGenerationConfig.maxContextTokens,
         temperature: 0.7,
         top_p: 0.9,
         do_sample: true,

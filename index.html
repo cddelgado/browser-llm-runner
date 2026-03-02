@@ -153,6 +153,32 @@
             </select>
           </div>
           <div>
+            <label class="form-label" for="maxOutputTokensInput">Max output tokens</label>
+            <input
+              id="maxOutputTokensInput"
+              class="form-control"
+              type="number"
+              inputmode="numeric"
+              min="8"
+              step="8"
+              disabled
+            />
+            <p id="maxOutputTokensHelp" class="form-text mb-0">Load a model to edit this setting.</p>
+          </div>
+          <div>
+            <label class="form-label" for="maxContextTokensInput">Max context tokens</label>
+            <input
+              id="maxContextTokensInput"
+              class="form-control"
+              type="number"
+              inputmode="numeric"
+              min="8"
+              step="8"
+              disabled
+            />
+            <p id="maxContextTokensHelp" class="form-text mb-0">Load a model to edit this setting.</p>
+          </div>
+          <div>
             <label class="form-label" for="themeSelect">Theme</label>
             <select id="themeSelect" class="form-select">
               <option value="light" selected>Light</option>

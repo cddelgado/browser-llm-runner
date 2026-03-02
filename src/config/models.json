@@ -4,6 +4,12 @@
     {
       "id": "onnx-community/Qwen3-0.6B-ONNX",
       "label": "onnx-community/Qwen3-0.6B-ONNX",
+      "generation": {
+        "defaultMaxOutputTokens": 1024,
+        "maxOutputTokens": 32768,
+        "defaultMaxContextTokens": 32768,
+        "maxContextTokens": 32768
+      },
       "thinkingTags": {
         "open": "<think>",
         "close": "</think>"

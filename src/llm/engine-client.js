@@ -10,6 +10,10 @@ export class LLMEngineClient {
     this.config = {
       modelId: 'onnx-community/Qwen3-0.6B-ONNX',
       backendPreference: 'auto',
+      generationConfig: {
+        maxOutputTokens: 1024,
+        maxContextTokens: 32768,
+      },
     };
     this.onStatus = () => {};
     this.onBackendResolved = () => {};
@@ -54,8 +58,25 @@ export class LLMEngineClient {
 
     this.worker.postMessage({
       type: 'generate',
-      payload: { requestId, prompt },
+      payload: {
+        requestId,
+        prompt,
+        generationConfig: handlers.generationConfig || this.config.generationConfig,
+      },
     });
+  }
+
+  setGenerationConfig(generationConfig) {
+    if (!generationConfig) {
+      return;
+    }
+    this.config = {
+      ...this.config,
+      generationConfig: {
+        ...this.config.generationConfig,
+        ...generationConfig,
+      },
+    };
   }
 
   async cancelGeneration() {

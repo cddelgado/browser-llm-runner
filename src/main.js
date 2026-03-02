@@ -8,6 +8,43 @@ const THEME_STORAGE_KEY = 'ui-theme-preference';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
+const TOKEN_STEP = 8;
+const MIN_TOKEN_LIMIT = 8;
+const DEFAULT_GENERATION_LIMITS = Object.freeze({
+  defaultMaxOutputTokens: 1024,
+  maxOutputTokens: 32768,
+  defaultMaxContextTokens: 32768,
+  maxContextTokens: 32768,
+});
+
+function toPositiveInt(value, fallback) {
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function normalizeGenerationLimits(rawLimits) {
+  const maxContextTokens = toPositiveInt(rawLimits?.maxContextTokens, DEFAULT_GENERATION_LIMITS.maxContextTokens);
+  const maxOutputTokens = toPositiveInt(rawLimits?.maxOutputTokens, maxContextTokens);
+  const defaultMaxContextTokens = clamp(
+    toPositiveInt(rawLimits?.defaultMaxContextTokens, maxContextTokens),
+    MIN_TOKEN_LIMIT,
+    maxContextTokens,
+  );
+  const defaultMaxOutputTokens = clamp(
+    toPositiveInt(rawLimits?.defaultMaxOutputTokens, DEFAULT_GENERATION_LIMITS.defaultMaxOutputTokens),
+    MIN_TOKEN_LIMIT,
+    maxOutputTokens,
+  );
+  return {
+    defaultMaxOutputTokens: Math.min(defaultMaxOutputTokens, defaultMaxContextTokens),
+    maxOutputTokens,
+    defaultMaxContextTokens,
+    maxContextTokens,
+  };
+}
 const configuredModels = Array.isArray(modelCatalog?.models)
   ? modelCatalog.models
       .map((model) => {
@@ -27,7 +64,8 @@ const configuredModels = Array.isArray(modelCatalog?.models)
           openThinkingTag !== closeThinkingTag
             ? { open: openThinkingTag, close: closeThinkingTag }
             : null;
-        return { id, label, features: model?.features || {}, thinkingTags };
+        const generation = normalizeGenerationLimits(model?.generation);
+        return { id, label, features: model?.features || {}, thinkingTags, generation };
       })
       .filter(Boolean)
   : [];
@@ -35,7 +73,12 @@ const configuredDefaultModel =
   typeof modelCatalog?.defaultModelId === 'string' ? modelCatalog.defaultModelId.trim() : '';
 const DEFAULT_MODEL = configuredDefaultModel || configuredModels[0]?.id || 'onnx-community/Qwen3-0.6B-ONNX';
 if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
-  configuredModels.unshift({ id: DEFAULT_MODEL, label: DEFAULT_MODEL, features: {} });
+  configuredModels.unshift({
+    id: DEFAULT_MODEL,
+    label: DEFAULT_MODEL,
+    features: {},
+    generation: normalizeGenerationLimits(null),
+  });
 }
 const MODEL_OPTIONS = Object.freeze(configuredModels);
 const MODEL_OPTIONS_BY_ID = new Map(MODEL_OPTIONS.map((model) => [model.id, model]));
@@ -84,6 +127,10 @@ const TITLE_STOP_WORDS = new Set([
 const themeSelect = document.getElementById('themeSelect');
 const modelSelect = document.getElementById('modelSelect');
 const backendSelect = document.getElementById('backendSelect');
+const maxOutputTokensInput = document.getElementById('maxOutputTokensInput');
+const maxContextTokensInput = document.getElementById('maxContextTokensInput');
+const maxOutputTokensHelp = document.getElementById('maxOutputTokensHelp');
+const maxContextTokensHelp = document.getElementById('maxContextTokensHelp');
 const statusRegion = document.getElementById('statusRegion');
 const loadModelButton = document.getElementById('loadModelButton');
 const debugInfo = document.getElementById('debugInfo');
@@ -115,6 +162,142 @@ let activeConversationId = null;
 const conversations = [];
 const debugEntries = [];
 const MAX_DEBUG_ENTRIES = 120;
+let activeGenerationConfig = normalizeGenerationLimits(null);
+let pendingGenerationConfig = null;
+
+function formatInteger(value) {
+  return new Intl.NumberFormat('en-US').format(value);
+}
+
+function getModelGenerationLimits(modelId) {
+  return (
+    MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.generation || normalizeGenerationLimits(null)
+  );
+}
+
+function quantizeTokenInput(value, min, max) {
+  const numeric = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  const bounded = clamp(numeric, min, max);
+  const steps = Math.round((bounded - min) / TOKEN_STEP);
+  return clamp(min + steps * TOKEN_STEP, min, max);
+}
+
+function buildGenerationConfigFromUI(modelId) {
+  const limits = getModelGenerationLimits(modelId);
+  const maxContextTokens = quantizeTokenInput(
+    maxContextTokensInput?.value ?? limits.defaultMaxContextTokens,
+    MIN_TOKEN_LIMIT,
+    limits.maxContextTokens,
+  );
+  const maxOutputTokens = quantizeTokenInput(
+    maxOutputTokensInput?.value ?? limits.defaultMaxOutputTokens,
+    MIN_TOKEN_LIMIT,
+    Math.min(limits.maxOutputTokens, maxContextTokens),
+  );
+  return { maxOutputTokens, maxContextTokens };
+}
+
+function renderGenerationSettingsHelpText(config, limits) {
+  if (maxOutputTokensHelp) {
+    maxOutputTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
+      Math.min(limits.maxOutputTokens, config.maxContextTokens),
+    )}. Current: ${formatInteger(config.maxOutputTokens)}.`;
+  }
+  if (maxContextTokensHelp) {
+    maxContextTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
+      limits.maxContextTokens,
+    )}. Current: ${formatInteger(config.maxContextTokens)}.`;
+  }
+}
+
+function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
+  const limits = getModelGenerationLimits(modelId);
+  const config = useDefaults
+    ? {
+        maxOutputTokens: Math.min(limits.defaultMaxOutputTokens, limits.defaultMaxContextTokens),
+        maxContextTokens: limits.defaultMaxContextTokens,
+      }
+    : buildGenerationConfigFromUI(modelId);
+  const boundedOutputMax = Math.min(limits.maxOutputTokens, config.maxContextTokens);
+
+  if (maxContextTokensInput) {
+    maxContextTokensInput.min = String(MIN_TOKEN_LIMIT);
+    maxContextTokensInput.max = String(limits.maxContextTokens);
+    maxContextTokensInput.step = String(TOKEN_STEP);
+    maxContextTokensInput.value = String(config.maxContextTokens);
+  }
+
+  if (maxOutputTokensInput) {
+    maxOutputTokensInput.min = String(MIN_TOKEN_LIMIT);
+    maxOutputTokensInput.max = String(boundedOutputMax);
+    maxOutputTokensInput.step = String(TOKEN_STEP);
+    maxOutputTokensInput.value = String(config.maxOutputTokens);
+  }
+
+  activeGenerationConfig = { ...config };
+  engine.setGenerationConfig(activeGenerationConfig);
+  renderGenerationSettingsHelpText(config, limits);
+}
+
+function updateGenerationSettingsEnabledState() {
+  const disabled = !modelReady;
+  if (maxOutputTokensInput) {
+    maxOutputTokensInput.disabled = disabled;
+  }
+  if (maxContextTokensInput) {
+    maxContextTokensInput.disabled = disabled;
+  }
+}
+
+function applyPendingGenerationSettingsIfReady() {
+  if (isGenerating || !pendingGenerationConfig) {
+    return;
+  }
+  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  const limits = getModelGenerationLimits(selectedModel);
+  const nextMaxContextTokens = quantizeTokenInput(
+    pendingGenerationConfig.maxContextTokens,
+    MIN_TOKEN_LIMIT,
+    limits.maxContextTokens,
+  );
+  const nextConfig = {
+    maxContextTokens: nextMaxContextTokens,
+    maxOutputTokens: quantizeTokenInput(
+      pendingGenerationConfig.maxOutputTokens,
+      MIN_TOKEN_LIMIT,
+      Math.min(limits.maxOutputTokens, nextMaxContextTokens),
+    ),
+  };
+  pendingGenerationConfig = null;
+  activeGenerationConfig = nextConfig;
+  engine.setGenerationConfig(nextConfig);
+  syncGenerationSettingsFromModel(selectedModel, false);
+  setStatus('Generation settings updated.');
+  appendDebug(
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}).`,
+  );
+}
+
+function onGenerationSettingInputChanged() {
+  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  const nextConfig = buildGenerationConfigFromUI(selectedModel);
+  activeGenerationConfig = nextConfig;
+  syncGenerationSettingsFromModel(selectedModel, false);
+  if (isGenerating) {
+    pendingGenerationConfig = nextConfig;
+    setStatus('Generation settings will apply after current response.');
+    appendDebug('Generation settings change queued until current response completes.');
+    return;
+  }
+  engine.setGenerationConfig(nextConfig);
+  setStatus('Generation settings updated.');
+  appendDebug(
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}).`,
+  );
+}
 
 function appendDebug(message) {
   const timestamp = new Date().toLocaleTimeString();
@@ -390,6 +573,7 @@ function ensureConversation() {
 
 function updateActionButtons() {
   updateSendButtonMode();
+  updateGenerationSettingsEnabledState();
   if (sendButton) {
     sendButton.disabled = isLoadingModel || (!isGenerating && !modelReady);
   }
@@ -527,6 +711,8 @@ function restoreInferencePreferences() {
   if (backendSelect && storedBackend) {
     backendSelect.value = storedBackend;
   }
+  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  syncGenerationSettingsFromModel(selectedModel, true);
 }
 
 function normalizeModelId(modelId) {
@@ -589,9 +775,11 @@ function readEngineConfigFromUI() {
   if (modelSelect && modelSelect.value !== selectedModel) {
     modelSelect.value = selectedModel;
   }
+  syncGenerationSettingsFromModel(selectedModel, false);
   return {
     modelId: selectedModel,
     backendPreference: backendSelect?.value || 'auto',
+    generationConfig: activeGenerationConfig,
   };
 }
 
@@ -697,6 +885,8 @@ colorSchemeQuery.addEventListener('change', () => {
 
 if (modelSelect) {
   modelSelect.addEventListener('change', () => {
+    const selectedModel = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
+    syncGenerationSettingsFromModel(selectedModel, true);
     reinitializeEngineFromSettings();
   });
 }
@@ -705,6 +895,14 @@ if (backendSelect) {
   backendSelect.addEventListener('change', () => {
     reinitializeEngineFromSettings();
   });
+}
+
+if (maxOutputTokensInput) {
+  maxOutputTokensInput.addEventListener('change', onGenerationSettingInputChanged);
+}
+
+if (maxContextTokensInput) {
+  maxContextTokensInput.addEventListener('change', onGenerationSettingInputChanged);
 }
 
 if (loadModelButton) {
@@ -806,6 +1004,7 @@ if (sendButton) {
     } finally {
       isGenerating = false;
       updateActionButtons();
+      applyPendingGenerationSettingsIfReady();
     }
   });
 }
@@ -847,6 +1046,7 @@ if (chatForm && messageInput && chatTranscript) {
 
     try {
       await engine.generate(value, {
+        generationConfig: activeGenerationConfig,
         onToken: (chunk) => {
           streamedText += chunk;
           const parsed = parseThinkingText(streamedText, thinkingTags);
@@ -884,6 +1084,7 @@ if (chatForm && messageInput && chatTranscript) {
           appendDebug('Generation completed.');
           isGenerating = false;
           updateActionButtons();
+          applyPendingGenerationSettingsIfReady();
         },
         onError: (message) => {
           modelMessage.text = `Generation error: ${message}`;
@@ -895,6 +1096,7 @@ if (chatForm && messageInput && chatTranscript) {
           scrollTranscriptToBottom();
           isGenerating = false;
           updateActionButtons();
+          applyPendingGenerationSettingsIfReady();
           setStatus('Generation failed');
           appendDebug(`Generation error: ${message}`);
         },
@@ -909,6 +1111,7 @@ if (chatForm && messageInput && chatTranscript) {
       scrollTranscriptToBottom();
       isGenerating = false;
       updateActionButtons();
+      applyPendingGenerationSettingsIfReady();
       setStatus('Generation failed');
       appendDebug(`Generation error: ${error.message}`);
     }
