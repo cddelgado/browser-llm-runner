@@ -35,44 +35,50 @@
   --chat-border: #cfdbef;
   --thoughts-bg: #eef4ff;
   --thoughts-border: #c8d6ee;
+  --conversation-active-bg: #dce9ff;
+  --conversation-active-border: #7cb1ff;
+  --conversation-active-ink: #11274d;
 }
 
 :root[data-theme='dark'] {
-  --app-bg: linear-gradient(145deg, #0f172a 0%, #111b32 44%, #161f34 100%);
-  --panel-bg: rgba(20, 29, 48, 0.95);
-  --panel-border: #2b3854;
-  --surface: #111b2f;
-  --surface-elevated: #16223b;
-  --main-bg: rgba(17, 27, 47, 0.72);
-  --surface-muted: #243553;
-  --border-soft: #3d5172;
-  --control-bg: #1a2945;
-  --composer-input-bg: #243659;
-  --control-border: #5a7299;
-  --composer-border: #4a6084;
-  --ink-strong: #eaf0ff;
-  --ink-muted: #b7c6e7;
-  --message-user: #2578cf;
-  --message-model: #213456;
-  --model-response-ink: #f3f8ff;
-  --action-icon-color: #eaf0ff;
-  --action-icon-bg: #1d2e4d;
-  --action-icon-border: #607ba7;
-  --action-icon-hover-bg: #2a3f66;
-  --action-btn-text: #d6e5ff;
-  --action-btn-border: #88a7d1;
-  --action-btn-hover-bg: #426292;
-  --action-btn-hover-text: #f6faff;
-  --primary-btn-bg: #2a68af;
-  --primary-btn-border: #2a68af;
-  --primary-btn-hover-bg: #245995;
-  --primary-btn-hover-border: #245995;
-  --regenerate-accent: #84b7ff;
-  --focus-ring: #7ab2ff;
-  --shadow-ambient: 0 14px 30px rgba(3, 9, 20, 0.45);
-  --chat-border: #2f4363;
-  --thoughts-bg: #202f4a;
-  --thoughts-border: #3a5072;
+  --app-bg: linear-gradient(145deg, #05060a 0%, #070a14 48%, #090d16 100%);
+  --panel-bg: #070b14;
+  --panel-border: #1e2a40;
+  --surface: #090d18;
+  --surface-elevated: #101a2c;
+  --main-bg: #05070c;
+  --surface-muted: #111e32;
+  --border-soft: #2f425f;
+  --control-bg: #111f36;
+  --composer-input-bg: #0f1d35;
+  --control-border: #344d73;
+  --composer-border: #2d4570;
+  --ink-strong: #eef3ff;
+  --ink-muted: #b2c3e1;
+  --message-user: #2f8dff;
+  --message-model: #0f1d35;
+  --model-response-ink: #f7fbff;
+  --action-icon-color: #e9f1ff;
+  --action-icon-bg: #1a273f;
+  --action-icon-border: #4f698e;
+  --action-icon-hover-bg: #223a60;
+  --action-btn-text: #a8cbff;
+  --action-btn-border: #5c76a1;
+  --action-btn-hover-bg: #355a8f;
+  --action-btn-hover-text: #f5f9ff;
+  --primary-btn-bg: #2b6fc2;
+  --primary-btn-border: #2b6fc2;
+  --primary-btn-hover-bg: #2559a0;
+  --primary-btn-hover-border: #2559a0;
+  --regenerate-accent: #8ec0ff;
+  --focus-ring: #82b8ff;
+  --shadow-ambient: 0 14px 30px rgba(2, 6, 14, 0.7);
+  --chat-border: #2a446a;
+  --thoughts-bg: #121f36;
+  --thoughts-border: #334d72;
+  --conversation-active-bg: #122c57;
+  --conversation-active-border: #3f6ea9;
+  --conversation-active-ink: #ecf3ff;
 }
 
 .app-body {
@@ -100,11 +106,19 @@
   gap: 0.5rem;
   padding: 0.2rem;
   border-radius: 0.85rem;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  border: 1px solid transparent;
 }
 
 .conversation-item.is-active {
-  background: var(--surface-elevated);
-  box-shadow: var(--shadow-ambient);
+  background: var(--conversation-active-bg);
+  border-color: var(--conversation-active-border);
+  box-shadow: 0 12px 22px rgba(13, 25, 46, 0.18);
+}
+
+.conversation-item.is-active .conversation-select {
+  color: var(--conversation-active-ink);
+  font-weight: 700;
 }
 
 #conversationList {
@@ -142,8 +156,20 @@
   color: var(--action-icon-color);
   cursor: pointer;
   text-decoration: none;
+  width: 2rem;
+  min-width: 2rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transition: border-radius 140ms ease, background-color 120ms ease, border-color 120ms ease,
-    transform 120ms ease;
+    transform 120ms ease, opacity 120ms ease, visibility 120ms ease;
+}
+
+.conversation-item:hover .conversation-delete,
+.conversation-item:focus-within .conversation-delete {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .conversation-delete:hover {
@@ -349,6 +375,12 @@
   border-top-left-radius: 0.35rem;
   position: relative;
   overflow: visible;
+  border-color: var(--chat-border);
+}
+
+.model-message .response-content,
+.model-message .response-content * {
+  color: var(--model-response-ink, var(--ink-strong));
 }
 
 .model-message .message-bubble::before,
@@ -548,6 +580,7 @@
   font-size: 0.8rem;
   color: var(--action-btn-text);
   border-color: var(--action-btn-border);
+  background-color: color-mix(in srgb, var(--action-btn-text) 10%, transparent);
   font-weight: 600;
 }
 
@@ -562,6 +595,7 @@
 .conversation-delete .bi {
   font-size: 0.95rem;
   line-height: 1;
+  color: currentcolor;
 }
 
 .message-actions {
@@ -593,6 +627,7 @@
 .message-actions .btn .bi {
   font-size: 0.95rem;
   line-height: 1;
+  color: currentcolor;
 }
 
 .response-variant-nav {
