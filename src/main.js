@@ -232,6 +232,7 @@ const settingsTabButtons = settingsTabContainer
   : [];
 const settingsTabPanels = settingsPage ? settingsPage.querySelectorAll('[data-settings-tab-panel]') : [];
 const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const engine = new LLMEngineClient();
 const markdown = new MarkdownIt({
@@ -1498,7 +1499,7 @@ function addMessageElement(message, options = {}) {
         </section>
         <section class="response-region">
           <h3 class="visually-hidden">Response</h3>
-          <p class="fix-wait-message mb-0" aria-live="off">Please wait...</p>
+          <p class="fix-wait-message mb-0" aria-live="off">Please Wait</p>
           <div class="response-content"></div>
         </section>
       </div>
@@ -1863,6 +1864,30 @@ function scrollTranscriptToBottom() {
     return;
   }
   chatMain.scrollTop = chatMain.scrollHeight;
+  updateTranscriptNavigationButtonVisibility();
+}
+
+function getPreferredScrollBehavior() {
+  return reducedMotionQuery.matches ? 'auto' : 'smooth';
+}
+
+function ensureModelVariantControlsVisible(messageId) {
+  if (!chatTranscript || !chatMain || !messageId) {
+    return;
+  }
+  const messageItem = chatTranscript.querySelector(`[data-message-id="${messageId}"]`);
+  if (!(messageItem instanceof HTMLElement)) {
+    return;
+  }
+  const variantNav = messageItem.querySelector('.response-variant-nav');
+  const responseActions = messageItem.querySelector('.response-actions');
+  const target =
+    variantNav instanceof HTMLElement
+      ? variantNav
+      : responseActions instanceof HTMLElement
+        ? responseActions
+        : messageItem;
+  target.scrollIntoView({ behavior: getPreferredScrollBehavior(), block: 'nearest', inline: 'nearest' });
   updateTranscriptNavigationButtonVisibility();
 }
 
@@ -2914,10 +2939,11 @@ function startModelGeneration(activeConversation, prompt, options = {}) {
   }
 }
 
-function animateVariantSwitch(outgoingMessageId, incomingMessageId, direction) {
+function animateVariantSwitch(outgoingMessageId, incomingMessageId, direction, options = {}) {
   if (!chatTranscript) {
     return;
   }
+  const ensureModelControlsVisible = Boolean(options.ensureModelControlsVisible);
   const outgoingItem = chatTranscript.querySelector(`[data-message-id="${outgoingMessageId}"]`);
   const outgoingBubble = outgoingItem?.querySelector('.message-bubble');
   const outgoingOffsetWithinChat =
@@ -2957,6 +2983,9 @@ function animateVariantSwitch(outgoingMessageId, incomingMessageId, direction) {
       window.setTimeout(() => {
         incomingBubble.classList.remove(incomingClass);
       }, 280);
+    }
+    if (ensureModelControlsVisible) {
+      ensureModelVariantControlsVisible(incomingMessageId);
     }
     isSwitchingVariant = false;
     updateActionButtons();
@@ -2999,7 +3028,9 @@ function switchModelVariant(messageId, direction) {
   isSwitchingVariant = true;
   activeConversation.activeLeafMessageId = targetLeafId || targetMessage.id;
   updateActionButtons();
-  animateVariantSwitch(modelMessage.id, targetMessage.id, direction);
+  animateVariantSwitch(modelMessage.id, targetMessage.id, direction, {
+    ensureModelControlsVisible: true,
+  });
 }
 
 function switchUserVariant(messageId, direction) {

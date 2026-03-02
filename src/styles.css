@@ -650,31 +650,40 @@
 
 .response-region {
   position: relative;
+  display: grid;
+  align-items: start;
 }
 
 .fix-wait-message {
   margin: 0;
+  max-height: 0;
+  overflow: hidden;
   font-size: 0.92rem;
   font-weight: 600;
   color: var(--ink-muted);
+  line-height: 1.35;
   opacity: 0;
   transform: translateY(0.3rem);
   pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: max-height 220ms ease, opacity 180ms ease, transform 180ms ease;
 }
 
 .response-content {
   margin: 0;
+  max-height: 999rem;
+  overflow: hidden;
   overflow-wrap: anywhere;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: max-height 260ms ease, opacity 180ms ease, transform 180ms ease;
 }
 
 .model-message .message-bubble.is-fix-preparing .response-content {
+  max-height: 0;
   opacity: 0;
   transform: translateY(-0.3rem);
 }
 
 .model-message .message-bubble.is-fix-preparing .fix-wait-message {
+  max-height: 2.2rem;
   opacity: 1;
   transform: translateY(0);
 }
