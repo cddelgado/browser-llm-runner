@@ -200,6 +200,7 @@ const chatForm = document.querySelector('.composer');
 const messageInput = document.getElementById('messageInput');
 const chatTranscript = document.getElementById('chatTranscript');
 const chatTranscriptWrap = document.getElementById('chatTranscriptWrap');
+const jumpToLastPromptButton = document.getElementById('jumpToLastPromptButton');
 const jumpToLatestButton = document.getElementById('jumpToLatestButton');
 const chatMain = document.querySelector('.chat-main');
 const welcomePanel = document.querySelector('.welcome-panel');
@@ -1281,7 +1282,7 @@ function scrollTranscriptToBottom() {
     return;
   }
   chatMain.scrollTop = chatMain.scrollHeight;
-  updateJumpToLatestVisibility();
+  updateTranscriptNavigationButtonVisibility();
 }
 
 function isTranscriptNearBottom() {
@@ -1292,13 +1293,47 @@ function isTranscriptNearBottom() {
   return distanceToBottom <= TRANSCRIPT_BOTTOM_THRESHOLD_PX;
 }
 
-function updateJumpToLatestVisibility() {
-  if (!(jumpToLatestButton instanceof HTMLButtonElement)) {
+function getLastPromptMessageId(conversation = getActiveConversation()) {
+  if (!conversation) {
+    return null;
+  }
+  const pathMessages = getConversationPathMessages(conversation);
+  for (let index = pathMessages.length - 1; index >= 0; index -= 1) {
+    if (pathMessages[index]?.role === 'user') {
+      return pathMessages[index].id;
+    }
+  }
+  return null;
+}
+
+function isMessageInView(messageId) {
+  if (!chatMain || !messageId) {
+    return false;
+  }
+  const messageItem = chatTranscript?.querySelector(`[data-message-id="${messageId}"]`);
+  if (!(messageItem instanceof HTMLElement)) {
+    return false;
+  }
+  const containerRect = chatMain.getBoundingClientRect();
+  const messageRect = messageItem.getBoundingClientRect();
+  return messageRect.bottom >= containerRect.top && messageRect.top <= containerRect.bottom;
+}
+
+function updateTranscriptNavigationButtonVisibility() {
+  if (
+    !(jumpToLatestButton instanceof HTMLButtonElement) ||
+    !(jumpToLastPromptButton instanceof HTMLButtonElement)
+  ) {
     return;
   }
   const hasTranscriptItems = Boolean(chatTranscript?.children.length);
-  const shouldShow = modelReady && hasTranscriptItems && !isTranscriptNearBottom();
-  jumpToLatestButton.classList.toggle('d-none', !shouldShow);
+  const shouldShowJumpToLatest = modelReady && hasTranscriptItems && !isTranscriptNearBottom();
+  jumpToLatestButton.classList.toggle('d-none', !shouldShowJumpToLatest);
+
+  const lastPromptMessageId = getLastPromptMessageId();
+  const shouldShowJumpToPrompt =
+    modelReady && hasTranscriptItems && Boolean(lastPromptMessageId) && !isMessageInView(lastPromptMessageId);
+  jumpToLastPromptButton.classList.toggle('d-none', !shouldShowJumpToPrompt);
 }
 
 function renderTranscript(options = {}) {
@@ -1316,7 +1351,7 @@ function renderTranscript(options = {}) {
       emptyItem.textContent = 'Select a conversation from the left panel, or start a new conversation.';
       chatTranscript.appendChild(emptyItem);
     }
-    updateJumpToLatestVisibility();
+    updateTranscriptNavigationButtonVisibility();
     return;
   }
   getConversationPathMessages(conversation).forEach((message) => {
@@ -1326,7 +1361,7 @@ function renderTranscript(options = {}) {
     scrollTranscriptToBottom();
     return;
   }
-  updateJumpToLatestVisibility();
+  updateTranscriptNavigationButtonVisibility();
 }
 
 function setRegionVisibility(region, visible) {
@@ -1350,7 +1385,7 @@ function updateWelcomePanelVisibility() {
   setRegionVisibility(conversationPanel, showConversation);
   setRegionVisibility(chatTranscriptWrap, showConversation);
   setRegionVisibility(chatForm, showConversation);
-  updateJumpToLatestVisibility();
+  updateTranscriptNavigationButtonVisibility();
 }
 
 function updateChatTitle() {
@@ -2283,7 +2318,7 @@ if (chatTranscript) {
 
 if (chatMain) {
   chatMain.addEventListener('scroll', () => {
-    updateJumpToLatestVisibility();
+    updateTranscriptNavigationButtonVisibility();
   });
 }
 
@@ -2291,6 +2326,25 @@ if (jumpToLatestButton instanceof HTMLButtonElement) {
   jumpToLatestButton.addEventListener('click', () => {
     const restoreComposerFocus = document.activeElement === jumpToLatestButton;
     scrollTranscriptToBottom();
+    if (restoreComposerFocus && messageInput instanceof HTMLTextAreaElement) {
+      messageInput.focus();
+    }
+  });
+}
+
+if (jumpToLastPromptButton instanceof HTMLButtonElement) {
+  jumpToLastPromptButton.addEventListener('click', () => {
+    const lastPromptMessageId = getLastPromptMessageId();
+    if (!lastPromptMessageId) {
+      return;
+    }
+    const messageItem = chatTranscript?.querySelector(`[data-message-id="${lastPromptMessageId}"]`);
+    if (!(messageItem instanceof HTMLElement)) {
+      return;
+    }
+    const restoreComposerFocus = document.activeElement === jumpToLastPromptButton;
+    messageItem.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+    updateTranscriptNavigationButtonVisibility();
     if (restoreComposerFocus && messageInput instanceof HTMLTextAreaElement) {
       messageInput.focus();
     }

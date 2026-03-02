@@ -254,6 +254,18 @@
   z-index: 1030;
 }
 
+.jump-to-last-prompt-btn {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right));
+  top: clamp(4.5rem, 9vh, 6.2rem);
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: var(--shadow-ambient);
+  z-index: 1030;
+}
+
 .transcript-empty-state {
   margin: 0;
   padding: 1rem 0.25rem;
