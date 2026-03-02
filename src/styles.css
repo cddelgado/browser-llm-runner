@@ -233,12 +233,24 @@
   max-width: 900px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
 }
 
 .chat-transcript {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.jump-to-latest-btn {
+  position: sticky;
+  bottom: 0.75rem;
+  margin: 0 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-shadow: var(--shadow-ambient);
+  z-index: 1;
 }
 
 .transcript-empty-state {

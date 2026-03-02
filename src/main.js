@@ -169,6 +169,7 @@ const TITLE_STOP_WORDS = new Set([
 const CONVERSATION_SAVE_DEBOUNCE_MS = 300;
 const CONVERSATION_COLLECTION_FORMAT = 'browser-llm-runner.conversation-collection';
 const CONVERSATION_SCHEMA_VERSION = 4;
+const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24;
 
 const themeSelect = document.getElementById('themeSelect');
 const showThinkingToggle = document.getElementById('showThinkingToggle');
@@ -199,6 +200,7 @@ const chatForm = document.querySelector('.composer');
 const messageInput = document.getElementById('messageInput');
 const chatTranscript = document.getElementById('chatTranscript');
 const chatTranscriptWrap = document.getElementById('chatTranscriptWrap');
+const jumpToLatestButton = document.getElementById('jumpToLatestButton');
 const chatMain = document.querySelector('.chat-main');
 const welcomePanel = document.querySelector('.welcome-panel');
 const topBar = document.getElementById('topBar');
@@ -1279,6 +1281,24 @@ function scrollTranscriptToBottom() {
     return;
   }
   chatMain.scrollTop = chatMain.scrollHeight;
+  updateJumpToLatestVisibility();
+}
+
+function isTranscriptNearBottom() {
+  if (!chatMain) {
+    return true;
+  }
+  const distanceToBottom = chatMain.scrollHeight - (chatMain.scrollTop + chatMain.clientHeight);
+  return distanceToBottom <= TRANSCRIPT_BOTTOM_THRESHOLD_PX;
+}
+
+function updateJumpToLatestVisibility() {
+  if (!(jumpToLatestButton instanceof HTMLButtonElement)) {
+    return;
+  }
+  const hasTranscriptItems = Boolean(chatTranscript?.children.length);
+  const shouldShow = modelReady && hasTranscriptItems && !isTranscriptNearBottom();
+  jumpToLatestButton.classList.toggle('d-none', !shouldShow);
 }
 
 function renderTranscript(options = {}) {
@@ -1296,6 +1316,7 @@ function renderTranscript(options = {}) {
       emptyItem.textContent = 'Select a conversation from the left panel, or start a new conversation.';
       chatTranscript.appendChild(emptyItem);
     }
+    updateJumpToLatestVisibility();
     return;
   }
   getConversationPathMessages(conversation).forEach((message) => {
@@ -1303,7 +1324,9 @@ function renderTranscript(options = {}) {
   });
   if (shouldScrollToBottom) {
     scrollTranscriptToBottom();
+    return;
   }
+  updateJumpToLatestVisibility();
 }
 
 function setRegionVisibility(region, visible) {
@@ -1327,6 +1350,7 @@ function updateWelcomePanelVisibility() {
   setRegionVisibility(conversationPanel, showConversation);
   setRegionVisibility(chatTranscriptWrap, showConversation);
   setRegionVisibility(chatForm, showConversation);
+  updateJumpToLatestVisibility();
 }
 
 function updateChatTitle() {
@@ -2253,6 +2277,22 @@ if (chatTranscript) {
     const regenerateButton = target.closest('.regenerate-response-btn');
     if (regenerateButton instanceof HTMLButtonElement) {
       regenerateFromMessage(regenerateButton.dataset.messageId || '');
+    }
+  });
+}
+
+if (chatMain) {
+  chatMain.addEventListener('scroll', () => {
+    updateJumpToLatestVisibility();
+  });
+}
+
+if (jumpToLatestButton instanceof HTMLButtonElement) {
+  jumpToLatestButton.addEventListener('click', () => {
+    const restoreComposerFocus = document.activeElement === jumpToLatestButton;
+    scrollTranscriptToBottom();
+    if (restoreComposerFocus && messageInput instanceof HTMLTextAreaElement) {
+      messageInput.focus();
     }
   });
 }
