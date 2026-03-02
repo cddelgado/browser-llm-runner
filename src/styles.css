@@ -19,6 +19,16 @@
   --action-icon-bg: #ffffff;
   --action-icon-border: #89a2cd;
   --action-icon-hover-bg: #dfeaff;
+  --action-btn-text: #124f9e;
+  --action-btn-border: #2f6fbe;
+  --action-btn-hover-bg: #2f6fbe;
+  --action-btn-hover-text: #ffffff;
+  --primary-btn-bg: #0b84ff;
+  --primary-btn-border: #0b84ff;
+  --primary-btn-hover-bg: #086ad0;
+  --primary-btn-hover-border: #086ad0;
+  --button-radius-rest: 0.55rem;
+  --button-radius-active: 999px;
   --regenerate-accent: #0c67d8;
   --focus-ring: #0b84ff;
   --shadow-ambient: 0 10px 24px rgba(31, 41, 64, 0.18);
@@ -48,6 +58,14 @@
   --action-icon-bg: #1d2e4d;
   --action-icon-border: #607ba7;
   --action-icon-hover-bg: #2a3f66;
+  --action-btn-text: #b6caeb;
+  --action-btn-border: #5e7ca8;
+  --action-btn-hover-bg: #314a72;
+  --action-btn-hover-text: #eaf0ff;
+  --primary-btn-bg: #2a68af;
+  --primary-btn-border: #2a68af;
+  --primary-btn-hover-bg: #245995;
+  --primary-btn-hover-border: #245995;
   --regenerate-accent: #84b7ff;
   --focus-ring: #7ab2ff;
   --shadow-ambient: 0 14px 30px rgba(3, 9, 20, 0.45);
@@ -117,7 +135,8 @@
   color: var(--action-icon-color);
   cursor: pointer;
   text-decoration: none;
-  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+  transition: border-radius 140ms ease, background-color 120ms ease, border-color 120ms ease,
+    transform 120ms ease;
 }
 
 .conversation-delete:hover {
@@ -191,7 +210,7 @@
   width: 2.5rem;
   height: 2.5rem;
   border: 1px solid var(--border-soft);
-  border-radius: 50%;
+  border-radius: var(--button-radius-rest);
   background: var(--surface-elevated);
   color: var(--ink-strong);
 }
@@ -470,20 +489,21 @@
   flex-wrap: wrap;
   gap: 0.45rem;
   align-items: center;
+  max-width: min(75ch, 82%);
 }
 
 .response-actions .btn {
   font-size: 0.8rem;
-  color: var(--regenerate-accent);
-  border-color: var(--regenerate-accent);
+  color: var(--action-btn-text);
+  border-color: var(--action-btn-border);
   font-weight: 600;
 }
 
 .response-actions .btn:hover,
 .response-actions .btn:focus-visible {
-  color: #fff;
-  background-color: var(--regenerate-accent);
-  border-color: var(--regenerate-accent);
+  color: var(--action-btn-hover-text);
+  background-color: var(--action-btn-hover-bg);
+  border-color: var(--action-btn-hover-bg);
 }
 
 .response-actions .btn .bi,
@@ -494,6 +514,7 @@
 
 .message-actions {
   margin-top: 0.55rem;
+  max-width: min(75ch, 82%);
 }
 
 .user-message-editor {
@@ -505,16 +526,16 @@
 
 .message-actions .btn {
   font-size: 0.8rem;
-  color: var(--regenerate-accent);
-  border-color: var(--regenerate-accent);
+  color: var(--action-btn-text);
+  border-color: var(--action-btn-border);
   font-weight: 600;
 }
 
 .message-actions .btn:hover,
 .message-actions .btn:focus-visible {
-  color: #fff;
-  background-color: var(--regenerate-accent);
-  border-color: var(--regenerate-accent);
+  color: var(--action-btn-hover-text);
+  background-color: var(--action-btn-hover-bg);
+  border-color: var(--action-btn-hover-bg);
 }
 
 .message-actions .btn .bi {
@@ -608,6 +629,37 @@
   color: var(--ink-strong);
 }
 
+.btn {
+  border-radius: var(--button-radius-rest);
+  transition: border-radius 140ms ease, background-color 120ms ease, border-color 120ms ease,
+    color 120ms ease, transform 120ms ease;
+}
+
+.btn:hover,
+.btn:focus-visible {
+  border-radius: var(--button-radius-active);
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--primary-btn-bg);
+  --bs-btn-border-color: var(--primary-btn-border);
+  --bs-btn-hover-bg: var(--primary-btn-hover-bg);
+  --bs-btn-hover-border-color: var(--primary-btn-hover-border);
+  --bs-btn-active-bg: var(--primary-btn-hover-bg);
+  --bs-btn-active-border-color: var(--primary-btn-hover-border);
+  --bs-btn-disabled-bg: var(--primary-btn-bg);
+  --bs-btn-disabled-border-color: var(--primary-btn-border);
+}
+
+.conversation-delete {
+  border-radius: var(--button-radius-rest);
+}
+
+.conversation-delete:hover,
+.conversation-delete:focus-visible {
+  border-radius: var(--button-radius-active);
+}
+
 .form-control,
 .form-select,
 .form-check-input,
@@ -685,6 +737,10 @@
   .conversation-panel.offcanvas-md {
     position: sticky;
     top: 0;
+    width: var(--bs-offcanvas-width);
+    min-width: var(--bs-offcanvas-width);
+    max-width: var(--bs-offcanvas-width);
+    flex: 0 0 var(--bs-offcanvas-width);
     height: 100dvh;
     transform: none;
     visibility: visible;

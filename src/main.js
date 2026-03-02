@@ -1314,59 +1314,59 @@ function addMessageElement(message, options = {}) {
           <h3 class="visually-hidden">Response</h3>
           <p class="response-content mb-0"></p>
         </section>
-        <section class="response-actions">
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-primary regenerate-response-btn"
-            data-message-id="${message.id}"
-            aria-label="Regenerate response"
-            data-bs-toggle="tooltip"
-            data-bs-title="Regenerate response"
-          >
-            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-            <span class="visually-hidden">Regenerate response</span>
-          </button>
-          <button
-            type="button"
-            class="btn btn-sm btn-outline-primary copy-message-btn"
-            data-message-id="${message.id}"
-            aria-label="Copy response"
-            data-copy-type="response"
-            data-bs-toggle="tooltip"
-            data-bs-title="Copy response"
-          >
-            <i class="bi bi-copy" aria-hidden="true"></i>
-            <span class="visually-hidden">Copy response</span>
-          </button>
-          <div class="response-variant-nav${variantState.hasVariants ? '' : ' d-none'}">
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-primary response-variant-prev"
-              data-message-id="${message.id}"
-              aria-label="Previous regenerated response"
-              data-bs-toggle="tooltip"
-              data-bs-title="Previous regenerated response"
-              ${variantState.canGoPrev ? '' : 'disabled'}
-            >
-              <i class="bi bi-arrow-bar-left" aria-hidden="true"></i>
-              <span class="visually-hidden">Previous regenerated response</span>
-            </button>
-            <p class="response-variant-status mb-0" aria-live="off">${variantLabel}</p>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-primary response-variant-next"
-              data-message-id="${message.id}"
-              aria-label="Next regenerated response"
-              data-bs-toggle="tooltip"
-              data-bs-title="Next regenerated response"
-              ${variantState.canGoNext ? '' : 'disabled'}
-            >
-              <i class="bi bi-arrow-bar-right" aria-hidden="true"></i>
-              <span class="visually-hidden">Next regenerated response</span>
-            </button>
-          </div>
-        </section>
       </div>
+      <section class="response-actions">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary regenerate-response-btn"
+          data-message-id="${message.id}"
+          aria-label="Regenerate response"
+          data-bs-toggle="tooltip"
+          data-bs-title="Regenerate response"
+        >
+          <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+          <span class="visually-hidden">Regenerate response</span>
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary copy-message-btn"
+          data-message-id="${message.id}"
+          aria-label="Copy response"
+          data-copy-type="response"
+          data-bs-toggle="tooltip"
+          data-bs-title="Copy response"
+        >
+          <i class="bi bi-copy" aria-hidden="true"></i>
+          <span class="visually-hidden">Copy response</span>
+        </button>
+        <div class="response-variant-nav${variantState.hasVariants ? '' : ' d-none'}">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary response-variant-prev"
+            data-message-id="${message.id}"
+            aria-label="Previous regenerated response"
+            data-bs-toggle="tooltip"
+            data-bs-title="Previous regenerated response"
+            ${variantState.canGoPrev ? '' : 'disabled'}
+          >
+            <i class="bi bi-arrow-bar-left" aria-hidden="true"></i>
+            <span class="visually-hidden">Previous regenerated response</span>
+          </button>
+          <p class="response-variant-status mb-0" aria-live="off">${variantLabel}</p>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary response-variant-next"
+            data-message-id="${message.id}"
+            aria-label="Next regenerated response"
+            data-bs-toggle="tooltip"
+            data-bs-title="Next regenerated response"
+            ${variantState.canGoNext ? '' : 'disabled'}
+          >
+            <i class="bi bi-arrow-bar-right" aria-hidden="true"></i>
+            <span class="visually-hidden">Next regenerated response</span>
+          </button>
+        </div>
+      </section>
     `;
     const responseActions = item.querySelector('.response-actions');
     if (responseActions) {
