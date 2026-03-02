@@ -11,7 +11,10 @@
   --message-model: #ffffff;
   --ink-strong: #1f2940;
   --focus-ring: #0b84ff;
-  --shadow-ambient: 0 8px 24px rgba(31, 41, 64, 0.11);
+  --shadow-ambient: 0 10px 24px rgba(31, 41, 64, 0.18);
+  --chat-border: #cfdbef;
+  --thoughts-bg: #eef4ff;
+  --thoughts-border: #c8d6ee;
 }
 
 :root[data-theme='dark'] {
@@ -28,6 +31,9 @@
   --message-model: #1a2945;
   --focus-ring: #7ab2ff;
   --shadow-ambient: 0 14px 30px rgba(3, 9, 20, 0.45);
+  --chat-border: #2f4363;
+  --thoughts-bg: #202f4a;
+  --thoughts-border: #3a5072;
 }
 
 .app-body {
@@ -194,6 +200,7 @@
   border-radius: 1.15rem;
   line-height: 1.35;
   box-shadow: var(--shadow-ambient);
+  border: 1px solid var(--chat-border);
 }
 
 .model-message .message-bubble {
@@ -204,8 +211,10 @@
 
 .thoughts-region {
   margin-bottom: 0.45rem;
-  padding-bottom: 0.45rem;
-  border-bottom: 1px solid var(--border-soft);
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--thoughts-border);
+  border-radius: 0.75rem;
+  background: var(--thoughts-bg);
 }
 
 .thinking-toggle {
@@ -247,7 +256,7 @@
 
 .composer-row {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 0.75rem;
 }
 
@@ -262,6 +271,9 @@
 .composer #sendButton {
   flex: 0 0 auto;
   min-width: 10rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .composer textarea::placeholder {
@@ -291,6 +303,16 @@
   background-color: var(--surface-elevated);
   border-color: var(--border-soft);
   color: var(--ink-strong);
+}
+
+.settings-drawer .form-check-input:checked {
+  background-color: #0b84ff;
+  border-color: #0b84ff;
+}
+
+.settings-drawer .form-check-input:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--focus-ring) 35%, transparent);
 }
 
 .debug-info {

@@ -253,8 +253,12 @@ function setModelBubbleContent(message, refs) {
   }
 
   const hasThinking = Boolean(message.hasThinking || message.thoughts?.trim());
-  const thinkingLabel = message.isThinkingComplete ? 'Done thinking. View thoughts.' : 'Thinking';
   const isExpanded = refs.thinkingToggle.getAttribute('aria-expanded') === 'true';
+  const thinkingLabel = message.isThinkingComplete
+    ? isExpanded
+      ? 'Done thinking. Hide thoughts.'
+      : 'Done thinking. View thoughts.'
+    : 'Thinking';
 
   refs.thinkingRegion.classList.toggle('d-none', !hasThinking);
   refs.thinkingToggle.textContent = thinkingLabel;
@@ -297,6 +301,7 @@ function addMessageElement(message) {
         const expanded = thinkingToggle.getAttribute('aria-expanded') === 'true';
         thinkingToggle.setAttribute('aria-expanded', String(!expanded));
         thinkingBody.hidden = expanded;
+        setModelBubbleContent(message, refs);
       });
       setModelBubbleContent(message, refs);
       item._modelBubbleRefs = refs;
