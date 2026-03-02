@@ -113,14 +113,21 @@
         <main class="chat-main">
           <section
             id="onboardingPanel"
-            class="welcome-panel card shadow-sm mb-3"
+            class="welcome-panel card shadow-sm mb-3 onboarding-panel"
             aria-labelledby="welcomeTitle"
           >
             <div class="card-body">
               <h2 id="welcomeTitle" class="h5">Welcome</h2>
               <p class="mb-3">
-                Students are using this local AI chat to practice prompting, compare responses, and
-                explore model behavior while keeping message content on-device.
+                Use this app to run language model chat locally in your browser. Messages stay on-device
+                while the model works offline after download.
+              </p>
+              <p class="mb-3">
+                Model files are downloaded from trusted Hugging Face ONNX model sources and cached locally
+                for reuse.
+              </p>
+              <p class="mb-3">
+                No prompts, replies, or conversation content is sent to remote web services by default.
               </p>
               <p class="mb-3">
                 Choose a model, then select <strong>Load model</strong> to prepare files before chat.

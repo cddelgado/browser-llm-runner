@@ -286,6 +286,27 @@
   background: var(--surface);
 }
 
+.welcome-panel.onboarding-panel {
+  max-width: none;
+  margin: 0;
+  min-height: 100dvh;
+  border: 0;
+  border-radius: 0;
+}
+
+.welcome-panel.onboarding-panel .card-body {
+  min-height: 100%;
+}
+
+.chat-main.is-onboarding {
+  padding: 0;
+}
+
+.chat-main.is-onboarding .welcome-panel.onboarding-panel {
+  display: flex;
+  flex-direction: column;
+}
+
 #modelLoadFileList {
   max-height: 10rem;
   overflow: auto;

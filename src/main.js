@@ -2067,6 +2067,9 @@ function updateWelcomePanelVisibility() {
     return;
   }
   const showConversation = modelReady;
+  if (chatMain instanceof HTMLElement) {
+    chatMain.classList.toggle('is-onboarding', !showConversation);
+  }
   setRegionVisibility(welcomePanel, !showConversation);
   setRegionVisibility(topBar, showConversation);
   setRegionVisibility(conversationPanel, showConversation);
@@ -3128,7 +3131,7 @@ applyTheme(themePreference);
 applyShowThinkingPreference(getStoredShowThinkingPreference());
 populateModelSelect();
 restoreInferencePreferences();
-setStatus('Welcome. Choose a model, then select Load model.');
+setStatus('Welcome. Choose a model, then load it to begin local chat.');
 showProgressRegion(false);
 updateActionButtons();
 setActiveSettingsTab(activeSettingsTab);
