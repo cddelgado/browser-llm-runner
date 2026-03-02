@@ -3,6 +3,7 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './styles.css';
 import { LLMEngineClient } from './llm/engine-client.js';
 import modelCatalog from './config/models.json';
+import { loadConversationState, saveConversationState } from './state/conversation-store.js';
 
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
@@ -161,6 +162,9 @@ const TITLE_STOP_WORDS = new Set([
   'you',
   'your',
 ]);
+const CONVERSATION_SAVE_DEBOUNCE_MS = 300;
+const CONVERSATION_COLLECTION_FORMAT = 'browser-llm-runner.conversation-collection';
+const CONVERSATION_SCHEMA_VERSION = 2;
 
 const themeSelect = document.getElementById('themeSelect');
 const modelSelect = document.getElementById('modelSelect');
@@ -204,6 +208,7 @@ const debugEntries = [];
 const MAX_DEBUG_ENTRIES = 120;
 let activeGenerationConfig = normalizeGenerationLimits(null);
 let pendingGenerationConfig = null;
+let conversationSaveTimerId = null;
 
 function formatInteger(value) {
   return new Intl.NumberFormat('en-US').format(value);
@@ -380,6 +385,229 @@ function setStatus(message) {
     statusRegion.textContent = message;
   }
   appendDebug(`Status: ${message}`);
+}
+
+function buildConversationStateSnapshot() {
+  return {
+    format: CONVERSATION_COLLECTION_FORMAT,
+    schemaVersion: CONVERSATION_SCHEMA_VERSION,
+    savedAt: Date.now(),
+    storage: {
+      artifactPolicy: {
+        textEncoding: 'utf-8',
+        binaryEncoding: 'base64',
+        integrityHash: 'sha256',
+      },
+      artifactRecordShape: {
+        id: 'string',
+        conversationId: 'string',
+        messageId: 'string|null',
+        kind: 'text|binary',
+        mimeType: 'string',
+        encoding: 'utf-8|base64',
+        data: 'string',
+        hash: { algorithm: 'sha256', value: 'hex' },
+        filename: 'string|null',
+      },
+    },
+    artifacts: [],
+    activeConversationId,
+    conversationCount,
+    conversationIdCounter,
+    conversations: conversations.map((conversation) => ({
+      id: conversation.id,
+      name: conversation.name,
+      hasGeneratedName: Boolean(conversation.hasGeneratedName),
+      artifacts: [],
+      messages: conversation.messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        speaker: message.speaker,
+        text: String(message.text || ''),
+        thoughts: typeof message.thoughts === 'string' ? message.thoughts : '',
+        response:
+          typeof message.response === 'string'
+            ? message.response
+            : String(message.text || ''),
+        hasThinking: Boolean(message.hasThinking),
+        isThinkingComplete: Boolean(message.isThinkingComplete),
+        // Future-ready structure:
+        // - `content.parts` can mix text and artifact references.
+        // - `content.llmRepresentation` stores exactly what is sent to/received from the model.
+        content: {
+          parts: [
+            {
+              type: 'text',
+              text: String(message.text || ''),
+            },
+          ],
+          llmRepresentation: {
+            type: 'text',
+            text:
+              message.role === 'model'
+                ? typeof message.response === 'string'
+                  ? message.response
+                  : String(message.text || '')
+                : String(message.text || ''),
+          },
+        },
+        artifactRefs: [],
+      })),
+    })),
+  };
+}
+
+async function persistConversationStateNow() {
+  try {
+    await saveConversationState(buildConversationStateSnapshot());
+  } catch (error) {
+    appendDebug(`Conversation save failed: ${error.message}`);
+  }
+}
+
+function queueConversationStateSave() {
+  if (conversationSaveTimerId !== null) {
+    return;
+  }
+  conversationSaveTimerId = window.setTimeout(() => {
+    conversationSaveTimerId = null;
+    void persistConversationStateNow();
+  }, CONVERSATION_SAVE_DEBOUNCE_MS);
+}
+
+function coerceStoredMessage(rawMessage, fallbackMessageId) {
+  if (!rawMessage || typeof rawMessage !== 'object') {
+    return null;
+  }
+  const role = rawMessage.role === 'user' ? 'user' : rawMessage.role === 'model' ? 'model' : '';
+  if (!role) {
+    return null;
+  }
+
+  const id =
+    typeof rawMessage.id === 'string' && rawMessage.id.trim() ? rawMessage.id.trim() : fallbackMessageId;
+  const contentParts = Array.isArray(rawMessage.content?.parts) ? rawMessage.content.parts : [];
+  const firstTextPart = contentParts.find((part) => part?.type === 'text' && typeof part.text === 'string');
+  const llmText =
+    typeof rawMessage.content?.llmRepresentation?.text === 'string'
+      ? rawMessage.content.llmRepresentation.text
+      : '';
+  const text = String(rawMessage.text || rawMessage.response || firstTextPart?.text || llmText || '');
+  const message = {
+    id,
+    role,
+    speaker: role === 'user' ? 'User' : 'Model',
+    text,
+  };
+
+  if (role === 'model') {
+    message.thoughts = typeof rawMessage.thoughts === 'string' ? rawMessage.thoughts : '';
+    message.response = String(
+      rawMessage.response ||
+        rawMessage.inference?.output?.verbatimText ||
+        rawMessage.content?.llmRepresentation?.text ||
+        text,
+    );
+    message.hasThinking = Boolean(rawMessage.hasThinking || message.thoughts.trim());
+    message.isThinkingComplete = Boolean(rawMessage.isThinkingComplete);
+    message.text = message.response;
+  } else {
+    message.text = String(rawMessage.inference?.input?.verbatimText || rawMessage.content?.llmRepresentation?.text || message.text);
+  }
+
+  return message;
+}
+
+function parseConversationCounterFromId(conversationId) {
+  if (typeof conversationId !== 'string') {
+    return 0;
+  }
+  const match = conversationId.match(/^conversation-(\d+)$/);
+  if (!match) {
+    return 0;
+  }
+  const counter = Number.parseInt(match[1], 10);
+  return Number.isInteger(counter) && counter > 0 ? counter : 0;
+}
+
+function applyStoredConversationState(rawState) {
+  if (!rawState || typeof rawState !== 'object' || !Array.isArray(rawState.conversations)) {
+    return false;
+  }
+
+  const restoredConversations = rawState.conversations
+    .map((rawConversation, conversationIndex) => {
+      if (!rawConversation || typeof rawConversation !== 'object') {
+        return null;
+      }
+
+      const id =
+        typeof rawConversation.id === 'string' && rawConversation.id.trim()
+          ? rawConversation.id.trim()
+          : `conversation-${conversationIndex + 1}`;
+      const name = normalizeConversationName(rawConversation.name) || `${UNTITLED_CONVERSATION_PREFIX} ${conversationIndex + 1}`;
+      const rawMessages = Array.isArray(rawConversation.messages) ? rawConversation.messages : [];
+      const messages = rawMessages
+        .map((rawMessage, messageIndex) =>
+          coerceStoredMessage(rawMessage, `${id}-message-${messageIndex + 1}`),
+        )
+        .filter(Boolean);
+
+      return {
+        id,
+        name,
+        messages,
+        hasGeneratedName: Boolean(rawConversation.hasGeneratedName),
+      };
+    })
+    .filter(Boolean);
+
+  if (!restoredConversations.length) {
+    return false;
+  }
+
+  conversations.length = 0;
+  conversations.push(...restoredConversations);
+
+  const requestedActiveId =
+    typeof rawState.activeConversationId === 'string' ? rawState.activeConversationId : '';
+  activeConversationId = conversations.some((conversation) => conversation.id === requestedActiveId)
+    ? requestedActiveId
+    : conversations[0].id;
+
+  const maxCounterFromIds = conversations.reduce(
+    (maxCounter, conversation) => Math.max(maxCounter, parseConversationCounterFromId(conversation.id)),
+    0,
+  );
+  const storedIdCounter = Number.parseInt(String(rawState.conversationIdCounter || ''), 10);
+  const storedConversationCount = Number.parseInt(String(rawState.conversationCount || ''), 10);
+  conversationIdCounter =
+    Number.isInteger(storedIdCounter) && storedIdCounter > 0
+      ? Math.max(storedIdCounter, maxCounterFromIds)
+      : maxCounterFromIds;
+  conversationCount =
+    Number.isInteger(storedConversationCount) && storedConversationCount > 0
+      ? storedConversationCount
+      : conversations.length;
+
+  return true;
+}
+
+async function restoreConversationStateFromStorage() {
+  try {
+    const storedState = await loadConversationState();
+    if (!applyStoredConversationState(storedState)) {
+      ensureConversation();
+      queueConversationStateSave();
+    }
+  } catch (error) {
+    appendDebug(`Conversation restore failed: ${error.message}`);
+    ensureConversation();
+  }
+
+  renderConversationList();
+  renderTranscript();
+  updateChatTitle();
 }
 
 function getActiveConversation() {
@@ -568,8 +796,10 @@ function addMessageElement(message) {
             class="btn btn-sm btn-outline-secondary regenerate-response-btn"
             data-message-id="${message.id}"
             aria-label="Regenerate response"
+            title="Regenerate"
           >
-            Regenerate
+            <span aria-hidden="true">🔂</span>
+            <span class="visually-hidden">Regenerate response</span>
           </button>
         </section>
       </div>
@@ -662,6 +892,7 @@ function setActiveConversationById(conversationId) {
   renderConversationList();
   renderTranscript();
   updateChatTitle();
+  queueConversationStateSave();
 }
 
 function ensureConversation() {
@@ -671,6 +902,7 @@ function ensureConversation() {
   const conversation = createConversation();
   conversations.unshift(conversation);
   activeConversationId = conversation.id;
+  queueConversationStateSave();
 }
 
 function updateActionButtons() {
@@ -982,6 +1214,7 @@ function startModelGeneration(activeConversation, prompt) {
         }
         updateModelMessageElement(modelMessage, modelBubbleItem);
         scrollTranscriptToBottom();
+        queueConversationStateSave();
       },
       onComplete: (finalText) => {
         const parsed = parseThinkingText(finalText || streamedText, thinkingTags);
@@ -1001,6 +1234,7 @@ function startModelGeneration(activeConversation, prompt) {
         }
 
         appendDebug('Generation completed.');
+        queueConversationStateSave();
         isGenerating = false;
         updateActionButtons();
         applyPendingGenerationSettingsIfReady();
@@ -1018,6 +1252,7 @@ function startModelGeneration(activeConversation, prompt) {
         applyPendingGenerationSettingsIfReady();
         setStatus('Generation failed');
         appendDebug(`Generation error: ${message}`);
+        queueConversationStateSave();
       },
     });
   } catch (error) {
@@ -1033,6 +1268,7 @@ function startModelGeneration(activeConversation, prompt) {
     applyPendingGenerationSettingsIfReady();
     setStatus('Generation failed');
     appendDebug(`Generation error: ${error.message}`);
+    queueConversationStateSave();
   }
 }
 
@@ -1070,6 +1306,7 @@ function regenerateFromMessage(messageId) {
 
   activeConversation.messages.splice(lastUserIndex + 1);
   renderTranscript();
+  queueConversationStateSave();
   startModelGeneration(activeConversation, buildConversationPrompt(activeConversation.messages));
 }
 
@@ -1091,14 +1328,11 @@ const themePreference = getStoredThemePreference();
 applyTheme(themePreference);
 populateModelSelect();
 restoreInferencePreferences();
-ensureConversation();
-renderConversationList();
-renderTranscript();
 setStatus('Welcome. Choose a model, then select Load model.');
 showProgressRegion(false);
 updateActionButtons();
 updateWelcomePanelVisibility();
-updateChatTitle();
+void restoreConversationStateFromStorage();
 
 if (themeSelect) {
   themeSelect.addEventListener('change', (event) => {
@@ -1168,6 +1402,7 @@ if (newConversationBtn) {
     renderConversationList();
     renderTranscript();
     updateChatTitle();
+    queueConversationStateSave();
   });
 }
 
@@ -1209,6 +1444,7 @@ if (conversationList) {
       renderConversationList();
       renderTranscript();
       updateChatTitle();
+      queueConversationStateSave();
       return;
     }
 
@@ -1272,6 +1508,7 @@ if (chatForm && messageInput && chatTranscript) {
     const userMessage = addMessageToConversation(activeConversation, 'user', value);
     addMessageElement(userMessage);
     messageInput.value = '';
+    queueConversationStateSave();
     startModelGeneration(activeConversation, buildConversationPrompt(activeConversation.messages));
   });
 }
@@ -1291,5 +1528,10 @@ if (chatTranscript) {
 }
 
 window.addEventListener('beforeunload', () => {
+  if (conversationSaveTimerId !== null) {
+    window.clearTimeout(conversationSaveTimerId);
+    conversationSaveTimerId = null;
+  }
+  void persistConversationStateNow();
   engine.dispose();
 });

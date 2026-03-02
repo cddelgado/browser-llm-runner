@@ -25,6 +25,11 @@ Student-facing browser chat UI with local model inference.
 - Model files are downloaded on first load and cached in-browser for reuse (`Transformers.js` browser cache).
 - Debug status history is available in `Settings -> Debug info` (accordion).
 - Conversation list and transcript are state-driven (no placeholder messages).
+- Conversations are persisted locally in browser IndexedDB and restored on reload.
+- Saved conversation state includes stable IDs and forward-compatible metadata for future export/import:
+  - message `content.parts` and `content.llmRepresentation` (verbatim LLM-facing text)
+  - per-message `artifactRefs` placeholders
+  - collection-level `artifacts` placeholders for future text/binary artifacts (binary intended as base64 + hash metadata)
 - New conversations start untitled and are automatically renamed after the first model response based on conversation content.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in a collapsible "Thinking" section during streaming.
