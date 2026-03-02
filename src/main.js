@@ -930,6 +930,18 @@ function getModelVariantState(conversation, modelMessage) {
   };
 }
 
+function applyVariantCardSignals(item, variantState) {
+  if (!item) {
+    return;
+  }
+  const bubble = item.querySelector('.message-bubble');
+  if (!bubble) {
+    return;
+  }
+  bubble.classList.toggle('has-variant-prev', Boolean(variantState?.hasVariants && variantState.canGoPrev));
+  bubble.classList.toggle('has-variant-next', Boolean(variantState?.hasVariants && variantState.canGoNext));
+}
+
 function buildPromptForConversationLeaf(conversation, leafMessageId = conversation?.activeLeafMessageId) {
   return buildConversationPrompt(getConversationPathMessages(conversation, leafMessageId));
 }
@@ -1147,6 +1159,7 @@ function addMessageElement(message) {
       item._modelBubbleRefs = refs;
       item._modelMessage = message;
     }
+    applyVariantCardSignals(item, variantState);
   } else {
     item.innerHTML = `
       <p class="message-speaker">${message.speaker}</p>
@@ -1190,6 +1203,7 @@ function updateModelMessageElement(message, item) {
   if (nextButton instanceof HTMLButtonElement) {
     nextButton.disabled = !variantState.canGoNext || !message.isResponseComplete;
   }
+  applyVariantCardSignals(item, variantState);
   setModelBubbleContent(message, item._modelBubbleRefs || null);
 }
 
@@ -1724,16 +1738,16 @@ function startModelGeneration(activeConversation, prompt, options = {}) {
   }
 }
 
-function animateTranscriptSlideLeft() {
+function animateTranscriptSlide(direction = 'next') {
   if (!chatTranscript) {
     return;
   }
-  chatTranscript.classList.remove('transcript-slide-left');
+  chatTranscript.classList.remove('transcript-slide-next', 'transcript-slide-prev');
   // Force reflow so repeated clicks retrigger the animation.
   void chatTranscript.offsetWidth;
-  chatTranscript.classList.add('transcript-slide-left');
+  chatTranscript.classList.add(direction === 'prev' ? 'transcript-slide-prev' : 'transcript-slide-next');
   window.setTimeout(() => {
-    chatTranscript.classList.remove('transcript-slide-left');
+    chatTranscript.classList.remove('transcript-slide-next', 'transcript-slide-prev');
   }, 280);
 }
 
@@ -1762,7 +1776,7 @@ function switchModelVariant(messageId, direction) {
     return;
   }
   activeConversation.activeLeafMessageId = targetMessage.id;
-  animateTranscriptSlideLeft();
+  animateTranscriptSlide(direction < 0 ? 'prev' : 'next');
   renderTranscript();
   updateActionButtons();
   queueConversationStateSave();
@@ -1801,7 +1815,7 @@ function regenerateFromMessage(messageId) {
   }
 
   activeConversation.activeLeafMessageId = parentUserMessage.id;
-  animateTranscriptSlideLeft();
+  animateTranscriptSlide('next');
   renderTranscript();
   queueConversationStateSave();
   startModelGeneration(activeConversation, buildPromptForConversationLeaf(activeConversation), {
