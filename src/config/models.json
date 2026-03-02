@@ -1,0 +1,17 @@
+{
+  "defaultModelId": "onnx-community/Qwen3-0.6B-ONNX",
+  "models": [
+    {
+      "id": "onnx-community/Qwen3-0.6B-ONNX",
+      "label": "onnx-community/Qwen3-0.6B-ONNX",
+      "features": {
+        "streaming": true
+      }
+    }
+  ],
+  "legacyAliases": {
+    "onnx-community/gemma-3-1b-it-ONNX-GQA": "onnx-community/Qwen3-0.6B-ONNX",
+    "onnx-community/gemma-3-1b-ONNX-GQA": "onnx-community/Qwen3-0.6B-ONNX",
+    "Xenova/distilgpt2": "onnx-community/Qwen3-0.6B-ONNX"
+  }
+}

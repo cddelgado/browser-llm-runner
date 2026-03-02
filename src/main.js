@@ -2,18 +2,41 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './styles.css';
 import { LLMEngineClient } from './llm/engine-client.js';
+import modelCatalog from './config/models.json';
 
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
-const DEFAULT_MODEL = 'onnx-community/Qwen3-0.6B-ONNX';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
-const LEGACY_MODEL_ALIASES = {
-  'onnx-community/gemma-3-1b-it-ONNX-GQA': DEFAULT_MODEL,
-  'onnx-community/gemma-3-1b-ONNX-GQA': DEFAULT_MODEL,
-  'Xenova/distilgpt2': DEFAULT_MODEL,
-};
-const SUPPORTED_MODELS = new Set([DEFAULT_MODEL]);
+const configuredModels = Array.isArray(modelCatalog?.models)
+  ? modelCatalog.models
+      .map((model) => {
+        const id = typeof model?.id === 'string' ? model.id.trim() : '';
+        if (!id) {
+          return null;
+        }
+        const label =
+          typeof model?.label === 'string' && model.label.trim() ? model.label.trim() : id;
+        return { id, label, features: model?.features || {} };
+      })
+      .filter(Boolean)
+  : [];
+const configuredDefaultModel =
+  typeof modelCatalog?.defaultModelId === 'string' ? modelCatalog.defaultModelId.trim() : '';
+const DEFAULT_MODEL = configuredDefaultModel || configuredModels[0]?.id || 'onnx-community/Qwen3-0.6B-ONNX';
+if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
+  configuredModels.unshift({ id: DEFAULT_MODEL, label: DEFAULT_MODEL, features: {} });
+}
+const MODEL_OPTIONS = Object.freeze(configuredModels);
+const LEGACY_MODEL_ALIASES = Object.fromEntries(
+  Object.entries(modelCatalog?.legacyAliases || {})
+    .map(([alias, canonical]) => [
+      typeof alias === 'string' ? alias.trim() : '',
+      typeof canonical === 'string' ? canonical.trim() : '',
+    ])
+    .filter(([alias, canonical]) => alias && canonical),
+);
+const SUPPORTED_MODELS = new Set(MODEL_OPTIONS.map((model) => model.id));
 const TITLE_STOP_WORDS = new Set([
   'a',
   'an',
@@ -399,6 +422,20 @@ function applyTheme(preference) {
   }
 }
 
+function populateModelSelect() {
+  if (!modelSelect) {
+    return;
+  }
+  modelSelect.replaceChildren();
+  MODEL_OPTIONS.forEach((model) => {
+    const option = document.createElement('option');
+    option.value = model.id;
+    option.textContent = model.label;
+    modelSelect.appendChild(option);
+  });
+  modelSelect.value = DEFAULT_MODEL;
+}
+
 function restoreInferencePreferences() {
   const storedModel = localStorage.getItem(MODEL_STORAGE_KEY);
   const storedBackend = localStorage.getItem(BACKEND_STORAGE_KEY);
@@ -503,6 +540,7 @@ engine.onProgress = (progress) => {
 
 const themePreference = getStoredThemePreference();
 applyTheme(themePreference);
+populateModelSelect();
 restoreInferencePreferences();
 ensureConversation();
 renderConversationList();

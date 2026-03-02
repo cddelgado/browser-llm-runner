@@ -25,6 +25,10 @@ Student-facing browser chat UI with local model inference.
   - `onnx-community/gemma-3-1b-it-ONNX-GQA`
   - `onnx-community/gemma-3-1b-ONNX-GQA`
   - `Xenova/distilgpt2`
+- Model support configuration lives in `src/config/models.json`:
+  - `models`: options shown in the model selector
+  - `defaultModelId`: fallback/default selection
+  - `legacyAliases`: stored legacy IDs remapped at runtime
 
 ## Scripts
 
