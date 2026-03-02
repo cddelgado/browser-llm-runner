@@ -44,7 +44,7 @@
 
       <div class="main-column">
         <header id="topBar" class="top-bar">
-          <div class="d-flex align-items-center gap-2">
+          <div class="chat-title-wrap d-flex align-items-center gap-2">
             <button
               type="button"
               class="btn btn-outline-secondary d-md-none"
@@ -55,6 +55,46 @@
               Conversations
             </button>
             <h1 id="chatTitle" class="h4 mb-0">Choose a Model to Chat</h1>
+            <input
+              id="chatTitleInput"
+              class="form-control form-control-sm chat-title-input d-none"
+              type="text"
+              aria-label="Conversation title"
+              maxlength="64"
+            />
+            <button
+              type="button"
+              id="editChatTitleBtn"
+              class="btn icon-button d-none"
+              aria-label="Edit conversation title"
+              data-bs-toggle="tooltip"
+              data-bs-title="Edit conversation title"
+            >
+              <i class="bi bi-pencil-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Edit conversation title</span>
+            </button>
+            <button
+              type="button"
+              id="saveChatTitleBtn"
+              class="btn icon-button d-none"
+              aria-label="Save conversation title"
+              data-bs-toggle="tooltip"
+              data-bs-title="Save conversation title"
+            >
+              <i class="bi bi-floppy-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Save conversation title</span>
+            </button>
+            <button
+              type="button"
+              id="cancelChatTitleBtn"
+              class="btn icon-button d-none"
+              aria-label="Cancel editing conversation title"
+              data-bs-toggle="tooltip"
+              data-bs-title="Cancel editing conversation title"
+            >
+              <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Cancel editing conversation title</span>
+            </button>
           </div>
           <p id="statusRegion" class="status-pill mb-0" role="status" aria-live="polite">Ready</p>
           <button

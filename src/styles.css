@@ -158,6 +158,21 @@
   backdrop-filter: blur(8px);
 }
 
+.chat-title-wrap {
+  min-width: 0;
+}
+
+.chat-title-wrap .h4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-title-input {
+  width: min(28rem, 52vw);
+  min-width: 10rem;
+}
+
 .status-pill {
   font-size: 0.8rem;
   line-height: 1;
@@ -654,6 +669,11 @@
   .status-pill {
     grid-column: 1 / -1;
     justify-self: start;
+  }
+
+  .chat-title-input {
+    width: min(14rem, 55vw);
+    min-width: 8.5rem;
   }
 }
 

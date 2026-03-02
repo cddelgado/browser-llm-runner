@@ -208,6 +208,10 @@ const topBar = document.getElementById('topBar');
 const conversationPanel = document.getElementById('conversationPanel');
 const onboardingStatusRegion = document.getElementById('onboardingStatusRegion');
 const chatTitle = document.getElementById('chatTitle');
+const chatTitleInput = document.getElementById('chatTitleInput');
+const editChatTitleBtn = document.getElementById('editChatTitleBtn');
+const saveChatTitleBtn = document.getElementById('saveChatTitleBtn');
+const cancelChatTitleBtn = document.getElementById('cancelChatTitleBtn');
 const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
 const engine = new LLMEngineClient();
@@ -226,6 +230,7 @@ let conversationSaveTimerId = null;
 let showThinkingByDefault = false;
 let isSwitchingVariant = false;
 let activeUserEditMessageId = null;
+let isChatTitleEditing = false;
 const loadProgressFiles = new Map();
 
 function initializeTooltips(root = document) {
@@ -1715,6 +1720,79 @@ function renderTranscript(options = {}) {
   updateTranscriptNavigationButtonVisibility();
 }
 
+function updateChatTitleEditorVisibility() {
+  if (!chatTitle || !chatTitleInput || !editChatTitleBtn || !saveChatTitleBtn || !cancelChatTitleBtn) {
+    return;
+  }
+  const activeConversation = getActiveConversation();
+  const canEditTitle = modelReady && Boolean(activeConversation);
+  const controlsDisabled = isGenerating || isLoadingModel;
+  const showEditor = canEditTitle && isChatTitleEditing;
+  chatTitle.classList.toggle('d-none', showEditor);
+  chatTitleInput.classList.toggle('d-none', !showEditor);
+  editChatTitleBtn.classList.toggle('d-none', !canEditTitle || showEditor);
+  saveChatTitleBtn.classList.toggle('d-none', !showEditor);
+  cancelChatTitleBtn.classList.toggle('d-none', !showEditor);
+  chatTitleInput.disabled = !showEditor || controlsDisabled;
+  editChatTitleBtn.disabled = controlsDisabled;
+  saveChatTitleBtn.disabled = controlsDisabled || !chatTitleInput.value.trim();
+  cancelChatTitleBtn.disabled = controlsDisabled;
+}
+
+function beginChatTitleEdit() {
+  if (isGenerating || isLoadingModel) {
+    return;
+  }
+  const activeConversation = getActiveConversation();
+  if (!activeConversation || !chatTitleInput) {
+    return;
+  }
+  isChatTitleEditing = true;
+  chatTitleInput.value = activeConversation.name;
+  updateChatTitleEditorVisibility();
+  chatTitleInput.focus();
+  chatTitleInput.select();
+}
+
+function cancelChatTitleEdit({ restoreFocus = true } = {}) {
+  if (!isChatTitleEditing) {
+    return;
+  }
+  isChatTitleEditing = false;
+  updateChatTitle();
+  if (restoreFocus && editChatTitleBtn instanceof HTMLButtonElement) {
+    editChatTitleBtn.focus();
+  }
+}
+
+function saveChatTitleEdit() {
+  if (!isChatTitleEditing || !chatTitleInput) {
+    return;
+  }
+  const activeConversation = getActiveConversation();
+  if (!activeConversation) {
+    cancelChatTitleEdit({ restoreFocus: false });
+    return;
+  }
+  const nextName = normalizeConversationName(chatTitleInput.value);
+  if (!nextName) {
+    setStatus('Conversation title cannot be empty.');
+    chatTitleInput.focus();
+    chatTitleInput.select();
+    return;
+  }
+  activeConversation.name = nextName;
+  activeConversation.hasGeneratedName = true;
+  isChatTitleEditing = false;
+  renderConversationList();
+  updateChatTitle();
+  queueConversationStateSave();
+  setStatus('Conversation title saved.');
+  if (editChatTitleBtn instanceof HTMLButtonElement) {
+    editChatTitleBtn.focus();
+  }
+}
+
 function setRegionVisibility(region, visible) {
   if (!(region instanceof HTMLElement)) {
     return;
@@ -1736,6 +1814,10 @@ function updateWelcomePanelVisibility() {
   setRegionVisibility(conversationPanel, showConversation);
   setRegionVisibility(chatTranscriptWrap, showConversation);
   setRegionVisibility(chatForm, showConversation);
+  if (!showConversation && isChatTitleEditing) {
+    isChatTitleEditing = false;
+  }
+  updateChatTitleEditorVisibility();
   updateTranscriptNavigationButtonVisibility();
 }
 
@@ -1746,18 +1828,30 @@ function updateChatTitle() {
   const activeConversation = getActiveConversation();
   if (modelReady && !activeConversation && conversations.length) {
     chatTitle.textContent = 'Select a Conversation';
+    updateChatTitleEditorVisibility();
     return;
   }
   if (activeConversation?.hasGeneratedName) {
     chatTitle.textContent = activeConversation.name;
+    if (!isChatTitleEditing && chatTitleInput) {
+      chatTitleInput.value = activeConversation.name;
+    }
+    updateChatTitleEditorVisibility();
     return;
   }
   chatTitle.textContent = modelReady ? 'Start Your Chat Now' : 'Choose a Model to Chat';
+  if (!isChatTitleEditing && chatTitleInput && activeConversation) {
+    chatTitleInput.value = activeConversation.name;
+  }
+  updateChatTitleEditorVisibility();
 }
 
 function setActiveConversationById(conversationId) {
   if (activeConversationId === conversationId) {
     return;
+  }
+  if (isChatTitleEditing) {
+    isChatTitleEditing = false;
   }
   activeConversationId = conversationId;
   const activeConversation = getActiveConversation();
@@ -1787,6 +1881,7 @@ function ensureConversation() {
 function updateActionButtons() {
   updateSendButtonMode();
   updateGenerationSettingsEnabledState();
+  updateChatTitleEditorVisibility();
   if (sendButton) {
     sendButton.disabled = isLoadingModel || (!isGenerating && !modelReady) || Boolean(activeUserEditMessageId);
   }
@@ -2684,6 +2779,7 @@ if (newConversationBtn) {
     conversations.unshift(conversation);
     activeConversationId = conversation.id;
     activeUserEditMessageId = null;
+    isChatTitleEditing = false;
     renderConversationList();
     renderTranscript();
     updateChatTitle();
@@ -2726,6 +2822,7 @@ if (conversationList) {
       if (wasActive) {
         activeConversationId = conversations[0].id;
         activeUserEditMessageId = null;
+        isChatTitleEditing = false;
       }
       renderConversationList();
       renderTranscript();
@@ -2909,4 +3006,39 @@ window.addEventListener('beforeunload', () => {
   void persistConversationStateNow();
   engine.dispose();
 });
+
+if (editChatTitleBtn instanceof HTMLButtonElement) {
+  editChatTitleBtn.addEventListener('click', () => {
+    beginChatTitleEdit();
+  });
+}
+
+if (saveChatTitleBtn instanceof HTMLButtonElement) {
+  saveChatTitleBtn.addEventListener('click', () => {
+    saveChatTitleEdit();
+  });
+}
+
+if (cancelChatTitleBtn instanceof HTMLButtonElement) {
+  cancelChatTitleBtn.addEventListener('click', () => {
+    cancelChatTitleEdit();
+  });
+}
+
+if (chatTitleInput instanceof HTMLInputElement) {
+  chatTitleInput.addEventListener('input', () => {
+    updateChatTitleEditorVisibility();
+  });
+  chatTitleInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      saveChatTitleEdit();
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelChatTitleEdit();
+    }
+  });
+}
 
