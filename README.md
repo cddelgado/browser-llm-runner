@@ -36,7 +36,7 @@ Student-facing browser chat UI with local model inference.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in a collapsible "Thinking" section during streaming.
 - `Settings -> Conversation -> Show thinking` controls whether thought sections are expanded by default (`off` by default).
-- Each model response includes a `Regenerate` button. Regeneration resubmits the conversation up to the user turn before that response and replaces that response with a newly generated one.
+- Each model response includes a `Regenerate` button. Regeneration creates a new response variation at that turn, keeps prior variations, and lets users navigate alternatives with left/right controls and an `x/y` indicator.
 
 ## Supported model
 

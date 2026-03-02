@@ -168,7 +168,7 @@ const TITLE_STOP_WORDS = new Set([
 ]);
 const CONVERSATION_SAVE_DEBOUNCE_MS = 300;
 const CONVERSATION_COLLECTION_FORMAT = 'browser-llm-runner.conversation-collection';
-const CONVERSATION_SCHEMA_VERSION = 2;
+const CONVERSATION_SCHEMA_VERSION = 4;
 
 const themeSelect = document.getElementById('themeSelect');
 const showThinkingToggle = document.getElementById('showThinkingToggle');
@@ -507,12 +507,9 @@ function buildConversationStateSnapshot() {
     activeConversationId,
     conversationCount,
     conversationIdCounter,
-    conversations: conversations.map((conversation) => ({
-      id: conversation.id,
-      name: conversation.name,
-      hasGeneratedName: Boolean(conversation.hasGeneratedName),
-      artifacts: [],
-      messages: conversation.messages.map((message) => ({
+    conversations: conversations.map((conversation) => {
+      const pathMessages = getConversationPathMessages(conversation);
+      const serializeMessage = (message) => ({
         id: message.id,
         role: message.role,
         speaker: message.speaker,
@@ -524,6 +521,11 @@ function buildConversationStateSnapshot() {
             : String(message.text || ''),
         hasThinking: Boolean(message.hasThinking),
         isThinkingComplete: Boolean(message.isThinkingComplete),
+        isResponseComplete: Boolean(message.isResponseComplete ?? true),
+        parentId: typeof message.parentId === 'string' ? message.parentId : null,
+        childIds: Array.isArray(message.childIds)
+          ? message.childIds.filter((childId) => typeof childId === 'string' && childId.trim())
+          : [],
         // Future-ready structure:
         // - `content.parts` can mix text and artifact references.
         // - `content.llmRepresentation` stores exactly what is sent to/received from the model.
@@ -545,8 +547,27 @@ function buildConversationStateSnapshot() {
           },
         },
         artifactRefs: [],
-      })),
-    })),
+      });
+
+      return {
+        id: conversation.id,
+        name: conversation.name,
+        hasGeneratedName: Boolean(conversation.hasGeneratedName),
+        artifacts: [],
+        activeLeafMessageId:
+          typeof conversation.activeLeafMessageId === 'string' ? conversation.activeLeafMessageId : null,
+        lastSpokenLeafMessageId:
+          typeof conversation.lastSpokenLeafMessageId === 'string'
+            ? conversation.lastSpokenLeafMessageId
+            : null,
+        messageNodeCounter: Number.isInteger(conversation.messageNodeCounter)
+          ? conversation.messageNodeCounter
+          : conversation.messageNodes.length,
+        messageNodes: conversation.messageNodes.map((message) => serializeMessage(message)),
+        // Keep `messages` for backward compatibility with old clients.
+        messages: pathMessages.map((message) => serializeMessage(message)),
+      };
+    }),
   };
 }
 
@@ -614,6 +635,19 @@ function coerceStoredMessage(rawMessage, fallbackMessageId) {
   return message;
 }
 
+function coerceStoredMessageNode(rawMessage, fallbackMessageId) {
+  const message = coerceStoredMessage(rawMessage, fallbackMessageId);
+  if (!message) {
+    return null;
+  }
+  message.parentId =
+    typeof rawMessage.parentId === 'string' && rawMessage.parentId.trim() ? rawMessage.parentId.trim() : null;
+  message.childIds = Array.isArray(rawMessage.childIds)
+    ? rawMessage.childIds.filter((childId) => typeof childId === 'string' && childId.trim())
+    : [];
+  return message;
+}
+
 function parseConversationCounterFromId(conversationId) {
   if (typeof conversationId !== 'string') {
     return 0;
@@ -642,17 +676,83 @@ function applyStoredConversationState(rawState) {
           ? rawConversation.id.trim()
           : `conversation-${conversationIndex + 1}`;
       const name = normalizeConversationName(rawConversation.name) || `${UNTITLED_CONVERSATION_PREFIX} ${conversationIndex + 1}`;
-      const rawMessages = Array.isArray(rawConversation.messages) ? rawConversation.messages : [];
-      const messages = rawMessages
+      const rawMessageNodes = Array.isArray(rawConversation.messageNodes) ? rawConversation.messageNodes : [];
+      const hasNodeSchema = rawMessageNodes.length > 0;
+      const rawMessages = hasNodeSchema
+        ? rawMessageNodes
+        : Array.isArray(rawConversation.messages)
+          ? rawConversation.messages
+          : [];
+      const messageNodes = rawMessages
         .map((rawMessage, messageIndex) =>
-          coerceStoredMessage(rawMessage, `${id}-message-${messageIndex + 1}`),
+          hasNodeSchema
+            ? coerceStoredMessageNode(rawMessage, `${id}-node-${messageIndex + 1}`)
+            : coerceStoredMessage(rawMessage, `${id}-node-${messageIndex + 1}`),
         )
         .filter(Boolean);
+
+      if (!hasNodeSchema) {
+        let previousId = null;
+        messageNodes.forEach((message) => {
+          message.parentId = previousId;
+          message.childIds = [];
+          if (previousId) {
+            const previousMessage = messageNodes.find((candidate) => candidate.id === previousId);
+            if (previousMessage) {
+              previousMessage.childIds = [...(previousMessage.childIds || []), message.id];
+            }
+          }
+          previousId = message.id;
+        });
+      } else {
+        const byId = new Map(messageNodes.map((message) => [message.id, message]));
+        messageNodes.forEach((message) => {
+          message.childIds = [];
+        });
+        messageNodes.forEach((message) => {
+          if (!message.parentId) {
+            return;
+          }
+          const parentMessage = byId.get(message.parentId);
+          if (!parentMessage) {
+            message.parentId = null;
+            return;
+          }
+          parentMessage.childIds.push(message.id);
+        });
+      }
+
+      const messageNodeCounterFromIds = messageNodes.reduce(
+        (maxCounter, message) => Math.max(maxCounter, parseMessageNodeCounterFromId(message.id)),
+        0,
+      );
+      const storedNodeCounter = Number.parseInt(String(rawConversation.messageNodeCounter || ''), 10);
+      const messageNodeCounter =
+        Number.isInteger(storedNodeCounter) && storedNodeCounter > 0
+          ? Math.max(storedNodeCounter, messageNodeCounterFromIds)
+          : Math.max(messageNodeCounterFromIds, messageNodes.length);
+      const requestedActiveLeaf =
+        typeof rawConversation.activeLeafMessageId === 'string'
+          ? rawConversation.activeLeafMessageId
+          : messageNodes[messageNodes.length - 1]?.id || null;
+      const activeLeafMessageId = messageNodes.some((message) => message.id === requestedActiveLeaf)
+        ? requestedActiveLeaf
+        : messageNodes[messageNodes.length - 1]?.id || null;
+      const requestedLastSpokenLeaf =
+        typeof rawConversation.lastSpokenLeafMessageId === 'string'
+          ? rawConversation.lastSpokenLeafMessageId
+          : activeLeafMessageId;
+      const lastSpokenLeafMessageId = messageNodes.some((message) => message.id === requestedLastSpokenLeaf)
+        ? requestedLastSpokenLeaf
+        : activeLeafMessageId;
 
       return {
         id,
         name,
-        messages,
+        messageNodes,
+        messageNodeCounter,
+        activeLeafMessageId,
+        lastSpokenLeafMessageId,
         hasGeneratedName: Boolean(rawConversation.hasGeneratedName),
       };
     })
@@ -715,7 +815,10 @@ function createConversation(name) {
   return {
     id: `conversation-${++conversationIdCounter}`,
     name: name || `${UNTITLED_CONVERSATION_PREFIX} ${conversationCount}`,
-    messages: [],
+    messageNodes: [],
+    messageNodeCounter: 0,
+    activeLeafMessageId: null,
+    lastSpokenLeafMessageId: null,
     hasGeneratedName: false,
   };
 }
@@ -732,8 +835,9 @@ function normalizeConversationName(text) {
 }
 
 function deriveConversationName(conversation) {
-  const firstUserMessage = conversation.messages.find((message) => message.role === 'user')?.text || '';
-  const firstModelMessage = conversation.messages.find((message) => message.role === 'model')?.text || '';
+  const pathMessages = getConversationPathMessages(conversation);
+  const firstUserMessage = pathMessages.find((message) => message.role === 'user')?.text || '';
+  const firstModelMessage = pathMessages.find((message) => message.role === 'model')?.text || '';
   const source = `${firstUserMessage} ${firstModelMessage}`
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -766,14 +870,87 @@ function deriveConversationName(conversation) {
   return normalizeConversationName(topTokens.join(' '));
 }
 
-function addMessageToConversation(conversation, role, text) {
+function parseMessageNodeCounterFromId(nodeId) {
+  if (typeof nodeId !== 'string') {
+    return 0;
+  }
+  const match = nodeId.match(/-node-(\d+)$/);
+  if (!match) {
+    return 0;
+  }
+  const counter = Number.parseInt(match[1], 10);
+  return Number.isInteger(counter) && counter > 0 ? counter : 0;
+}
+
+function getMessageNodeById(conversation, messageId) {
+  if (!conversation || !messageId) {
+    return null;
+  }
+  return conversation.messageNodes.find((message) => message.id === messageId) || null;
+}
+
+function getConversationPathMessages(conversation, leafMessageId = conversation?.activeLeafMessageId) {
+  if (!conversation || !leafMessageId) {
+    return [];
+  }
+  const byId = new Map(conversation.messageNodes.map((message) => [message.id, message]));
+  const path = [];
+  let cursor = byId.get(leafMessageId) || null;
+  while (cursor) {
+    path.push(cursor);
+    cursor = cursor.parentId ? byId.get(cursor.parentId) || null : null;
+  }
+  return path.reverse();
+}
+
+function getModelSiblingMessages(conversation, modelMessage) {
+  if (!conversation || !modelMessage || modelMessage.role !== 'model' || !modelMessage.parentId) {
+    return [];
+  }
+  const parentMessage = getMessageNodeById(conversation, modelMessage.parentId);
+  if (!parentMessage || parentMessage.role !== 'user') {
+    return [];
+  }
+  return (parentMessage.childIds || [])
+    .map((childId) => getMessageNodeById(conversation, childId))
+    .filter((child) => child?.role === 'model');
+}
+
+function getModelVariantState(conversation, modelMessage) {
+  const siblings = getModelSiblingMessages(conversation, modelMessage);
+  const index = siblings.findIndex((candidate) => candidate.id === modelMessage.id);
+  const total = siblings.length;
+  return {
+    siblings,
+    index,
+    total,
+    hasVariants: total > 1,
+    canGoPrev: index > 0,
+    canGoNext: index >= 0 && index < total - 1,
+  };
+}
+
+function buildPromptForConversationLeaf(conversation, leafMessageId = conversation?.activeLeafMessageId) {
+  return buildConversationPrompt(getConversationPathMessages(conversation, leafMessageId));
+}
+
+function addMessageToConversation(conversation, role, text, options = {}) {
   const normalizedRole = role === 'user' ? 'user' : 'model';
   const normalizedText = String(text || '');
+  const requestedParentId =
+    typeof options.parentId === 'string' && options.parentId.trim()
+      ? options.parentId.trim()
+      : conversation.activeLeafMessageId;
+  const parentId = requestedParentId && getMessageNodeById(conversation, requestedParentId)
+    ? requestedParentId
+    : null;
   const message = {
-    id: `${conversation.id}-message-${conversation.messages.length + 1}`,
+    id: `${conversation.id}-node-${++conversation.messageNodeCounter}`,
     role: normalizedRole,
     speaker: normalizedRole === 'user' ? 'User' : 'Model',
     text: normalizedText,
+    parentId: parentId || null,
+    childIds: [],
   };
   if (normalizedRole === 'model') {
     message.thoughts = '';
@@ -782,17 +959,15 @@ function addMessageToConversation(conversation, role, text) {
     message.isThinkingComplete = false;
     message.isResponseComplete = false;
   }
-  conversation.messages.push(message);
-  return message;
-}
-
-function findLastUserMessageIndex(messages, fromIndex = messages.length - 1) {
-  for (let index = Math.min(fromIndex, messages.length - 1); index >= 0; index -= 1) {
-    if (messages[index]?.role === 'user') {
-      return index;
+  conversation.messageNodes.push(message);
+  if (parentId) {
+    const parentMessage = getMessageNodeById(conversation, parentId);
+    if (parentMessage && Array.isArray(parentMessage.childIds)) {
+      parentMessage.childIds.push(message.id);
     }
   }
-  return -1;
+  conversation.activeLeafMessageId = message.id;
+  return message;
 }
 
 function buildConversationPrompt(messages) {
@@ -891,6 +1066,9 @@ function addMessageElement(message) {
   item.className = `message-row ${message.role === 'user' ? 'user-message' : 'model-message'}`;
   item.dataset.messageId = message.id;
   if (message.role === 'model') {
+    const activeConversation = getActiveConversation();
+    const variantState = getModelVariantState(activeConversation, message);
+    const variantLabel = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
     item.innerHTML = `
       <p class="message-speaker">${message.speaker}</p>
       <div class="message-bubble">
@@ -915,6 +1093,33 @@ function addMessageElement(message) {
             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
             <span class="visually-hidden">Regenerate response</span>
           </button>
+          <div class="response-variant-nav${variantState.hasVariants ? '' : ' d-none'}">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary response-variant-prev"
+              data-message-id="${message.id}"
+              aria-label="Previous regenerated response"
+              data-bs-toggle="tooltip"
+              data-bs-title="Previous regenerated response"
+              ${variantState.canGoPrev ? '' : 'disabled'}
+            >
+              <i class="bi bi-arrow-bar-left" aria-hidden="true"></i>
+              <span class="visually-hidden">Previous regenerated response</span>
+            </button>
+            <p class="response-variant-status mb-0" aria-live="off">${variantLabel}</p>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-primary response-variant-next"
+              data-message-id="${message.id}"
+              aria-label="Next regenerated response"
+              data-bs-toggle="tooltip"
+              data-bs-title="Next regenerated response"
+              ${variantState.canGoNext ? '' : 'disabled'}
+            >
+              <i class="bi bi-arrow-bar-right" aria-hidden="true"></i>
+              <span class="visually-hidden">Next regenerated response</span>
+            </button>
+          </div>
         </section>
       </div>
     `;
@@ -967,6 +1172,24 @@ function updateModelMessageElement(message, item) {
   if (responseActions) {
     responseActions.classList.toggle('d-none', !message.isResponseComplete);
   }
+  const activeConversation = getActiveConversation();
+  const variantState = getModelVariantState(activeConversation, message);
+  const variantNav = item.querySelector('.response-variant-nav');
+  const variantLabel = item.querySelector('.response-variant-status');
+  const prevButton = item.querySelector('.response-variant-prev');
+  const nextButton = item.querySelector('.response-variant-next');
+  if (variantNav) {
+    variantNav.classList.toggle('d-none', !variantState.hasVariants || !message.isResponseComplete);
+  }
+  if (variantLabel) {
+    variantLabel.textContent = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
+  }
+  if (prevButton instanceof HTMLButtonElement) {
+    prevButton.disabled = !variantState.canGoPrev || !message.isResponseComplete;
+  }
+  if (nextButton instanceof HTMLButtonElement) {
+    nextButton.disabled = !variantState.canGoNext || !message.isResponseComplete;
+  }
   setModelBubbleContent(message, item._modelBubbleRefs || null);
 }
 
@@ -987,7 +1210,7 @@ function renderTranscript() {
   if (!conversation) {
     return;
   }
-  conversation.messages.forEach((message) => {
+  getConversationPathMessages(conversation).forEach((message) => {
     addMessageElement(message);
   });
   scrollTranscriptToBottom();
@@ -1017,6 +1240,13 @@ function setActiveConversationById(conversationId) {
     return;
   }
   activeConversationId = conversationId;
+  const activeConversation = getActiveConversation();
+  if (
+    activeConversation?.lastSpokenLeafMessageId &&
+    getMessageNodeById(activeConversation, activeConversation.lastSpokenLeafMessageId)
+  ) {
+    activeConversation.activeLeafMessageId = activeConversation.lastSpokenLeafMessageId;
+  }
   renderConversationList();
   renderTranscript();
   updateChatTitle();
@@ -1058,7 +1288,7 @@ function updateRegenerateButtons() {
       const item = button.closest('.message-row');
       const messageId = item?.dataset.messageId;
       const activeConversation = getActiveConversation();
-      const modelMessage = activeConversation?.messages.find(
+      const modelMessage = activeConversation?.messageNodes.find(
         (message) => message.id === messageId && message.role === 'model',
       );
       const hideActions = !modelMessage?.isResponseComplete;
@@ -1067,6 +1297,23 @@ function updateRegenerateButtons() {
         responseActions.classList.toggle('d-none', hideActions);
       }
       button.disabled = disabled || hideActions;
+      const prevButton = responseActions?.querySelector('.response-variant-prev');
+      const nextButton = responseActions?.querySelector('.response-variant-next');
+      const variantNav = responseActions?.querySelector('.response-variant-nav');
+      const variantLabel = responseActions?.querySelector('.response-variant-status');
+      const variantState = getModelVariantState(activeConversation, modelMessage);
+      if (variantNav) {
+        variantNav.classList.toggle('d-none', !variantState.hasVariants || hideActions);
+      }
+      if (variantLabel) {
+        variantLabel.textContent = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
+      }
+      if (prevButton instanceof HTMLButtonElement) {
+        prevButton.disabled = disabled || hideActions || !variantState.canGoPrev;
+      }
+      if (nextButton instanceof HTMLButtonElement) {
+        nextButton.disabled = disabled || hideActions || !variantState.canGoNext;
+      }
     }
   });
 }
@@ -1076,7 +1323,7 @@ function markActiveIncompleteModelMessageComplete() {
   if (!activeConversation) {
     return;
   }
-  const pendingModelMessage = [...activeConversation.messages]
+  const pendingModelMessage = [...getConversationPathMessages(activeConversation)]
     .reverse()
     .find((message) => message.role === 'model' && !message.isResponseComplete);
   if (!pendingModelMessage) {
@@ -1372,10 +1619,17 @@ async function reinitializeEngineFromSettings() {
   }
 }
 
-function startModelGeneration(activeConversation, prompt) {
+function startModelGeneration(activeConversation, prompt, options = {}) {
   const selectedModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const thinkingTags = getThinkingTagsForModel(selectedModelId);
-  const modelMessage = addMessageToConversation(activeConversation, 'model', '');
+  const parentMessageId =
+    typeof options.parentMessageId === 'string' && options.parentMessageId.trim()
+      ? options.parentMessageId.trim()
+      : activeConversation.activeLeafMessageId;
+  const updateLastSpokenOnComplete = Boolean(options.updateLastSpokenOnComplete);
+  const modelMessage = addMessageToConversation(activeConversation, 'model', '', {
+    parentId: parentMessageId,
+  });
   const modelBubbleItem = addMessageElement(modelMessage);
   let streamedText = '';
 
@@ -1412,6 +1666,9 @@ function startModelGeneration(activeConversation, prompt) {
         modelMessage.isResponseComplete = true;
         updateModelMessageElement(modelMessage, modelBubbleItem);
         scrollTranscriptToBottom();
+        if (updateLastSpokenOnComplete) {
+          activeConversation.lastSpokenLeafMessageId = modelMessage.id;
+        }
 
         if (!activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
           activeConversation.name = deriveConversationName(activeConversation);
@@ -1435,6 +1692,9 @@ function startModelGeneration(activeConversation, prompt) {
         modelMessage.isResponseComplete = true;
         updateModelMessageElement(modelMessage, modelBubbleItem);
         scrollTranscriptToBottom();
+        if (updateLastSpokenOnComplete) {
+          activeConversation.lastSpokenLeafMessageId = modelMessage.id;
+        }
         isGenerating = false;
         updateActionButtons();
         applyPendingGenerationSettingsIfReady();
@@ -1452,6 +1712,9 @@ function startModelGeneration(activeConversation, prompt) {
     modelMessage.isResponseComplete = true;
     updateModelMessageElement(modelMessage, modelBubbleItem);
     scrollTranscriptToBottom();
+    if (updateLastSpokenOnComplete) {
+      activeConversation.lastSpokenLeafMessageId = modelMessage.id;
+    }
     isGenerating = false;
     updateActionButtons();
     applyPendingGenerationSettingsIfReady();
@@ -1459,6 +1722,50 @@ function startModelGeneration(activeConversation, prompt) {
     appendDebug(`Generation error: ${error.message}`);
     queueConversationStateSave();
   }
+}
+
+function animateTranscriptSlideLeft() {
+  if (!chatTranscript) {
+    return;
+  }
+  chatTranscript.classList.remove('transcript-slide-left');
+  // Force reflow so repeated clicks retrigger the animation.
+  void chatTranscript.offsetWidth;
+  chatTranscript.classList.add('transcript-slide-left');
+  window.setTimeout(() => {
+    chatTranscript.classList.remove('transcript-slide-left');
+  }, 280);
+}
+
+function switchModelVariant(messageId, direction) {
+  if (!messageId || isGenerating || isLoadingModel) {
+    return;
+  }
+  const activeConversation = getActiveConversation();
+  if (!activeConversation) {
+    return;
+  }
+  const modelMessage = getMessageNodeById(activeConversation, messageId);
+  if (!modelMessage || modelMessage.role !== 'model') {
+    return;
+  }
+  const variantState = getModelVariantState(activeConversation, modelMessage);
+  if (!variantState.hasVariants) {
+    return;
+  }
+  const targetIndex = variantState.index + direction;
+  if (targetIndex < 0 || targetIndex >= variantState.total) {
+    return;
+  }
+  const targetMessage = variantState.siblings[targetIndex];
+  if (!targetMessage) {
+    return;
+  }
+  activeConversation.activeLeafMessageId = targetMessage.id;
+  animateTranscriptSlideLeft();
+  renderTranscript();
+  updateActionButtons();
+  queueConversationStateSave();
 }
 
 function regenerateFromMessage(messageId) {
@@ -1479,24 +1786,27 @@ function regenerateFromMessage(messageId) {
     return;
   }
 
-  const targetModelIndex = activeConversation.messages.findIndex(
-    (message) => message.id === messageId && message.role === 'model',
-  );
-  if (targetModelIndex < 0) {
+  const targetModelMessage = getMessageNodeById(activeConversation, messageId);
+  if (!targetModelMessage || targetModelMessage.role !== 'model') {
     return;
   }
 
-  const lastUserIndex = findLastUserMessageIndex(activeConversation.messages, targetModelIndex - 1);
-  if (lastUserIndex < 0) {
+  const parentUserMessage = targetModelMessage.parentId
+    ? getMessageNodeById(activeConversation, targetModelMessage.parentId)
+    : null;
+  if (!parentUserMessage || parentUserMessage.role !== 'user') {
     setStatus('Unable to regenerate: no user message found.');
     appendDebug('Regenerate failed: target model message has no preceding user message.');
     return;
   }
 
-  activeConversation.messages.splice(lastUserIndex + 1);
+  activeConversation.activeLeafMessageId = parentUserMessage.id;
+  animateTranscriptSlideLeft();
   renderTranscript();
   queueConversationStateSave();
-  startModelGeneration(activeConversation, buildConversationPrompt(activeConversation.messages));
+  startModelGeneration(activeConversation, buildPromptForConversationLeaf(activeConversation), {
+    parentMessageId: parentUserMessage.id,
+  });
 }
 
 engine.onStatus = (message) => {
@@ -1704,10 +2014,13 @@ if (chatForm && messageInput && chatTranscript) {
     }
 
     const userMessage = addMessageToConversation(activeConversation, 'user', value);
+    activeConversation.lastSpokenLeafMessageId = userMessage.id;
     addMessageElement(userMessage);
     messageInput.value = '';
     queueConversationStateSave();
-    startModelGeneration(activeConversation, buildConversationPrompt(activeConversation.messages));
+    startModelGeneration(activeConversation, buildPromptForConversationLeaf(activeConversation), {
+      updateLastSpokenOnComplete: true,
+    });
   });
 }
 
@@ -1717,11 +2030,20 @@ if (chatTranscript) {
     if (!(target instanceof Element)) {
       return;
     }
-    const regenerateButton = target.closest('.regenerate-response-btn');
-    if (!(regenerateButton instanceof HTMLButtonElement)) {
+    const prevVariantButton = target.closest('.response-variant-prev');
+    if (prevVariantButton instanceof HTMLButtonElement) {
+      switchModelVariant(prevVariantButton.dataset.messageId || '', -1);
       return;
     }
-    regenerateFromMessage(regenerateButton.dataset.messageId || '');
+    const nextVariantButton = target.closest('.response-variant-next');
+    if (nextVariantButton instanceof HTMLButtonElement) {
+      switchModelVariant(nextVariantButton.dataset.messageId || '', 1);
+      return;
+    }
+    const regenerateButton = target.closest('.regenerate-response-btn');
+    if (regenerateButton instanceof HTMLButtonElement) {
+      regenerateFromMessage(regenerateButton.dataset.messageId || '');
+    }
   });
 }
 

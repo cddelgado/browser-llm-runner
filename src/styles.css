@@ -232,6 +232,22 @@
   padding: 0;
 }
 
+.chat-transcript.transcript-slide-left {
+  animation: transcript-slide-left 220ms ease-out;
+}
+
+@keyframes transcript-slide-left {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(-18px);
+    opacity: 0.94;
+  }
+}
+
 .message-row {
   display: flex;
   flex-direction: column;
@@ -302,6 +318,10 @@
 
 .response-actions {
   margin-top: 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
 }
 
 .response-actions .btn {
@@ -322,6 +342,20 @@
 .conversation-delete .bi {
   font-size: 0.95rem;
   line-height: 1;
+}
+
+.response-variant-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.response-variant-status {
+  min-width: 2.5rem;
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .user-message .message-bubble {
@@ -472,5 +506,11 @@
     transform: none;
     visibility: visible;
     border-right: 1px solid var(--panel-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-transcript.transcript-slide-left {
+    animation: none;
   }
 }
