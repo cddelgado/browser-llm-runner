@@ -143,6 +143,21 @@
   color: var(--ink-strong);
 }
 
+.square-icon-button {
+  width: 2.5rem;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.square-icon-button .bi {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .icon {
   width: 1rem;
   height: 1rem;
@@ -255,6 +270,12 @@
   font-size: 0.8rem;
 }
 
+.response-actions .btn .bi,
+.conversation-delete .bi {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
 .user-message .message-bubble {
   background: var(--message-user);
   color: #fff;
@@ -284,10 +305,18 @@
 
 .composer #sendButton {
   flex: 0 0 auto;
-  min-width: 10rem;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.composer #sendButton .bi {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .composer textarea::placeholder {

@@ -13,11 +13,13 @@ Student-facing browser chat UI with local model inference.
 - Token controls in Settings:
   - `Max output tokens` and `Max context tokens` are model-aware integer fields.
   - Values are constrained by per-model limits from `src/config/models.json` and use `step=8`.
+  - User overrides are saved per model in browser storage and restored when that model is selected again.
   - Fields are disabled until a model is loaded.
   - If changed during generation, updates are queued and applied after the current response finishes.
 - Temperature control in Settings:
   - `Temperature` is model-aware and constrained by per-model `minTemperature`, `maxTemperature`, and `defaultTemperature`.
   - Values use `step=0.1`.
+  - User overrides are saved per model in browser storage and restored when that model is selected again.
   - The field is disabled until a model is loaded.
   - If changed during generation, updates are queued and applied after the current response finishes.
 - `Auto` attempts WebGPU first and falls back to CPU if unavailable or initialization fails.

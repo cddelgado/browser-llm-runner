@@ -30,4 +30,5 @@ Notes:
 - Model assets are not committed to this repository.
 - Settings fields for max output/context tokens are numeric, step in 8, and disabled until a model is loaded.
 - Temperature is numeric, step in 0.1, and disabled until a model is loaded.
+- User changes to max output/context tokens and temperature are persisted per model in browser storage and restored when that model is selected again.
 - If generation settings are changed while generating, they are queued and applied after that generation finishes.

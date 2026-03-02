@@ -1,5 +1,7 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import 'bootstrap-icons/font/bootstrap-icons.css';
+import Tooltip from 'bootstrap/js/dist/tooltip';
 import './styles.css';
 import { LLMEngineClient } from './llm/engine-client.js';
 import modelCatalog from './config/models.json';
@@ -8,6 +10,7 @@ import { loadConversationState, saveConversationState } from './state/conversati
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
+const MODEL_GENERATION_SETTINGS_STORAGE_KEY = 'llm-model-generation-settings';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
 const TOKEN_STEP = 8;
 const MIN_TOKEN_LIMIT = 8;
@@ -210,6 +213,37 @@ let activeGenerationConfig = normalizeGenerationLimits(null);
 let pendingGenerationConfig = null;
 let conversationSaveTimerId = null;
 
+function initializeTooltips(root = document) {
+  if (!root || !(root instanceof Element || root instanceof Document)) {
+    return;
+  }
+  root.querySelectorAll('[data-bs-toggle="tooltip"], [data-icon-tooltip]').forEach((element) => {
+    Tooltip.getOrCreateInstance(element);
+  });
+}
+
+function disposeTooltips(root) {
+  if (!root || !(root instanceof Element || root instanceof Document)) {
+    return;
+  }
+  root.querySelectorAll('[data-bs-toggle="tooltip"], [data-icon-tooltip]').forEach((element) => {
+    const instance = Tooltip.getInstance(element);
+    if (instance) {
+      instance.dispose();
+    }
+  });
+}
+
+function setIconButtonContent(button, iconClass, label) {
+  if (!button) {
+    return;
+  }
+  button.innerHTML = `
+    <i class="bi ${iconClass}" aria-hidden="true"></i>
+    <span class="visually-hidden">${label}</span>
+  `;
+}
+
 function formatInteger(value) {
   return new Intl.NumberFormat('en-US').format(value);
 }
@@ -218,6 +252,59 @@ function getModelGenerationLimits(modelId) {
   return (
     MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.generation || normalizeGenerationLimits(null)
   );
+}
+
+function sanitizeGenerationConfigForModel(modelId, candidateConfig) {
+  const limits = getModelGenerationLimits(modelId);
+  const maxContextTokens = quantizeTokenInput(
+    candidateConfig?.maxContextTokens,
+    MIN_TOKEN_LIMIT,
+    limits.maxContextTokens,
+  );
+  return {
+    maxContextTokens,
+    maxOutputTokens: quantizeTokenInput(
+      candidateConfig?.maxOutputTokens,
+      MIN_TOKEN_LIMIT,
+      Math.min(limits.maxOutputTokens, maxContextTokens),
+    ),
+    temperature: quantizeTemperature(
+      candidateConfig?.temperature,
+      limits.minTemperature,
+      limits.maxTemperature,
+    ),
+  };
+}
+
+function getStoredModelGenerationSettings() {
+  try {
+    const raw = localStorage.getItem(MODEL_GENERATION_SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function getStoredGenerationConfigForModel(modelId) {
+  const normalizedModelId = normalizeModelId(modelId);
+  const byModel = getStoredModelGenerationSettings();
+  const stored = byModel[normalizedModelId];
+  if (!stored || typeof stored !== 'object') {
+    return null;
+  }
+  return sanitizeGenerationConfigForModel(normalizedModelId, stored);
+}
+
+function persistGenerationConfigForModel(modelId, config) {
+  const normalizedModelId = normalizeModelId(modelId);
+  const sanitized = sanitizeGenerationConfigForModel(normalizedModelId, config);
+  const byModel = getStoredModelGenerationSettings();
+  byModel[normalizedModelId] = sanitized;
+  localStorage.setItem(MODEL_GENERATION_SETTINGS_STORAGE_KEY, JSON.stringify(byModel));
 }
 
 function quantizeTokenInput(value, min, max) {
@@ -269,14 +356,16 @@ function renderGenerationSettingsHelpText(config, limits) {
 }
 
 function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
-  const limits = getModelGenerationLimits(modelId);
+  const normalizedModelId = normalizeModelId(modelId);
+  const limits = getModelGenerationLimits(normalizedModelId);
+  const defaultConfig = {
+    maxOutputTokens: Math.min(limits.defaultMaxOutputTokens, limits.defaultMaxContextTokens),
+    maxContextTokens: limits.defaultMaxContextTokens,
+    temperature: limits.defaultTemperature,
+  };
   const config = useDefaults
-    ? {
-        maxOutputTokens: Math.min(limits.defaultMaxOutputTokens, limits.defaultMaxContextTokens),
-        maxContextTokens: limits.defaultMaxContextTokens,
-        temperature: limits.defaultTemperature,
-      }
-    : buildGenerationConfigFromUI(modelId);
+    ? getStoredGenerationConfigForModel(normalizedModelId) || defaultConfig
+    : buildGenerationConfigFromUI(normalizedModelId);
   const boundedOutputMax = Math.min(limits.maxOutputTokens, config.maxContextTokens);
 
   if (maxContextTokensInput) {
@@ -356,6 +445,7 @@ function onGenerationSettingInputChanged() {
   const nextConfig = buildGenerationConfigFromUI(selectedModel);
   activeGenerationConfig = nextConfig;
   syncGenerationSettingsFromModel(selectedModel, false);
+  persistGenerationConfigForModel(selectedModel, nextConfig);
   if (isGenerating) {
     pendingGenerationConfig = nextConfig;
     setStatus('Generation settings will apply after current response.');
@@ -719,6 +809,7 @@ function renderConversationList() {
   if (!conversationList) {
     return;
   }
+  disposeTooltips(conversationList);
   conversationList.replaceChildren();
 
   conversations.forEach((conversation) => {
@@ -738,15 +829,14 @@ function renderConversationList() {
     deleteButton.type = 'button';
     deleteButton.className = 'btn btn-sm btn-link text-danger conversation-delete';
     deleteButton.setAttribute('aria-label', `Delete ${conversation.name} conversation`);
-    deleteButton.innerHTML = `
-      <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M6.5 1h3l.5 1H13a.5.5 0 0 1 0 1h-.6l-.7 10.2A2 2 0 0 1 9.7 15H6.3a2 2 0 0 1-2-1.8L3.6 3H3a.5.5 0 0 1 0-1h3zM5 3l.7 10.1a1 1 0 0 0 1 .9h2.6a1 1 0 0 0 1-.9L11 3zM7 5a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0v-6A.5.5 0 0 1 7 5m2 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0v-6A.5.5 0 0 1 9 5"></path>
-      </svg>
-    `;
+    deleteButton.setAttribute('data-bs-toggle', 'tooltip');
+    deleteButton.setAttribute('data-bs-title', 'Delete conversation');
+    setIconButtonContent(deleteButton, 'bi-trash-fill', 'Delete conversation');
 
     item.append(selectButton, deleteButton);
     conversationList.appendChild(item);
   });
+  initializeTooltips(conversationList);
 }
 
 function setModelBubbleContent(message, refs) {
@@ -796,9 +886,10 @@ function addMessageElement(message) {
             class="btn btn-sm btn-outline-secondary regenerate-response-btn"
             data-message-id="${message.id}"
             aria-label="Regenerate response"
-            title="Regenerate"
+            data-bs-toggle="tooltip"
+            data-bs-title="Regenerate response"
           >
-            <span aria-hidden="true">🔂</span>
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
             <span class="visually-hidden">Regenerate response</span>
           </button>
         </section>
@@ -832,6 +923,7 @@ function addMessageElement(message) {
     }
   }
   chatTranscript.appendChild(item);
+  initializeTooltips(item);
   scrollTranscriptToBottom();
   return item;
 }
@@ -854,6 +946,7 @@ function renderTranscript() {
   if (!chatTranscript) {
     return;
   }
+  disposeTooltips(chatTranscript);
   chatTranscript.replaceChildren();
   const conversation = getActiveConversation();
   if (!conversation) {
@@ -936,19 +1029,28 @@ function updateSendButtonMode() {
   if (!sendButton) {
     return;
   }
+  sendButton.setAttribute('data-bs-toggle', 'tooltip');
+  const tooltipInstance = Tooltip.getInstance(sendButton);
+  if (tooltipInstance) {
+    tooltipInstance.dispose();
+  }
   if (isGenerating) {
     sendButton.type = 'button';
-    sendButton.textContent = 'Stop generating';
     sendButton.classList.remove('btn-primary');
     sendButton.classList.add('btn-outline-secondary');
     sendButton.setAttribute('aria-label', 'Stop generating');
+    sendButton.setAttribute('data-bs-title', 'Stop generating');
+    setIconButtonContent(sendButton, 'bi-sign-stop', 'Stop generating');
+    initializeTooltips(document);
     return;
   }
   sendButton.type = 'submit';
-  sendButton.textContent = 'Send';
   sendButton.classList.remove('btn-outline-secondary');
   sendButton.classList.add('btn-primary');
   sendButton.setAttribute('aria-label', 'Send message');
+  sendButton.setAttribute('data-bs-title', 'Send message');
+  setIconButtonContent(sendButton, 'bi-send', 'Send message');
+  initializeTooltips(document);
 }
 
 function showProgressRegion(show) {
@@ -1131,8 +1233,10 @@ function readEngineConfigFromUI() {
 }
 
 function persistInferencePreferences() {
-  localStorage.setItem(MODEL_STORAGE_KEY, normalizeModelId(modelSelect?.value || DEFAULT_MODEL));
+  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  localStorage.setItem(MODEL_STORAGE_KEY, selectedModel);
   localStorage.setItem(BACKEND_STORAGE_KEY, backendSelect?.value || 'auto');
+  persistGenerationConfigForModel(selectedModel, activeGenerationConfig);
 }
 
 async function initializeEngine() {
@@ -1535,3 +1639,4 @@ window.addEventListener('beforeunload', () => {
   void persistConversationStateNow();
   engine.dispose();
 });
+

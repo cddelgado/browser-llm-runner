@@ -24,8 +24,16 @@
           ></button>
         </div>
         <div class="offcanvas-body d-flex flex-column gap-3 p-3">
-          <button id="newConversationBtn" type="button" class="btn btn-primary w-100">
-            New Conversation
+          <button
+            id="newConversationBtn"
+            type="button"
+            class="btn btn-primary square-icon-button"
+            aria-label="New conversation"
+            data-bs-toggle="tooltip"
+            data-bs-title="New conversation"
+          >
+            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+            <span class="visually-hidden">New conversation</span>
           </button>
           <h2 id="conversationListHeading" class="visually-hidden">Conversations</h2>
           <nav aria-labelledby="conversationListHeading">
@@ -56,12 +64,11 @@
             data-bs-target="#settingsDrawer"
             aria-controls="settingsDrawer"
             aria-label="Open settings"
+            data-icon-tooltip="true"
+            data-bs-title="Open settings"
           >
-            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                d="M9.7 1.2a.8.8 0 0 0-1.4 0l-.4.9a.8.8 0 0 1-.8.5l-1-.1a.8.8 0 0 0-.8.5l-.5.9a.8.8 0 0 1-.7.4l-1 .1a.8.8 0 0 0-.6 1.2l.5.8a.8.8 0 0 1 0 .9l-.5.8a.8.8 0 0 0 .6 1.2l1 .1a.8.8 0 0 1 .7.4l.5.9a.8.8 0 0 0 .8.5l1-.1a.8.8 0 0 1 .8.5l.4.9a.8.8 0 0 0 1.4 0l.4-.9a.8.8 0 0 1 .8-.5l1 .1a.8.8 0 0 0 .8-.5l.5-.9a.8.8 0 0 1 .7-.4l1-.1a.8.8 0 0 0 .6-1.2l-.5-.8a.8.8 0 0 1 0-.9l.5-.8a.8.8 0 0 0-.6-1.2l-1-.1a.8.8 0 0 1-.7-.4l-.5-.9a.8.8 0 0 0-.8-.5l-1 .1a.8.8 0 0 1-.8-.5zM8 10.4A2.4 2.4 0 1 1 8 5.6a2.4 2.4 0 0 1 0 4.8"
-              />
-            </svg>
+            <i class="bi bi-gear-fill" aria-hidden="true"></i>
+            <span class="visually-hidden">Open settings</span>
           </button>
         </header>
 
@@ -126,7 +133,17 @@
               rows="2"
               placeholder="Type your message..."
             ></textarea>
-            <button id="sendButton" type="submit" class="btn btn-primary">Send</button>
+            <button
+              id="sendButton"
+              type="submit"
+              class="btn btn-primary"
+              aria-label="Send message"
+              data-bs-toggle="tooltip"
+              data-bs-title="Send message"
+            >
+              <i class="bi bi-send" aria-hidden="true"></i>
+              <span class="visually-hidden">Send message</span>
+            </button>
           </div>
         </form>
       </div>
