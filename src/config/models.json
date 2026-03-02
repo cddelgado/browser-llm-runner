@@ -4,6 +4,10 @@
     {
       "id": "onnx-community/Qwen3-0.6B-ONNX",
       "label": "onnx-community/Qwen3-0.6B-ONNX",
+      "thinkingTags": {
+        "open": "<think>",
+        "close": "</think>"
+      },
       "features": {
         "streaming": true
       }

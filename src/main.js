@@ -17,7 +17,17 @@ const configuredModels = Array.isArray(modelCatalog?.models)
         }
         const label =
           typeof model?.label === 'string' && model.label.trim() ? model.label.trim() : id;
-        return { id, label, features: model?.features || {} };
+        const openThinkingTag = model?.thinkingTags?.open;
+        const closeThinkingTag = model?.thinkingTags?.close;
+        const thinkingTags =
+          typeof openThinkingTag === 'string' &&
+          openThinkingTag &&
+          typeof closeThinkingTag === 'string' &&
+          closeThinkingTag &&
+          openThinkingTag !== closeThinkingTag
+            ? { open: openThinkingTag, close: closeThinkingTag }
+            : null;
+        return { id, label, features: model?.features || {}, thinkingTags };
       })
       .filter(Boolean)
   : [];
@@ -28,6 +38,7 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
   configuredModels.unshift({ id: DEFAULT_MODEL, label: DEFAULT_MODEL, features: {} });
 }
 const MODEL_OPTIONS = Object.freeze(configuredModels);
+const MODEL_OPTIONS_BY_ID = new Map(MODEL_OPTIONS.map((model) => [model.id, model]));
 const LEGACY_MODEL_ALIASES = Object.fromEntries(
   Object.entries(modelCatalog?.legacyAliases || {})
     .map(([alias, canonical]) => [
@@ -185,12 +196,19 @@ function deriveConversationName(conversation) {
 
 function addMessageToConversation(conversation, role, text) {
   const normalizedRole = role === 'user' ? 'user' : 'model';
+  const normalizedText = String(text || '');
   const message = {
     id: `${conversation.id}-message-${conversation.messages.length + 1}`,
     role: normalizedRole,
     speaker: normalizedRole === 'user' ? 'User' : 'Model',
-    text: String(text || ''),
+    text: normalizedText,
   };
+  if (normalizedRole === 'model') {
+    message.thoughts = '';
+    message.response = normalizedText;
+    message.hasThinking = false;
+    message.isThinkingComplete = false;
+  }
   conversation.messages.push(message);
   return message;
 }
@@ -229,23 +247,80 @@ function renderConversationList() {
   });
 }
 
+function setModelBubbleContent(message, refs) {
+  if (!refs) {
+    return;
+  }
+
+  const hasThinking = Boolean(message.hasThinking || message.thoughts?.trim());
+  const thinkingLabel = message.isThinkingComplete ? 'Done thinking. View thoughts.' : 'Thinking';
+  const isExpanded = refs.thinkingToggle.getAttribute('aria-expanded') === 'true';
+
+  refs.thinkingRegion.classList.toggle('d-none', !hasThinking);
+  refs.thinkingToggle.textContent = thinkingLabel;
+  refs.thinkingToggle.setAttribute('aria-expanded', String(hasThinking && isExpanded));
+  refs.thinkingBody.hidden = !hasThinking || !isExpanded;
+  refs.thoughtsText.textContent = message.thoughts || '';
+  refs.responseText.textContent = message.response || message.text || '';
+}
+
 function addMessageElement(message) {
   if (!chatTranscript) {
     return null;
   }
   const item = document.createElement('li');
   item.className = `message-row ${message.role === 'user' ? 'user-message' : 'model-message'}`;
-  item.innerHTML = `
-    <p class="message-speaker">${message.speaker}</p>
-    <p class="message-bubble"></p>
-  `;
-  const bubble = item.querySelector('.message-bubble');
-  if (bubble) {
-    bubble.textContent = message.text;
+  if (message.role === 'model') {
+    item.innerHTML = `
+      <p class="message-speaker">${message.speaker}</p>
+      <div class="message-bubble">
+        <section class="thoughts-region d-none">
+          <h3 class="visually-hidden">Thoughts</h3>
+          <a href="#" class="thinking-toggle" aria-expanded="false">Thinking</a>
+          <p class="thoughts-content" hidden></p>
+        </section>
+        <section class="response-region">
+          <h3 class="visually-hidden">Response</h3>
+          <p class="response-content mb-0"></p>
+        </section>
+      </div>
+    `;
+    const thinkingRegion = item.querySelector('.thoughts-region');
+    const thinkingToggle = item.querySelector('.thinking-toggle');
+    const thinkingBody = item.querySelector('.thoughts-content');
+    const thoughtsText = item.querySelector('.thoughts-content');
+    const responseText = item.querySelector('.response-content');
+    if (thinkingRegion && thinkingToggle && thinkingBody && thoughtsText && responseText) {
+      const refs = { thinkingRegion, thinkingToggle, thinkingBody, thoughtsText, responseText };
+      thinkingToggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        const expanded = thinkingToggle.getAttribute('aria-expanded') === 'true';
+        thinkingToggle.setAttribute('aria-expanded', String(!expanded));
+        thinkingBody.hidden = expanded;
+      });
+      setModelBubbleContent(message, refs);
+      item._modelBubbleRefs = refs;
+    }
+  } else {
+    item.innerHTML = `
+      <p class="message-speaker">${message.speaker}</p>
+      <p class="message-bubble"></p>
+    `;
+    const bubble = item.querySelector('.message-bubble');
+    if (bubble) {
+      bubble.textContent = message.text;
+    }
   }
   chatTranscript.appendChild(item);
   scrollTranscriptToBottom();
-  return bubble;
+  return item;
+}
+
+function updateModelMessageElement(message, item) {
+  if (!item || message.role !== 'model') {
+    return;
+  }
+  setModelBubbleContent(message, item._modelBubbleRefs || null);
 }
 
 function scrollTranscriptToBottom() {
@@ -455,6 +530,53 @@ function normalizeModelId(modelId) {
     return canonical;
   }
   return DEFAULT_MODEL;
+}
+
+function getThinkingTagsForModel(modelId) {
+  return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.thinkingTags || null;
+}
+
+function parseThinkingText(rawText, thinkingTags) {
+  const text = String(rawText || '');
+  if (!thinkingTags?.open || !thinkingTags?.close) {
+    return {
+      response: text,
+      thoughts: '',
+      hasThinking: false,
+      isThinkingComplete: false,
+    };
+  }
+
+  const { open, close } = thinkingTags;
+  let response = '';
+  let thoughts = '';
+  let cursor = 0;
+  let hasThinking = false;
+  let isThinkingComplete = false;
+
+  while (cursor < text.length) {
+    const openIndex = text.indexOf(open, cursor);
+    if (openIndex < 0) {
+      response += text.slice(cursor);
+      break;
+    }
+
+    response += text.slice(cursor, openIndex);
+    hasThinking = true;
+
+    const contentStart = openIndex + open.length;
+    const closeIndex = text.indexOf(close, contentStart);
+    if (closeIndex < 0) {
+      thoughts += text.slice(contentStart);
+      break;
+    }
+
+    thoughts += text.slice(contentStart, closeIndex);
+    isThinkingComplete = true;
+    cursor = closeIndex + close.length;
+  }
+
+  return { response, thoughts, hasThinking, isThinkingComplete };
 }
 
 function readEngineConfigFromUI() {
@@ -709,8 +831,10 @@ if (chatForm && messageInput && chatTranscript) {
     addMessageElement(userMessage);
     messageInput.value = '';
 
+    const selectedModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+    const thinkingTags = getThinkingTagsForModel(selectedModelId);
     const modelMessage = addMessageToConversation(activeConversation, 'model', '');
-    const modelBubble = addMessageElement(modelMessage);
+    const modelBubbleItem = addMessageElement(modelMessage);
     let streamedText = '';
 
     isGenerating = true;
@@ -720,17 +844,29 @@ if (chatForm && messageInput && chatTranscript) {
       await engine.generate(value, {
         onToken: (chunk) => {
           streamedText += chunk;
-          modelMessage.text = streamedText.trimStart();
-          if (modelBubble) {
-            modelBubble.textContent = modelMessage.text;
+          const parsed = parseThinkingText(streamedText, thinkingTags);
+          if (thinkingTags) {
+            modelMessage.thoughts = parsed.thoughts;
+            modelMessage.response = parsed.response.trimStart();
+            modelMessage.hasThinking = parsed.hasThinking || Boolean(parsed.thoughts.trim());
+            modelMessage.isThinkingComplete = parsed.isThinkingComplete;
+            modelMessage.text = modelMessage.response;
+          } else {
+            modelMessage.response = streamedText.trimStart();
+            modelMessage.text = modelMessage.response;
           }
+          updateModelMessageElement(modelMessage, modelBubbleItem);
           scrollTranscriptToBottom();
         },
         onComplete: (finalText) => {
-          modelMessage.text = finalText || streamedText.trimStart() || '[No output]';
-          if (modelBubble) {
-            modelBubble.textContent = modelMessage.text;
-          }
+          const parsed = parseThinkingText(finalText || streamedText, thinkingTags);
+          modelMessage.thoughts = parsed.thoughts;
+          modelMessage.response = parsed.response.trimStart();
+          modelMessage.hasThinking = parsed.hasThinking || Boolean(parsed.thoughts.trim());
+          modelMessage.isThinkingComplete =
+            parsed.isThinkingComplete || (modelMessage.hasThinking && !thinkingTags);
+          modelMessage.text = modelMessage.response || '[No output]';
+          updateModelMessageElement(modelMessage, modelBubbleItem);
           scrollTranscriptToBottom();
 
           if (!activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
@@ -746,9 +882,11 @@ if (chatForm && messageInput && chatTranscript) {
         },
         onError: (message) => {
           modelMessage.text = `Generation error: ${message}`;
-          if (modelBubble) {
-            modelBubble.textContent = modelMessage.text;
-          }
+          modelMessage.response = modelMessage.text;
+          modelMessage.thoughts = '';
+          modelMessage.hasThinking = false;
+          modelMessage.isThinkingComplete = false;
+          updateModelMessageElement(modelMessage, modelBubbleItem);
           scrollTranscriptToBottom();
           isGenerating = false;
           updateActionButtons();
@@ -758,9 +896,11 @@ if (chatForm && messageInput && chatTranscript) {
       });
     } catch (error) {
       modelMessage.text = `Generation error: ${error.message}`;
-      if (modelBubble) {
-        modelBubble.textContent = modelMessage.text;
-      }
+      modelMessage.response = modelMessage.text;
+      modelMessage.thoughts = '';
+      modelMessage.hasThinking = false;
+      modelMessage.isThinkingComplete = false;
+      updateModelMessageElement(modelMessage, modelBubbleItem);
       scrollTranscriptToBottom();
       isGenerating = false;
       updateActionButtons();

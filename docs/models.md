@@ -3,6 +3,8 @@
 Model support is configured in `src/config/models.json`:
 
 - `models`: list of selectable models (`id`, `label`, optional `features`)
+- `thinkingTags`: optional per-model tags used to separate internal thoughts from final response
+  during streaming (for example `<think>` and `</think>`)
 - `defaultModelId`: default model used for first load and invalid selections
 - `legacyAliases`: map of old stored IDs to canonical supported IDs
 

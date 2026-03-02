@@ -17,6 +17,7 @@ Student-facing browser chat UI with local model inference.
 - Conversation list and transcript are state-driven (no placeholder messages).
 - New conversations start untitled and are automatically renamed after the first model response based on conversation content.
 - Model load progress UI collapses after successful initialization.
+- Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in a collapsible "Thinking" section during streaming.
 
 ## Supported model
 
