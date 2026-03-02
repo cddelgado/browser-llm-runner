@@ -1725,7 +1725,7 @@ function updateChatTitleEditorVisibility() {
     return;
   }
   const activeConversation = getActiveConversation();
-  const canEditTitle = modelReady && Boolean(activeConversation);
+  const canEditTitle = modelReady && Boolean(activeConversation?.hasGeneratedName);
   const controlsDisabled = isGenerating || isLoadingModel;
   const showEditor = canEditTitle && isChatTitleEditing;
   chatTitle.classList.toggle('d-none', showEditor);
@@ -1744,7 +1744,7 @@ function beginChatTitleEdit() {
     return;
   }
   const activeConversation = getActiveConversation();
-  if (!activeConversation || !chatTitleInput) {
+  if (!activeConversation?.hasGeneratedName || !chatTitleInput) {
     return;
   }
   isChatTitleEditing = true;

@@ -37,6 +37,7 @@ Student-facing browser chat UI with local model inference.
   - per-message `artifactRefs` placeholders
   - collection-level `artifacts` placeholders for future text/binary artifacts (binary intended as base64 + hash metadata)
 - New conversations start untitled and are automatically renamed after the first model response based on conversation content.
+- Conversation title editing is disabled until that automatic model-generated title is available.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in a collapsible "Thinking" section during streaming.
 - `Settings -> Conversation -> Show thinking` controls whether thought sections are expanded by default (`off` by default).
