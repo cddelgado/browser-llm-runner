@@ -247,6 +247,14 @@
   white-space: pre-wrap;
 }
 
+.response-actions {
+  margin-top: 0.55rem;
+}
+
+.response-actions .btn {
+  font-size: 0.8rem;
+}
+
 .user-message .message-bubble {
   background: var(--message-user);
   color: #fff;

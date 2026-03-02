@@ -461,6 +461,32 @@ function addMessageToConversation(conversation, role, text) {
   return message;
 }
 
+function findLastUserMessageIndex(messages, fromIndex = messages.length - 1) {
+  for (let index = Math.min(fromIndex, messages.length - 1); index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function buildConversationPrompt(messages) {
+  const lines = ['Continue this conversation and answer as the Model:'];
+  messages.forEach((message) => {
+    if (!message || (message.role !== 'user' && message.role !== 'model')) {
+      return;
+    }
+    const content = String(message.response || message.text || '').trim();
+    if (!content) {
+      return;
+    }
+    const speaker = message.role === 'user' ? 'User' : 'Model';
+    lines.push(`${speaker}: ${content}`);
+  });
+  lines.push('Model:');
+  return lines.join('\n');
+}
+
 function renderConversationList() {
   if (!conversationList) {
     return;
@@ -522,6 +548,7 @@ function addMessageElement(message) {
   }
   const item = document.createElement('li');
   item.className = `message-row ${message.role === 'user' ? 'user-message' : 'model-message'}`;
+  item.dataset.messageId = message.id;
   if (message.role === 'model') {
     item.innerHTML = `
       <p class="message-speaker">${message.speaker}</p>
@@ -534,6 +561,16 @@ function addMessageElement(message) {
         <section class="response-region">
           <h3 class="visually-hidden">Response</h3>
           <p class="response-content mb-0"></p>
+        </section>
+        <section class="response-actions">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary regenerate-response-btn"
+            data-message-id="${message.id}"
+            aria-label="Regenerate response"
+          >
+            Regenerate
+          </button>
         </section>
       </div>
     `;
@@ -648,6 +685,19 @@ function updateActionButtons() {
   if (newConversationBtn) {
     newConversationBtn.disabled = isGenerating;
   }
+  updateRegenerateButtons();
+}
+
+function updateRegenerateButtons() {
+  if (!chatTranscript) {
+    return;
+  }
+  const disabled = isLoadingModel || isGenerating || !modelReady;
+  chatTranscript.querySelectorAll('.regenerate-response-btn').forEach((button) => {
+    if (button instanceof HTMLButtonElement) {
+      button.disabled = disabled;
+    }
+  });
 }
 
 function updateSendButtonMode() {
@@ -904,6 +954,125 @@ async function reinitializeEngineFromSettings() {
   }
 }
 
+function startModelGeneration(activeConversation, prompt) {
+  const selectedModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  const thinkingTags = getThinkingTagsForModel(selectedModelId);
+  const modelMessage = addMessageToConversation(activeConversation, 'model', '');
+  const modelBubbleItem = addMessageElement(modelMessage);
+  let streamedText = '';
+
+  isGenerating = true;
+  updateActionButtons();
+
+  try {
+    engine.generate(prompt, {
+      generationConfig: activeGenerationConfig,
+      onToken: (chunk) => {
+        streamedText += chunk;
+        const parsed = parseThinkingText(streamedText, thinkingTags);
+        if (thinkingTags) {
+          modelMessage.thoughts = parsed.thoughts;
+          modelMessage.response = parsed.response.trimStart();
+          modelMessage.hasThinking = parsed.hasThinking || Boolean(parsed.thoughts.trim());
+          modelMessage.isThinkingComplete = parsed.isThinkingComplete;
+          modelMessage.text = modelMessage.response;
+        } else {
+          modelMessage.response = streamedText.trimStart();
+          modelMessage.text = modelMessage.response;
+        }
+        updateModelMessageElement(modelMessage, modelBubbleItem);
+        scrollTranscriptToBottom();
+      },
+      onComplete: (finalText) => {
+        const parsed = parseThinkingText(finalText || streamedText, thinkingTags);
+        modelMessage.thoughts = parsed.thoughts;
+        modelMessage.response = parsed.response.trimStart();
+        modelMessage.hasThinking = parsed.hasThinking || Boolean(parsed.thoughts.trim());
+        modelMessage.isThinkingComplete = parsed.isThinkingComplete || (modelMessage.hasThinking && !thinkingTags);
+        modelMessage.text = modelMessage.response || '[No output]';
+        updateModelMessageElement(modelMessage, modelBubbleItem);
+        scrollTranscriptToBottom();
+
+        if (!activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
+          activeConversation.name = deriveConversationName(activeConversation);
+          activeConversation.hasGeneratedName = true;
+          renderConversationList();
+          updateChatTitle();
+        }
+
+        appendDebug('Generation completed.');
+        isGenerating = false;
+        updateActionButtons();
+        applyPendingGenerationSettingsIfReady();
+      },
+      onError: (message) => {
+        modelMessage.text = `Generation error: ${message}`;
+        modelMessage.response = modelMessage.text;
+        modelMessage.thoughts = '';
+        modelMessage.hasThinking = false;
+        modelMessage.isThinkingComplete = false;
+        updateModelMessageElement(modelMessage, modelBubbleItem);
+        scrollTranscriptToBottom();
+        isGenerating = false;
+        updateActionButtons();
+        applyPendingGenerationSettingsIfReady();
+        setStatus('Generation failed');
+        appendDebug(`Generation error: ${message}`);
+      },
+    });
+  } catch (error) {
+    modelMessage.text = `Generation error: ${error.message}`;
+    modelMessage.response = modelMessage.text;
+    modelMessage.thoughts = '';
+    modelMessage.hasThinking = false;
+    modelMessage.isThinkingComplete = false;
+    updateModelMessageElement(modelMessage, modelBubbleItem);
+    scrollTranscriptToBottom();
+    isGenerating = false;
+    updateActionButtons();
+    applyPendingGenerationSettingsIfReady();
+    setStatus('Generation failed');
+    appendDebug(`Generation error: ${error.message}`);
+  }
+}
+
+function regenerateFromMessage(messageId) {
+  if (!messageId || isGenerating || isLoadingModel) {
+    return;
+  }
+  if (!modelReady) {
+    setStatus('Please load a model before regenerating a response.');
+    appendDebug('Regenerate blocked: model not ready.');
+    if (loadModelButton) {
+      loadModelButton.focus();
+    }
+    return;
+  }
+
+  const activeConversation = getActiveConversation();
+  if (!activeConversation) {
+    return;
+  }
+
+  const targetModelIndex = activeConversation.messages.findIndex(
+    (message) => message.id === messageId && message.role === 'model',
+  );
+  if (targetModelIndex < 0) {
+    return;
+  }
+
+  const lastUserIndex = findLastUserMessageIndex(activeConversation.messages, targetModelIndex - 1);
+  if (lastUserIndex < 0) {
+    setStatus('Unable to regenerate: no user message found.');
+    appendDebug('Regenerate failed: target model message has no preceding user message.');
+    return;
+  }
+
+  activeConversation.messages.splice(lastUserIndex + 1);
+  renderTranscript();
+  startModelGeneration(activeConversation, buildConversationPrompt(activeConversation.messages));
+}
+
 engine.onStatus = (message) => {
   setStatus(message);
 };
@@ -1103,87 +1272,21 @@ if (chatForm && messageInput && chatTranscript) {
     const userMessage = addMessageToConversation(activeConversation, 'user', value);
     addMessageElement(userMessage);
     messageInput.value = '';
+    startModelGeneration(activeConversation, buildConversationPrompt(activeConversation.messages));
+  });
+}
 
-    const selectedModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
-    const thinkingTags = getThinkingTagsForModel(selectedModelId);
-    const modelMessage = addMessageToConversation(activeConversation, 'model', '');
-    const modelBubbleItem = addMessageElement(modelMessage);
-    let streamedText = '';
-
-    isGenerating = true;
-    updateActionButtons();
-
-    try {
-      await engine.generate(value, {
-        generationConfig: activeGenerationConfig,
-        onToken: (chunk) => {
-          streamedText += chunk;
-          const parsed = parseThinkingText(streamedText, thinkingTags);
-          if (thinkingTags) {
-            modelMessage.thoughts = parsed.thoughts;
-            modelMessage.response = parsed.response.trimStart();
-            modelMessage.hasThinking = parsed.hasThinking || Boolean(parsed.thoughts.trim());
-            modelMessage.isThinkingComplete = parsed.isThinkingComplete;
-            modelMessage.text = modelMessage.response;
-          } else {
-            modelMessage.response = streamedText.trimStart();
-            modelMessage.text = modelMessage.response;
-          }
-          updateModelMessageElement(modelMessage, modelBubbleItem);
-          scrollTranscriptToBottom();
-        },
-        onComplete: (finalText) => {
-          const parsed = parseThinkingText(finalText || streamedText, thinkingTags);
-          modelMessage.thoughts = parsed.thoughts;
-          modelMessage.response = parsed.response.trimStart();
-          modelMessage.hasThinking = parsed.hasThinking || Boolean(parsed.thoughts.trim());
-          modelMessage.isThinkingComplete =
-            parsed.isThinkingComplete || (modelMessage.hasThinking && !thinkingTags);
-          modelMessage.text = modelMessage.response || '[No output]';
-          updateModelMessageElement(modelMessage, modelBubbleItem);
-          scrollTranscriptToBottom();
-
-          if (!activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
-            activeConversation.name = deriveConversationName(activeConversation);
-            activeConversation.hasGeneratedName = true;
-            renderConversationList();
-            updateChatTitle();
-          }
-
-          appendDebug('Generation completed.');
-          isGenerating = false;
-          updateActionButtons();
-          applyPendingGenerationSettingsIfReady();
-        },
-        onError: (message) => {
-          modelMessage.text = `Generation error: ${message}`;
-          modelMessage.response = modelMessage.text;
-          modelMessage.thoughts = '';
-          modelMessage.hasThinking = false;
-          modelMessage.isThinkingComplete = false;
-          updateModelMessageElement(modelMessage, modelBubbleItem);
-          scrollTranscriptToBottom();
-          isGenerating = false;
-          updateActionButtons();
-          applyPendingGenerationSettingsIfReady();
-          setStatus('Generation failed');
-          appendDebug(`Generation error: ${message}`);
-        },
-      });
-    } catch (error) {
-      modelMessage.text = `Generation error: ${error.message}`;
-      modelMessage.response = modelMessage.text;
-      modelMessage.thoughts = '';
-      modelMessage.hasThinking = false;
-      modelMessage.isThinkingComplete = false;
-      updateModelMessageElement(modelMessage, modelBubbleItem);
-      scrollTranscriptToBottom();
-      isGenerating = false;
-      updateActionButtons();
-      applyPendingGenerationSettingsIfReady();
-      setStatus('Generation failed');
-      appendDebug(`Generation error: ${error.message}`);
+if (chatTranscript) {
+  chatTranscript.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
     }
+    const regenerateButton = target.closest('.regenerate-response-btn');
+    if (!(regenerateButton instanceof HTMLButtonElement)) {
+      return;
+    }
+    regenerateFromMessage(regenerateButton.dataset.messageId || '');
   });
 }
 

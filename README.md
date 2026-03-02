@@ -28,6 +28,7 @@ Student-facing browser chat UI with local model inference.
 - New conversations start untitled and are automatically renamed after the first model response based on conversation content.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in a collapsible "Thinking" section during streaming.
+- Each model response includes a `Regenerate` button. Regeneration resubmits the conversation up to the user turn before that response and replaces that response with a newly generated one.
 
 ## Supported model
 
