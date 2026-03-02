@@ -9,20 +9,29 @@ let cachedModule = null;
 let generationConfig = {
   maxOutputTokens: 1024,
   maxContextTokens: 32768,
+  temperature: 0.6,
 };
 
 function normalizeGenerationConfig(rawConfig) {
   const parsedMaxContext = Number.parseInt(String(rawConfig?.maxContextTokens ?? ''), 10);
   const parsedMaxOutput = Number.parseInt(String(rawConfig?.maxOutputTokens ?? ''), 10);
+  const parsedTemperature = Number.parseFloat(String(rawConfig?.temperature ?? ''));
   const maxContextTokens = Number.isInteger(parsedMaxContext) && parsedMaxContext > 0 ? parsedMaxContext : 32768;
   const maxOutputCap = maxContextTokens;
   const maxOutputTokens =
     Number.isInteger(parsedMaxOutput) && parsedMaxOutput > 0
       ? Math.min(parsedMaxOutput, maxOutputCap)
       : Math.min(1024, maxOutputCap);
+  const minTemperature = 0.1;
+  const maxTemperature = 2.0;
+  const boundedTemperature = Number.isFinite(parsedTemperature)
+    ? Math.max(minTemperature, Math.min(maxTemperature, parsedTemperature))
+    : 0.6;
+  const temperature = Number(boundedTemperature.toFixed(1));
   return {
     maxOutputTokens,
     maxContextTokens,
+    temperature,
   };
 }
 
@@ -179,7 +188,7 @@ async function generate(payload) {
       await model(formattedPrompt, {
         max_new_tokens: requestGenerationConfig.maxOutputTokens,
         max_length: requestGenerationConfig.maxContextTokens,
-        temperature: 0.7,
+        temperature: requestGenerationConfig.temperature,
         top_p: 0.9,
         do_sample: true,
         streamer,
@@ -189,7 +198,7 @@ async function generate(payload) {
       const output = await model(formattedPrompt, {
         max_new_tokens: requestGenerationConfig.maxOutputTokens,
         max_length: requestGenerationConfig.maxContextTokens,
-        temperature: 0.7,
+        temperature: requestGenerationConfig.temperature,
         top_p: 0.9,
         do_sample: true,
         return_full_text: false,

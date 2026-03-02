@@ -15,6 +15,11 @@ Student-facing browser chat UI with local model inference.
   - Values are constrained by per-model limits from `src/config/models.json` and use `step=8`.
   - Fields are disabled until a model is loaded.
   - If changed during generation, updates are queued and applied after the current response finishes.
+- Temperature control in Settings:
+  - `Temperature` is model-aware and constrained by per-model `minTemperature`, `maxTemperature`, and `defaultTemperature`.
+  - Values use `step=0.1`.
+  - The field is disabled until a model is loaded.
+  - If changed during generation, updates are queued and applied after the current response finishes.
 - `Auto` attempts WebGPU first and falls back to CPU if unavailable or initialization fails.
 - The selected backend and model are stored in `localStorage`.
 - Model files are downloaded on first load and cached in-browser for reuse (`Transformers.js` browser cache).
@@ -33,7 +38,7 @@ Student-facing browser chat UI with local model inference.
   - `Xenova/distilgpt2`
 - Model support configuration lives in `src/config/models.json`:
   - `models`: options shown in the model selector
-  - `models[].generation`: per-model defaults and max values for output/context tokens
+  - `models[].generation`: per-model defaults and limits for output/context tokens and temperature
   - `defaultModelId`: fallback/default selection
   - `legacyAliases`: stored legacy IDs remapped at runtime
 

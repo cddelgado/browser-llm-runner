@@ -8,6 +8,9 @@ Model support is configured in `src/config/models.json`:
   - `maxOutputTokens`
   - `defaultMaxContextTokens`
   - `maxContextTokens`
+  - `minTemperature`
+  - `maxTemperature`
+  - `defaultTemperature`
 - `thinkingTags`: optional per-model tags used to separate internal thoughts from final response
   during streaming (for example `<think>` and `</think>`)
 - `defaultModelId`: default model used for first load and invalid selections
@@ -26,4 +29,5 @@ Notes:
 - The model is downloaded at runtime by Transformers.js and cached in-browser for reuse.
 - Model assets are not committed to this repository.
 - Settings fields for max output/context tokens are numeric, step in 8, and disabled until a model is loaded.
-- If token settings are changed while generating, they are queued and applied after that generation finishes.
+- Temperature is numeric, step in 0.1, and disabled until a model is loaded.
+- If generation settings are changed while generating, they are queued and applied after that generation finishes.

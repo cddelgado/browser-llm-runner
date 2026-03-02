@@ -10,24 +10,59 @@ const BACKEND_STORAGE_KEY = 'llm-backend-preference';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
 const TOKEN_STEP = 8;
 const MIN_TOKEN_LIMIT = 8;
+const TEMPERATURE_STEP = 0.1;
 const DEFAULT_GENERATION_LIMITS = Object.freeze({
   defaultMaxOutputTokens: 1024,
   maxOutputTokens: 32768,
   defaultMaxContextTokens: 32768,
   maxContextTokens: 32768,
+  minTemperature: 0.1,
+  maxTemperature: 2.0,
+  defaultTemperature: 0.6,
 });
 
 function toPositiveInt(value, fallback) {
   return Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
+function toFiniteNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function quantizeTemperature(value, min, max) {
+  const parsed = Number.parseFloat(String(value ?? ''));
+  if (!Number.isFinite(parsed)) {
+    return Number(min.toFixed(1));
+  }
+  const bounded = clamp(parsed, min, max);
+  const steps = Math.round((bounded - min) / TEMPERATURE_STEP);
+  const quantized = min + steps * TEMPERATURE_STEP;
+  return Number(clamp(quantized, min, max).toFixed(1));
 }
 
 function normalizeGenerationLimits(rawLimits) {
   const maxContextTokens = toPositiveInt(rawLimits?.maxContextTokens, DEFAULT_GENERATION_LIMITS.maxContextTokens);
   const maxOutputTokens = toPositiveInt(rawLimits?.maxOutputTokens, maxContextTokens);
+  const minTemperature = toFiniteNumber(
+    rawLimits?.minTemperature,
+    DEFAULT_GENERATION_LIMITS.minTemperature,
+  );
+  const maxTemperature = toFiniteNumber(
+    rawLimits?.maxTemperature,
+    DEFAULT_GENERATION_LIMITS.maxTemperature,
+  );
+  const boundedMinTemperature = Number(Math.min(minTemperature, maxTemperature).toFixed(1));
+  const boundedMaxTemperature = Number(Math.max(minTemperature, maxTemperature).toFixed(1));
+  const defaultTemperature = quantizeTemperature(
+    toFiniteNumber(rawLimits?.defaultTemperature, DEFAULT_GENERATION_LIMITS.defaultTemperature),
+    boundedMinTemperature,
+    boundedMaxTemperature,
+  );
   const defaultMaxContextTokens = clamp(
     toPositiveInt(rawLimits?.defaultMaxContextTokens, maxContextTokens),
     MIN_TOKEN_LIMIT,
@@ -43,6 +78,9 @@ function normalizeGenerationLimits(rawLimits) {
     maxOutputTokens,
     defaultMaxContextTokens,
     maxContextTokens,
+    minTemperature: boundedMinTemperature,
+    maxTemperature: boundedMaxTemperature,
+    defaultTemperature,
   };
 }
 const configuredModels = Array.isArray(modelCatalog?.models)
@@ -129,8 +167,10 @@ const modelSelect = document.getElementById('modelSelect');
 const backendSelect = document.getElementById('backendSelect');
 const maxOutputTokensInput = document.getElementById('maxOutputTokensInput');
 const maxContextTokensInput = document.getElementById('maxContextTokensInput');
+const temperatureInput = document.getElementById('temperatureInput');
 const maxOutputTokensHelp = document.getElementById('maxOutputTokensHelp');
 const maxContextTokensHelp = document.getElementById('maxContextTokensHelp');
+const temperatureHelp = document.getElementById('temperatureHelp');
 const statusRegion = document.getElementById('statusRegion');
 const loadModelButton = document.getElementById('loadModelButton');
 const debugInfo = document.getElementById('debugInfo');
@@ -197,7 +237,12 @@ function buildGenerationConfigFromUI(modelId) {
     MIN_TOKEN_LIMIT,
     Math.min(limits.maxOutputTokens, maxContextTokens),
   );
-  return { maxOutputTokens, maxContextTokens };
+  const temperature = quantizeTemperature(
+    temperatureInput?.value ?? limits.defaultTemperature,
+    limits.minTemperature,
+    limits.maxTemperature,
+  );
+  return { maxOutputTokens, maxContextTokens, temperature };
 }
 
 function renderGenerationSettingsHelpText(config, limits) {
@@ -211,6 +256,11 @@ function renderGenerationSettingsHelpText(config, limits) {
       limits.maxContextTokens,
     )}. Current: ${formatInteger(config.maxContextTokens)}.`;
   }
+  if (temperatureHelp) {
+    temperatureHelp.textContent = `Allowed: ${limits.minTemperature.toFixed(1)} to ${limits.maxTemperature.toFixed(
+      1,
+    )} in steps of ${TEMPERATURE_STEP.toFixed(1)}. Current: ${config.temperature.toFixed(1)}.`;
+  }
 }
 
 function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
@@ -219,6 +269,7 @@ function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
     ? {
         maxOutputTokens: Math.min(limits.defaultMaxOutputTokens, limits.defaultMaxContextTokens),
         maxContextTokens: limits.defaultMaxContextTokens,
+        temperature: limits.defaultTemperature,
       }
     : buildGenerationConfigFromUI(modelId);
   const boundedOutputMax = Math.min(limits.maxOutputTokens, config.maxContextTokens);
@@ -236,6 +287,12 @@ function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
     maxOutputTokensInput.step = String(TOKEN_STEP);
     maxOutputTokensInput.value = String(config.maxOutputTokens);
   }
+  if (temperatureInput) {
+    temperatureInput.min = limits.minTemperature.toFixed(1);
+    temperatureInput.max = limits.maxTemperature.toFixed(1);
+    temperatureInput.step = TEMPERATURE_STEP.toFixed(1);
+    temperatureInput.value = config.temperature.toFixed(1);
+  }
 
   activeGenerationConfig = { ...config };
   engine.setGenerationConfig(activeGenerationConfig);
@@ -249,6 +306,9 @@ function updateGenerationSettingsEnabledState() {
   }
   if (maxContextTokensInput) {
     maxContextTokensInput.disabled = disabled;
+  }
+  if (temperatureInput) {
+    temperatureInput.disabled = disabled;
   }
 }
 
@@ -270,6 +330,11 @@ function applyPendingGenerationSettingsIfReady() {
       MIN_TOKEN_LIMIT,
       Math.min(limits.maxOutputTokens, nextMaxContextTokens),
     ),
+    temperature: quantizeTemperature(
+      pendingGenerationConfig.temperature,
+      limits.minTemperature,
+      limits.maxTemperature,
+    ),
   };
   pendingGenerationConfig = null;
   activeGenerationConfig = nextConfig;
@@ -277,7 +342,7 @@ function applyPendingGenerationSettingsIfReady() {
   syncGenerationSettingsFromModel(selectedModel, false);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}).`,
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}).`,
   );
 }
 
@@ -295,7 +360,7 @@ function onGenerationSettingInputChanged() {
   engine.setGenerationConfig(nextConfig);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}).`,
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}).`,
   );
 }
 
@@ -903,6 +968,10 @@ if (maxOutputTokensInput) {
 
 if (maxContextTokensInput) {
   maxContextTokensInput.addEventListener('change', onGenerationSettingInputChanged);
+}
+
+if (temperatureInput) {
+  temperatureInput.addEventListener('change', onGenerationSettingInputChanged);
 }
 
 if (loadModelButton) {
