@@ -45,7 +45,7 @@ Student-facing browser chat UI with local model inference.
 - Each user message and model response includes a copy action; model response copy excludes thought text.
 - The Thinking section includes a dedicated copy action to copy thoughts only.
 - Each model response includes a `Regenerate` button. Regeneration creates a new response variation at that turn, keeps prior variations, and lets users navigate alternatives with left/right controls and an `x/y` indicator.
-- Each model response includes a `Fix` button (wrench icon). `Fix` runs a one-step orchestration from `src/config/orchestrations/fix-response.json` to revise the response against the originating user prompt and generate a corrected variant.
+- Each model response includes a `Fix` button (wrench icon). `Fix` now runs a multi-step orchestration from `src/config/orchestrations/fix-response.json` (critique -> revise -> validate) before streaming a corrected variant at that turn.
 - Each user message now supports branch-aware editing controls:
   - `Edit` opens inline editing for that user message.
   - `Save` (floppy icon) commits the edit and removes all later turns on that branch from that point forward.

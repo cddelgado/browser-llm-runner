@@ -1,17 +1,41 @@
 {
   "id": "fix-response",
-  "description": "Revise a model response to correct obvious errors while preserving valid content.",
+  "description": "Critique, revise, and validate a model response against the user prompt while preserving valid content.",
   "steps": [
     {
-      "stepName": "Fix the response",
-      "prompt": "You are revising an assistant response.\nCorrect clear factual mistakes, contradictions, or missed constraints from the user prompt.\nKeep what is already correct. Improve clarity only where needed.\nReturn a corrected response only.\n\nUser prompt:\n{{userPrompt}}\n\nCurrent assistant response:\n{{assistantResponse}}",
+      "stepName": "Critique the response",
+      "prompt": "You are auditing an assistant response for correctness and instruction-following.\nFind concrete problems only (factual mistakes, contradictions, missed constraints, unsafe or non-actionable guidance).\nDo not rewrite the answer yet.\nReturn a short bullet list where each bullet has:\n- issue type\n- evidence from user prompt and response\n- required correction\n\nUser prompt:\n{{userPrompt}}\n\nCurrent assistant response:\n{{assistantResponse}}",
+      "parameters": {
+        "maxIssues": 6
+      },
+      "outputKey": "critique",
+      "responseFormat": {
+        "type": "plain_text",
+        "instructions": "Return only the issue bullets. If no issues are found, return exactly: NO_ISSUES"
+      }
+    },
+    {
+      "stepName": "Revise the response",
+      "prompt": "You are revising an assistant response.\nApply the critique exactly.\nKeep all content that is already correct.\nDo not widen scope beyond the user prompt.\nPreserve tone and structure where possible.\n\nUser prompt:\n{{userPrompt}}\n\nCurrent assistant response:\n{{assistantResponse}}\n\nCritique:\n{{critique}}",
       "parameters": {
         "preserveTone": true,
         "preserveScope": true
       },
+      "outputKey": "revisedDraft",
       "responseFormat": {
         "type": "plain_text",
-        "instructions": "Return only the revised assistant response. No notes about edits."
+        "instructions": "Return only the revised assistant response. No edit notes."
+      }
+    },
+    {
+      "stepName": "Validate and finalize",
+      "prompt": "You are validating a revised assistant response.\nCheck that the revised draft satisfies the user prompt and fixes critique issues.\nIf a problem remains, correct it now.\nReturn the final corrected response only.\n\nUser prompt:\n{{userPrompt}}\n\nOriginal assistant response:\n{{assistantResponse}}\n\nCritique:\n{{critique}}\n\nRevised draft:\n{{revisedDraft}}",
+      "parameters": {
+        "mustResolveCritique": true
+      },
+      "responseFormat": {
+        "type": "plain_text",
+        "instructions": "Return only the final corrected response. No validation notes."
       }
     }
   ]

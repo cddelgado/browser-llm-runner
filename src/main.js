@@ -943,17 +943,29 @@ function deriveConversationName(conversation) {
   return normalizeConversationName(topTokens.join(' '));
 }
 
-function buildOrchestrationPrompt(orchestration, variables = {}) {
-  const firstStep = Array.isArray(orchestration?.steps) ? orchestration.steps[0] : null;
-  if (!firstStep || typeof firstStep.prompt !== 'string' || !firstStep.prompt.trim()) {
+function getOrchestrationSteps(orchestration) {
+  const steps = Array.isArray(orchestration?.steps) ? orchestration.steps : [];
+  if (!steps.length) {
     throw new Error('Invalid orchestration definition.');
   }
-  const renderedPrompt = firstStep.prompt.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_match, key) =>
+  steps.forEach((step, index) => {
+    if (typeof step?.prompt !== 'string' || !step.prompt.trim()) {
+      throw new Error(`Invalid orchestration step at index ${index}.`);
+    }
+  });
+  return steps;
+}
+
+function buildOrchestrationPrompt(step, variables = {}) {
+  if (!step || typeof step.prompt !== 'string' || !step.prompt.trim()) {
+    throw new Error('Invalid orchestration definition.');
+  }
+  const renderedPrompt = step.prompt.replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_match, key) =>
     String(variables[key] ?? ''),
   );
   const responseInstructions =
-    typeof firstStep?.responseFormat?.instructions === 'string'
-      ? firstStep.responseFormat.instructions.trim()
+    typeof step?.responseFormat?.instructions === 'string'
+      ? step.responseFormat.instructions.trim()
       : '';
   if (!responseInstructions) {
     return renderedPrompt.trim();
@@ -983,13 +995,50 @@ function requestSingleGeneration(prompt) {
   });
 }
 
-async function runSingleStepOrchestration(orchestration, variables = {}) {
+async function runOrchestration(orchestration, variables = {}, options = {}) {
   const orchestrationId = typeof orchestration?.id === 'string' ? orchestration.id : 'unnamed-orchestration';
-  const prompt = buildOrchestrationPrompt(orchestration, variables);
-  appendDebug(`Orchestration started: ${orchestrationId}`);
-  const output = await requestSingleGeneration(prompt);
-  appendDebug(`Orchestration completed: ${orchestrationId}`);
-  return output;
+  const runFinalStep = options?.runFinalStep !== false;
+  const steps = getOrchestrationSteps(orchestration);
+  const promptVariables = { ...variables };
+  appendDebug(`Orchestration started: ${orchestrationId} (${steps.length} steps)`);
+
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index];
+    const stepName =
+      typeof step?.stepName === 'string' && step.stepName.trim()
+        ? step.stepName.trim()
+        : `Step ${index + 1}`;
+    const stepPrompt = buildOrchestrationPrompt(step, promptVariables);
+    const isFinalStep = index === steps.length - 1;
+
+    if (isFinalStep && !runFinalStep) {
+      appendDebug(`Orchestration prepared final step: ${orchestrationId} [${stepName}]`);
+      appendDebug(`Orchestration completed: ${orchestrationId}`);
+      return {
+        finalPrompt: stepPrompt,
+        finalOutput: '',
+      };
+    }
+
+    appendDebug(`Orchestration step ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`);
+    const stepOutput = await requestSingleGeneration(stepPrompt);
+    promptVariables.previousStepOutput = stepOutput;
+    promptVariables.lastStepOutput = stepOutput;
+    promptVariables[`step${index + 1}Output`] = stepOutput;
+    const outputKey = typeof step?.outputKey === 'string' ? step.outputKey.trim() : '';
+    if (outputKey) {
+      promptVariables[outputKey] = stepOutput;
+    }
+    if (isFinalStep) {
+      appendDebug(`Orchestration completed: ${orchestrationId}`);
+      return {
+        finalPrompt: stepPrompt,
+        finalOutput: stepOutput,
+      };
+    }
+  }
+
+  throw new Error('Invalid orchestration definition.');
 }
 
 function parseMessageNodeCounterFromId(nodeId) {
@@ -2813,8 +2862,9 @@ async function runRenameChatOrchestration(conversationId, inputs) {
   updateActionButtons();
   setStatus('Generating conversation title...');
   try {
+    const { finalOutput } = await runOrchestration(RENAME_CHAT_ORCHESTRATION, inputs);
     const nextName = normalizeConversationName(
-      await runSingleStepOrchestration(RENAME_CHAT_ORCHESTRATION, inputs),
+      finalOutput,
     );
     activeConversation.name = nextName || deriveConversationName(activeConversation);
     activeConversation.hasGeneratedName = true;
@@ -2836,7 +2886,7 @@ async function runRenameChatOrchestration(conversationId, inputs) {
   }
 }
 
-function fixResponseFromMessage(messageId) {
+async function fixResponseFromMessage(messageId) {
   if (!messageId || isGenerating || isLoadingModel || isRunningOrchestration || activeUserEditMessageId) {
     return;
   }
@@ -2869,24 +2919,48 @@ function fixResponseFromMessage(messageId) {
     return;
   }
 
+  const conversationId = activeConversation.id;
+  const parentUserMessageId = parentUserMessage.id;
+  const orchestrationInputs = {
+    userPrompt: parentUserMessage.text || '',
+    assistantResponse: targetModelMessage.response || targetModelMessage.text || '',
+  };
+
   let fixPrompt = '';
+  isRunningOrchestration = true;
+  updateActionButtons();
+  setStatus('Preparing response fix...');
   try {
-    fixPrompt = buildOrchestrationPrompt(FIX_RESPONSE_ORCHESTRATION, {
-      userPrompt: parentUserMessage.text || '',
-      assistantResponse: targetModelMessage.response || targetModelMessage.text || '',
+    const { finalPrompt } = await runOrchestration(FIX_RESPONSE_ORCHESTRATION, orchestrationInputs, {
+      runFinalStep: false,
     });
+    fixPrompt = finalPrompt;
   } catch (error) {
-    setStatus('Fix orchestration is invalid.');
+    setStatus('Fix orchestration failed.');
     appendDebug(`Fix orchestration error: ${error.message}`);
+    return;
+  } finally {
+    isRunningOrchestration = false;
+    updateActionButtons();
+  }
+
+  const refreshedConversation = conversations.find((conversation) => conversation.id === conversationId);
+  if (!refreshedConversation) {
+    return;
+  }
+  const refreshedParentUserMessage = getMessageNodeById(refreshedConversation, parentUserMessageId);
+  if (!refreshedParentUserMessage || refreshedParentUserMessage.role !== 'user') {
+    setStatus('Unable to fix response: no user message found.');
+    appendDebug('Fix aborted: parent user message no longer exists.');
     return;
   }
 
-  activeConversation.activeLeafMessageId = parentUserMessage.id;
+  refreshedConversation.activeLeafMessageId = refreshedParentUserMessage.id;
   renderTranscript();
   queueConversationStateSave();
   setStatus('Fixing response...');
-  startModelGeneration(activeConversation, fixPrompt, {
-    parentMessageId: parentUserMessage.id,
+  startModelGeneration(refreshedConversation, fixPrompt, {
+    parentMessageId: refreshedParentUserMessage.id,
   });
 }
 
@@ -3141,7 +3215,7 @@ if (chatTranscript) {
     }
     const fixButton = target.closest('.fix-response-btn');
     if (fixButton instanceof HTMLButtonElement) {
-      fixResponseFromMessage(fixButton.dataset.messageId || '');
+      void fixResponseFromMessage(fixButton.dataset.messageId || '');
       return;
     }
     const userVariantPrevButton = target.closest('.user-variant-prev');
