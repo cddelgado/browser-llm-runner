@@ -258,7 +258,6 @@ const markdown = new MarkdownIt({
   breaks: true,
   linkify: true,
 });
-void ensureMathJaxLoaded();
 
 const defaultLinkRenderer =
   markdown.renderer.rules.link_open ||
@@ -297,6 +296,7 @@ const loadProgressFiles = new Map();
 const mathTypesetTimers = new WeakMap();
 let hasLoggedMathJaxError = false;
 let mathJaxLoadPromise = null;
+void ensureMathJaxLoaded();
 
 function initializeTooltips(root = document) {
   if (!root || !(root instanceof Element || root instanceof Document)) {
