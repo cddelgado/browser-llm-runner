@@ -12,7 +12,7 @@
   --control-border: #97abd0;
   --composer-border: #9fb3d4;
   --ink-muted: #4f5f7e;
-  --message-user: #0b84ff;
+  --message-user: #0859bf;
   --message-model: #edf4ff;
   --ink-strong: #1f2940;
   --action-icon-color: #1b2e56;
@@ -23,14 +23,14 @@
   --action-btn-border: #2f6fbe;
   --action-btn-hover-bg: #2f6fbe;
   --action-btn-hover-text: #ffffff;
-  --primary-btn-bg: #0b84ff;
-  --primary-btn-border: #0b84ff;
-  --primary-btn-hover-bg: #086ad0;
-  --primary-btn-hover-border: #086ad0;
+  --primary-btn-bg: #0859bf;
+  --primary-btn-border: #0859bf;
+  --primary-btn-hover-bg: #064a9e;
+  --primary-btn-hover-border: #064a9e;
   --button-radius-rest: 0.55rem;
   --button-radius-active: 999px;
   --regenerate-accent: #0c67d8;
-  --focus-ring: #0b84ff;
+  --focus-ring: #0859bf;
   --shadow-ambient: 0 10px 24px rgba(31, 41, 64, 0.18);
   --chat-border: #cfdbef;
   --thoughts-bg: #eef4ff;

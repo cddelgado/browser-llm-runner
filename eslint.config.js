@@ -60,7 +60,13 @@ module.exports = [
     },
   },
   {
-    files: ['vite.config.js', 'eslint.config.js'],
+    files: [
+      'vite.config.js',
+      'eslint.config.js',
+      'vitest.config.js',
+      'playwright.config.js',
+      'tests/e2e/**/*.js',
+    ],
     languageOptions: {
       sourceType: 'commonjs',
       globals: {

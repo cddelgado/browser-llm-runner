@@ -100,3 +100,9 @@ Student-facing browser chat UI with local model inference.
 - `npm run dev`
 - `npm run build`
 - `npm run preview`
+- `npm run lint`
+- `npm run format`
+- `npm run typecheck`
+- `npm run test`
+- `npm run test:e2e`
+- `npm run test:a11y`
