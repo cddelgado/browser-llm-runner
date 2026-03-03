@@ -6,9 +6,9 @@
       "label": "onnx-community/Llama-3.2-3B-Instruct-ONNX",
       "generation": {
         "defaultMaxOutputTokens": 1024,
-        "maxOutputTokens": 32768,
+        "maxOutputTokens": 131072,
         "defaultMaxContextTokens": 32768,
-        "maxContextTokens": 32768,
+        "maxContextTokens": 131072,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
         "defaultTemperature": 0.6
@@ -22,9 +22,49 @@
       "label": "onnx-community/Qwen3-0.6B-ONNX",
       "generation": {
         "defaultMaxOutputTokens": 1024,
-        "maxOutputTokens": 32768,
+        "maxOutputTokens": 40960,
         "defaultMaxContextTokens": 32768,
-        "maxContextTokens": 32768,
+        "maxContextTokens": 40960,
+        "minTemperature": 0.1,
+        "maxTemperature": 2.0,
+        "defaultTemperature": 0.6
+      },
+      "thinkingTags": {
+        "open": "<think>",
+        "close": "</think>"
+      },
+      "features": {
+        "streaming": true
+      }
+    },
+    {
+      "id": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
+      "label": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
+      "generation": {
+        "defaultMaxOutputTokens": 1024,
+        "maxOutputTokens": 128000,
+        "defaultMaxContextTokens": 32768,
+        "maxContextTokens": 128000,
+        "minTemperature": 0.1,
+        "maxTemperature": 2.0,
+        "defaultTemperature": 0.1
+      },
+      "thinkingTags": {
+        "open": "<think>",
+        "close": "</think>"
+      },
+      "features": {
+        "streaming": true
+      }
+    },
+    {
+      "id": "onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX",
+      "label": "onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX",
+      "generation": {
+        "defaultMaxOutputTokens": 1024,
+        "maxOutputTokens": 131072,
+        "defaultMaxContextTokens": 32768,
+        "maxContextTokens": 131072,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
         "defaultTemperature": 0.6

@@ -20,6 +20,8 @@ Current supported models in Settings:
 
 - `onnx-community/Llama-3.2-3B-Instruct-ONNX` (default)
 - `onnx-community/Qwen3-0.6B-ONNX`
+- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
+- `onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX`
 - Legacy aliases remapped automatically at runtime:
   - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/Qwen3-0.6B-ONNX`
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/Qwen3-0.6B-ONNX`
@@ -33,3 +35,10 @@ Notes:
 - Temperature is numeric, step in 0.1, and disabled until a model is loaded.
 - User changes to max output/context tokens and temperature are persisted per model in browser storage and restored when that model is selected again.
 - If generation settings are changed while generating, they are queued and applied after that generation finishes.
+
+Per-model limits and defaults:
+
+- `onnx-community/Llama-3.2-3B-Instruct-ONNX`: max context `131072`, default temperature `0.6`
+- `onnx-community/Qwen3-0.6B-ONNX`: max context `40960`, default temperature `0.6`
+- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: max context `128000`, default temperature `0.1`
+- `onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX`: max context `131072`, default temperature `0.6`
