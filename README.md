@@ -74,8 +74,9 @@ Student-facing browser chat UI with local model inference.
 ## Supported models
 
 - `onnx-community/Llama-3.2-3B-Instruct-ONNX` (default)
-- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
+- `onnx-community/Qwen3.5-2B-ONNX`
 - Legacy stored IDs are automatically remapped to the supported model:
+  - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
   - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`

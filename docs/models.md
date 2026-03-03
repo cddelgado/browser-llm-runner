@@ -19,8 +19,9 @@ Model support is configured in `src/config/models.json`:
 Current supported models in Settings:
 
 - `onnx-community/Llama-3.2-3B-Instruct-ONNX` (default)
-- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
+- `onnx-community/Qwen3.5-2B-ONNX`
 - Legacy aliases remapped automatically at runtime:
+  - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
   - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
@@ -37,4 +38,4 @@ Notes:
 Per-model limits and defaults:
 
 - `onnx-community/Llama-3.2-3B-Instruct-ONNX`: max context `131072`, default temperature `0.6`
-- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: max context `128000`, default temperature `0.1`
+- `onnx-community/Qwen3.5-2B-ONNX`: max context `262144`, default temperature `0.6`
