@@ -1,0 +1,22 @@
+﻿{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM", "WebWorker"]
+  },
+  "include": [
+    "src/llm/**/*.js",
+    "src/state/**/*.js",
+    "src/workers/**/*.js",
+    "tests/**/*.js",
+    "vite.config.js"
+  ],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

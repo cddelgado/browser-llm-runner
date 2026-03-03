@@ -18,9 +18,9 @@ export class LLMEngineClient {
         topP: 0.9,
       },
     };
-    this.onStatus = () => {};
-    this.onBackendResolved = () => {};
-    this.onProgress = () => {};
+    this.onStatus = (_message) => {};
+    this.onBackendResolved = (_backend) => {};
+    this.onProgress = (_progress) => {};
   }
 
   async initialize(config = {}) {
