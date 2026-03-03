@@ -436,7 +436,7 @@
                 >
                   <h3 class="h6 mb-0" id="settingsModelHeading">Model</h3>
                   <div class="settings-control-group">
-                    <label class="form-label" for="maxOutputTokensInput">Max output tokens</label>
+                    <label class="form-label" for="maxOutputTokensInput">Maximum output tokens</label>
                     <input
                       id="maxOutputTokensInput"
                       class="form-control"
@@ -449,7 +449,7 @@
                     <p id="maxOutputTokensHelp" class="form-text mb-0">Load a model to edit this setting.</p>
                   </div>
                   <div class="settings-control-group">
-                    <label class="form-label" for="maxContextTokensInput">Max context tokens</label>
+                    <label class="form-label" for="maxContextTokensInput">Maximum context size (short-term memory)</label>
                     <input
                       id="maxContextTokensInput"
                       class="form-control"
@@ -462,7 +462,7 @@
                     <p id="maxContextTokensHelp" class="form-text mb-0">Load a model to edit this setting.</p>
                   </div>
                   <div class="settings-control-group">
-                    <label class="form-label" for="temperatureInput">Temperature</label>
+                    <label class="form-label" for="temperatureInput">Temperature (Creativity)</label>
                     <input
                       id="temperatureInput"
                       class="form-control"
@@ -474,6 +474,33 @@
                       disabled
                     />
                     <p id="temperatureHelp" class="form-text mb-0">Load a model to edit this setting.</p>
+                  </div>
+                  <div class="settings-control-group">
+                    <label class="form-label" for="topKInput">Top K (Predictability)</label>
+                    <input
+                      id="topKInput"
+                      class="form-control"
+                      type="number"
+                      inputmode="numeric"
+                      min="5"
+                      step="5"
+                      disabled
+                    />
+                    <p id="topKHelp" class="form-text mb-0">Load a model to edit this setting.</p>
+                  </div>
+                  <div class="settings-control-group">
+                    <label class="form-label" for="topPInput">Top P (Strangeness)</label>
+                    <input
+                      id="topPInput"
+                      class="form-control"
+                      type="number"
+                      inputmode="decimal"
+                      min="0.00"
+                      max="1.00"
+                      step="0.05"
+                      disabled
+                    />
+                    <p id="topPHelp" class="form-text mb-0">Load a model to edit this setting.</p>
                   </div>
                 </section>
 

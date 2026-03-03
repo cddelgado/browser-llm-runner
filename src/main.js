@@ -17,10 +17,19 @@ const DEFAULT_SYSTEM_PROMPT_STORAGE_KEY = 'conversation-default-system-prompt';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
 const MODEL_GENERATION_SETTINGS_STORAGE_KEY = 'llm-model-generation-settings';
+const GLOBAL_SAMPLING_SETTINGS_STORAGE_KEY = 'llm-global-sampling-settings';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
 const TOKEN_STEP = 8;
 const MIN_TOKEN_LIMIT = 8;
 const TEMPERATURE_STEP = 0.1;
+const TOP_K_STEP = 5;
+const MIN_TOP_K = 5;
+const MAX_TOP_K = 500;
+const DEFAULT_TOP_K = 50;
+const TOP_P_STEP = 0.05;
+const MIN_TOP_P = 0;
+const MAX_TOP_P = 1;
+const DEFAULT_TOP_P = 0.9;
 const DEFAULT_GENERATION_LIMITS = Object.freeze({
   defaultMaxOutputTokens: 1024,
   maxOutputTokens: 32768,
@@ -29,6 +38,8 @@ const DEFAULT_GENERATION_LIMITS = Object.freeze({
   minTemperature: 0.1,
   maxTemperature: 2.0,
   defaultTemperature: 0.6,
+  defaultTopK: DEFAULT_TOP_K,
+  defaultTopP: DEFAULT_TOP_P,
 });
 
 function toPositiveInt(value, fallback) {
@@ -99,6 +110,27 @@ function quantizeTemperature(value, min, max) {
   const steps = Math.round((bounded - min) / TEMPERATURE_STEP);
   const quantized = min + steps * TEMPERATURE_STEP;
   return Number(clamp(quantized, min, max).toFixed(1));
+}
+
+function quantizeTopKInput(value) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_TOP_K;
+  }
+  const bounded = clamp(parsed, MIN_TOP_K, MAX_TOP_K);
+  const steps = Math.round((bounded - MIN_TOP_K) / TOP_K_STEP);
+  return clamp(MIN_TOP_K + steps * TOP_K_STEP, MIN_TOP_K, MAX_TOP_K);
+}
+
+function quantizeTopPInput(value) {
+  const parsed = Number.parseFloat(String(value ?? ''));
+  if (!Number.isFinite(parsed)) {
+    return Number(DEFAULT_TOP_P.toFixed(2));
+  }
+  const bounded = clamp(parsed, MIN_TOP_P, MAX_TOP_P);
+  const steps = Math.round((bounded - MIN_TOP_P) / TOP_P_STEP);
+  const quantized = MIN_TOP_P + steps * TOP_P_STEP;
+  return Number(clamp(quantized, MIN_TOP_P, MAX_TOP_P).toFixed(2));
 }
 
 function normalizeGenerationLimits(rawLimits) {
@@ -257,9 +289,13 @@ const backendSelect = document.getElementById('backendSelect');
 const maxOutputTokensInput = document.getElementById('maxOutputTokensInput');
 const maxContextTokensInput = document.getElementById('maxContextTokensInput');
 const temperatureInput = document.getElementById('temperatureInput');
+const topKInput = document.getElementById('topKInput');
+const topPInput = document.getElementById('topPInput');
 const maxOutputTokensHelp = document.getElementById('maxOutputTokensHelp');
 const maxContextTokensHelp = document.getElementById('maxContextTokensHelp');
 const temperatureHelp = document.getElementById('temperatureHelp');
+const topKHelp = document.getElementById('topKHelp');
+const topPHelp = document.getElementById('topPHelp');
 const statusRegion = document.getElementById('statusRegion');
 const loadModelButton = document.getElementById('loadModelButton');
 const debugInfo = document.getElementById('debugInfo');
@@ -341,7 +377,11 @@ let activeConversationId = null;
 const conversations = [];
 const debugEntries = [];
 const MAX_DEBUG_ENTRIES = 120;
-let activeGenerationConfig = normalizeGenerationLimits(null);
+let activeGenerationConfig = {
+  ...normalizeGenerationLimits(null),
+  topK: DEFAULT_TOP_K,
+  topP: DEFAULT_TOP_P,
+};
 let pendingGenerationConfig = null;
 let conversationSaveTimerId = null;
 let showThinkingByDefault = false;
@@ -462,6 +502,11 @@ function formatInteger(value) {
   return new Intl.NumberFormat('en-US').format(value);
 }
 
+function formatWordEstimateFromTokens(tokenCount) {
+  const wordEstimate = Math.round(Number(tokenCount) * 0.75);
+  return formatInteger(Math.max(0, wordEstimate));
+}
+
 function renderModelMarkdown(content) {
   const normalizedContent = normalizeMathDelimitersForMarkdown(String(content || ''));
   if (!normalizedContent) {
@@ -574,6 +619,13 @@ function sanitizeGenerationConfigForModel(modelId, candidateConfig) {
   };
 }
 
+function sanitizeGlobalSamplingSettings(candidateSettings) {
+  return {
+    topK: quantizeTopKInput(candidateSettings?.topK),
+    topP: quantizeTopPInput(candidateSettings?.topP),
+  };
+}
+
 function getStoredModelGenerationSettings() {
   try {
     const raw = localStorage.getItem(MODEL_GENERATION_SETTINGS_STORAGE_KEY);
@@ -584,6 +636,22 @@ function getStoredModelGenerationSettings() {
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (_error) {
     return {};
+  }
+}
+
+function getStoredGlobalSamplingSettings() {
+  try {
+    const raw = localStorage.getItem(GLOBAL_SAMPLING_SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+    return sanitizeGlobalSamplingSettings(parsed);
+  } catch (_error) {
+    return null;
   }
 }
 
@@ -603,6 +671,11 @@ function persistGenerationConfigForModel(modelId, config) {
   const byModel = getStoredModelGenerationSettings();
   byModel[normalizedModelId] = sanitized;
   localStorage.setItem(MODEL_GENERATION_SETTINGS_STORAGE_KEY, JSON.stringify(byModel));
+}
+
+function persistGlobalSamplingSettings(settings) {
+  const sanitized = sanitizeGlobalSamplingSettings(settings);
+  localStorage.setItem(GLOBAL_SAMPLING_SETTINGS_STORAGE_KEY, JSON.stringify(sanitized));
 }
 
 function quantizeTokenInput(value, min, max) {
@@ -632,37 +705,53 @@ function buildGenerationConfigFromUI(modelId) {
     limits.minTemperature,
     limits.maxTemperature,
   );
-  return { maxOutputTokens, maxContextTokens, temperature };
+  const topK = quantizeTopKInput(topKInput?.value ?? DEFAULT_TOP_K);
+  const topP = quantizeTopPInput(topPInput?.value ?? DEFAULT_TOP_P);
+  return { maxOutputTokens, maxContextTokens, temperature, topK, topP };
 }
 
 function renderGenerationSettingsHelpText(config, limits) {
   if (maxOutputTokensHelp) {
     maxOutputTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
       Math.min(limits.maxOutputTokens, config.maxContextTokens),
-    )}. Current: ${formatInteger(config.maxOutputTokens)}.`;
+    )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxOutputTokens)}.`;
   }
   if (maxContextTokensHelp) {
     maxContextTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
       limits.maxContextTokens,
-    )}. Current: ${formatInteger(config.maxContextTokens)}.`;
+    )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxContextTokens)}.`;
   }
   if (temperatureHelp) {
     temperatureHelp.textContent = `Allowed: ${limits.minTemperature.toFixed(1)} to ${limits.maxTemperature.toFixed(
       1,
-    )} in steps of ${TEMPERATURE_STEP.toFixed(1)}. Current: ${config.temperature.toFixed(1)}.`;
+    )} in steps of ${TEMPERATURE_STEP.toFixed(1)}.`;
+  }
+  if (topKHelp) {
+    topKHelp.textContent = `Top K picks from the K most likely next-token options. Lower values are more predictable. Good default: ${formatInteger(DEFAULT_TOP_K)}.`;
+  }
+  if (topPHelp) {
+    topPHelp.textContent = `Also called nucleus sampling. Higher values can make responses more varied. Allowed: ${MIN_TOP_P.toFixed(
+      2,
+    )} to ${MAX_TOP_P.toFixed(2)} in steps of ${TOP_P_STEP.toFixed(2)}.`;
   }
 }
 
 function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
   const normalizedModelId = normalizeModelId(modelId);
   const limits = getModelGenerationLimits(normalizedModelId);
+  const globalSamplingSettings = getStoredGlobalSamplingSettings() || {
+    topK: DEFAULT_TOP_K,
+    topP: DEFAULT_TOP_P,
+  };
   const defaultConfig = {
     maxOutputTokens: Math.min(limits.defaultMaxOutputTokens, limits.defaultMaxContextTokens),
     maxContextTokens: limits.defaultMaxContextTokens,
     temperature: limits.defaultTemperature,
+    topK: globalSamplingSettings.topK,
+    topP: globalSamplingSettings.topP,
   };
   const config = useDefaults
-    ? getStoredGenerationConfigForModel(normalizedModelId) || defaultConfig
+    ? { ...(getStoredGenerationConfigForModel(normalizedModelId) || defaultConfig), ...globalSamplingSettings }
     : buildGenerationConfigFromUI(normalizedModelId);
   const boundedOutputMax = Math.min(limits.maxOutputTokens, config.maxContextTokens);
 
@@ -685,6 +774,18 @@ function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
     temperatureInput.step = TEMPERATURE_STEP.toFixed(1);
     temperatureInput.value = config.temperature.toFixed(1);
   }
+  if (topKInput) {
+    topKInput.min = String(MIN_TOP_K);
+    topKInput.max = String(MAX_TOP_K);
+    topKInput.step = String(TOP_K_STEP);
+    topKInput.value = String(config.topK);
+  }
+  if (topPInput) {
+    topPInput.min = MIN_TOP_P.toFixed(2);
+    topPInput.max = MAX_TOP_P.toFixed(2);
+    topPInput.step = TOP_P_STEP.toFixed(2);
+    topPInput.value = config.topP.toFixed(2);
+  }
 
   activeGenerationConfig = { ...config };
   engine.setGenerationConfig(activeGenerationConfig);
@@ -701,6 +802,12 @@ function updateGenerationSettingsEnabledState() {
   }
   if (temperatureInput) {
     temperatureInput.disabled = disabled;
+  }
+  if (topKInput) {
+    topKInput.disabled = disabled;
+  }
+  if (topPInput) {
+    topPInput.disabled = disabled;
   }
 }
 
@@ -727,6 +834,8 @@ function applyPendingGenerationSettingsIfReady() {
       limits.minTemperature,
       limits.maxTemperature,
     ),
+    topK: quantizeTopKInput(pendingGenerationConfig.topK),
+    topP: quantizeTopPInput(pendingGenerationConfig.topP),
   };
   pendingGenerationConfig = null;
   activeGenerationConfig = nextConfig;
@@ -734,7 +843,7 @@ function applyPendingGenerationSettingsIfReady() {
   syncGenerationSettingsFromModel(selectedModel, false);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}).`,
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`,
   );
 }
 
@@ -744,6 +853,7 @@ function onGenerationSettingInputChanged() {
   activeGenerationConfig = nextConfig;
   syncGenerationSettingsFromModel(selectedModel, false);
   persistGenerationConfigForModel(selectedModel, nextConfig);
+  persistGlobalSamplingSettings(nextConfig);
   if (isGenerating) {
     pendingGenerationConfig = nextConfig;
     setStatus('Generation settings will apply after current response.');
@@ -753,7 +863,7 @@ function onGenerationSettingInputChanged() {
   engine.setGenerationConfig(nextConfig);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}).`,
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`,
   );
 }
 
@@ -3298,6 +3408,7 @@ function persistInferencePreferences() {
   localStorage.setItem(MODEL_STORAGE_KEY, selectedModel);
   localStorage.setItem(BACKEND_STORAGE_KEY, backendSelect?.value || 'auto');
   persistGenerationConfigForModel(selectedModel, activeGenerationConfig);
+  persistGlobalSamplingSettings(activeGenerationConfig);
 }
 
 async function initializeEngine() {
@@ -4114,6 +4225,14 @@ if (maxContextTokensInput) {
 
 if (temperatureInput) {
   temperatureInput.addEventListener('change', onGenerationSettingInputChanged);
+}
+
+if (topKInput) {
+  topKInput.addEventListener('change', onGenerationSettingInputChanged);
+}
+
+if (topPInput) {
+  topPInput.addEventListener('change', onGenerationSettingInputChanged);
 }
 
 if (loadModelButton) {

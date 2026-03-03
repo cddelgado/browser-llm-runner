@@ -10,12 +10,16 @@ let generationConfig = {
   maxOutputTokens: 1024,
   maxContextTokens: 32768,
   temperature: 0.6,
+  topK: 50,
+  topP: 0.9,
 };
 
 function normalizeGenerationConfig(rawConfig) {
   const parsedMaxContext = Number.parseInt(String(rawConfig?.maxContextTokens ?? ''), 10);
   const parsedMaxOutput = Number.parseInt(String(rawConfig?.maxOutputTokens ?? ''), 10);
   const parsedTemperature = Number.parseFloat(String(rawConfig?.temperature ?? ''));
+  const parsedTopK = Number.parseInt(String(rawConfig?.topK ?? ''), 10);
+  const parsedTopP = Number.parseFloat(String(rawConfig?.topP ?? ''));
   const maxContextTokens = Number.isInteger(parsedMaxContext) && parsedMaxContext > 0 ? parsedMaxContext : 32768;
   const maxOutputCap = maxContextTokens;
   const maxOutputTokens =
@@ -28,10 +32,24 @@ function normalizeGenerationConfig(rawConfig) {
     ? Math.max(minTemperature, Math.min(maxTemperature, parsedTemperature))
     : 0.6;
   const temperature = Number(boundedTemperature.toFixed(1));
+  const minTopK = 5;
+  const maxTopK = 500;
+  const topKStep = 5;
+  const boundedTopK = Number.isInteger(parsedTopK) ? Math.max(minTopK, Math.min(maxTopK, parsedTopK)) : 50;
+  const quantizedTopK = minTopK + Math.round((boundedTopK - minTopK) / topKStep) * topKStep;
+  const topK = Math.max(minTopK, Math.min(maxTopK, quantizedTopK));
+  const minTopP = 0;
+  const maxTopP = 1;
+  const topPStep = 0.05;
+  const boundedTopP = Number.isFinite(parsedTopP) ? Math.max(minTopP, Math.min(maxTopP, parsedTopP)) : 0.9;
+  const quantizedTopP = minTopP + Math.round((boundedTopP - minTopP) / topPStep) * topPStep;
+  const topP = Number(Math.max(minTopP, Math.min(maxTopP, quantizedTopP)).toFixed(2));
   return {
     maxOutputTokens,
     maxContextTokens,
     temperature,
+    topK,
+    topP,
   };
 }
 
@@ -216,7 +234,8 @@ async function generate(payload) {
         max_new_tokens: requestGenerationConfig.maxOutputTokens,
         max_length: requestGenerationConfig.maxContextTokens,
         temperature: requestGenerationConfig.temperature,
-        top_p: 0.9,
+        top_k: requestGenerationConfig.topK,
+        top_p: requestGenerationConfig.topP,
         do_sample: true,
         streamer,
         return_full_text: false,
@@ -226,7 +245,8 @@ async function generate(payload) {
         max_new_tokens: requestGenerationConfig.maxOutputTokens,
         max_length: requestGenerationConfig.maxContextTokens,
         temperature: requestGenerationConfig.temperature,
-        top_p: 0.9,
+        top_k: requestGenerationConfig.topK,
+        top_p: requestGenerationConfig.topP,
         do_sample: true,
         return_full_text: false,
       });

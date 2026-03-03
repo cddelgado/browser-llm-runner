@@ -30,9 +30,13 @@ Notes:
 
 - The model is downloaded at runtime by Transformers.js and cached in-browser for reuse.
 - Model assets are not committed to this repository.
-- Settings fields for max output/context tokens are numeric, step in 8, and disabled until a model is loaded.
+- Settings fields for maximum output/context tokens are numeric, step in 8, and disabled until a model is loaded.
+- Token fields show an estimated words value based on `tokens * 0.75`.
 - Temperature is numeric, step in 0.1, and disabled until a model is loaded.
-- User changes to max output/context tokens and temperature are persisted per model in browser storage and restored when that model is selected again.
+- Top K is numeric, step in 5, default 50.
+- Top P (nucleus sampling) is numeric, min 0.00, max 1.00, step in 0.05, default 0.90.
+- User changes to output/context tokens and temperature are persisted per model in browser storage and restored when that model is selected again.
+- User changes to Top K and Top P are global and persist across sessions.
 - If generation settings are changed while generating, they are queued and applied after that generation finishes.
 
 Per-model limits and defaults:

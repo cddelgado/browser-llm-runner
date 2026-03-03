@@ -14,6 +14,8 @@ export class LLMEngineClient {
         maxOutputTokens: 1024,
         maxContextTokens: 32768,
         temperature: 0.6,
+        topK: 50,
+        topP: 0.9,
       },
     };
     this.onStatus = () => {};
