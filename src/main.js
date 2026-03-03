@@ -972,6 +972,14 @@ function parseConversationCounterFromId(conversationId) {
   return Number.isInteger(counter) && counter > 0 ? counter : 0;
 }
 
+function isLegacyUntitledConversationName(name) {
+  return /^new conversation(?:\s+\d+)?$/i.test(String(name || '').trim());
+}
+
+function isLegacyNumberedUntitledConversationName(name) {
+  return /^new conversation\s+\d+$/i.test(String(name || '').trim());
+}
+
 function applyStoredConversationState(rawState) {
   if (!rawState || typeof rawState !== 'object' || !Array.isArray(rawState.conversations)) {
     return false;
@@ -987,7 +995,10 @@ function applyStoredConversationState(rawState) {
         typeof rawConversation.id === 'string' && rawConversation.id.trim()
           ? rawConversation.id.trim()
           : `conversation-${conversationIndex + 1}`;
-      const name = normalizeConversationName(rawConversation.name) || UNTITLED_CONVERSATION_PREFIX;
+      const normalizedStoredName = normalizeConversationName(rawConversation.name);
+      const name = isLegacyUntitledConversationName(normalizedStoredName)
+        ? UNTITLED_CONVERSATION_PREFIX
+        : normalizedStoredName || UNTITLED_CONVERSATION_PREFIX;
       const systemPrompt = normalizeSystemPrompt(rawConversation.systemPrompt);
       const conversationSystemPrompt = normalizeSystemPrompt(rawConversation.conversationSystemPrompt);
       const appendConversationSystemPrompt = normalizeConversationPromptMode(
@@ -1088,7 +1099,14 @@ function applyStoredConversationState(rawState) {
         hasGeneratedName: Boolean(rawConversation.hasGeneratedName),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((conversation) => {
+      const isPlaceholderConversation =
+        conversation.messageNodes.length === 0 &&
+        !conversation.hasGeneratedName &&
+        isLegacyNumberedUntitledConversationName(conversation.name);
+      return !isPlaceholderConversation;
+    });
 
   if (!restoredConversations.length) {
     return false;
@@ -2703,12 +2721,8 @@ function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } 
   }
 }
 
-function isStartYourChatNowStage() {
-  return modelReady && !getActiveConversation() && conversations.length === 0;
-}
-
 function updateComposerVisibility() {
-  const showComposer = modelReady && !isSettingsPageOpen && !isStartYourChatNowStage();
+  const showComposer = modelReady && !isSettingsPageOpen && Boolean(getActiveConversation());
   setRegionVisibility(chatForm, showComposer);
 }
 
