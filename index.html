@@ -474,6 +474,18 @@
                   aria-labelledby="settingsTabConversation"
                 >
                   <h3 class="h6 mb-0" id="settingsConversationHeading">Conversation</h3>
+                  <div class="settings-control-group">
+                    <label class="form-label" for="defaultSystemPromptInput">Default system prompt</label>
+                    <textarea
+                      id="defaultSystemPromptInput"
+                      class="form-control"
+                      rows="4"
+                      placeholder="Optional instructions applied to new conversations."
+                    ></textarea>
+                    <p class="form-text mb-0">
+                      Applied only when creating a new conversation. Existing conversations keep their current behavior.
+                    </p>
+                  </div>
                   <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" role="switch" id="showThinkingToggle" />
                     <label class="form-check-label" for="showThinkingToggle">Show thinking</label>

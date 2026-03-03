@@ -46,13 +46,16 @@ Student-facing browser chat UI with local model inference.
 - Conversation title editing is disabled until that automatic model-generated title is available.
 - After the first completed model response on the visible branch, a header `Download conversation` (download icon) menu appears next to title-edit controls.
 - Download menu options:
-  - `JSON (.llm.json) File`: exports only the currently visible branch as `<conversation-name>.llm.json` with top-level `conversation` metadata (`name`, `startedAt`, `exportedAt`), `model`, `temperature`, and an `exchanges` array containing per-exchange `heading` plus entered/generated timestamps.
-  - `Markdown (.md) File`: exports the visible branch as `<conversation-name>.md` with conversation metadata (started/exported UTC times, model, temperature) and one section per exchange.
+  - `JSON (.llm.json) File`: exports only the currently visible branch as `<conversation-name>.llm.json` with top-level `conversation` metadata (`name`, `startedAt`, `exportedAt`), `model`, `temperature`, optional `systemPrompt` (when present on that conversation), and an `exchanges` array containing per-exchange `heading` plus entered/generated timestamps.
+  - `Markdown (.md) File`: exports the visible branch as `<conversation-name>.md` with conversation metadata (started/exported UTC times, model, temperature), optional `## System prompt` section (when present), and one section per exchange.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in a collapsible "Thinking" section during streaming.
 - Model responses are rendered as Markdown (via `markdown-it`) in the transcript.
 - LaTeX math in model responses is rendered in the transcript with MathJax (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`).
 - `Settings -> Conversation -> Show thinking` controls whether thought sections are expanded by default (`off` by default).
+- `Settings -> Conversation -> Default system prompt` sets an optional system prompt for newly created conversations only.
+  - Existing conversations are not retroactively changed.
+  - New generations in a conversation use that conversation's captured system prompt.
 - Each user message and model response includes a copy action; model response copy excludes thought text.
 - The Thinking section includes a dedicated copy action to copy thoughts only.
 - Each model response includes a `Regenerate` button. Regeneration creates a new response variation at that turn, keeps prior variations, and lets users navigate alternatives with left/right controls and an `x/y` indicator.

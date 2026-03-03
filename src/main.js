@@ -12,6 +12,7 @@ import { loadConversationState, saveConversationState } from './state/conversati
 
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const SHOW_THINKING_STORAGE_KEY = 'ui-show-thinking';
+const DEFAULT_SYSTEM_PROMPT_STORAGE_KEY = 'conversation-default-system-prompt';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
 const MODEL_GENERATION_SETTINGS_STORAGE_KEY = 'llm-model-generation-settings';
@@ -249,6 +250,7 @@ window.MathJax.startup = {
 
 const themeSelect = document.getElementById('themeSelect');
 const showThinkingToggle = document.getElementById('showThinkingToggle');
+const defaultSystemPromptInput = document.getElementById('defaultSystemPromptInput');
 const modelSelect = document.getElementById('modelSelect');
 const backendSelect = document.getElementById('backendSelect');
 const maxOutputTokensInput = document.getElementById('maxOutputTokensInput');
@@ -335,6 +337,7 @@ let activeGenerationConfig = normalizeGenerationLimits(null);
 let pendingGenerationConfig = null;
 let conversationSaveTimerId = null;
 let showThinkingByDefault = false;
+let defaultSystemPrompt = '';
 let isSwitchingVariant = false;
 let activeUserEditMessageId = null;
 let isChatTitleEditing = false;
@@ -827,6 +830,10 @@ function buildConversationStateSnapshot() {
       return {
         id: conversation.id,
         name: conversation.name,
+        systemPrompt:
+          typeof conversation.systemPrompt === 'string' && conversation.systemPrompt.trim()
+            ? conversation.systemPrompt
+            : undefined,
         startedAt: normalizeTimestamp(conversation.startedAt),
         hasGeneratedName: Boolean(conversation.hasGeneratedName),
         artifacts: [],
@@ -953,6 +960,7 @@ function applyStoredConversationState(rawState) {
           ? rawConversation.id.trim()
           : `conversation-${conversationIndex + 1}`;
       const name = normalizeConversationName(rawConversation.name) || `${UNTITLED_CONVERSATION_PREFIX} ${conversationIndex + 1}`;
+      const systemPrompt = normalizeSystemPrompt(rawConversation.systemPrompt);
       const rawMessageNodes = Array.isArray(rawConversation.messageNodes) ? rawConversation.messageNodes : [];
       const hasNodeSchema = rawMessageNodes.length > 0;
       const rawMessages = hasNodeSchema
@@ -1037,6 +1045,7 @@ function applyStoredConversationState(rawState) {
       return {
         id,
         name,
+        systemPrompt,
         startedAt,
         messageNodes,
         messageNodeCounter,
@@ -1100,6 +1109,7 @@ function createConversation(name) {
   return {
     id: `conversation-${++conversationIdCounter}`,
     name: name || `${UNTITLED_CONVERSATION_PREFIX} ${conversationCount}`,
+    systemPrompt: defaultSystemPrompt,
     startedAt: Date.now(),
     messageNodes: [],
     messageNodeCounter: 0,
@@ -1542,7 +1552,10 @@ function applyFixCardSignals(item, message) {
 }
 
 function buildPromptForConversationLeaf(conversation, leafMessageId = conversation?.activeLeafMessageId) {
-  return buildConversationPrompt(getConversationPathMessages(conversation, leafMessageId));
+  return buildConversationPrompt(
+    getConversationPathMessages(conversation, leafMessageId),
+    conversation?.systemPrompt,
+  );
 }
 
 function addMessageToConversation(conversation, role, text, options = {}) {
@@ -1584,8 +1597,13 @@ function addMessageToConversation(conversation, role, text, options = {}) {
   return message;
 }
 
-function buildConversationPrompt(messages) {
+function buildConversationPrompt(messages, systemPrompt = '') {
   const lines = ['Continue this conversation and answer as the Model:'];
+  const normalizedSystemPrompt = normalizeSystemPrompt(systemPrompt);
+  if (normalizedSystemPrompt) {
+    lines.push('System instructions:');
+    lines.push(normalizedSystemPrompt);
+  }
   messages.forEach((message) => {
     if (!message || (message.role !== 'user' && message.role !== 'model')) {
       return;
@@ -2243,7 +2261,7 @@ function buildConversationDownloadPayload(conversation) {
         text: isUserMessage ? String(message.text || '') : String(message.response || message.text || ''),
       };
     });
-  return {
+  const payload = {
     conversation: {
       name: String(conversation?.name || ''),
       startedAt: toIsoTimestamp(startedAt),
@@ -2254,6 +2272,11 @@ function buildConversationDownloadPayload(conversation) {
     temperature,
     exchanges,
   };
+  const systemPrompt = normalizeSystemPrompt(conversation?.systemPrompt);
+  if (systemPrompt) {
+    payload.systemPrompt = systemPrompt;
+  }
+  return payload;
 }
 
 function buildConversationDownloadFileName(conversationName) {
@@ -2281,6 +2304,13 @@ function buildConversationDownloadMarkdown(payload) {
   lines.push(`- Model: ${String(payload?.model || 'Unknown')}`);
   lines.push(`- Temperature: ${Number.isFinite(payload?.temperature) ? payload.temperature : 'Unknown'}`);
   lines.push('');
+  const systemPrompt = normalizeSystemPrompt(payload?.systemPrompt);
+  if (systemPrompt) {
+    lines.push('## System prompt');
+    lines.push('');
+    lines.push(toMarkdownBlockquote(systemPrompt));
+    lines.push('');
+  }
   const exchanges = Array.isArray(payload?.exchanges) ? payload.exchanges : [];
   exchanges.forEach((exchange) => {
     lines.push(`## ${String(exchange?.heading || 'Exchange')}`);
@@ -2958,6 +2988,25 @@ function showLoadError(errorMessage) {
 
 function getStoredShowThinkingPreference() {
   return localStorage.getItem(SHOW_THINKING_STORAGE_KEY) === 'true';
+}
+
+function normalizeSystemPrompt(value) {
+  const text = String(value ?? '').trim();
+  return text ? text.replace(/\r\n?/g, '\n') : '';
+}
+
+function getStoredDefaultSystemPrompt() {
+  return normalizeSystemPrompt(localStorage.getItem(DEFAULT_SYSTEM_PROMPT_STORAGE_KEY));
+}
+
+function applyDefaultSystemPrompt(value, { persist = false } = {}) {
+  defaultSystemPrompt = normalizeSystemPrompt(value);
+  if (defaultSystemPromptInput instanceof HTMLTextAreaElement) {
+    defaultSystemPromptInput.value = defaultSystemPrompt;
+  }
+  if (persist) {
+    localStorage.setItem(DEFAULT_SYSTEM_PROMPT_STORAGE_KEY, defaultSystemPrompt);
+  }
 }
 
 function applyShowThinkingPreference(value, { persist = false, refresh = false } = {}) {
@@ -3739,6 +3788,7 @@ engine.onProgress = (progress) => {
 const themePreference = getStoredThemePreference();
 applyTheme(themePreference);
 applyShowThinkingPreference(getStoredShowThinkingPreference());
+applyDefaultSystemPrompt(getStoredDefaultSystemPrompt());
 populateModelSelect();
 restoreInferencePreferences();
 setStatus('Ready.');
@@ -3848,6 +3898,13 @@ if (showThinkingToggle) {
   showThinkingToggle.addEventListener('change', (event) => {
     const value = event.target instanceof HTMLInputElement ? event.target.checked : false;
     applyShowThinkingPreference(value, { persist: true, refresh: true });
+  });
+}
+
+if (defaultSystemPromptInput instanceof HTMLTextAreaElement) {
+  defaultSystemPromptInput.addEventListener('change', (event) => {
+    const value = event.target instanceof HTMLTextAreaElement ? event.target.value : '';
+    applyDefaultSystemPrompt(value, { persist: true });
   });
 }
 
