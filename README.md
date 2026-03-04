@@ -17,6 +17,7 @@ Student-facing browser chat UI with local model inference.
 - Header actions include a `Help` button that opens `help.html` in a new tab with feature and basic usage guidance.
 - After model load completes, the full conversation header controls appear and response streaming begins.
 - If saved conversations exist, no conversation is auto-opened after load; users choose one from the conversation list.
+- If an existing conversation is selected before model load, the pre-chat panel prompts the user to load a model first and provides a `Load model` action.
 - If no active conversation exists, a new untitled conversation is created when the first message is sent.
 - Backend selection supports:
   - `Auto (WebGPU then CPU)`
@@ -69,6 +70,7 @@ Student-facing browser chat UI with local model inference.
   - `Append after default prompt` is enabled by default; when enabled, the conversation prompt is appended after the conversation's captured default prompt.
   - When `Append after default prompt` is disabled, the conversation prompt replaces the conversation's captured default prompt.
   - The captured default prompt for a conversation does not change after that conversation is created.
+- The pre-chat `Ready to Chat?` panel also exposes conversation prompt editing for the currently selected conversation.
 - Each user message and model response includes a copy action; model response copy excludes thought text.
 - The Thinking section includes a dedicated copy action to copy thoughts only.
 - Each model response includes a `Regenerate` button. Regeneration creates a new response variation at that turn, keeps prior variations, and lets users navigate alternatives with left/right controls and an `x/y` indicator.

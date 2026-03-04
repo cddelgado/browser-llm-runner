@@ -356,6 +356,13 @@
   border-radius: 0.7rem;
 }
 
+.pre-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.1rem;
+}
+
 .pre-chat-progress {
   border-top: 1px solid color-mix(in srgb, var(--border-soft) 65%, transparent);
   padding-top: 0.9rem;

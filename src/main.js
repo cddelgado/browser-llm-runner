@@ -194,6 +194,11 @@ const preChatPanel = document.getElementById('preChatPanel');
 const topBar = document.getElementById('topBar');
 const conversationPanel = document.getElementById('conversationPanel');
 const onboardingStatusRegion = document.getElementById('onboardingStatusRegion');
+const preChatActions = document.getElementById('preChatActions');
+const preChatLoadModelBtn = document.getElementById('preChatLoadModelBtn');
+const preChatEditConversationSystemPromptBtn = document.getElementById(
+  'preChatEditConversationSystemPromptBtn',
+);
 const chatTitle = document.getElementById('chatTitle');
 const chatTitleInput = document.getElementById('chatTitleInput');
 const editChatTitleBtn = document.getElementById('editChatTitleBtn');
@@ -275,7 +280,10 @@ let maxObservedLoadPercent = 0;
 const mathTypesetTimers = new WeakMap();
 let hasLoggedMathJaxError = false;
 let mathJaxLoadPromise = null;
-const PRE_CHAT_STATUS_HINT = 'Send your first message to load the selected model.';
+const PRE_CHAT_STATUS_HINT_DEFAULT = 'Send your first message to load the selected model.';
+const PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION =
+  'To see your conversation, load a model first.';
+let lastConversationSystemPromptTrigger = null;
 void ensureMathJaxLoaded();
 
 function initializeTooltips(root = document) {
@@ -778,8 +786,21 @@ function updatePreChatStatusHint() {
     return;
   }
   if (hasStartedChatWorkspace && !modelReady && !isLoadingModel) {
-    onboardingStatusRegion.textContent = PRE_CHAT_STATUS_HINT;
+    onboardingStatusRegion.textContent = hasSelectedConversationWithHistory()
+      ? PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION
+      : PRE_CHAT_STATUS_HINT_DEFAULT;
   }
+}
+
+function hasConversationHistory(conversation) {
+  if (!conversation) {
+    return false;
+  }
+  return getConversationPathMessages(conversation).length > 0;
+}
+
+function hasSelectedConversationWithHistory() {
+  return hasConversationHistory(getActiveConversation());
 }
 
 function buildConversationStateSnapshot() {
@@ -1710,6 +1731,8 @@ function renderConversationList() {
     conversationList.appendChild(item);
   });
   initializeTooltips(conversationList);
+  updatePreChatStatusHint();
+  updatePreChatActionButtons();
 }
 
 function setModelBubbleContent(message, refs) {
@@ -2281,7 +2304,7 @@ function updateChatTitleEditorVisibility() {
     (message) => message?.role === 'model' && Boolean(message.isResponseComplete),
   );
   const canEditTitle = modelReady && Boolean(activeConversation?.hasGeneratedName);
-  const canEditConversationSystemPrompt = modelReady && Boolean(activeConversation);
+  const canEditConversationSystemPrompt = Boolean(activeConversation);
   const canDownloadConversation = modelReady && hasCompletedGeneration;
   const controlsDisabled = isGenerating || isLoadingModel || isRunningOrchestration;
   const showEditor = canEditTitle && isChatTitleEditing;
@@ -2443,7 +2466,7 @@ function getConversationSystemPromptModalInstance() {
   return conversationSystemPromptModalInstance;
 }
 
-function beginConversationSystemPromptEdit() {
+function beginConversationSystemPromptEdit({ trigger = null } = {}) {
   if (
     isGenerating ||
     isLoadingModel ||
@@ -2456,6 +2479,9 @@ function beginConversationSystemPromptEdit() {
   const activeConversation = getActiveConversation();
   if (!activeConversation) {
     return;
+  }
+  if (trigger instanceof HTMLElement) {
+    lastConversationSystemPromptTrigger = trigger;
   }
   conversationSystemPromptInput.value = normalizeSystemPrompt(
     activeConversation.conversationSystemPrompt,
@@ -2722,6 +2748,7 @@ function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } 
   updateTranscriptNavigationButtonVisibility();
   updateActionButtons();
   updatePreChatStatusHint();
+  updatePreChatActionButtons();
   if (currentWorkspaceView !== previousView) {
     if (showPreChat) {
       playEntranceAnimation(preChatPanel);
@@ -2736,6 +2763,25 @@ function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } 
   }
   if (syncRoute) {
     syncRouteToCurrentView({ replace: replaceRoute });
+  }
+}
+
+function updatePreChatActionButtons() {
+  const activeConversation = getActiveConversation();
+  const hasExistingConversation = hasConversationHistory(activeConversation);
+  const canShowPreChatActions =
+    hasStartedChatWorkspace && !modelReady && !isSettingsPageOpen && Boolean(activeConversation);
+  const isBusy = isGenerating || isLoadingModel || isRunningOrchestration;
+
+  if (preChatActions instanceof HTMLElement) {
+    preChatActions.classList.toggle('d-none', !canShowPreChatActions);
+  }
+  if (preChatLoadModelBtn instanceof HTMLButtonElement) {
+    preChatLoadModelBtn.classList.toggle('d-none', !hasExistingConversation);
+    preChatLoadModelBtn.disabled = !canShowPreChatActions || !hasExistingConversation || isBusy;
+  }
+  if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
+    preChatEditConversationSystemPromptBtn.disabled = !canShowPreChatActions || isBusy;
   }
 }
 
@@ -2805,6 +2851,7 @@ function updateActionButtons() {
   updateSendButtonMode();
   updateGenerationSettingsEnabledState();
   updateChatTitleEditorVisibility();
+  updatePreChatActionButtons();
   if (sendButton) {
     sendButton.disabled =
       isLoadingModel ||
@@ -3369,6 +3416,22 @@ async function reinitializeEngineFromSettings() {
   updateChatTitle();
   if (isGenerating) {
     return;
+  }
+}
+
+async function loadModelForSelectedConversation() {
+  if (modelReady || isLoadingModel || isGenerating || isRunningOrchestration) {
+    return;
+  }
+  if (!hasSelectedConversationWithHistory()) {
+    return;
+  }
+  persistInferencePreferences();
+  setStatus('Loading model for selected conversation...');
+  try {
+    await initializeEngine();
+  } catch (_error) {
+    // Error state is already handled in initializeEngine.
   }
 }
 
@@ -4418,8 +4481,20 @@ if (editChatTitleBtn instanceof HTMLButtonElement) {
 }
 
 if (editConversationSystemPromptBtn instanceof HTMLButtonElement) {
-  editConversationSystemPromptBtn.addEventListener('click', () => {
-    beginConversationSystemPromptEdit();
+  editConversationSystemPromptBtn.addEventListener('click', (event) => {
+    beginConversationSystemPromptEdit({ trigger: event.currentTarget });
+  });
+}
+
+if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
+  preChatEditConversationSystemPromptBtn.addEventListener('click', (event) => {
+    beginConversationSystemPromptEdit({ trigger: event.currentTarget });
+  });
+}
+
+if (preChatLoadModelBtn instanceof HTMLButtonElement) {
+  preChatLoadModelBtn.addEventListener('click', () => {
+    void loadModelForSelectedConversation();
   });
 }
 
@@ -4464,6 +4539,18 @@ if (conversationSystemPromptModal instanceof HTMLElement) {
     }
   });
   conversationSystemPromptModal.addEventListener('hidden.bs.modal', () => {
+    if (lastConversationSystemPromptTrigger instanceof HTMLButtonElement) {
+      lastConversationSystemPromptTrigger.focus();
+      lastConversationSystemPromptTrigger = null;
+      return;
+    }
+    if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
+      const isVisible = !preChatEditConversationSystemPromptBtn.classList.contains('d-none');
+      if (isVisible) {
+        preChatEditConversationSystemPromptBtn.focus();
+        return;
+      }
+    }
     if (editConversationSystemPromptBtn instanceof HTMLButtonElement) {
       editConversationSystemPromptBtn.focus();
     }
