@@ -803,6 +803,10 @@ function hasSelectedConversationWithHistory() {
   return hasConversationHistory(getActiveConversation());
 }
 
+function shouldDisableComposerForPreChatConversationSelection() {
+  return hasStartedChatWorkspace && !isSettingsPageOpen && !modelReady && hasSelectedConversationWithHistory();
+}
+
 function buildConversationStateSnapshot() {
   return {
     format: CONVERSATION_COLLECTION_FORMAT,
@@ -2795,6 +2799,9 @@ function updateComposerVisibility() {
     const showPreChatComposer = hasStartedChatWorkspace && !modelReady && !isSettingsPageOpen;
     chatForm.classList.toggle('is-prechat', showPreChatComposer);
   }
+  if (messageInput instanceof HTMLTextAreaElement) {
+    messageInput.disabled = shouldDisableComposerForPreChatConversationSelection();
+  }
 }
 
 function updateChatTitle() {
@@ -2852,12 +2859,17 @@ function updateActionButtons() {
   updateGenerationSettingsEnabledState();
   updateChatTitleEditorVisibility();
   updatePreChatActionButtons();
+  const disableComposerForPreChatSelection = shouldDisableComposerForPreChatConversationSelection();
+  if (messageInput instanceof HTMLTextAreaElement) {
+    messageInput.disabled = disableComposerForPreChatSelection;
+  }
   if (sendButton) {
     sendButton.disabled =
       isLoadingModel ||
       isRunningOrchestration ||
       (!isGenerating && !hasStartedChatWorkspace) ||
-      Boolean(activeUserEditMessageId);
+      Boolean(activeUserEditMessageId) ||
+      disableComposerForPreChatSelection;
   }
   if (newConversationBtn) {
     newConversationBtn.disabled =
