@@ -5,17 +5,19 @@ Student-facing browser chat UI with local model inference.
 ## Runtime behavior
 
 - Inference runs in-browser via Transformers.js inside a Web Worker.
-- On initial load, the app shows only a welcome/setup screen where users select a model and click `Load model`.
-- During model load, setup shows overall progress plus a file-by-file list to make multi-file downloads explicit.
+- On initial load, the app shows a home screen with a `Start a conversation` action.
+- Clicking `Start a conversation` opens the chat workspace with model selection, an empty composer, and no model load yet.
+- The selected model starts loading only after the first message is sent.
+- During model load, the workspace shows one progress bar.
 - The URL hash reflects the visible screen:
   - `#/` for setup/home
-  - `#/chat` for the chat experience after model load
+  - `#/chat` for the chat workspace
   - `#/settings` when Settings is open
   - Browser back/forward navigation follows those screen transitions.
 - Header actions include a `Help` button that opens `help.html` in a new tab with feature and basic usage guidance.
-- After model load completes, the UI switches from setup to the conversation view.
+- After model load completes, the full conversation header controls appear and response streaming begins.
 - If saved conversations exist, no conversation is auto-opened after load; users choose one from the conversation list.
-- If no saved conversations exist, a blank conversation is created and shown after load.
+- If no active conversation exists, a new untitled conversation is created when the first message is sent.
 - Backend selection supports:
   - `Auto (WebGPU then CPU)`
   - `WebGPU only`

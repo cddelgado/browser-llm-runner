@@ -9,8 +9,8 @@ Inference is executed in a dedicated Web Worker (`src/workers/llm.worker.js`).
 - `cpu`: CPU only
 
 The resolved backend is shown in the status region in the main UI.
-Initialization is user-triggered from the welcome/setup panel (`Load model`).
-If model/backend settings change, the UI requires another explicit load.
+Initialization is user-triggered on first message send in the chat workspace.
+If model/backend settings change, the next message triggers a fresh load with updated settings.
 Generation settings (`maximum output tokens`, `maximum context size`, `temperature`, `top k`, `top p`) apply immediately when idle, or after the current generation completes.
 
 ## UI boundary

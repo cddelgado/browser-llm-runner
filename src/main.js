@@ -166,7 +166,7 @@ const temperatureHelp = document.getElementById('temperatureHelp');
 const topKHelp = document.getElementById('topKHelp');
 const topPHelp = document.getElementById('topPHelp');
 const statusRegion = document.getElementById('statusRegion');
-const loadModelButton = document.getElementById('loadModelButton');
+const startConversationButton = document.getElementById('startConversationButton');
 const debugInfo = document.getElementById('debugInfo');
 const modelLoadProgressWrap = document.getElementById('modelLoadProgressWrap');
 const modelLoadProgressLabel = document.getElementById('modelLoadProgressLabel');
@@ -189,7 +189,8 @@ const chatTranscriptWrap = document.getElementById('chatTranscriptWrap');
 const jumpToLastPromptButton = document.getElementById('jumpToLastPromptButton');
 const jumpToLatestButton = document.getElementById('jumpToLatestButton');
 const chatMain = document.querySelector('.chat-main');
-const welcomePanel = document.querySelector('.welcome-panel');
+const homePanel = document.getElementById('homePanel');
+const preChatPanel = document.getElementById('preChatPanel');
 const topBar = document.getElementById('topBar');
 const conversationPanel = document.getElementById('conversationPanel');
 const onboardingStatusRegion = document.getElementById('onboardingStatusRegion');
@@ -238,6 +239,7 @@ markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
 };
 
 let modelReady = false;
+let hasStartedChatWorkspace = false;
 let isGenerating = false;
 let isLoadingModel = false;
 let conversationCount = 0;
@@ -2551,7 +2553,7 @@ function getCurrentViewRoute() {
   if (isSettingsPageOpen) {
     return ROUTE_SETTINGS;
   }
-  if (modelReady) {
+  if (hasStartedChatWorkspace) {
     return ROUTE_CHAT;
   }
   return ROUTE_HOME;
@@ -2578,22 +2580,15 @@ function syncRouteToCurrentView({ replace = true } = {}) {
 function applyRouteFromHash() {
   const requestedRoute = getRouteFromHash();
   if (requestedRoute === ROUTE_SETTINGS) {
-    if (!modelReady) {
-      setSettingsPageVisibility(false, { syncRoute: false });
-      syncRouteToCurrentView({ replace: true });
-      return;
-    }
     setSettingsPageVisibility(true, { syncRoute: false });
     return;
   }
 
   setSettingsPageVisibility(false, { syncRoute: false });
-  if (requestedRoute === ROUTE_CHAT && !modelReady) {
-    syncRouteToCurrentView({ replace: true });
+  hasStartedChatWorkspace = requestedRoute === ROUTE_CHAT;
+  updateWelcomePanelVisibility({ syncRoute: false });
+  if (isSettingsPageOpen) {
     return;
-  }
-  if (requestedRoute === ROUTE_HOME && modelReady) {
-    syncRouteToCurrentView({ replace: true });
   }
 }
 
@@ -2646,14 +2641,14 @@ function setSettingsPageVisibility(visible, { syncRoute = true, replaceRoute = t
   setRegionVisibility(settingsPage, isSettingsPageOpen);
   const conversationPanelToggle = topBar.querySelector('[data-bs-target="#conversationPanel"]');
   if (openSettingsButton) {
-    openSettingsButton.classList.toggle('d-none', isSettingsPageOpen);
     openSettingsButton.setAttribute('aria-expanded', String(isSettingsPageOpen));
   }
   if (conversationPanelToggle) {
     conversationPanelToggle.classList.toggle('d-none', isSettingsPageOpen);
   }
   if (isSettingsPageOpen) {
-    setRegionVisibility(welcomePanel, false);
+    setRegionVisibility(homePanel, false);
+    setRegionVisibility(preChatPanel, false);
     setRegionVisibility(conversationPanel, false);
     setRegionVisibility(chatTranscriptWrap, false);
     setRegionVisibility(chatForm, false);
@@ -2681,28 +2676,41 @@ function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } 
   if (isSettingsPageOpen) {
     return;
   }
-  const showConversation = modelReady;
+  const showHome = !hasStartedChatWorkspace;
+  const showPreChat = hasStartedChatWorkspace && !modelReady;
+  const showChat = hasStartedChatWorkspace && modelReady;
   if (chatMain instanceof HTMLElement) {
-    chatMain.classList.toggle('is-onboarding', !showConversation);
+    chatMain.classList.toggle('is-home', showHome);
+    chatMain.classList.toggle('is-prechat', showPreChat);
+    chatMain.classList.toggle('is-chat', showChat);
   }
-  setRegionVisibility(welcomePanel, !showConversation);
-  setRegionVisibility(topBar, showConversation);
-  setRegionVisibility(conversationPanel, showConversation);
-  setRegionVisibility(chatTranscriptWrap, showConversation);
+  setRegionVisibility(homePanel, showHome);
+  setRegionVisibility(preChatPanel, showPreChat);
+  setRegionVisibility(topBar, showChat);
+  setRegionVisibility(conversationPanel, hasStartedChatWorkspace);
+  setRegionVisibility(chatTranscriptWrap, showChat);
   updateComposerVisibility();
-  if (!showConversation && isChatTitleEditing) {
+  if (!showChat && isChatTitleEditing) {
     isChatTitleEditing = false;
   }
   updateChatTitleEditorVisibility();
   updateTranscriptNavigationButtonVisibility();
+  updateActionButtons();
   if (syncRoute) {
     syncRouteToCurrentView({ replace: replaceRoute });
   }
 }
 
 function updateComposerVisibility() {
-  const showComposer = modelReady && !isSettingsPageOpen && Boolean(getActiveConversation());
+  const showComposer =
+    hasStartedChatWorkspace &&
+    !isSettingsPageOpen &&
+    (!modelReady || Boolean(getActiveConversation()));
   setRegionVisibility(chatForm, showComposer);
+  if (chatForm instanceof HTMLElement) {
+    const showPreChatComposer = hasStartedChatWorkspace && !modelReady && !isSettingsPageOpen;
+    chatForm.classList.toggle('is-prechat', showPreChatComposer);
+  }
 }
 
 function updateChatTitle() {
@@ -2725,7 +2733,7 @@ function updateChatTitle() {
     updateChatTitleEditorVisibility();
     return;
   }
-  chatTitle.textContent = modelReady ? 'Start Your Chat Now' : 'Choose a Model to Chat';
+  chatTitle.textContent = modelReady ? 'Start Your Chat Now' : 'Ready to Chat?';
   if (!isChatTitleEditing && chatTitleInput && activeConversation) {
     chatTitleInput.value = activeConversation.name;
   }
@@ -2763,14 +2771,12 @@ function updateActionButtons() {
     sendButton.disabled =
       isLoadingModel ||
       isRunningOrchestration ||
-      (!isGenerating && !modelReady) ||
+      (!isGenerating && !hasStartedChatWorkspace) ||
       Boolean(activeUserEditMessageId);
   }
-  if (loadModelButton) {
-    loadModelButton.disabled = isGenerating || isLoadingModel || isRunningOrchestration;
-  }
   if (newConversationBtn) {
-    newConversationBtn.disabled = isGenerating || isRunningOrchestration;
+    newConversationBtn.disabled =
+      isGenerating || isRunningOrchestration || !hasStartedChatWorkspace || !modelReady;
   }
   updateRegenerateButtons();
   updateUserMessageButtons();
@@ -3318,8 +3324,8 @@ async function initializeEngine() {
 async function reinitializeEngineFromSettings() {
   persistInferencePreferences();
   modelReady = false;
-  setStatus('Settings updated. Select Load model to apply.');
-  appendDebug('Inference settings changed; awaiting manual load.');
+  setStatus('Settings updated. Send a message to load the model with new settings.');
+  appendDebug('Inference settings changed; awaiting first message to load model.');
   updateActionButtons();
   updateWelcomePanelVisibility();
   updateChatTitle();
@@ -3683,7 +3689,7 @@ function saveUserMessageEdit(messageId) {
     updateActionButtons();
     queueConversationStateSave();
     if (!modelReady) {
-      setStatus('Branch saved. Load a model to generate a new response.');
+      setStatus('Branch saved. Send a message to load the model and generate a new response.');
       return;
     }
     setStatus('Branch saved. Generating response...');
@@ -3706,7 +3712,7 @@ function saveUserMessageEdit(messageId) {
       ? 'Message saved. Later turns were removed from this branch.'
       : 'Message saved.';
   if (!modelReady) {
-    setStatus(`${saveStatus} Load a model to generate a new response.`);
+    setStatus(`${saveStatus} Send a message to load the model and generate a new response.`);
     return;
   }
   setStatus(`${saveStatus} Generating updated response...`);
@@ -3752,11 +3758,8 @@ function regenerateFromMessage(messageId) {
     return;
   }
   if (!modelReady) {
-    setStatus('Please load a model before regenerating a response.');
+    setStatus('Send a message first to load the model before regenerating.');
     appendDebug('Regenerate blocked: model not ready.');
-    if (loadModelButton) {
-      loadModelButton.focus();
-    }
     return;
   }
 
@@ -3834,11 +3837,8 @@ async function fixResponseFromMessage(messageId) {
     return;
   }
   if (!modelReady) {
-    setStatus('Please load a model before using Fix.');
+    setStatus('Send a message first to load the model before using Fix.');
     appendDebug('Fix blocked: model not ready.');
-    if (loadModelButton) {
-      loadModelButton.focus();
-    }
     return;
   }
 
@@ -4104,16 +4104,12 @@ if (topPInput) {
   topPInput.addEventListener('change', onGenerationSettingInputChanged);
 }
 
-if (loadModelButton) {
-  loadModelButton.addEventListener('click', async () => {
-    if (isGenerating) {
-      return;
-    }
-    persistInferencePreferences();
-    try {
-      await initializeEngine();
-    } catch (error) {
-      // Status is already updated in initializeEngine.
+if (startConversationButton instanceof HTMLButtonElement) {
+  startConversationButton.addEventListener('click', () => {
+    hasStartedChatWorkspace = true;
+    updateWelcomePanelVisibility({ replaceRoute: false });
+    if (messageInput instanceof HTMLTextAreaElement) {
+      messageInput.focus();
     }
   });
 }
@@ -4123,6 +4119,7 @@ if (newConversationBtn) {
     if (isGenerating) {
       return;
     }
+    hasStartedChatWorkspace = true;
     const conversation = createConversation();
     conversations.unshift(conversation);
     activeConversationId = conversation.id;
@@ -4223,20 +4220,39 @@ if (chatForm && messageInput && chatTranscript) {
       return;
     }
 
-    if (!modelReady) {
-      setStatus('Please load a model before sending a message.');
-      appendDebug('Send blocked: model not ready.');
-      if (loadModelButton) {
-        loadModelButton.focus();
-      }
-      return;
+    if (!hasStartedChatWorkspace) {
+      hasStartedChatWorkspace = true;
+      updateWelcomePanelVisibility({ replaceRoute: false });
     }
 
-    const activeConversation = getActiveConversation();
+    let activeConversation = getActiveConversation();
     if (!activeConversation) {
-      setStatus('Select a conversation or start a new conversation before sending a message.');
-      appendDebug('Send blocked: no active conversation selected.');
-      return;
+      const conversation = createConversation();
+      conversations.unshift(conversation);
+      activeConversationId = conversation.id;
+      activeConversation = conversation;
+      clearUserMessageEditSession();
+      isChatTitleEditing = false;
+      renderConversationList();
+      renderTranscript();
+      updateChatTitle();
+      queueConversationStateSave();
+    }
+
+    if (!modelReady) {
+      persistInferencePreferences();
+      setStatus('Loading model for your first message...');
+      try {
+        await initializeEngine();
+      } catch (_error) {
+        return;
+      }
+      activeConversation = getActiveConversation();
+      if (!activeConversation) {
+        setStatus('Select a conversation or start a new conversation before sending a message.');
+        appendDebug('Send blocked: no active conversation selected after model load.');
+        return;
+      }
     }
 
     const userMessage = addMessageToConversation(activeConversation, 'user', value);

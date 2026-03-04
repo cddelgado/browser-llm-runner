@@ -19,19 +19,18 @@ async function ensureComposerVisible(page) {
   if (await input.isVisible()) {
     return;
   }
-  await page.locator('#newConversationBtn').click();
+  await page.getByRole('button', { name: 'Start a conversation' }).click();
   await expect(input).toBeVisible();
 }
 
 test('@a11y onboarding screen has no wcag2a/2aa violations', async ({ page }) => {
-  await expect(page.getByRole('button', { name: 'Load model' })).toBeVisible();
-  await expect(page.locator('#onboardingStatusRegion')).toHaveAttribute('role', 'status');
-  await expect(page.locator('#onboardingStatusRegion')).toHaveAttribute('aria-live', 'polite');
+  await expect(page.getByRole('button', { name: 'Start a conversation' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open settings' })).toBeVisible();
   await expectNoCriticalA11yViolations(page);
 });
 
 test('@a11y chat screen has transcript semantics and no wcag2a/2aa violations', async ({ page }) => {
-  await page.getByRole('button', { name: 'Load model' }).click();
+  await page.getByRole('button', { name: 'Start a conversation' }).click();
   await expect(page).toHaveURL(/#\/chat$/);
   await ensureComposerVisible(page);
 
@@ -48,8 +47,6 @@ test('@a11y chat screen has transcript semantics and no wcag2a/2aa violations', 
 });
 
 test('@a11y settings screen keyboard open/close and no wcag2a/2aa violations', async ({ page }) => {
-  await page.getByRole('button', { name: 'Load model' }).click();
-
   const settingsButton = page.getByRole('button', { name: 'Open settings' });
   await settingsButton.focus();
   await page.keyboard.press('Enter');
@@ -60,6 +57,6 @@ test('@a11y settings screen keyboard open/close and no wcag2a/2aa violations', a
   await expectNoCriticalA11yViolations(page);
 
   await page.keyboard.press('Escape');
-  await expect(page).toHaveURL(/#\/chat$/);
+  await expect(page).toHaveURL(/#\/$/);
   await expect(settingsButton).toBeFocused();
 });

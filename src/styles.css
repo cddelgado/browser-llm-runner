@@ -242,6 +242,13 @@
   gap: 0.5rem;
 }
 
+.global-settings-button {
+  position: fixed;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 1070;
+}
+
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -292,149 +299,62 @@
   background: var(--surface);
 }
 
-.welcome-panel.onboarding-panel {
-  max-width: none;
-  margin: 0;
-  min-height: 100dvh;
-  border: 0;
-  border-radius: 0;
-  background:
-    radial-gradient(circle at 14% 18%, color-mix(in srgb, var(--primary-btn-bg) 18%, transparent) 0%, transparent 36%),
-    radial-gradient(circle at 84% 88%, color-mix(in srgb, var(--focus-ring) 14%, transparent) 0%, transparent 34%),
-    var(--main-bg);
+.home-panel {
+  max-width: min(960px, 100%);
+  margin: auto;
+  border-radius: 1rem;
+  box-shadow: 0 16px 30px rgba(31, 41, 64, 0.16);
 }
 
-.welcome-panel.onboarding-panel .card-body {
-  min-height: 100dvh;
+.home-panel-body {
+  padding: clamp(1.4rem, 3.4vw, 2.3rem);
+  text-align: center;
 }
 
-.onboarding-layout {
-  width: min(1200px, 100%);
-  margin: 0 auto;
-  padding: clamp(1.25rem, 2.8vw, 2.5rem) clamp(1rem, 2.8vw, 2.25rem);
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
-  gap: clamp(1rem, 2.3vw, 2rem);
-  align-items: center;
-}
-
-.onboarding-hero {
-  max-width: 48rem;
-}
-
-.onboarding-kicker {
-  display: inline-block;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-muted);
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
-}
-
-.onboarding-title {
-  font-size: clamp(1.85rem, 3.4vw, 3rem);
-  line-height: 1.08;
+.home-title {
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  line-height: 1.1;
   font-weight: 750;
-  color: var(--ink-strong);
 }
 
-.onboarding-lead {
-  font-size: clamp(1.05rem, 1.4vw, 1.25rem);
-  line-height: 1.45;
+.home-lead {
+  max-width: 50ch;
+  margin-inline: auto;
   color: var(--ink-muted);
-  max-width: 44ch;
 }
 
-.onboarding-proof-grid {
-  display: grid;
-  gap: 0.75rem;
+.pre-chat-panel {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
 }
 
-.onboarding-proof-card {
-  border: 1px solid var(--border-soft);
-  border-radius: 0.85rem;
-  padding: 0.8rem 0.9rem;
-  background: color-mix(in srgb, var(--surface) 86%, transparent);
-  box-shadow: 0 10px 22px rgba(31, 41, 64, 0.14);
-}
-
-.onboarding-proof-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-weight: 650;
-  color: var(--ink-strong);
-}
-
-.onboarding-proof-title .bi {
-  font-size: 1rem;
-  color: var(--primary-btn-bg);
-}
-
-.onboarding-setup {
+.pre-chat-inner {
   border: 1px solid var(--border-soft);
   border-radius: 1rem;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  box-shadow: 0 16px 34px rgba(31, 41, 64, 0.2);
-  padding: clamp(1rem, 2vw, 1.5rem);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 14px 30px rgba(31, 41, 64, 0.16);
+  padding: clamp(1rem, 2.2vw, 1.6rem);
 }
 
-.onboarding-setup .form-control,
-.onboarding-setup .form-select {
+.pre-chat-model-picker .form-select {
   background: color-mix(in srgb, var(--control-bg) 82%, var(--surface));
 }
 
-.onboarding-setup #onboardingStatusRegion {
+#onboardingStatusRegion {
   width: 100%;
   white-space: normal;
   line-height: 1.25;
   border-radius: 0.7rem;
 }
 
-.onboarding-setup #modelLoadFeedback {
+.pre-chat-progress {
   border-top: 1px solid color-mix(in srgb, var(--border-soft) 65%, transparent);
   padding-top: 0.9rem;
 }
 
-.chat-main.is-onboarding {
-  padding: 0;
-}
-
-.chat-main.is-onboarding .welcome-panel.onboarding-panel {
-  display: flex;
-  flex-direction: column;
+.chat-main.is-home {
   justify-content: center;
-}
-
-#modelLoadCurrentFileLabel,
-#modelLoadCurrentFileValue {
-  word-break: break-word;
-}
-
-#modelLoadCurrentFileBar {
-  transition: width 180ms ease-out;
-}
-
-#modelLoadCurrentFileBar.model-load-bar-no-transition {
-  transition: none;
-  animation: none;
-}
-
-#modelLoadCurrentFileBar.model-load-bar-indeterminate {
-  width: 35%;
-  animation: model-load-indeterminate 1.2s ease-in-out infinite;
-}
-
-@keyframes model-load-indeterminate {
-  0% {
-    transform: translateX(-120%);
-  }
-  100% {
-    transform: translateX(320%);
-  }
 }
 
 .chat-transcript-wrap {
@@ -845,6 +765,16 @@
   border-top: 2px solid var(--composer-border);
   background: color-mix(in srgb, var(--surface) 95%, transparent);
   padding: 0.85rem 1rem 1rem;
+  transition: padding 220ms ease, border-radius 220ms ease, box-shadow 220ms ease, margin 220ms ease;
+}
+
+.composer.is-prechat {
+  margin: 0 auto 1.1rem;
+  width: min(900px, calc(100% - 2rem));
+  border: 1px solid var(--composer-border);
+  border-radius: 1.35rem;
+  box-shadow: 0 14px 30px rgba(31, 41, 64, 0.16);
+  padding: 1rem;
 }
 
 .composer-row {
@@ -1101,27 +1031,19 @@
     min-width: 8.5rem;
   }
 
-  .onboarding-layout {
-    padding: 1rem;
+  .home-title {
+    font-size: clamp(1.45rem, 8vw, 2rem);
   }
 
-  .onboarding-title {
-    font-size: clamp(1.5rem, 8vw, 2.05rem);
+  .global-settings-button {
+    top: max(0.55rem, env(safe-area-inset-top));
+    right: max(0.55rem, env(safe-area-inset-right));
   }
 }
 
 @media (max-width: 991.98px) {
-  .onboarding-layout {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .onboarding-hero {
-    max-width: none;
-  }
-
-  .welcome-panel.onboarding-panel .card-body {
-    min-height: auto;
+  .home-panel {
+    margin: 0 auto;
   }
 
   .settings-layout {
@@ -1178,11 +1100,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #modelLoadCurrentFileBar.model-load-bar-indeterminate {
-    animation: none;
-    transform: none;
-  }
-
   .model-message .message-bubble::before,
   .model-message .message-bubble::after {
     transition: none;
@@ -1196,7 +1113,8 @@
   }
 
   .fix-wait-message,
-  .response-content {
+  .response-content,
+  .composer {
     transition: none;
     transform: none;
   }
