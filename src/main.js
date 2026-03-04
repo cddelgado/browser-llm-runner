@@ -3340,6 +3340,10 @@ function getThinkingTagsForModel(modelId) {
   return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.thinkingTags || null;
 }
 
+function getRuntimeConfigForModel(modelId) {
+  return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.runtime || {};
+}
+
 function parseThinkingText(rawText, thinkingTags) {
   const text = String(rawText || '');
   if (!thinkingTags?.open || !thinkingTags?.close) {
@@ -3396,6 +3400,7 @@ function readEngineConfigFromUI() {
   return {
     modelId: selectedModel,
     backendPreference: selectedBackend,
+    runtime: getRuntimeConfigForModel(selectedModel),
     generationConfig: activeGenerationConfig,
   };
 }

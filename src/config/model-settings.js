@@ -22,6 +22,7 @@ export const DEFAULT_GENERATION_LIMITS = Object.freeze({
   defaultTopK: DEFAULT_TOP_K,
   defaultTopP: DEFAULT_TOP_P,
 });
+export const ALLOWED_RUNTIME_DTYPES = Object.freeze(new Set(['q4', 'q4f16', 'q8', 'fp16', 'fp32']));
 
 function toPositiveInt(value, fallback) {
   return Number.isInteger(value) && value > 0 ? value : fallback;
@@ -107,6 +108,14 @@ export function normalizeGenerationLimits(rawLimits) {
   };
 }
 
+function normalizeRuntime(rawRuntime) {
+  const dtype =
+    typeof rawRuntime?.dtype === 'string' && ALLOWED_RUNTIME_DTYPES.has(rawRuntime.dtype.trim())
+      ? rawRuntime.dtype.trim()
+      : null;
+  return dtype ? { dtype } : {};
+}
+
 const configuredModels = Array.isArray(modelCatalog?.models)
   ? modelCatalog.models
       .map((model) => {
@@ -127,7 +136,8 @@ const configuredModels = Array.isArray(modelCatalog?.models)
             ? { open: openThinkingTag, close: closeThinkingTag }
             : null;
         const generation = normalizeGenerationLimits(model?.generation);
-        return { id, label, features: model?.features || {}, thinkingTags, generation };
+        const runtime = normalizeRuntime(model?.runtime);
+        return { id, label, features: model?.features || {}, thinkingTags, generation, runtime };
       })
       .filter(Boolean)
   : [];
@@ -146,6 +156,7 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
     label: DEFAULT_MODEL,
     features: {},
     generation: normalizeGenerationLimits(null),
+    runtime: {},
   });
 }
 

@@ -3,6 +3,7 @@
 Model support is configured in `src/config/models.json`:
 
 - `models`: list of selectable models (`id`, `label`, optional `features`)
+- `models[].runtime`: optional runtime hints per model (currently `dtype`)
 - `models[].generation`: per-model integer token limits:
   - `defaultMaxOutputTokens`
   - `maxOutputTokens`
@@ -43,6 +44,6 @@ Notes:
 
 Per-model limits and defaults:
 
-- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: max context `131072`, default context `8192`, default temperature `0.6`, no thinking tags
-- `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`: max context `131072`, default context `8192`, default temperature `0.6`, no thinking tags
-- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: max context `32768`, default context `32768`, default temperature `0.3`, thinking tags `<think>...</think>`
+- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: dtype `q4f16`, max context `131072`, default context `8192`, default temperature `0.6`, no thinking tags
+- `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`: dtype `q4f16`, max context `131072`, default context `8192`, default temperature `0.6`, no thinking tags
+- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: dtype `q8`, max context `32768`, default context `32768`, default temperature `0.3`, thinking tags `<think>...</think>`

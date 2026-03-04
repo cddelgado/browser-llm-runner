@@ -96,6 +96,7 @@ Student-facing browser chat UI with local model inference.
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - Model support configuration lives in `src/config/models.json`:
   - `models`: options shown in the model selector
+  - `models[].runtime`: per-model runtime hints (currently `dtype`)
   - `models[].generation`: per-model defaults and limits for output/context tokens and temperature
   - `defaultModelId`: fallback/default selection
   - `legacyAliases`: stored legacy IDs remapped at runtime

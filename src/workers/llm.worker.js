@@ -142,6 +142,11 @@ function extractErrorMessage(error) {
   return 'Unknown initialization error';
 }
 
+function normalizeRuntimeConfig(rawRuntime) {
+  const dtype = typeof rawRuntime?.dtype === 'string' ? rawRuntime.dtype.trim() : '';
+  return dtype ? { dtype } : {};
+}
+
 function resolvePrompt(rawPrompt) {
   return [
     {
@@ -155,6 +160,7 @@ async function initialize(payload) {
   const modelId = payload.modelId || 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
   const backendPreference = normalizeBackendPreference(payload.backendPreference || 'auto');
   generationConfig = normalizeGenerationConfig(payload.generationConfig);
+  const runtime = normalizeRuntimeConfig(payload.runtime);
   const attempts = getBackendAttemptOrder(backendPreference);
   const errors = [];
 
@@ -172,8 +178,9 @@ async function initialize(payload) {
     try {
       postStatus(`Loading ${modelId} with ${backend.toUpperCase()}...`);
       postProgress({ percent: 5, message: `Preparing ${backend.toUpperCase()} backend...` });
-      model = await pipeline('text-generation', modelId, {
+      const pipelineOptions = {
         device: backend,
+        ...runtime,
         progress_callback: (progress) => {
           const rawProgress = progress?.progress;
           const normalizedProgress =
@@ -206,6 +213,9 @@ async function initialize(payload) {
             totalBytes: rawTotalBytes,
           });
         },
+      };
+      model = await pipeline('text-generation', modelId, {
+        ...pipelineOptions,
       });
       tokenizer = model.tokenizer;
       backendInUse = backend;
