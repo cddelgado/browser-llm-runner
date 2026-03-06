@@ -55,6 +55,15 @@ import {
   pruneDescendantsFromMessage,
 } from './state/conversation-model.js';
 import { createAppController } from './state/app-controller.js';
+import {
+  createAppState,
+  findConversationById as selectConversationById,
+  getActiveConversation as selectActiveConversation,
+  getCurrentViewRoute as selectCurrentViewRoute,
+  hasConversationHistory as selectHasConversationHistory,
+  hasSelectedConversationWithHistory as selectHasSelectedConversationWithHistory,
+  shouldDisableComposerForPreChatConversationSelection as selectShouldDisableComposerForPreChatConversationSelection,
+} from './state/app-state.js';
 import { loadConversationState, saveConversationState } from './state/conversation-store.js';
 import { renderConversationListView } from './ui/conversation-list-view.js';
 import { createTranscriptView } from './ui/transcript-view.js';
@@ -197,86 +206,22 @@ markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
   return defaultLinkRenderer(tokens, idx, options, env, self);
 };
 
-let modelReady = false;
-let hasStartedChatWorkspace = false;
-let isGenerating = false;
-let isLoadingModel = false;
-let conversationCount = 0;
-let conversationIdCounter = 0;
-let activeConversationId = null;
-const conversations = [];
-const debugEntries = [];
 const MAX_DEBUG_ENTRIES = 120;
-let activeGenerationConfig = {
-  ...normalizeGenerationLimits(null),
-  topK: DEFAULT_TOP_K,
-  topP: DEFAULT_TOP_P,
-};
-let pendingGenerationConfig = null;
-let conversationSaveTimerId = null;
-let showThinkingByDefault = false;
-let defaultSystemPrompt = '';
-let isSwitchingVariant = false;
-let activeUserEditMessageId = null;
-let activeUserBranchSourceMessageId = null;
-let isChatTitleEditing = false;
-let isRunningOrchestration = false;
-let isSettingsPageOpen = false;
-let activeSettingsTab = 'system';
-let conversationSystemPromptModalInstance = null;
-let currentWorkspaceView = 'home';
 const ROUTE_HOME = 'home';
 const ROUTE_CHAT = 'chat';
 const ROUTE_SETTINGS = 'settings';
-let ignoreNextHashChange = false;
-const loadProgressFiles = new Map();
-let maxObservedLoadPercent = 0;
 const mathTypesetTimers = new WeakMap();
-let hasLoggedMathJaxError = false;
-let mathJaxLoadPromise = null;
 const PRE_CHAT_STATUS_HINT_DEFAULT = 'Send your first message to load the selected model.';
 const PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION =
   'To see your conversation, load a model first.';
-let lastConversationSystemPromptTrigger = null;
-
-const appState = {};
-Object.defineProperties(appState, {
+const appState = createAppState({
   activeGenerationConfig: {
-    get: () => activeGenerationConfig,
-    set: (value) => {
-      activeGenerationConfig = value;
-    },
+    ...normalizeGenerationLimits(null),
+    topK: DEFAULT_TOP_K,
+    topP: DEFAULT_TOP_P,
   },
-  activeUserEditMessageId: {
-    get: () => activeUserEditMessageId,
-    set: (value) => {
-      activeUserEditMessageId = value;
-    },
-  },
-  isGenerating: {
-    get: () => isGenerating,
-    set: (value) => {
-      isGenerating = value;
-    },
-  },
-  isLoadingModel: {
-    get: () => isLoadingModel,
-    set: (value) => {
-      isLoadingModel = value;
-    },
-  },
-  isRunningOrchestration: {
-    get: () => isRunningOrchestration,
-    set: (value) => {
-      isRunningOrchestration = value;
-    },
-  },
-  modelReady: {
-    get: () => modelReady,
-    set: (value) => {
-      modelReady = value;
-    },
-  },
+  defaultSystemPrompt: '',
+  maxDebugEntries: MAX_DEBUG_ENTRIES,
 });
 void ensureMathJaxLoaded();
 
@@ -290,13 +235,13 @@ function initializeTooltips(root = document) {
 }
 
 function startUserMessageEditSession(messageId, { branchSourceMessageId = null } = {}) {
-  activeUserEditMessageId = messageId;
-  activeUserBranchSourceMessageId = branchSourceMessageId;
+  appState.activeUserEditMessageId = messageId;
+  appState.activeUserBranchSourceMessageId = branchSourceMessageId;
 }
 
 function clearUserMessageEditSession() {
-  activeUserEditMessageId = null;
-  activeUserBranchSourceMessageId = null;
+  appState.activeUserEditMessageId = null;
+  appState.activeUserBranchSourceMessageId = null;
 }
 
 function disposeTooltips(root) {
@@ -420,15 +365,15 @@ function ensureMathJaxLoaded() {
   if (window.MathJax?.typesetPromise && window.MathJax?.startup?.promise) {
     return Promise.resolve();
   }
-  if (!mathJaxLoadPromise) {
-    mathJaxLoadPromise = import('mathjax/es5/tex-mml-svg.js').catch((error) => {
-      if (!hasLoggedMathJaxError) {
+  if (!appState.mathJaxLoadPromise) {
+    appState.mathJaxLoadPromise = import('mathjax/es5/tex-mml-svg.js').catch((error) => {
+      if (!appState.hasLoggedMathJaxError) {
         appendDebug(`MathJax failed to load: ${error instanceof Error ? error.message : String(error)}`);
-        hasLoggedMathJaxError = true;
+        appState.hasLoggedMathJaxError = true;
       }
     });
   }
-  return mathJaxLoadPromise;
+  return appState.mathJaxLoadPromise;
 }
 
 async function typesetMathInElement(element) {
@@ -444,9 +389,9 @@ async function typesetMathInElement(element) {
     await mathJax.startup.promise;
     await mathJax.typesetPromise([element]);
   } catch (error) {
-    if (!hasLoggedMathJaxError) {
+    if (!appState.hasLoggedMathJaxError) {
       appendDebug(`MathJax render failed: ${error instanceof Error ? error.message : String(error)}`);
-      hasLoggedMathJaxError = true;
+      appState.hasLoggedMathJaxError = true;
     }
   }
 }
@@ -674,13 +619,13 @@ function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
     topPInput.value = config.topP.toFixed(2);
   }
 
-  activeGenerationConfig = { ...config };
-  engine.setGenerationConfig(activeGenerationConfig);
+  appState.activeGenerationConfig = { ...config };
+  engine.setGenerationConfig(appState.activeGenerationConfig);
   renderGenerationSettingsHelpText(config, limits);
 }
 
 function updateGenerationSettingsEnabledState() {
-  const disabled = !modelReady;
+  const disabled = !appState.modelReady;
   if (maxOutputTokensInput) {
     maxOutputTokensInput.disabled = disabled;
   }
@@ -705,33 +650,33 @@ function updateGenerationSettingsEnabledState() {
 }
 
 function applyPendingGenerationSettingsIfReady() {
-  if (isGenerating || !pendingGenerationConfig) {
+  if (appState.isGenerating || !appState.pendingGenerationConfig) {
     return;
   }
   const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const limits = getModelGenerationLimits(selectedModel);
   const nextMaxContextTokens = quantizeTokenInput(
-    pendingGenerationConfig.maxContextTokens,
+    appState.pendingGenerationConfig.maxContextTokens,
     MIN_TOKEN_LIMIT,
     limits.maxContextTokens,
   );
   const nextConfig = {
     maxContextTokens: nextMaxContextTokens,
     maxOutputTokens: quantizeTokenInput(
-      pendingGenerationConfig.maxOutputTokens,
+      appState.pendingGenerationConfig.maxOutputTokens,
       MIN_TOKEN_LIMIT,
       Math.min(limits.maxOutputTokens, nextMaxContextTokens),
     ),
     temperature: quantizeTemperature(
-      pendingGenerationConfig.temperature,
+      appState.pendingGenerationConfig.temperature,
       limits.minTemperature,
       limits.maxTemperature,
     ),
-    topK: quantizeTopKInput(pendingGenerationConfig.topK),
-    topP: quantizeTopPInput(pendingGenerationConfig.topP),
+    topK: quantizeTopKInput(appState.pendingGenerationConfig.topK),
+    topP: quantizeTopPInput(appState.pendingGenerationConfig.topP),
   };
-  pendingGenerationConfig = null;
-  activeGenerationConfig = nextConfig;
+  appState.pendingGenerationConfig = null;
+  appState.activeGenerationConfig = nextConfig;
   engine.setGenerationConfig(nextConfig);
   syncGenerationSettingsFromModel(selectedModel, false);
   setStatus('Generation settings updated.');
@@ -743,12 +688,12 @@ function applyPendingGenerationSettingsIfReady() {
 function onGenerationSettingInputChanged() {
   const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const nextConfig = buildGenerationConfigFromUI(selectedModel);
-  activeGenerationConfig = nextConfig;
+  appState.activeGenerationConfig = nextConfig;
   syncGenerationSettingsFromModel(selectedModel, false);
   persistGenerationConfigForModel(selectedModel, nextConfig);
   persistGlobalSamplingSettings(nextConfig);
-  if (isGenerating) {
-    pendingGenerationConfig = nextConfig;
+  if (appState.isGenerating) {
+    appState.pendingGenerationConfig = nextConfig;
     setStatus('Generation settings will apply after current response.');
     appendDebug('Generation settings change queued until current response completes.');
     return;
@@ -762,12 +707,12 @@ function onGenerationSettingInputChanged() {
 
 function appendDebug(message) {
   const timestamp = new Date().toLocaleTimeString();
-  debugEntries.push(`[${timestamp}] ${message}`);
-  if (debugEntries.length > MAX_DEBUG_ENTRIES) {
-    debugEntries.shift();
+  appState.debugEntries.push(`[${timestamp}] ${message}`);
+  if (appState.debugEntries.length > MAX_DEBUG_ENTRIES) {
+    appState.debugEntries.shift();
   }
   if (debugInfo) {
-    debugInfo.textContent = debugEntries.join('\n');
+    debugInfo.textContent = appState.debugEntries.join('\n');
   }
 }
 
@@ -785,7 +730,7 @@ function updatePreChatStatusHint() {
   if (!(onboardingStatusRegion instanceof HTMLElement)) {
     return;
   }
-  if (hasStartedChatWorkspace && !modelReady && !isLoadingModel) {
+  if (appState.hasStartedChatWorkspace && !appState.modelReady && !appState.isLoadingModel) {
     onboardingStatusRegion.textContent = hasSelectedConversationWithHistory()
       ? PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION
       : PRE_CHAT_STATUS_HINT_DEFAULT;
@@ -793,18 +738,15 @@ function updatePreChatStatusHint() {
 }
 
 function hasConversationHistory(conversation) {
-  if (!conversation) {
-    return false;
-  }
-  return getConversationPathMessages(conversation).length > 0;
+  return selectHasConversationHistory(conversation);
 }
 
 function hasSelectedConversationWithHistory() {
-  return hasConversationHistory(getActiveConversation());
+  return selectHasSelectedConversationWithHistory(appState);
 }
 
 function shouldDisableComposerForPreChatConversationSelection() {
-  return hasStartedChatWorkspace && !isSettingsPageOpen && !modelReady && hasSelectedConversationWithHistory();
+  return selectShouldDisableComposerForPreChatConversationSelection(appState);
 }
 
 function buildConversationStateSnapshot() {
@@ -831,10 +773,10 @@ function buildConversationStateSnapshot() {
       },
     },
     artifacts: [],
-    activeConversationId,
-    conversationCount,
-    conversationIdCounter,
-    conversations: conversations.map((conversation) => {
+    activeConversationId: appState.activeConversationId,
+    conversationCount: appState.conversationCount,
+    conversationIdCounter: appState.conversationIdCounter,
+    conversations: appState.conversations.map((conversation) => {
       const pathMessages = getConversationPathMessages(conversation);
       const serializeMessage = (message) => ({
         id: message.id,
@@ -920,11 +862,11 @@ async function persistConversationStateNow() {
 }
 
 function queueConversationStateSave() {
-  if (conversationSaveTimerId !== null) {
+  if (appState.conversationSaveTimerId !== null) {
     return;
   }
-  conversationSaveTimerId = window.setTimeout(() => {
-    conversationSaveTimerId = null;
+  appState.conversationSaveTimerId = window.setTimeout(() => {
+    appState.conversationSaveTimerId = null;
     void persistConversationStateNow();
   }, CONVERSATION_SAVE_DEBOUNCE_MS);
 }
@@ -1141,25 +1083,25 @@ function applyStoredConversationState(rawState) {
     return false;
   }
 
-  conversations.length = 0;
-  conversations.push(...restoredConversations);
+  appState.conversations.length = 0;
+  appState.conversations.push(...restoredConversations);
 
-  activeConversationId = null;
+  appState.activeConversationId = null;
 
-  const maxCounterFromIds = conversations.reduce(
+  const maxCounterFromIds = appState.conversations.reduce(
     (maxCounter, conversation) => Math.max(maxCounter, parseConversationCounterFromId(conversation.id)),
     0,
   );
   const storedIdCounter = Number.parseInt(String(rawState.conversationIdCounter || ''), 10);
   const storedConversationCount = Number.parseInt(String(rawState.conversationCount || ''), 10);
-  conversationIdCounter =
+  appState.conversationIdCounter =
     Number.isInteger(storedIdCounter) && storedIdCounter > 0
       ? Math.max(storedIdCounter, maxCounterFromIds)
       : maxCounterFromIds;
-  conversationCount =
+  appState.conversationCount =
     Number.isInteger(storedConversationCount) && storedConversationCount > 0
       ? storedConversationCount
-      : conversations.length;
+      : appState.conversations.length;
 
   return true;
 }
@@ -1168,13 +1110,13 @@ async function restoreConversationStateFromStorage() {
   try {
     const storedState = await loadConversationState();
     if (!applyStoredConversationState(storedState)) {
-      conversations.length = 0;
-      activeConversationId = null;
+      appState.conversations.length = 0;
+      appState.activeConversationId = null;
     }
   } catch (error) {
     appendDebug(`Conversation restore failed: ${error.message}`);
-    conversations.length = 0;
-    activeConversationId = null;
+    appState.conversations.length = 0;
+    appState.activeConversationId = null;
   }
 
   renderConversationList();
@@ -1183,20 +1125,20 @@ async function restoreConversationStateFromStorage() {
 }
 
 function getActiveConversation() {
-  return conversations.find((conversation) => conversation.id === activeConversationId) || null;
+  return selectActiveConversation(appState);
 }
 
 function findConversationById(conversationId) {
-  return conversations.find((conversation) => conversation.id === conversationId) || null;
+  return selectConversationById(appState, conversationId);
 }
 
 function createConversation(name) {
-  conversationCount += 1;
+  appState.conversationCount += 1;
   return createConversationRecord({
-    id: `conversation-${++conversationIdCounter}`,
+    id: `conversation-${++appState.conversationIdCounter}`,
     name,
     untitledPrefix: UNTITLED_CONVERSATION_PREFIX,
-    systemPrompt: defaultSystemPrompt,
+    systemPrompt: appState.defaultSystemPrompt,
     startedAt: Date.now(),
   });
 }
@@ -1206,7 +1148,7 @@ function requestSingleGeneration(prompt) {
     let streamedText = '';
     try {
       engine.generate(prompt, {
-        generationConfig: activeGenerationConfig,
+        generationConfig: appState.activeGenerationConfig,
         onToken: (chunk) => {
           streamedText += String(chunk || '');
         },
@@ -1279,15 +1221,15 @@ const transcriptView = createTranscriptView({
   getUserVariantState,
   renderModelMarkdown,
   scheduleMathTypeset,
-  getShowThinkingByDefault: () => showThinkingByDefault,
-  getActiveUserEditMessageId: () => activeUserEditMessageId,
+  getShowThinkingByDefault: () => appState.showThinkingByDefault,
+  getActiveUserEditMessageId: () => appState.activeUserEditMessageId,
   getControlsState: () => ({
-    isGenerating,
-    isLoadingModel,
-    isRunningOrchestration,
-    isSwitchingVariant,
+    isGenerating: appState.isGenerating,
+    isLoadingModel: appState.isLoadingModel,
+    isRunningOrchestration: appState.isRunningOrchestration,
+    isSwitchingVariant: appState.isSwitchingVariant,
   }),
-  getEmptyStateVisible: () => modelReady && conversations.length > 0,
+  getEmptyStateVisible: () => appState.modelReady && appState.conversations.length > 0,
   initializeTooltips,
   disposeTooltips,
   applyVariantCardSignals,
@@ -1305,8 +1247,8 @@ function renderConversationList() {
   disposeTooltips(conversationList);
   renderConversationListView({
     container: conversationList,
-    conversations,
-    activeConversationId,
+    conversations: appState.conversations,
+    activeConversationId: appState.activeConversationId,
     setIconButtonContent,
   });
   initializeTooltips(conversationList);
@@ -1432,12 +1374,12 @@ function updateTranscriptNavigationButtonVisibility() {
     return;
   }
   const hasTranscriptItems = Boolean(chatTranscript?.children.length);
-  const shouldShowJumpToLatest = modelReady && hasTranscriptItems && !isTranscriptNearBottom();
+  const shouldShowJumpToLatest = appState.modelReady && hasTranscriptItems && !isTranscriptNearBottom();
   jumpToLatestButton.classList.toggle('d-none', !shouldShowJumpToLatest);
 
   const lastPromptMessageId = getLastPromptMessageId();
   const shouldShowJumpToPrompt =
-    modelReady && hasTranscriptItems && Boolean(lastPromptMessageId) && !isMessageInView(lastPromptMessageId);
+    appState.modelReady && hasTranscriptItems && Boolean(lastPromptMessageId) && !isMessageInView(lastPromptMessageId);
   jumpToLastPromptButton.classList.toggle('d-none', !shouldShowJumpToPrompt);
 }
 
@@ -1465,11 +1407,11 @@ function updateChatTitleEditorVisibility() {
   const hasCompletedGeneration = pathMessages.some(
     (message) => message?.role === 'model' && Boolean(message.isResponseComplete),
   );
-  const canEditTitle = modelReady && Boolean(activeConversation?.hasGeneratedName);
+  const canEditTitle = appState.modelReady && Boolean(activeConversation?.hasGeneratedName);
   const canEditConversationSystemPrompt = Boolean(activeConversation);
-  const canDownloadConversation = modelReady && hasCompletedGeneration;
-  const controlsDisabled = isGenerating || isLoadingModel || isRunningOrchestration;
-  const showEditor = canEditTitle && isChatTitleEditing;
+  const canDownloadConversation = appState.modelReady && hasCompletedGeneration;
+  const controlsDisabled = appState.isGenerating || appState.isLoadingModel || appState.isRunningOrchestration;
+  const showEditor = canEditTitle && appState.isChatTitleEditing;
   chatTitle.classList.toggle('d-none', showEditor);
   chatTitleInput.classList.toggle('d-none', !showEditor);
   editChatTitleBtn.classList.toggle('d-none', !canEditTitle || showEditor);
@@ -1499,7 +1441,7 @@ function downloadActiveConversationBranchAsJson() {
       : normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const temperature = Number.isFinite(engine?.config?.generationConfig?.temperature)
     ? Number(engine.config.generationConfig.temperature)
-    : Number(activeGenerationConfig?.temperature ?? DEFAULT_GENERATION_LIMITS.defaultTemperature);
+    : Number(appState.activeGenerationConfig?.temperature ?? DEFAULT_GENERATION_LIMITS.defaultTemperature);
   const payload = buildConversationDownloadPayload(activeConversation, {
     modelId: selectedModelId,
     temperature,
@@ -1533,7 +1475,7 @@ function downloadActiveConversationBranchAsMarkdown() {
       : normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const temperature = Number.isFinite(engine?.config?.generationConfig?.temperature)
     ? Number(engine.config.generationConfig.temperature)
-    : Number(activeGenerationConfig?.temperature ?? DEFAULT_GENERATION_LIMITS.defaultTemperature);
+    : Number(appState.activeGenerationConfig?.temperature ?? DEFAULT_GENERATION_LIMITS.defaultTemperature);
   const payload = buildConversationDownloadPayload(activeConversation, {
     modelId: selectedModelId,
     temperature,
@@ -1559,17 +1501,17 @@ function getConversationSystemPromptModalInstance() {
   if (!(conversationSystemPromptModal instanceof HTMLElement)) {
     return null;
   }
-  if (!conversationSystemPromptModalInstance) {
-    conversationSystemPromptModalInstance = Modal.getOrCreateInstance(conversationSystemPromptModal);
+  if (!appState.conversationSystemPromptModalInstance) {
+    appState.conversationSystemPromptModalInstance = Modal.getOrCreateInstance(conversationSystemPromptModal);
   }
-  return conversationSystemPromptModalInstance;
+  return appState.conversationSystemPromptModalInstance;
 }
 
 function beginConversationSystemPromptEdit({ trigger = null } = {}) {
   if (
-    isGenerating ||
-    isLoadingModel ||
-    isRunningOrchestration ||
+    appState.isGenerating ||
+    appState.isLoadingModel ||
+    appState.isRunningOrchestration ||
     !(conversationSystemPromptInput instanceof HTMLTextAreaElement) ||
     !(conversationSystemPromptAppendToggle instanceof HTMLInputElement)
   ) {
@@ -1580,7 +1522,7 @@ function beginConversationSystemPromptEdit({ trigger = null } = {}) {
     return;
   }
   if (trigger instanceof HTMLElement) {
-    lastConversationSystemPromptTrigger = trigger;
+    appState.lastConversationSystemPromptTrigger = trigger;
   }
   conversationSystemPromptInput.value = normalizeSystemPrompt(
     activeConversation.conversationSystemPrompt,
@@ -1616,14 +1558,14 @@ function saveConversationSystemPromptEdit() {
 }
 
 function beginChatTitleEdit() {
-  if (isGenerating || isLoadingModel || isRunningOrchestration) {
+  if (appState.isGenerating || appState.isLoadingModel || appState.isRunningOrchestration) {
     return;
   }
   const activeConversation = getActiveConversation();
   if (!activeConversation?.hasGeneratedName || !chatTitleInput) {
     return;
   }
-  isChatTitleEditing = true;
+  appState.isChatTitleEditing = true;
   chatTitleInput.value = activeConversation.name;
   updateChatTitleEditorVisibility();
   chatTitleInput.focus();
@@ -1631,10 +1573,10 @@ function beginChatTitleEdit() {
 }
 
 function cancelChatTitleEdit({ restoreFocus = true } = {}) {
-  if (!isChatTitleEditing) {
+  if (!appState.isChatTitleEditing) {
     return;
   }
-  isChatTitleEditing = false;
+  appState.isChatTitleEditing = false;
   updateChatTitle();
   if (restoreFocus && editChatTitleBtn instanceof HTMLButtonElement) {
     editChatTitleBtn.focus();
@@ -1642,7 +1584,7 @@ function cancelChatTitleEdit({ restoreFocus = true } = {}) {
 }
 
 function saveChatTitleEdit() {
-  if (!isChatTitleEditing || !chatTitleInput) {
+  if (!appState.isChatTitleEditing || !chatTitleInput) {
     return;
   }
   const activeConversation = getActiveConversation();
@@ -1659,7 +1601,7 @@ function saveChatTitleEdit() {
   }
   activeConversation.name = nextName;
   activeConversation.hasGeneratedName = true;
-  isChatTitleEditing = false;
+  appState.isChatTitleEditing = false;
   renderConversationList();
   updateChatTitle();
   queueConversationStateSave();
@@ -1698,13 +1640,11 @@ function getRouteFromHash(hashValue = window.location.hash) {
 }
 
 function getCurrentViewRoute() {
-  if (isSettingsPageOpen) {
-    return ROUTE_SETTINGS;
-  }
-  if (hasStartedChatWorkspace) {
-    return ROUTE_CHAT;
-  }
-  return ROUTE_HOME;
+  return selectCurrentViewRoute(appState, {
+    routeHome: ROUTE_HOME,
+    routeChat: ROUTE_CHAT,
+    routeSettings: ROUTE_SETTINGS,
+  });
 }
 
 function setRouteHash(targetRoute, { replace = true } = {}) {
@@ -1717,7 +1657,7 @@ function setRouteHash(targetRoute, { replace = true } = {}) {
     window.history.replaceState(null, '', targetHash);
     return;
   }
-  ignoreNextHashChange = true;
+  appState.ignoreNextHashChange = true;
   window.location.hash = targetHash;
 }
 
@@ -1733,9 +1673,9 @@ function applyRouteFromHash() {
   }
 
   setSettingsPageVisibility(false, { syncRoute: false });
-  hasStartedChatWorkspace = requestedRoute === ROUTE_CHAT;
+  appState.hasStartedChatWorkspace = requestedRoute === ROUTE_CHAT;
   updateWelcomePanelVisibility({ syncRoute: false });
-  if (isSettingsPageOpen) {
+  if (appState.isSettingsPageOpen) {
     return;
   }
 }
@@ -1745,12 +1685,12 @@ function setActiveSettingsTab(targetTabName, { focus = false } = {}) {
   if (!tabName || !settingsTabButtons.length || !settingsTabPanels.length) {
     return;
   }
-  activeSettingsTab = tabName;
+  appState.activeSettingsTab = tabName;
   settingsTabButtons.forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) {
       return;
     }
-    const isActive = button.dataset.settingsTab === activeSettingsTab;
+    const isActive = button.dataset.settingsTab === appState.activeSettingsTab;
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-selected', String(isActive));
     button.tabIndex = isActive ? 0 : -1;
@@ -1760,7 +1700,7 @@ function setActiveSettingsTab(targetTabName, { focus = false } = {}) {
     if (!(panel instanceof HTMLElement)) {
       return;
     }
-    const isActive = panel.dataset.settingsTabPanel === activeSettingsTab;
+    const isActive = panel.dataset.settingsTabPanel === appState.activeSettingsTab;
     panel.classList.toggle('d-none', !isActive);
     if (isActive) {
       panel.removeAttribute('aria-hidden');
@@ -1773,7 +1713,7 @@ function setActiveSettingsTab(targetTabName, { focus = false } = {}) {
 
   if (focus) {
     const activeButton = Array.from(settingsTabButtons).find(
-      (button) => button instanceof HTMLButtonElement && button.dataset.settingsTab === activeSettingsTab,
+      (button) => button instanceof HTMLButtonElement && button.dataset.settingsTab === appState.activeSettingsTab,
     );
     if (activeButton instanceof HTMLButtonElement) {
       activeButton.focus();
@@ -1785,23 +1725,23 @@ function setSettingsPageVisibility(visible, { syncRoute = true, replaceRoute = t
   if (!settingsPage || !topBar) {
     return;
   }
-  isSettingsPageOpen = Boolean(visible);
-  setRegionVisibility(settingsPage, isSettingsPageOpen);
+  appState.isSettingsPageOpen = Boolean(visible);
+  setRegionVisibility(settingsPage, appState.isSettingsPageOpen);
   const conversationPanelToggle = topBar.querySelector('[data-bs-target="#conversationPanel"]');
   if (openSettingsButton) {
-    openSettingsButton.setAttribute('aria-expanded', String(isSettingsPageOpen));
+    openSettingsButton.setAttribute('aria-expanded', String(appState.isSettingsPageOpen));
   }
   if (conversationPanelToggle) {
-    conversationPanelToggle.classList.toggle('d-none', isSettingsPageOpen);
+    conversationPanelToggle.classList.toggle('d-none', appState.isSettingsPageOpen);
   }
-  if (isSettingsPageOpen) {
+  if (appState.isSettingsPageOpen) {
     setRegionVisibility(homePanel, false);
     setRegionVisibility(preChatPanel, false);
     setRegionVisibility(conversationPanel, false);
     setRegionVisibility(chatTranscriptWrap, false);
     setRegionVisibility(chatForm, false);
     setRegionVisibility(topBar, true);
-    setActiveSettingsTab(activeSettingsTab);
+    setActiveSettingsTab(appState.activeSettingsTab);
     if (topBar instanceof HTMLElement) {
       topBar.setAttribute('aria-label', 'Settings');
     }
@@ -1821,14 +1761,14 @@ function setSettingsPageVisibility(visible, { syncRoute = true, replaceRoute = t
 }
 
 function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } = {}) {
-  if (isSettingsPageOpen) {
+  if (appState.isSettingsPageOpen) {
     return;
   }
-  const previousView = currentWorkspaceView;
-  const showHome = !hasStartedChatWorkspace;
-  const showPreChat = hasStartedChatWorkspace && !modelReady;
-  const showChat = hasStartedChatWorkspace && modelReady;
-  currentWorkspaceView = showHome ? ROUTE_HOME : showPreChat ? 'prechat' : ROUTE_CHAT;
+  const previousView = appState.currentWorkspaceView;
+  const showHome = !appState.hasStartedChatWorkspace;
+  const showPreChat = appState.hasStartedChatWorkspace && !appState.modelReady;
+  const showChat = appState.hasStartedChatWorkspace && appState.modelReady;
+  appState.currentWorkspaceView = showHome ? ROUTE_HOME : showPreChat ? 'prechat' : ROUTE_CHAT;
   if (chatMain instanceof HTMLElement) {
     chatMain.classList.toggle('is-home', showHome);
     chatMain.classList.toggle('is-prechat', showPreChat);
@@ -1837,22 +1777,22 @@ function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } 
   setRegionVisibility(homePanel, showHome);
   setRegionVisibility(preChatPanel, showPreChat);
   setRegionVisibility(topBar, true);
-  setRegionVisibility(conversationPanel, hasStartedChatWorkspace);
+  setRegionVisibility(conversationPanel, appState.hasStartedChatWorkspace);
   const conversationPanelToggle = topBar?.querySelector('[data-bs-target="#conversationPanel"]');
   if (conversationPanelToggle instanceof HTMLElement) {
-    conversationPanelToggle.classList.toggle('d-none', !hasStartedChatWorkspace);
+    conversationPanelToggle.classList.toggle('d-none', !appState.hasStartedChatWorkspace);
   }
   setRegionVisibility(chatTranscriptWrap, showChat);
   updateComposerVisibility();
-  if (!showChat && isChatTitleEditing) {
-    isChatTitleEditing = false;
+  if (!showChat && appState.isChatTitleEditing) {
+    appState.isChatTitleEditing = false;
   }
   updateChatTitleEditorVisibility();
   updateTranscriptNavigationButtonVisibility();
   updateActionButtons();
   updatePreChatStatusHint();
   updatePreChatActionButtons();
-  if (currentWorkspaceView !== previousView) {
+  if (appState.currentWorkspaceView !== previousView) {
     if (showPreChat) {
       playEntranceAnimation(preChatPanel);
       playEntranceAnimation(chatForm, 'animate-dock');
@@ -1873,8 +1813,8 @@ function updatePreChatActionButtons() {
   const activeConversation = getActiveConversation();
   const hasExistingConversation = hasConversationHistory(activeConversation);
   const canShowPreChatActions =
-    hasStartedChatWorkspace && !modelReady && !isSettingsPageOpen && Boolean(activeConversation);
-  const isBusy = isGenerating || isLoadingModel || isRunningOrchestration;
+    appState.hasStartedChatWorkspace && !appState.modelReady && !appState.isSettingsPageOpen && Boolean(activeConversation);
+  const isBusy = appState.isGenerating || appState.isLoadingModel || appState.isRunningOrchestration;
 
   if (preChatActions instanceof HTMLElement) {
     preChatActions.classList.toggle('d-none', !canShowPreChatActions);
@@ -1890,12 +1830,12 @@ function updatePreChatActionButtons() {
 
 function updateComposerVisibility() {
   const showComposer =
-    hasStartedChatWorkspace &&
-    !isSettingsPageOpen &&
-    (!modelReady || Boolean(getActiveConversation()));
+    appState.hasStartedChatWorkspace &&
+    !appState.isSettingsPageOpen &&
+    (!appState.modelReady || Boolean(getActiveConversation()));
   setRegionVisibility(chatForm, showComposer);
   if (chatForm instanceof HTMLElement) {
-    const showPreChatComposer = hasStartedChatWorkspace && !modelReady && !isSettingsPageOpen;
+    const showPreChatComposer = appState.hasStartedChatWorkspace && !appState.modelReady && !appState.isSettingsPageOpen;
     chatForm.classList.toggle('is-prechat', showPreChatComposer);
   }
   if (messageInput instanceof HTMLTextAreaElement) {
@@ -1908,7 +1848,7 @@ function updateChatTitle() {
     return;
   }
   const activeConversation = getActiveConversation();
-  if (modelReady && !activeConversation && conversations.length) {
+  if (appState.modelReady && !activeConversation && appState.conversations.length) {
     chatTitle.textContent = 'Select a Conversation';
     updateComposerVisibility();
     updateChatTitleEditorVisibility();
@@ -1916,15 +1856,15 @@ function updateChatTitle() {
   }
   if (activeConversation?.hasGeneratedName) {
     chatTitle.textContent = activeConversation.name;
-    if (!isChatTitleEditing && chatTitleInput) {
+    if (!appState.isChatTitleEditing && chatTitleInput) {
       chatTitleInput.value = activeConversation.name;
     }
     updateComposerVisibility();
     updateChatTitleEditorVisibility();
     return;
   }
-  chatTitle.textContent = modelReady ? 'Start Your Chat Now' : 'Ready to Chat?';
-  if (!isChatTitleEditing && chatTitleInput && activeConversation) {
+  chatTitle.textContent = appState.modelReady ? 'Start Your Chat Now' : 'Ready to Chat?';
+  if (!appState.isChatTitleEditing && chatTitleInput && activeConversation) {
     chatTitleInput.value = activeConversation.name;
   }
   updateComposerVisibility();
@@ -1932,13 +1872,13 @@ function updateChatTitle() {
 }
 
 function setActiveConversationById(conversationId) {
-  if (activeConversationId === conversationId) {
+  if (appState.activeConversationId === conversationId) {
     return;
   }
-  if (isChatTitleEditing) {
-    isChatTitleEditing = false;
+  if (appState.isChatTitleEditing) {
+    appState.isChatTitleEditing = false;
   }
-  activeConversationId = conversationId;
+  appState.activeConversationId = conversationId;
   const activeConversation = getActiveConversation();
   if (
     activeConversation?.lastSpokenLeafMessageId &&
@@ -1964,15 +1904,15 @@ function updateActionButtons() {
   }
   if (sendButton) {
     sendButton.disabled =
-      isLoadingModel ||
-      isRunningOrchestration ||
-      (!isGenerating && !hasStartedChatWorkspace) ||
-      Boolean(activeUserEditMessageId) ||
+      appState.isLoadingModel ||
+      appState.isRunningOrchestration ||
+      (!appState.isGenerating && !appState.hasStartedChatWorkspace) ||
+      Boolean(appState.activeUserEditMessageId) ||
       disableComposerForPreChatSelection;
   }
   if (newConversationBtn) {
     newConversationBtn.disabled =
-      isGenerating || isRunningOrchestration || !hasStartedChatWorkspace || !modelReady;
+      appState.isGenerating || appState.isRunningOrchestration || !appState.hasStartedChatWorkspace || !appState.modelReady;
   }
   updateRegenerateButtons();
   updateUserMessageButtons();
@@ -1983,12 +1923,12 @@ function updateRegenerateButtons() {
     return;
   }
   const disabled =
-    isLoadingModel ||
-    isGenerating ||
-    isRunningOrchestration ||
-    isSwitchingVariant ||
-    !modelReady ||
-    Boolean(activeUserEditMessageId);
+    appState.isLoadingModel ||
+    appState.isGenerating ||
+    appState.isRunningOrchestration ||
+    appState.isSwitchingVariant ||
+    !appState.modelReady ||
+    Boolean(appState.activeUserEditMessageId);
   chatTranscript.querySelectorAll('.message-row.model-message').forEach((item) => {
     if (!(item instanceof HTMLElement)) {
       return;
@@ -2078,7 +2018,7 @@ function updateSendButtonMode() {
   if (tooltipInstance) {
     tooltipInstance.dispose();
   }
-  if (isGenerating) {
+  if (appState.isGenerating) {
     sendButton.type = 'button';
     sendButton.classList.remove('btn-primary');
     sendButton.classList.add('btn-outline-secondary');
@@ -2152,8 +2092,8 @@ function setCurrentFileProgressBar({ percent = 0, indeterminate = false, animate
 }
 
 function resetLoadProgressFiles() {
-  maxObservedLoadPercent = 0;
-  loadProgressFiles.clear();
+  appState.maxObservedLoadPercent = 0;
+  appState.loadProgressFiles.clear();
   renderLoadProgressFiles();
 }
 
@@ -2161,7 +2101,7 @@ function renderLoadProgressFiles() {
   if (!modelLoadProgressSummary && !modelLoadCurrentFileLabel && !modelLoadCurrentFileValue) {
     return;
   }
-  const entries = [...loadProgressFiles.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+  const entries = [...appState.loadProgressFiles.values()].sort((a, b) => b.updatedAt - a.updatedAt);
   const completeCount = entries.filter((entry) => entry.isComplete).length;
   const latestEntry = entries[0] || null;
   if (modelLoadProgressSummary) {
@@ -2212,12 +2152,12 @@ function trackLoadFileProgress(file, percent, status, loadedBytes, totalBytes) {
   const hasKnownTotal = numericTotalBytes > 0;
   const percentFromBytes = hasKnownTotal ? (numericLoadedBytes / numericTotalBytes) * 100 : null;
   const effectivePercent = Number.isFinite(percentFromBytes) ? percentFromBytes : numericPercent;
-  const previous = loadProgressFiles.get(key);
+  const previous = appState.loadProgressFiles.get(key);
   const isComplete =
     effectivePercent >= 100 ||
     (hasKnownTotal && numericLoadedBytes >= numericTotalBytes) ||
     /complete|ready|loaded|done|cached/i.test(statusText);
-  loadProgressFiles.set(key, {
+  appState.loadProgressFiles.set(key, {
     label: formatLoadFileLabel(key),
     percent: previous ? Math.max(previous.percent, effectivePercent) : effectivePercent,
     status: statusText || previous?.status || '',
@@ -2256,8 +2196,8 @@ function setLoadProgress({
     /^model ready\.$/i.test(String(message || '').trim()) ||
     /^loaded .+ \((webgpu|wasm|cpu)\)\.$/i.test(String(message || '').trim());
   const normalizedPercent = isCompletedMessage ? 100 : numericPercent;
-  const displayPercent = Math.max(maxObservedLoadPercent, normalizedPercent);
-  maxObservedLoadPercent = displayPercent;
+  const displayPercent = Math.max(appState.maxObservedLoadPercent, normalizedPercent);
+  appState.maxObservedLoadPercent = displayPercent;
   if (modelLoadProgressLabel) {
     modelLoadProgressLabel.textContent = message;
   }
@@ -2306,22 +2246,22 @@ function getStoredDefaultSystemPrompt() {
 }
 
 function applyDefaultSystemPrompt(value, { persist = false } = {}) {
-  defaultSystemPrompt = normalizeSystemPrompt(value);
+  appState.defaultSystemPrompt = normalizeSystemPrompt(value);
   if (defaultSystemPromptInput instanceof HTMLTextAreaElement) {
-    defaultSystemPromptInput.value = defaultSystemPrompt;
+    defaultSystemPromptInput.value = appState.defaultSystemPrompt;
   }
   if (persist) {
-    localStorage.setItem(DEFAULT_SYSTEM_PROMPT_STORAGE_KEY, defaultSystemPrompt);
+    localStorage.setItem(DEFAULT_SYSTEM_PROMPT_STORAGE_KEY, appState.defaultSystemPrompt);
   }
 }
 
 function applyShowThinkingPreference(value, { persist = false, refresh = false } = {}) {
-  showThinkingByDefault = Boolean(value);
+  appState.showThinkingByDefault = Boolean(value);
   if (showThinkingToggle) {
-    showThinkingToggle.checked = showThinkingByDefault;
+    showThinkingToggle.checked = appState.showThinkingByDefault;
   }
   if (persist) {
-    localStorage.setItem(SHOW_THINKING_STORAGE_KEY, String(showThinkingByDefault));
+    localStorage.setItem(SHOW_THINKING_STORAGE_KEY, String(appState.showThinkingByDefault));
   }
   if (refresh) {
     refreshModelThinkingVisibility();
@@ -2463,7 +2403,7 @@ function readEngineConfigFromUI() {
     modelId: selectedModel,
     backendPreference: selectedBackend,
     runtime: getRuntimeConfigForModel(selectedModel),
-    generationConfig: activeGenerationConfig,
+    generationConfig: appState.activeGenerationConfig,
   };
 }
 
@@ -2475,8 +2415,8 @@ function persistInferencePreferences() {
   }
   localStorage.setItem(MODEL_STORAGE_KEY, selectedModel);
   localStorage.setItem(BACKEND_STORAGE_KEY, selectedBackend);
-  persistGenerationConfigForModel(selectedModel, activeGenerationConfig);
-  persistGlobalSamplingSettings(activeGenerationConfig);
+  persistGenerationConfigForModel(selectedModel, appState.activeGenerationConfig);
+  persistGlobalSamplingSettings(appState.activeGenerationConfig);
 }
 
 const runOrchestration = createOrchestrationRunner({
@@ -2578,7 +2518,7 @@ function animateVariantSwitch(outgoingMessageId, incomingMessageId, direction, o
     if (ensureModelControlsVisible) {
       ensureModelVariantControlsVisible(incomingMessageId);
     }
-    isSwitchingVariant = false;
+    appState.isSwitchingVariant = false;
     updateActionButtons();
     queueConversationStateSave();
   }, 170);
@@ -2587,11 +2527,11 @@ function animateVariantSwitch(outgoingMessageId, incomingMessageId, direction, o
 function switchModelVariant(messageId, direction) {
   if (
     !messageId ||
-    isGenerating ||
-    isLoadingModel ||
-    isRunningOrchestration ||
-    isSwitchingVariant ||
-    activeUserEditMessageId
+    appState.isGenerating ||
+    appState.isLoadingModel ||
+    appState.isRunningOrchestration ||
+    appState.isSwitchingVariant ||
+    appState.activeUserEditMessageId
   ) {
     return;
   }
@@ -2616,7 +2556,7 @@ function switchModelVariant(messageId, direction) {
     return;
   }
   const targetLeafId = findPreferredLeafForVariant(activeConversation, targetMessage);
-  isSwitchingVariant = true;
+  appState.isSwitchingVariant = true;
   activeConversation.activeLeafMessageId = targetLeafId || targetMessage.id;
   updateActionButtons();
   animateVariantSwitch(modelMessage.id, targetMessage.id, direction, {
@@ -2627,11 +2567,11 @@ function switchModelVariant(messageId, direction) {
 function switchUserVariant(messageId, direction) {
   if (
     !messageId ||
-    isGenerating ||
-    isLoadingModel ||
-    isRunningOrchestration ||
-    isSwitchingVariant ||
-    activeUserEditMessageId
+    appState.isGenerating ||
+    appState.isLoadingModel ||
+    appState.isRunningOrchestration ||
+    appState.isSwitchingVariant ||
+    appState.activeUserEditMessageId
   ) {
     return;
   }
@@ -2656,14 +2596,14 @@ function switchUserVariant(messageId, direction) {
     return;
   }
   const targetLeafId = findPreferredLeafForVariant(activeConversation, targetMessage);
-  isSwitchingVariant = true;
+  appState.isSwitchingVariant = true;
   activeConversation.activeLeafMessageId = targetLeafId || targetMessage.id;
   updateActionButtons();
   animateVariantSwitch(userMessage.id, targetMessage.id, direction);
 }
 
 function beginUserMessageEdit(messageId) {
-  if (!messageId || isGenerating || isLoadingModel || isRunningOrchestration || isSwitchingVariant) {
+  if (!messageId || appState.isGenerating || appState.isLoadingModel || appState.isRunningOrchestration || appState.isSwitchingVariant) {
     return;
   }
   const activeConversation = getActiveConversation();
@@ -2686,7 +2626,7 @@ function beginUserMessageEdit(messageId) {
 }
 
 function cancelUserMessageEdit(messageId) {
-  if (!activeUserEditMessageId || (messageId && activeUserEditMessageId !== messageId)) {
+  if (!appState.activeUserEditMessageId || (messageId && appState.activeUserEditMessageId !== messageId)) {
     return;
   }
   clearUserMessageEditSession();
@@ -2698,11 +2638,11 @@ function cancelUserMessageEdit(messageId) {
 function saveUserMessageEdit(messageId) {
   if (
     !messageId ||
-    isGenerating ||
-    isLoadingModel ||
-    isRunningOrchestration ||
-    isSwitchingVariant ||
-    activeUserEditMessageId !== messageId
+    appState.isGenerating ||
+    appState.isLoadingModel ||
+    appState.isRunningOrchestration ||
+    appState.isSwitchingVariant ||
+    appState.activeUserEditMessageId !== messageId
   ) {
     return;
   }
@@ -2724,7 +2664,7 @@ function saveUserMessageEdit(messageId) {
     editor.focus();
     return;
   }
-  const isBranchEdit = activeUserBranchSourceMessageId === messageId;
+  const isBranchEdit = appState.activeUserBranchSourceMessageId === messageId;
   if (isBranchEdit) {
     const currentText = (userMessage.text || '').trim();
     if (nextText === currentText) {
@@ -2743,7 +2683,7 @@ function saveUserMessageEdit(messageId) {
     renderTranscript();
     updateActionButtons();
     queueConversationStateSave();
-    if (!modelReady) {
+    if (!appState.modelReady) {
       setStatus('Branch saved. Send a message to load the model and generate a new response.');
       return;
     }
@@ -2766,7 +2706,7 @@ function saveUserMessageEdit(messageId) {
     removedCount > 0
       ? 'Message saved. Later turns were removed from this branch.'
       : 'Message saved.';
-  if (!modelReady) {
+  if (!appState.modelReady) {
     setStatus(`${saveStatus} Send a message to load the model and generate a new response.`);
     return;
   }
@@ -2780,11 +2720,11 @@ function saveUserMessageEdit(messageId) {
 function branchFromUserMessage(messageId) {
   if (
     !messageId ||
-    isGenerating ||
-    isLoadingModel ||
-    isRunningOrchestration ||
-    isSwitchingVariant ||
-    activeUserEditMessageId
+    appState.isGenerating ||
+    appState.isLoadingModel ||
+    appState.isRunningOrchestration ||
+    appState.isSwitchingVariant ||
+    appState.activeUserEditMessageId
   ) {
     return;
   }
@@ -2835,7 +2775,7 @@ restoreInferencePreferences();
 setStatus('Ready.');
 showProgressRegion(false);
 updateActionButtons();
-setActiveSettingsTab(activeSettingsTab);
+setActiveSettingsTab(appState.activeSettingsTab);
 updateWelcomePanelVisibility();
 applyRouteFromHash();
 void restoreConversationStateFromStorage();
@@ -2847,7 +2787,7 @@ if (settingsTabContainer) {
       return;
     }
     const tab = target.dataset.settingsTab;
-    if (tab && tab === activeSettingsTab) {
+    if (tab && tab === appState.activeSettingsTab) {
       return;
     }
     setActiveSettingsTab(tab, { focus: true });
@@ -2906,7 +2846,7 @@ if (closeSettingsButton) {
 }
 
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape' || !isSettingsPageOpen) {
+  if (event.key !== 'Escape' || !appState.isSettingsPageOpen) {
     return;
   }
   event.preventDefault();
@@ -2917,8 +2857,8 @@ document.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('hashchange', () => {
-  if (ignoreNextHashChange) {
-    ignoreNextHashChange = false;
+  if (appState.ignoreNextHashChange) {
+    appState.ignoreNextHashChange = false;
     return;
   }
   applyRouteFromHash();
@@ -2983,7 +2923,7 @@ if (temperatureInput) {
 
 if (resetContextTokensButton instanceof HTMLButtonElement) {
   resetContextTokensButton.addEventListener('click', () => {
-    if (!modelReady || !maxContextTokensInput) {
+    if (!appState.modelReady || !maxContextTokensInput) {
       return;
     }
     const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
@@ -2995,7 +2935,7 @@ if (resetContextTokensButton instanceof HTMLButtonElement) {
 
 if (resetTemperatureButton instanceof HTMLButtonElement) {
   resetTemperatureButton.addEventListener('click', () => {
-    if (!modelReady || !temperatureInput) {
+    if (!appState.modelReady || !temperatureInput) {
       return;
     }
     const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
@@ -3015,7 +2955,7 @@ if (topPInput) {
 
 if (startConversationButton instanceof HTMLButtonElement) {
   startConversationButton.addEventListener('click', () => {
-    hasStartedChatWorkspace = true;
+    appState.hasStartedChatWorkspace = true;
     updateWelcomePanelVisibility({ replaceRoute: false });
     if (messageInput instanceof HTMLTextAreaElement) {
       messageInput.focus();
@@ -3025,15 +2965,15 @@ if (startConversationButton instanceof HTMLButtonElement) {
 
 if (newConversationBtn) {
   newConversationBtn.addEventListener('click', () => {
-    if (isGenerating) {
+    if (appState.isGenerating) {
       return;
     }
-    hasStartedChatWorkspace = true;
+    appState.hasStartedChatWorkspace = true;
     const conversation = createConversation();
-    conversations.unshift(conversation);
-    activeConversationId = conversation.id;
+    appState.conversations.unshift(conversation);
+    appState.activeConversationId = conversation.id;
     clearUserMessageEditSession();
-    isChatTitleEditing = false;
+    appState.isChatTitleEditing = false;
     renderConversationList();
     renderTranscript();
     updateChatTitle();
@@ -3048,7 +2988,7 @@ if (conversationList) {
       return;
     }
 
-    if (isGenerating) {
+    if (appState.isGenerating) {
       return;
     }
 
@@ -3060,18 +3000,18 @@ if (conversationList) {
         return;
       }
 
-      const index = conversations.findIndex((conversation) => conversation.id === conversationId);
+      const index = appState.conversations.findIndex((conversation) => conversation.id === conversationId);
       if (index < 0) {
         return;
       }
 
-      const wasActive = activeConversationId === conversationId;
-      conversations.splice(index, 1);
+      const wasActive = appState.activeConversationId === conversationId;
+      appState.conversations.splice(index, 1);
 
       if (wasActive) {
-        activeConversationId = conversations[0]?.id || null;
+        appState.activeConversationId = appState.conversations[0]?.id || null;
         clearUserMessageEditSession();
-        isChatTitleEditing = false;
+        appState.isChatTitleEditing = false;
       }
       renderConversationList();
       renderTranscript();
@@ -3093,7 +3033,7 @@ if (conversationList) {
 
 if (sendButton) {
   sendButton.addEventListener('click', async (event) => {
-    if (!isGenerating) {
+    if (!appState.isGenerating) {
       return;
     }
     event.preventDefault();
@@ -3105,35 +3045,35 @@ if (chatForm && messageInput && chatTranscript) {
   chatForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const value = messageInput.value.trim();
-    if (!value || isGenerating || isRunningOrchestration || activeUserEditMessageId) {
-      if (activeUserEditMessageId) {
+    if (!value || appState.isGenerating || appState.isRunningOrchestration || appState.activeUserEditMessageId) {
+      if (appState.activeUserEditMessageId) {
         setStatus('Save or cancel the current message edit before sending a new message.');
-      } else if (isRunningOrchestration) {
+      } else if (appState.isRunningOrchestration) {
         setStatus('Please wait for the current orchestration step to finish.');
       }
       return;
     }
 
-    if (!hasStartedChatWorkspace) {
-      hasStartedChatWorkspace = true;
+    if (!appState.hasStartedChatWorkspace) {
+      appState.hasStartedChatWorkspace = true;
       updateWelcomePanelVisibility({ replaceRoute: false });
     }
 
     let activeConversation = getActiveConversation();
     if (!activeConversation) {
       const conversation = createConversation();
-      conversations.unshift(conversation);
-      activeConversationId = conversation.id;
+      appState.conversations.unshift(conversation);
+      appState.activeConversationId = conversation.id;
       activeConversation = conversation;
       clearUserMessageEditSession();
-      isChatTitleEditing = false;
+      appState.isChatTitleEditing = false;
       renderConversationList();
       renderTranscript();
       updateChatTitle();
       queueConversationStateSave();
     }
 
-    if (!modelReady) {
+    if (!appState.modelReady) {
       persistInferencePreferences();
       setStatus('Loading model for your first message...');
       try {
@@ -3259,9 +3199,9 @@ if (jumpToLastPromptButton instanceof HTMLButtonElement) {
 }
 
 window.addEventListener('beforeunload', () => {
-  if (conversationSaveTimerId !== null) {
-    window.clearTimeout(conversationSaveTimerId);
-    conversationSaveTimerId = null;
+  if (appState.conversationSaveTimerId !== null) {
+    window.clearTimeout(appState.conversationSaveTimerId);
+    appState.conversationSaveTimerId = null;
   }
   void persistConversationStateNow();
   engine.dispose();
@@ -3293,7 +3233,7 @@ if (preChatLoadModelBtn instanceof HTMLButtonElement) {
 
 if (downloadConversationJsonBtn instanceof HTMLButtonElement) {
   downloadConversationJsonBtn.addEventListener('click', () => {
-    if (isGenerating) {
+    if (appState.isGenerating) {
       return;
     }
     downloadActiveConversationBranchAsJson();
@@ -3302,7 +3242,7 @@ if (downloadConversationJsonBtn instanceof HTMLButtonElement) {
 
 if (downloadConversationMarkdownBtn instanceof HTMLButtonElement) {
   downloadConversationMarkdownBtn.addEventListener('click', () => {
-    if (isGenerating) {
+    if (appState.isGenerating) {
       return;
     }
     downloadActiveConversationBranchAsMarkdown();
@@ -3332,9 +3272,9 @@ if (conversationSystemPromptModal instanceof HTMLElement) {
     }
   });
   conversationSystemPromptModal.addEventListener('hidden.bs.modal', () => {
-    if (lastConversationSystemPromptTrigger instanceof HTMLButtonElement) {
-      lastConversationSystemPromptTrigger.focus();
-      lastConversationSystemPromptTrigger = null;
+    if (appState.lastConversationSystemPromptTrigger instanceof HTMLButtonElement) {
+      appState.lastConversationSystemPromptTrigger.focus();
+      appState.lastConversationSystemPromptTrigger = null;
       return;
     }
     if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
@@ -3372,4 +3312,6 @@ if (chatTitleInput instanceof HTMLInputElement) {
     }
   });
 }
+
+
 

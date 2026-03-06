@@ -119,8 +119,9 @@ Student-facing browser chat UI with local model inference.
 ## Architecture notes
 
 - Conversation tree and export domain logic live in `src/state/conversation-model.js`.
+- Centralized runtime state and selectors live in `src/state/app-state.js`.
 - App control flow for generation, stop, rename, and fix actions lives in `src/state/app-controller.js`.
 - Orchestration prompt templating and step execution live in `src/llm/orchestration-runner.js`.
 - Transcript and conversation-list DOM rendering live in `src/ui/`.
 - `src/main.js` remains the app shell for routing, page-level visibility, and wiring dependencies into those modules.
-- See `docs/conversation-domain.md`, `docs/app-controller.md`, `docs/orchestrations.md`, and `docs/ui-views.md` for the current boundaries.
+- See `docs/conversation-domain.md`, `docs/app-state.md`, `docs/app-controller.md`, `docs/orchestrations.md`, and `docs/ui-views.md` for the current boundaries.
