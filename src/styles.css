@@ -204,7 +204,7 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.6rem;
   align-items: center;
-  padding: 0.8rem 1rem;
+  padding: 0.8rem calc(1rem + 3.25rem) 0.8rem 1rem;
   border-bottom: 1px solid var(--border-soft);
   background: color-mix(in srgb, var(--surface) 86%, transparent);
   backdrop-filter: blur(8px);
@@ -1135,6 +1135,7 @@
 @media (max-width: 575.98px) {
   .top-bar {
     grid-template-columns: minmax(0, 1fr) auto;
+    padding-right: calc(0.75rem + 3.1rem);
   }
 
   .status-pill {
