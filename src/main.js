@@ -27,8 +27,12 @@ import {
   TOKEN_STEP,
   TOP_K_STEP,
   TOP_P_STEP,
+  getFirstAvailableModelId,
+  getModelAvailability,
   clamp,
+  browserSupportsWebGpu,
   normalizeGenerationLimits,
+  normalizeSupportedBackendPreference,
   quantizeTemperature,
   quantizeTopKInput,
   quantizeTopPInput,
@@ -79,6 +83,7 @@ const MODEL_GENERATION_SETTINGS_STORAGE_KEY = 'llm-model-generation-settings';
 const GLOBAL_SAMPLING_SETTINGS_STORAGE_KEY = 'llm-global-sampling-settings';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
 const SUPPORTED_BACKEND_PREFERENCES = new Set(['auto', 'webgpu', 'wasm', 'cpu']);
+const WEBGPU_REQUIRED_MODEL_SUFFIX = ' (WebGPU required)';
 
 function normalizeTimestamp(value) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
@@ -2760,21 +2765,92 @@ function populateModelSelect() {
   if (!modelSelect) {
     return;
   }
+  const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
+  const selectedModel = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
+  const webGpuAvailable = browserSupportsWebGpu();
   modelSelect.replaceChildren();
   MODEL_OPTIONS.forEach((model) => {
     const option = document.createElement('option');
     option.value = model.id;
-    option.textContent = model.label;
+    const availability = getModelAvailability(model.id, {
+      backendPreference: selectedBackend,
+      webGpuAvailable,
+    });
+    option.disabled = !availability.available;
+    option.textContent =
+      model.runtime?.requiresWebGpu && !availability.available
+        ? `${model.label}${WEBGPU_REQUIRED_MODEL_SUFFIX}`
+        : model.label;
     modelSelect.appendChild(option);
   });
-  modelSelect.value = DEFAULT_MODEL;
+  modelSelect.value = getAvailableModelId(selectedModel, selectedBackend);
 }
 
 function normalizeBackendPreference(value) {
-  if (SUPPORTED_BACKEND_PREFERENCES.has(value)) {
-    return value;
+  const normalized = normalizeSupportedBackendPreference(value);
+  if (SUPPORTED_BACKEND_PREFERENCES.has(normalized)) {
+    return normalized;
   }
   return 'auto';
+}
+
+function formatBackendPreferenceLabel(value) {
+  if (value === 'webgpu') {
+    return 'WebGPU only';
+  }
+  if (value === 'wasm') {
+    return 'WASM only';
+  }
+  if (value === 'cpu') {
+    return 'CPU only';
+  }
+  return 'Auto';
+}
+
+function getAvailableModelId(modelId, backendPreference = normalizeBackendPreference(backendSelect?.value || 'auto')) {
+  const normalizedModelId = normalizeModelId(modelId);
+  const availability = getModelAvailability(normalizedModelId, {
+    backendPreference,
+    webGpuAvailable: browserSupportsWebGpu(),
+  });
+  if (availability.available) {
+    return normalizedModelId;
+  }
+  return getFirstAvailableModelId({
+    backendPreference,
+    webGpuAvailable: browserSupportsWebGpu(),
+  });
+}
+
+function syncModelSelectionForCurrentEnvironment({ announceFallback = false } = {}) {
+  if (!modelSelect) {
+    return DEFAULT_MODEL;
+  }
+
+  const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
+  const requestedModelId = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
+
+  populateModelSelect();
+
+  const selectedModelId = getAvailableModelId(requestedModelId, selectedBackend);
+  if (modelSelect.value !== selectedModelId) {
+    modelSelect.value = selectedModelId;
+  }
+
+  if (announceFallback && selectedModelId !== requestedModelId) {
+    const requestedModel = MODEL_OPTIONS_BY_ID.get(requestedModelId);
+    const availability = getModelAvailability(requestedModelId, {
+      backendPreference: selectedBackend,
+      webGpuAvailable: browserSupportsWebGpu(),
+    });
+    if (requestedModel?.runtime?.requiresWebGpu) {
+      setStatus(
+        `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`,
+      );
+    }
+  }
+
+  return selectedModelId;
 }
 
 function restoreInferencePreferences() {
@@ -2790,7 +2866,7 @@ function restoreInferencePreferences() {
     backendSelect.value = normalizedBackend;
     localStorage.setItem(BACKEND_STORAGE_KEY, normalizedBackend);
   }
-  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  const selectedModel = syncModelSelectionForCurrentEnvironment();
   syncGenerationSettingsFromModel(selectedModel, true);
 }
 
@@ -2854,8 +2930,8 @@ function parseThinkingText(rawText, thinkingTags) {
 }
 
 function readEngineConfigFromUI() {
-  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
+  const selectedModel = getAvailableModelId(modelSelect?.value || DEFAULT_MODEL, selectedBackend);
   if (modelSelect && modelSelect.value !== selectedModel) {
     modelSelect.value = selectedModel;
   }
@@ -2872,8 +2948,11 @@ function readEngineConfigFromUI() {
 }
 
 function persistInferencePreferences() {
-  const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
+  const selectedModel = getAvailableModelId(modelSelect?.value || DEFAULT_MODEL, selectedBackend);
+  if (modelSelect && modelSelect.value !== selectedModel) {
+    modelSelect.value = selectedModel;
+  }
   if (backendSelect && backendSelect.value !== selectedBackend) {
     backendSelect.value = selectedBackend;
   }
@@ -3421,7 +3500,7 @@ colorSchemeQuery.addEventListener('change', () => {
 
 if (modelSelect) {
   modelSelect.addEventListener('change', () => {
-    const selectedModel = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
+    const selectedModel = syncModelSelectionForCurrentEnvironment();
     syncGenerationSettingsFromModel(selectedModel, true);
     void appController.reinitializeEngineFromSettings();
   });
@@ -3429,6 +3508,8 @@ if (modelSelect) {
 
 if (backendSelect) {
   backendSelect.addEventListener('change', () => {
+    const selectedModel = syncModelSelectionForCurrentEnvironment({ announceFallback: true });
+    syncGenerationSettingsFromModel(selectedModel, true);
     void appController.reinitializeEngineFromSettings();
   });
 }

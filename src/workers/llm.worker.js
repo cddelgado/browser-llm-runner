@@ -91,8 +91,15 @@ async function loadTransformers() {
   return cachedModule;
 }
 
-function getBackendAttemptOrder(preference) {
+function getBackendAttemptOrder(preference, runtimeConfig = {}) {
   const normalizedPreference = normalizeBackendPreference(preference);
+  const runtime = normalizeRuntimeConfig(runtimeConfig);
+  if (runtime.requiresWebGpu) {
+    if (normalizedPreference === 'wasm' || normalizedPreference === 'cpu') {
+      return [];
+    }
+    return ['webgpu'];
+  }
   if (normalizedPreference === 'webgpu') {
     return ['webgpu'];
   }
@@ -148,6 +155,7 @@ function extractErrorMessage(error) {
 function normalizeRuntimeConfig(rawRuntime) {
   const dtype = typeof rawRuntime?.dtype === 'string' ? rawRuntime.dtype.trim() : '';
   const enableThinking = rawRuntime?.enableThinking === true;
+  const requiresWebGpu = rawRuntime?.requiresWebGpu === true;
   const useExternalDataFormat =
     rawRuntime?.useExternalDataFormat === true ||
     (Number.isInteger(rawRuntime?.useExternalDataFormat) && rawRuntime.useExternalDataFormat > 0)
@@ -156,6 +164,7 @@ function normalizeRuntimeConfig(rawRuntime) {
   return {
     ...(dtype ? { dtype } : {}),
     ...(enableThinking ? { enableThinking: true } : {}),
+    ...(requiresWebGpu ? { requiresWebGpu: true } : {}),
     ...(useExternalDataFormat ? { useExternalDataFormat } : {}),
   };
 }
@@ -196,14 +205,27 @@ function resolvePrompt(rawPrompt) {
 }
 
 export { resolvePrompt };
+export { getBackendAttemptOrder };
 
 async function initialize(payload) {
   const modelId = payload.modelId || 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
   const backendPreference = normalizeBackendPreference(payload.backendPreference || 'auto');
   generationConfig = normalizeGenerationConfig(payload.generationConfig);
   const runtime = normalizeRuntimeConfig(payload.runtime);
-  const attempts = getBackendAttemptOrder(backendPreference);
+  const attempts = getBackendAttemptOrder(backendPreference, runtime);
   const errors = [];
+
+  if (runtime.requiresWebGpu && attempts.length === 0) {
+    self.postMessage({
+      type: 'init-error',
+      payload: {
+        message: `Failed to initialize model. ${modelId} requires WebGPU. Choose Auto or WebGPU only.`,
+      },
+    });
+    postProgress({ percent: 0, message: 'Model load failed.' });
+    postStatus('Error initializing model');
+    return;
+  }
 
   const { env, pipeline, TextStreamer: StreamerClass } = await loadTransformers();
   TextStreamer = StreamerClass;

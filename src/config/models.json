@@ -38,6 +38,31 @@
       "features": {
         "streaming": true
       }
+    },
+    {
+      "id": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
+      "label": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
+      "runtime": {
+        "dtype": "q4",
+        "requiresWebGpu": true,
+        "useExternalDataFormat": true
+      },
+      "thinkingTags": {
+        "open": "<think>",
+        "close": "</think>"
+      },
+      "generation": {
+        "defaultMaxOutputTokens": 1024,
+        "maxOutputTokens": 32768,
+        "defaultMaxContextTokens": 8192,
+        "maxContextTokens": 32768,
+        "minTemperature": 0.1,
+        "maxTemperature": 2.0,
+        "defaultTemperature": 0.6
+      },
+      "features": {
+        "streaming": true
+      }
     }
   ],
   "legacyAliases": {

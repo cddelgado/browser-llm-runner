@@ -23,6 +23,7 @@ export const DEFAULT_GENERATION_LIMITS = Object.freeze({
   defaultTopP: DEFAULT_TOP_P,
 });
 export const ALLOWED_RUNTIME_DTYPES = Object.freeze(new Set(['q4', 'q4f16', 'q8', 'fp16', 'fp32']));
+export const WEBGPU_COMPATIBLE_BACKEND_PREFERENCES = Object.freeze(new Set(['auto', 'webgpu']));
 
 function toPositiveInt(value, fallback) {
   return Number.isInteger(value) && value > 0 ? value : fallback;
@@ -114,6 +115,7 @@ function normalizeRuntime(rawRuntime) {
       ? rawRuntime.dtype.trim()
       : null;
   const enableThinking = rawRuntime?.enableThinking === true;
+  const requiresWebGpu = rawRuntime?.requiresWebGpu === true;
   const useExternalDataFormat =
     rawRuntime?.useExternalDataFormat === true ||
     (Number.isInteger(rawRuntime?.useExternalDataFormat) && rawRuntime.useExternalDataFormat > 0)
@@ -122,8 +124,25 @@ function normalizeRuntime(rawRuntime) {
   return {
     ...(dtype ? { dtype } : {}),
     ...(enableThinking ? { enableThinking: true } : {}),
+    ...(requiresWebGpu ? { requiresWebGpu: true } : {}),
     ...(useExternalDataFormat ? { useExternalDataFormat } : {}),
   };
+}
+
+function normalizeConfiguredModelId(modelId) {
+  const normalizedId = typeof modelId === 'string' ? modelId.trim() : '';
+  return LEGACY_MODEL_ALIASES[normalizedId] || normalizedId;
+}
+
+export function normalizeSupportedBackendPreference(value) {
+  if (value === 'webgpu' || value === 'wasm' || value === 'cpu') {
+    return value;
+  }
+  return 'auto';
+}
+
+export function browserSupportsWebGpu(navigatorLike = globalThis.navigator) {
+  return Boolean(navigatorLike && typeof navigatorLike === 'object' && 'gpu' in navigatorLike);
 }
 
 const configuredModels = Array.isArray(modelCatalog?.models)
@@ -165,6 +184,7 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
     id: DEFAULT_MODEL,
     label: DEFAULT_MODEL,
     features: {},
+    thinkingTags: null,
     generation: normalizeGenerationLimits(null),
     runtime: {},
   });
@@ -181,3 +201,46 @@ export const LEGACY_MODEL_ALIASES = Object.fromEntries(
     .filter(([alias, canonical]) => alias && canonical),
 );
 export const SUPPORTED_MODELS = new Set(MODEL_OPTIONS.map((model) => model.id));
+
+export function getModelAvailability(
+  modelId,
+  {
+    backendPreference = 'auto',
+    webGpuAvailable = browserSupportsWebGpu(),
+  } = {},
+) {
+  const normalizedBackendPreference = normalizeSupportedBackendPreference(backendPreference);
+  const resolvedModelId = normalizeConfiguredModelId(modelId);
+  const model = MODEL_OPTIONS_BY_ID.get(resolvedModelId);
+
+  if (!model) {
+    return {
+      available: false,
+      reason: 'This model is not supported in this app.',
+    };
+  }
+
+  if (model.runtime?.requiresWebGpu) {
+    if (!webGpuAvailable) {
+      return {
+        available: false,
+        reason: 'This model requires WebGPU, which is not available in this browser.',
+      };
+    }
+    if (!WEBGPU_COMPATIBLE_BACKEND_PREFERENCES.has(normalizedBackendPreference)) {
+      return {
+        available: false,
+        reason: 'This model requires WebGPU. Choose Auto or WebGPU only.',
+      };
+    }
+  }
+
+  return { available: true, reason: '' };
+}
+
+export function getFirstAvailableModelId(options = {}) {
+  const firstAvailableModel = MODEL_OPTIONS.find((model) =>
+    getModelAvailability(model.id, options).available,
+  );
+  return firstAvailableModel?.id || DEFAULT_MODEL;
+}

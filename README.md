@@ -96,6 +96,9 @@ Student-facing browser chat UI with local model inference.
 
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
 - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
+- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
+  - Uses ONNX `q4` weights.
+  - Requires WebGPU for browser inference, so it is unavailable when WebGPU is unavailable or when `WASM only` is selected.
 - Legacy stored IDs are automatically remapped to the supported model:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `onnx-community/Qwen3.5-2B-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
@@ -104,7 +107,7 @@ Student-facing browser chat UI with local model inference.
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - Model support configuration lives in `src/config/models.json`:
   - `models`: options shown in the model selector
-  - `models[].runtime`: per-model runtime hints (`dtype`, optional `enableThinking`, optional `useExternalDataFormat`)
+  - `models[].runtime`: per-model runtime hints (`dtype`, optional `enableThinking`, optional `requiresWebGpu`, optional `useExternalDataFormat`)
   - `models[].generation`: per-model defaults and limits for output/context tokens and temperature
   - `defaultModelId`: fallback/default selection
   - `legacyAliases`: stored legacy IDs remapped at runtime

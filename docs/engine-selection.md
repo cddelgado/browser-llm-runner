@@ -7,10 +7,12 @@ Inference is executed in a dedicated Web Worker (`src/workers/llm.worker.js`).
 - `auto`: tries `webgpu`, then falls back to `wasm`, then `cpu`
 - `webgpu`: WebGPU only
 - `wasm`: WASM only
+- Models with `requiresWebGpu: true` only attempt WebGPU and do not fall back to WASM or CPU.
 
 The resolved backend is shown in the status region in the main UI.
 Initialization is user-triggered on first message send in the chat workspace.
 If model/backend settings change, the next message triggers a fresh load with updated settings.
+If a backend change makes the current model unavailable, the UI switches to the first compatible model and announces that in the status region.
 Generation settings (`maximum output tokens`, `maximum context size`, `temperature`, `top k`, `top p`) apply immediately when idle, or after the current generation completes.
 
 ## UI boundary

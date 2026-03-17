@@ -5,7 +5,7 @@ globalThis.self = /** @type {any} */ ({
   onmessage: null,
 });
 
-const { resolvePrompt } = await import('../../src/workers/llm.worker.js');
+const { getBackendAttemptOrder, resolvePrompt } = await import('../../src/workers/llm.worker.js');
 
 describe('llm.worker resolvePrompt', () => {
   test('normalizes structured chat messages and drops empty entries', () => {
@@ -31,5 +31,12 @@ describe('llm.worker resolvePrompt', () => {
 
   test('falls back to a single user message for flat prompts', () => {
     expect(resolvePrompt('Flat prompt')).toEqual([{ role: 'user', content: 'Flat prompt' }]);
+  });
+
+  test('restricts WebGPU-required models to the WebGPU backend', () => {
+    expect(getBackendAttemptOrder('auto', { requiresWebGpu: true })).toEqual(['webgpu']);
+    expect(getBackendAttemptOrder('webgpu', { requiresWebGpu: true })).toEqual(['webgpu']);
+    expect(getBackendAttemptOrder('wasm', { requiresWebGpu: true })).toEqual([]);
+    expect(getBackendAttemptOrder('cpu', { requiresWebGpu: true })).toEqual([]);
   });
 });
