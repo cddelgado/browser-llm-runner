@@ -152,6 +152,14 @@ function extractErrorMessage(error) {
   return 'Unknown initialization error';
 }
 
+function formatWebGpuInitializationError(error) {
+  const rawMessage = extractErrorMessage(error);
+  if (/^\d+$/.test(rawMessage)) {
+    return `WebGPU initialization failed (${rawMessage}). Confirm WebGPU is enabled and that this browser/device exposes a usable adapter.`;
+  }
+  return rawMessage;
+}
+
 function normalizeRuntimeConfig(rawRuntime) {
   const dtype = typeof rawRuntime?.dtype === 'string' ? rawRuntime.dtype.trim() : '';
   const enableThinking = rawRuntime?.enableThinking === true;
@@ -214,6 +222,8 @@ async function initialize(payload) {
   const runtime = normalizeRuntimeConfig(payload.runtime);
   const attempts = getBackendAttemptOrder(backendPreference, runtime);
   const errors = [];
+  const navigatorLike = /** @type {any} */ (typeof navigator !== 'undefined' ? navigator : undefined);
+  const navigatorGpu = navigatorLike?.gpu;
 
   if (runtime.requiresWebGpu && attempts.length === 0) {
     self.postMessage({
@@ -225,6 +235,45 @@ async function initialize(payload) {
     postProgress({ percent: 0, message: 'Model load failed.' });
     postStatus('Error initializing model');
     return;
+  }
+
+  if (runtime.requiresWebGpu) {
+    if (!(navigatorGpu && typeof navigatorGpu.requestAdapter === 'function')) {
+      self.postMessage({
+        type: 'init-error',
+        payload: {
+          message: `Failed to initialize model. ${modelId} requires WebGPU, but no WebGPU adapter API is available in this browser.`,
+        },
+      });
+      postProgress({ percent: 0, message: 'Model load failed.' });
+      postStatus('Error initializing model');
+      return;
+    }
+
+    try {
+      const adapter = await navigatorGpu.requestAdapter();
+      if (!adapter) {
+        self.postMessage({
+          type: 'init-error',
+          payload: {
+            message: `Failed to initialize model. ${modelId} requires WebGPU, but no usable WebGPU adapter was found.`,
+          },
+        });
+        postProgress({ percent: 0, message: 'Model load failed.' });
+        postStatus('Error initializing model');
+        return;
+      }
+    } catch (error) {
+      self.postMessage({
+        type: 'init-error',
+        payload: {
+          message: `Failed to initialize model. ${formatWebGpuInitializationError(error)}`,
+        },
+      });
+      postProgress({ percent: 0, message: 'Model load failed.' });
+      postStatus('Error initializing model');
+      return;
+    }
   }
 
   const { env, pipeline, TextStreamer: StreamerClass } = await loadTransformers();
@@ -300,7 +349,8 @@ async function initialize(payload) {
       postStatus(`Ready (${backend.toUpperCase()})`);
       return;
     } catch (error) {
-      const rawMessage = extractErrorMessage(error);
+      const rawMessage =
+        backend === 'webgpu' ? formatWebGpuInitializationError(error) : extractErrorMessage(error);
       const isUnauthorized = /unauthorized|401|403/i.test(rawMessage);
       if (isUnauthorized) {
         errors.push(

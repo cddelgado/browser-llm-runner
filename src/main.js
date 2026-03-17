@@ -257,6 +257,7 @@ const appState = createAppState({
   maxDebugEntries: MAX_DEBUG_ENTRIES,
 });
 void ensureMathJaxLoaded();
+appState.webGpuAdapterAvailable = browserSupportsWebGpu();
 
 function initializeTooltips(root = document) {
   if (!root || !(root instanceof Element || root instanceof Document)) {
@@ -2767,7 +2768,7 @@ function populateModelSelect() {
   }
   const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
   const selectedModel = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
-  const webGpuAvailable = browserSupportsWebGpu();
+  const webGpuAvailable = getWebGpuAvailability();
   modelSelect.replaceChildren();
   MODEL_OPTIONS.forEach((model) => {
     const option = document.createElement('option');
@@ -2811,14 +2812,14 @@ function getAvailableModelId(modelId, backendPreference = normalizeBackendPrefer
   const normalizedModelId = normalizeModelId(modelId);
   const availability = getModelAvailability(normalizedModelId, {
     backendPreference,
-    webGpuAvailable: browserSupportsWebGpu(),
+    webGpuAvailable: getWebGpuAvailability(),
   });
   if (availability.available) {
     return normalizedModelId;
   }
   return getFirstAvailableModelId({
     backendPreference,
-    webGpuAvailable: browserSupportsWebGpu(),
+    webGpuAvailable: getWebGpuAvailability(),
   });
 }
 
@@ -2841,7 +2842,7 @@ function syncModelSelectionForCurrentEnvironment({ announceFallback = false } = 
     const requestedModel = MODEL_OPTIONS_BY_ID.get(requestedModelId);
     const availability = getModelAvailability(requestedModelId, {
       backendPreference: selectedBackend,
-      webGpuAvailable: browserSupportsWebGpu(),
+      webGpuAvailable: getWebGpuAvailability(),
     });
     if (requestedModel?.runtime?.requiresWebGpu) {
       setStatus(
@@ -2851,6 +2852,49 @@ function syncModelSelectionForCurrentEnvironment({ announceFallback = false } = 
   }
 
   return selectedModelId;
+}
+
+function getWebGpuAvailability() {
+  if (appState.webGpuProbeCompleted) {
+    return appState.webGpuAdapterAvailable;
+  }
+  return browserSupportsWebGpu();
+}
+
+async function probeWebGpuAvailability() {
+  if (!browserSupportsWebGpu()) {
+    appState.webGpuProbeCompleted = true;
+    appState.webGpuAdapterAvailable = false;
+    const selectedModel = syncModelSelectionForCurrentEnvironment();
+    syncGenerationSettingsFromModel(selectedModel, true);
+    return false;
+  }
+
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    appState.webGpuProbeCompleted = true;
+    appState.webGpuAdapterAvailable = Boolean(adapter);
+  } catch (error) {
+    appState.webGpuProbeCompleted = true;
+    appState.webGpuAdapterAvailable = false;
+    appendDebug(`WebGPU adapter probe failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const previousModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  const selectedModel = syncModelSelectionForCurrentEnvironment();
+  syncGenerationSettingsFromModel(selectedModel, true);
+
+  if (
+    previousModelId !== selectedModel &&
+    MODEL_OPTIONS_BY_ID.get(previousModelId)?.runtime?.requiresWebGpu &&
+    !appState.webGpuAdapterAvailable
+  ) {
+    setStatus(
+      `${previousModelId} is unavailable because no usable WebGPU adapter was found. Switched to ${selectedModel}.`,
+    );
+  }
+
+  return appState.webGpuAdapterAvailable;
 }
 
 function restoreInferencePreferences() {
@@ -3317,6 +3361,7 @@ applyTranscriptViewPreference(getStoredTranscriptViewPreference());
 applyDefaultSystemPrompt(getStoredDefaultSystemPrompt());
 populateModelSelect();
 restoreInferencePreferences();
+void probeWebGpuAvailability();
 setStatus('Ready.');
 showProgressRegion(false);
 updateActionButtons();

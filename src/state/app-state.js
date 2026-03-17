@@ -41,6 +41,8 @@ export function createAppState({
     ignoreNextHashChange: false,
     loadProgressFiles: new Map(),
     maxObservedLoadPercent: 0,
+    webGpuProbeCompleted: false,
+    webGpuAdapterAvailable: false,
     hasLoggedMathJaxError: false,
     mathJaxLoadPromise: null,
     lastKeyboardShortcutsTrigger: null,
