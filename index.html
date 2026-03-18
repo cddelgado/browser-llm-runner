@@ -560,7 +560,17 @@
                     <p id="temperatureHelp" class="form-text mb-0">Load a model to edit this setting.</p>
                   </div>
                   <div class="settings-control-group">
-                    <label class="form-label" for="topKInput">Top K (Predictability)</label>
+                    <div class="d-flex align-items-baseline justify-content-between gap-2">
+                      <label class="form-label mb-0" for="topKInput">Top K (Predictability)</label>
+                      <button
+                        id="resetTopKButton"
+                        type="button"
+                        class="btn btn-link btn-sm p-0"
+                        disabled
+                      >
+                        Reset to model default
+                      </button>
+                    </div>
                     <input
                       id="topKInput"
                       class="form-control"
@@ -573,7 +583,17 @@
                     <p id="topKHelp" class="form-text mb-0">Load a model to edit this setting.</p>
                   </div>
                   <div class="settings-control-group">
-                    <label class="form-label" for="topPInput">Top P (Strangeness)</label>
+                    <div class="d-flex align-items-baseline justify-content-between gap-2">
+                      <label class="form-label mb-0" for="topPInput">Top P (Strangeness)</label>
+                      <button
+                        id="resetTopPButton"
+                        type="button"
+                        class="btn btn-link btn-sm p-0"
+                        disabled
+                      >
+                        Reset to model default
+                      </button>
+                    </div>
                     <input
                       id="topPInput"
                       class="form-control"

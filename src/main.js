@@ -127,6 +127,8 @@ const maxContextTokensInput = document.getElementById('maxContextTokensInput');
 const temperatureInput = document.getElementById('temperatureInput');
 const resetContextTokensButton = document.getElementById('resetContextTokensButton');
 const resetTemperatureButton = document.getElementById('resetTemperatureButton');
+const resetTopKButton = document.getElementById('resetTopKButton');
+const resetTopPButton = document.getElementById('resetTopPButton');
 const topKInput = document.getElementById('topKInput');
 const topPInput = document.getElementById('topPInput');
 const maxOutputTokensHelp = document.getElementById('maxOutputTokensHelp');
@@ -928,6 +930,12 @@ function updateGenerationSettingsEnabledState() {
   }
   if (resetTemperatureButton instanceof HTMLButtonElement) {
     resetTemperatureButton.disabled = disabled;
+  }
+  if (resetTopKButton instanceof HTMLButtonElement) {
+    resetTopKButton.disabled = disabled;
+  }
+  if (resetTopPButton instanceof HTMLButtonElement) {
+    resetTopPButton.disabled = disabled;
   }
   if (topKInput) {
     topKInput.disabled = disabled;
@@ -3568,6 +3576,30 @@ if (topKInput) {
 
 if (topPInput) {
   topPInput.addEventListener('change', onGenerationSettingInputChanged);
+}
+
+if (resetTopKButton instanceof HTMLButtonElement) {
+  resetTopKButton.addEventListener('click', () => {
+    if (!appState.modelReady || !topKInput) {
+      return;
+    }
+    const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+    const limits = getModelGenerationLimits(selectedModel);
+    topKInput.value = String(limits.defaultTopK);
+    onGenerationSettingInputChanged();
+  });
+}
+
+if (resetTopPButton instanceof HTMLButtonElement) {
+  resetTopPButton.addEventListener('click', () => {
+    if (!appState.modelReady || !topPInput) {
+      return;
+    }
+    const selectedModel = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+    const limits = getModelGenerationLimits(selectedModel);
+    topPInput.value = limits.defaultTopP.toFixed(2);
+    onGenerationSettingInputChanged();
+  });
 }
 
 if (startConversationButton instanceof HTMLButtonElement) {
