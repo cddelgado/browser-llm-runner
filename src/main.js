@@ -1032,7 +1032,13 @@ function applyStatusRegion(region, headingElement, messageElement, message, head
   if (!(region instanceof HTMLElement) || !(messageElement instanceof HTMLElement)) {
     return;
   }
-  const tone = getStatusTone(message);
+  const normalizedMessage = String(message || '').trim();
+  region.classList.toggle('d-none', !normalizedMessage);
+  if (!normalizedMessage) {
+    messageElement.textContent = '';
+    return;
+  }
+  const tone = getStatusTone(normalizedMessage);
   region.classList.remove('alert-secondary', 'alert-success', 'alert-warning', 'alert-danger', 'alert-info');
   region.classList.add(`alert-${tone.variant}`);
   region.setAttribute('role', tone.role);
@@ -1040,7 +1046,7 @@ function applyStatusRegion(region, headingElement, messageElement, message, head
   if (headingElement instanceof HTMLElement) {
     headingElement.textContent = headingOverride || tone.heading;
   }
-  messageElement.textContent = String(message || '');
+  messageElement.textContent = normalizedMessage;
 }
 
 function setStatus(message) {
@@ -3337,7 +3343,6 @@ applyDefaultSystemPrompt(getStoredDefaultSystemPrompt());
 populateModelSelect();
 restoreInferencePreferences();
 void probeWebGpuAvailability();
-setStatus('Ready.');
 showProgressRegion(false);
 updateActionButtons();
 setActiveSettingsTab(appState.activeSettingsTab);

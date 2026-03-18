@@ -266,13 +266,6 @@
   gap: 0.5rem;
 }
 
-.global-settings-button {
-  position: fixed;
-  top: max(0.75rem, env(safe-area-inset-top));
-  right: max(0.75rem, env(safe-area-inset-right));
-  z-index: 1070;
-}
-
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -325,7 +318,7 @@
 
 .home-panel {
   max-width: min(960px, 100%);
-  margin: auto;
+  margin: 0 auto;
   border-radius: 1rem;
   box-shadow: 0 16px 30px rgba(31, 41, 64, 0.16);
 }
@@ -388,6 +381,7 @@
 
 .chat-main.is-home {
   justify-content: center;
+  align-items: center;
 }
 
 .chat-transcript-wrap {
@@ -1176,10 +1170,6 @@
     font-size: clamp(1.45rem, 8vw, 2rem);
   }
 
-  .global-settings-button {
-    top: max(0.55rem, env(safe-area-inset-top));
-    right: max(0.55rem, env(safe-area-inset-right));
-  }
 }
 
 @media (max-width: 991.98px) {

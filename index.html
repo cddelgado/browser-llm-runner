@@ -150,13 +150,13 @@
           </div>
           <div
             id="statusRegion"
-            class="alert alert-secondary status-alert mb-0"
+            class="alert alert-secondary status-alert mb-0 d-none"
             role="status"
             aria-live="polite"
             aria-atomic="true"
           >
             <h2 id="statusRegionHeading" class="alert-heading h6 mb-1">Chat status</h2>
-            <p id="statusRegionMessage" class="mb-0">Ready.</p>
+            <p id="statusRegionMessage" class="mb-0"></p>
           </div>
           <div class="top-bar-actions">
             <button
@@ -185,6 +185,18 @@
               <i class="bi bi-question-circle-fill" aria-hidden="true"></i>
               <span class="visually-hidden">Open help in a new tab</span>
             </a>
+            <button
+              type="button"
+              id="openSettingsButton"
+              class="btn icon-button"
+              aria-label="Open settings"
+              aria-keyshortcuts="Alt+S"
+              data-icon-tooltip="true"
+              data-bs-title="Open settings (Alt+S)"
+            >
+              <i class="bi bi-gear-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Open settings</span>
+            </button>
           </div>
         </header>
 
@@ -219,13 +231,13 @@
               </div>
               <div
                 id="onboardingStatusRegion"
-                class="alert alert-secondary status-alert mb-3 mt-3"
+                class="alert alert-secondary status-alert mb-3 mt-3 d-none"
                 role="status"
                 aria-live="polite"
                 aria-atomic="true"
               >
                 <h3 id="onboardingStatusRegionHeading" class="alert-heading h6 mb-1">Setup status</h3>
-                <p id="onboardingStatusRegionMessage" class="mb-0">Ready.</p>
+                <p id="onboardingStatusRegionMessage" class="mb-0"></p>
               </div>
               <div id="preChatActions" class="pre-chat-actions d-none">
                 <button
@@ -665,19 +677,6 @@
         </section>
       </div>
     </div>
-    <button
-      type="button"
-      id="openSettingsButton"
-      class="btn icon-button global-settings-button"
-      aria-label="Open settings"
-      aria-keyshortcuts="Alt+S"
-      data-icon-tooltip="true"
-      data-bs-title="Open settings (Alt+S)"
-    >
-      <i class="bi bi-gear-fill" aria-hidden="true"></i>
-      <span class="visually-hidden">Open settings</span>
-    </button>
-
     <div
       class="modal fade"
       id="keyboardShortcutsModal"
