@@ -283,7 +283,7 @@ export function createTranscriptView(dependencies) {
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
         <p class="message-speaker">${message.speaker}</p>
-        <p class="message-bubble mb-0"></p>
+        <div class="message-bubble mb-0"></div>
         <textarea
           class="form-control user-message-editor${isEditing ? '' : ' d-none'}"
           rows="3"

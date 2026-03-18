@@ -38,7 +38,6 @@ Current supported models in Settings:
   - Requires WebGPU in-browser, so it is disabled when WebGPU is unavailable or when `WASM only` is selected.
 - `huggingworld/gemma-3-1b-it-ONNX-GQA`
   - Uses ONNX `q4` weights and external data sidecar loading.
-  - The worker and saved conversation state preserve structured multimodal prompt parts (`text` and `image`) so image attachments are carried end-to-end.
 - Legacy aliases remapped automatically at runtime:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `onnx-community/Qwen3.5-2B-ONNX` -> `onnx-community/Qwen3-0.6B-ONNX`

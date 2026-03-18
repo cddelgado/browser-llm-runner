@@ -164,6 +164,7 @@ function normalizeRuntimeConfig(rawRuntime) {
   const dtype = typeof rawRuntime?.dtype === 'string' ? rawRuntime.dtype.trim() : '';
   const enableThinking = rawRuntime?.enableThinking === true;
   const requiresWebGpu = rawRuntime?.requiresWebGpu === true;
+  const imageInput = rawRuntime?.imageInput === true;
   const useExternalDataFormat =
     rawRuntime?.useExternalDataFormat === true ||
     (Number.isInteger(rawRuntime?.useExternalDataFormat) && rawRuntime.useExternalDataFormat > 0)
@@ -173,6 +174,7 @@ function normalizeRuntimeConfig(rawRuntime) {
     ...(dtype ? { dtype } : {}),
     ...(enableThinking ? { enableThinking: true } : {}),
     ...(requiresWebGpu ? { requiresWebGpu: true } : {}),
+    ...(imageInput ? { imageInput: true } : {}),
     ...(useExternalDataFormat ? { useExternalDataFormat } : {}),
   };
 }
@@ -195,18 +197,24 @@ function normalizePromptContentPart(rawPart) {
 
   if (rawPart.type === 'image') {
     const normalizedImagePart = { type: 'image' };
-    if (typeof rawPart.url === 'string' && rawPart.url.trim()) {
-      normalizedImagePart.url = rawPart.url.trim();
-    }
-    if (typeof rawPart.image === 'string' && rawPart.image.trim()) {
-      normalizedImagePart.image = rawPart.image.trim();
-    }
+    const directImage = typeof rawPart.image === 'string' ? rawPart.image.trim() : '';
+    const imageUrl = typeof rawPart.url === 'string' ? rawPart.url.trim() : '';
     if (typeof rawPart.mimeType === 'string' && rawPart.mimeType.trim()) {
       normalizedImagePart.mimeType = rawPart.mimeType.trim();
     }
     if (typeof rawPart.base64 === 'string' && rawPart.base64.trim()) {
       normalizedImagePart.base64 = rawPart.base64.trim();
     }
+    const embeddedImage =
+      directImage ||
+      imageUrl ||
+      (normalizedImagePart.mimeType && normalizedImagePart.base64
+        ? `data:${normalizedImagePart.mimeType};base64,${normalizedImagePart.base64}`
+        : '');
+    if (!embeddedImage) {
+      return null;
+    }
+    normalizedImagePart.image = embeddedImage;
     return normalizedImagePart;
   }
 
@@ -259,6 +267,14 @@ function resolvePrompt(rawPrompt) {
       content: flatPrompt,
     },
   ];
+}
+
+function promptContainsImageParts(prompt) {
+  return Array.isArray(prompt)
+    ? prompt.some((message) =>
+        Array.isArray(message?.content) ? message.content.some((part) => part?.type === 'image') : false,
+      )
+    : false;
 }
 
 export { resolvePrompt };
@@ -439,6 +455,9 @@ async function generate(payload) {
     const requestGenerationConfig = normalizeGenerationConfig(payload.generationConfig || generationConfig);
     generationConfig = requestGenerationConfig;
     const runtime = normalizeRuntimeConfig(payload.runtime);
+    if (promptContainsImageParts(formattedPrompt) && !runtime.imageInput) {
+      throw new Error('The selected model does not support image inputs in this app.');
+    }
     const generationOptions = {
       max_new_tokens: requestGenerationConfig.maxOutputTokens,
       max_length: requestGenerationConfig.maxContextTokens,

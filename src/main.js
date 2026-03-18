@@ -3259,7 +3259,13 @@ function getThinkingTagsForModel(modelId) {
 }
 
 function getRuntimeConfigForModel(modelId) {
-  return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.runtime || {};
+  const normalizedModelId = normalizeModelId(modelId);
+  const runtime = MODEL_OPTIONS_BY_ID.get(normalizedModelId)?.runtime || {};
+  const imageInput = MODEL_OPTIONS_BY_ID.get(normalizedModelId)?.features?.imageInput === true;
+  return {
+    ...runtime,
+    ...(imageInput ? { imageInput: true } : {}),
+  };
 }
 
 function parseThinkingText(rawText, thinkingTags) {

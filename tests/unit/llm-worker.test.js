@@ -29,7 +29,7 @@ describe('llm.worker resolvePrompt', () => {
     ]);
   });
 
-  test('preserves multimodal content parts for future vision-capable prompts', () => {
+  test('normalizes multimodal image parts to the chat-template image field', () => {
     const result = resolvePrompt([
       {
         role: 'user',
@@ -46,7 +46,7 @@ describe('llm.worker resolvePrompt', () => {
         role: 'user',
         content: [
           { type: 'text', text: 'Describe this image.' },
-          { type: 'image', url: 'https://example.com/sample.png' },
+          { type: 'image', image: 'https://example.com/sample.png' },
           { type: 'text', text: 'Focus on the visible objects.' },
         ],
       },

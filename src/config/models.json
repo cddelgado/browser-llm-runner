@@ -114,8 +114,7 @@
         "defaultTopP": 0.95
       },
       "features": {
-        "streaming": true,
-        "imageInput": true
+        "streaming": true
       }
     }
   ],

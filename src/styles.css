@@ -840,13 +840,15 @@
 
 .message-image-card {
   margin: 0;
+  max-width: min(16rem, 100%);
 }
 
 .message-image-thumb {
-  width: min(14rem, 100%);
+  width: auto;
   max-width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  height: auto;
+  max-height: 20rem;
+  object-fit: contain;
   display: block;
   border-radius: 0.9rem;
   border: 1px solid color-mix(in srgb, var(--surface) 35%, transparent);
