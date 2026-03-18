@@ -1147,6 +1147,11 @@ function getPendingComposerAttachments() {
   return Array.isArray(appState.pendingComposerAttachments) ? appState.pendingComposerAttachments : [];
 }
 
+function selectedModelSupportsImageInput() {
+  const selectedModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  return MODEL_OPTIONS_BY_ID.get(selectedModelId)?.features?.imageInput === true;
+}
+
 function clearPendingComposerAttachments({ resetInput = true } = {}) {
   appState.pendingComposerAttachments = [];
   if (resetInput && imageAttachmentInput instanceof HTMLInputElement) {
@@ -2651,14 +2656,20 @@ function updateActionButtons() {
     appState.isRunningOrchestration ||
     Boolean(appState.activeUserEditMessageId) ||
     disableComposerForPreChatSelection;
+  const imageInputSupported = selectedModelSupportsImageInput();
   if (messageInput instanceof HTMLTextAreaElement) {
     messageInput.disabled = disableComposerForPreChatSelection;
   }
   if (addImagesButton instanceof HTMLButtonElement) {
-    addImagesButton.disabled = composerControlsDisabled || appState.isGenerating;
+    addImagesButton.classList.toggle('d-none', !imageInputSupported);
+    addImagesButton.disabled = !imageInputSupported || composerControlsDisabled || appState.isGenerating;
   }
   if (imageAttachmentInput instanceof HTMLInputElement) {
-    imageAttachmentInput.disabled = composerControlsDisabled || appState.isGenerating;
+    imageAttachmentInput.disabled =
+      !imageInputSupported || composerControlsDisabled || appState.isGenerating;
+  }
+  if (!imageInputSupported && getPendingComposerAttachments().length) {
+    clearPendingComposerAttachments();
   }
   if (sendButton) {
     sendButton.disabled =
@@ -4043,10 +4054,17 @@ if (sendButton) {
 
 if (addImagesButton instanceof HTMLButtonElement && imageAttachmentInput instanceof HTMLInputElement) {
   addImagesButton.addEventListener('click', () => {
+    if (!selectedModelSupportsImageInput()) {
+      return;
+    }
     imageAttachmentInput.click();
   });
 
   imageAttachmentInput.addEventListener('change', async (event) => {
+    if (!selectedModelSupportsImageInput()) {
+      imageAttachmentInput.value = '';
+      return;
+    }
     const files = event.target instanceof HTMLInputElement ? Array.from(event.target.files || []) : [];
     if (!files.length) {
       return;

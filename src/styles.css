@@ -992,9 +992,17 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  font-weight: 600;
-  white-space: nowrap;
+  justify-content: center;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.composer-attach-button .bi {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .composer textarea {
@@ -1265,8 +1273,7 @@
   }
 
   .composer-attach-button {
-    width: 100%;
-    justify-content: center;
+    width: 2.75rem;
   }
 
   .transcript-helper-links {
