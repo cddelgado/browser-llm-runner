@@ -29,6 +29,30 @@ describe('llm.worker resolvePrompt', () => {
     ]);
   });
 
+  test('preserves multimodal content parts for future vision-capable prompts', () => {
+    const result = resolvePrompt([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Describe this image.' },
+          { type: 'image', url: 'https://example.com/sample.png' },
+          { type: 'text', text: 'Focus on the visible objects.' },
+        ],
+      },
+    ]);
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Describe this image.' },
+          { type: 'image', url: 'https://example.com/sample.png' },
+          { type: 'text', text: 'Focus on the visible objects.' },
+        ],
+      },
+    ]);
+  });
+
   test('falls back to a single user message for flat prompts', () => {
     expect(resolvePrompt('Flat prompt')).toEqual([{ role: 'user', content: 'Flat prompt' }]);
   });

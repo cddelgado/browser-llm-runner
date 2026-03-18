@@ -103,11 +103,15 @@ Student-facing browser chat UI with local model inference.
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
   - Uses ONNX `q4` weights.
   - Requires WebGPU for browser inference, so it is unavailable when WebGPU is unavailable or when `WASM only` is selected.
+- Backend-only runtime support also exists for `huggingworld/gemma-3-1b-it-ONNX-GQA`.
+  - It is intentionally not exposed in the current selector yet.
+  - The worker preserves structured multimodal prompt parts for future image input support.
+  - Current limitation: the published 1B ONNX package still loads through a text-generation path, so full vision inference is not available from that model package alone.
 - Legacy stored IDs are automatically remapped to the supported model:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `onnx-community/Qwen3.5-2B-ONNX` -> `onnx-community/Qwen3-0.6B-ONNX`
-  - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-  - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
+  - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `huggingworld/gemma-3-1b-it-ONNX-GQA`
+  - `onnx-community/gemma-3-1b-ONNX-GQA` -> `huggingworld/gemma-3-1b-it-ONNX-GQA`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - Model support configuration lives in `src/config/models.json`:
   - `models`: options shown in the model selector

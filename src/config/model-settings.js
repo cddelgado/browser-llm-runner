@@ -137,6 +137,10 @@ function normalizeRuntime(rawRuntime) {
   };
 }
 
+function normalizeHiddenFlag(rawHidden) {
+  return rawHidden === true;
+}
+
 function normalizeConfiguredModelId(modelId) {
   const normalizedId = typeof modelId === 'string' ? modelId.trim() : '';
   return LEGACY_MODEL_ALIASES[normalizedId] || normalizedId;
@@ -174,7 +178,15 @@ const configuredModels = Array.isArray(modelCatalog?.models)
             : null;
         const generation = normalizeGenerationLimits(model?.generation);
         const runtime = normalizeRuntime(model?.runtime);
-        return { id, label, features: model?.features || {}, thinkingTags, generation, runtime };
+        return {
+          id,
+          label,
+          features: model?.features || {},
+          thinkingTags,
+          generation,
+          runtime,
+          hidden: normalizeHiddenFlag(model?.hidden),
+        };
       })
       .filter(Boolean)
   : [];
@@ -195,11 +207,14 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
     thinkingTags: null,
     generation: normalizeGenerationLimits(null),
     runtime: {},
+    hidden: false,
   });
 }
 
-export const MODEL_OPTIONS = Object.freeze(configuredModels);
-export const MODEL_OPTIONS_BY_ID = new Map(MODEL_OPTIONS.map((model) => [model.id, model]));
+const visibleConfiguredModels = configuredModels.filter((model) => !model.hidden);
+
+export const MODEL_OPTIONS = Object.freeze(visibleConfiguredModels);
+export const MODEL_OPTIONS_BY_ID = new Map(configuredModels.map((model) => [model.id, model]));
 export const LEGACY_MODEL_ALIASES = Object.fromEntries(
   Object.entries(modelCatalog?.legacyAliases || {})
     .map(([alias, canonical]) => [
@@ -208,7 +223,7 @@ export const LEGACY_MODEL_ALIASES = Object.fromEntries(
     ])
     .filter(([alias, canonical]) => alias && canonical),
 );
-export const SUPPORTED_MODELS = new Set(MODEL_OPTIONS.map((model) => model.id));
+export const SUPPORTED_MODELS = new Set(configuredModels.map((model) => model.id));
 
 export function getModelAvailability(
   modelId,

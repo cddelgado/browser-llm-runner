@@ -177,6 +177,55 @@ function normalizeRuntimeConfig(rawRuntime) {
   };
 }
 
+function normalizePromptContentPart(rawPart) {
+  if (!rawPart || typeof rawPart !== 'object') {
+    return null;
+  }
+
+  if (rawPart.type === 'text') {
+    const text = typeof rawPart.text === 'string' ? rawPart.text : '';
+    if (!text.trim()) {
+      return null;
+    }
+    return {
+      type: 'text',
+      text,
+    };
+  }
+
+  if (rawPart.type === 'image') {
+    const normalizedImagePart = { type: 'image' };
+    if (typeof rawPart.url === 'string' && rawPart.url.trim()) {
+      normalizedImagePart.url = rawPart.url.trim();
+    }
+    if (typeof rawPart.image === 'string' && rawPart.image.trim()) {
+      normalizedImagePart.image = rawPart.image.trim();
+    }
+    if (typeof rawPart.mimeType === 'string' && rawPart.mimeType.trim()) {
+      normalizedImagePart.mimeType = rawPart.mimeType.trim();
+    }
+    if (typeof rawPart.base64 === 'string' && rawPart.base64.trim()) {
+      normalizedImagePart.base64 = rawPart.base64.trim();
+    }
+    return normalizedImagePart;
+  }
+
+  return null;
+}
+
+function normalizePromptContent(rawContent) {
+  if (typeof rawContent === 'string') {
+    return rawContent.trim() ? rawContent : null;
+  }
+
+  if (!Array.isArray(rawContent)) {
+    return null;
+  }
+
+  const normalizedParts = rawContent.map(normalizePromptContentPart).filter(Boolean);
+  return normalizedParts.length ? normalizedParts : null;
+}
+
 function resolvePrompt(rawPrompt) {
   if (Array.isArray(rawPrompt)) {
     const structuredMessages = rawPrompt
@@ -185,8 +234,8 @@ function resolvePrompt(rawPrompt) {
           return null;
         }
         const roleCandidate = typeof message.role === 'string' ? message.role.trim().toLowerCase() : '';
-        const content = typeof message.content === 'string' ? message.content : '';
-        if (!content.trim()) {
+        const content = normalizePromptContent(message.content);
+        if (!content) {
           return null;
         }
         let role = 'user';

@@ -36,11 +36,17 @@ Current supported models in Settings:
   - Uses ONNX `q4` weights.
   - Uses `<think>...</think>` tags for thought separation.
   - Requires WebGPU in-browser, so it is disabled when WebGPU is unavailable or when `WASM only` is selected.
+- Backend-only model support:
+  - `huggingworld/gemma-3-1b-it-ONNX-GQA`
+  - This entry is intentionally hidden from the current selector so frontend behavior does not change yet.
+  - Runtime defaults use ONNX `q4` weights and external data sidecar loading.
+  - The worker preserves structured multimodal prompt parts (`text` and `image`) so the backend path can carry image content once the frontend is ready.
+  - Current limitation: the published 1B ONNX package exposes a text-generation pipeline with tokenizer-only processor metadata, so loading works, but full image understanding is not available from this package alone.
 - Legacy aliases remapped automatically at runtime:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `onnx-community/Qwen3.5-2B-ONNX` -> `onnx-community/Qwen3-0.6B-ONNX`
-  - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-  - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
+  - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `huggingworld/gemma-3-1b-it-ONNX-GQA`
+  - `onnx-community/gemma-3-1b-ONNX-GQA` -> `huggingworld/gemma-3-1b-it-ONNX-GQA`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 
 Notes:
@@ -62,3 +68,4 @@ Per-model limits and defaults:
   - Both Llama entries enable `useExternalDataFormat: true` for `.onnx_data` loading.
 - `onnx-community/Qwen3-0.6B-ONNX`: runtime dtype `q4f16`, max context `40960`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, thinking tags `<think>` / `</think>`
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: runtime dtype `q4`, `requiresWebGpu: true`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default temperature `0.1`, default top-k `50`, default top-p `0.1`, thinking tags `<think>` / `</think>`
+- `huggingworld/gemma-3-1b-it-ONNX-GQA` (backend-only): runtime dtype `q4`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default temperature `0.6`, default top-k `65`, default top-p `0.95`, no thinking tags
