@@ -14,7 +14,9 @@
         "maxContextTokens": 131072,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
-        "defaultTemperature": 0.6
+        "defaultTemperature": 0.6,
+        "defaultTopK": 50,
+        "defaultTopP": 0.9
       },
       "features": {
         "streaming": true
@@ -33,7 +35,9 @@
         "maxContextTokens": 131072,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
-        "defaultTemperature": 0.6
+        "defaultTemperature": 0.6,
+        "defaultTopK": 50,
+        "defaultTopP": 0.9
       },
       "features": {
         "streaming": true
@@ -43,8 +47,7 @@
       "id": "onnx-community/Qwen3-0.6B-ONNX",
       "label": "onnx-community/Qwen3-0.6B-ONNX",
       "runtime": {
-        "dtype": "q4f16",
-        "enableThinking": true
+        "dtype": "q4f16"
       },
       "thinkingTags": {
         "open": "<think>",
@@ -57,7 +60,9 @@
         "maxContextTokens": 40960,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
-        "defaultTemperature": 0.6
+        "defaultTemperature": 0.6,
+        "defaultTopK": 20,
+        "defaultTopP": 0.95
       },
       "features": {
         "streaming": true
@@ -82,7 +87,9 @@
         "maxContextTokens": 32768,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
-        "defaultTemperature": 0.6
+        "defaultTemperature": 0.1,
+        "defaultTopK": 50,
+        "defaultTopP": 0.1
       },
       "features": {
         "streaming": true

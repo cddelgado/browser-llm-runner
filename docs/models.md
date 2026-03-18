@@ -16,6 +16,8 @@ Model support is configured in `src/config/models.json`:
   - `minTemperature`
   - `maxTemperature`
   - `defaultTemperature`
+  - `defaultTopK`
+  - `defaultTopP`
 - `thinkingTags`: optional per-model tags used to separate internal thoughts from final response
   during streaming (for example `<think>` and `</think>`)
 - `defaultModelId`: default model used for first load and invalid selections
@@ -27,7 +29,9 @@ Current supported models in Settings:
 - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
 - `onnx-community/Qwen3-0.6B-ONNX`
   - Uses runtime dtype `q4f16`, matching the model card's WebGPU example.
-  - Uses `<think>...</think>` tags for thought separation.
+  - Uses `<think>...</think>` tags for thought separation when the model emits them.
+  - Uses recommended sampling defaults from the model card: temperature `0.6`, top-k `20`, top-p `0.95`.
+  - Does not force `enableThinking`.
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
   - Uses ONNX `q4` weights.
   - Uses `<think>...</think>` tags for thought separation.
@@ -46,16 +50,15 @@ Notes:
 - Settings fields for maximum output/context tokens are numeric, step in 8, and disabled until a model is loaded.
 - Token fields show an estimated words value based on `tokens * 0.75`.
 - Temperature is numeric, step in 0.1, and disabled until a model is loaded.
-- Top K is numeric, step in 5, default 50.
-- Top P (nucleus sampling) is numeric, min 0.00, max 1.00, step in 0.05, default 0.90.
-- User changes to output/context tokens and temperature are persisted per model in browser storage and restored when that model is selected again.
-- User changes to Top K and Top P are global and persist across sessions.
+- Top K is numeric, step in 5, and uses a per-model default from `models[].generation.defaultTopK`.
+- Top P (nucleus sampling) is numeric, min 0.00, max 1.00, step in 0.05, and uses a per-model default from `models[].generation.defaultTopP`.
+- User changes to output/context tokens, temperature, Top K, and Top P are persisted per model in browser storage and restored when that model is selected again.
 - If generation settings are changed while generating, they are queued and applied after that generation finishes.
 
 Per-model limits and defaults:
 
-- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: runtime dtype auto-selected by Transformers.js, max context `131072`, default context `8192`, default temperature `0.6`, no thinking tags
-- `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`: runtime dtype auto-selected by Transformers.js, max context `131072`, default context `8192`, default temperature `0.6`, no thinking tags
+- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: runtime dtype auto-selected by Transformers.js, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
+- `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`: runtime dtype auto-selected by Transformers.js, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
   - Both Llama entries enable `useExternalDataFormat: true` for `.onnx_data` loading.
-- `onnx-community/Qwen3-0.6B-ONNX`: runtime dtype `q4f16`, `enableThinking: true`, max context `40960`, default context `8192`, default temperature `0.6`, thinking tags `<think>` / `</think>`
-- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: runtime dtype `q4`, `requiresWebGpu: true`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default temperature `0.6`, thinking tags `<think>` / `</think>`
+- `onnx-community/Qwen3-0.6B-ONNX`: runtime dtype `q4f16`, max context `40960`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, thinking tags `<think>` / `</think>`
+- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: runtime dtype `q4`, `requiresWebGpu: true`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default temperature `0.1`, default top-k `50`, default top-p `0.1`, thinking tags `<think>` / `</think>`

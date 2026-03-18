@@ -44,9 +44,9 @@ Student-facing browser chat UI with local model inference.
   - `Temperature (Creativity)` includes a `Reset to model default` link that applies the selected model default when clicked.
   - If changed during generation, updates are queued and applied after the current response finishes.
 - Sampling controls in Settings:
-  - `Top K (Predictability)` uses `step=5` (default `50`) and explains that lower values are more predictable because sampling is limited to the K most likely options.
-  - `Top P (Strangeness)` (nucleus sampling) uses min `0.00`, max `1.00`, and `step=0.05` (default `0.90`); higher values can produce more varied responses.
-  - `Top K` and `Top P` are global settings and persist across sessions.
+  - `Top K (Predictability)` uses `step=5` and loads a model-specific default from `src/config/models.json`.
+  - `Top P (Strangeness)` (nucleus sampling) uses min `0.00`, max `1.00`, and `step=0.05`, with a model-specific default from `src/config/models.json`.
+  - `Top K` and `Top P` are persisted per model, like temperature and token limits.
 - `Auto` attempts WebGPU first, then WASM, then CPU if earlier backends are unavailable or initialization fails.
 - The selected backend and model are stored in `localStorage`.
 - Model files are downloaded on first load and cached in-browser for reuse (`Transformers.js` browser cache).
@@ -98,7 +98,8 @@ Student-facing browser chat UI with local model inference.
 - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
 - `onnx-community/Qwen3-0.6B-ONNX`
   - Uses the model card's WebGPU-recommended `q4f16` runtime.
-  - Supports Qwen thinking output via `<think>...</think>` tags.
+  - Uses the model card's recommended sampling defaults: temperature `0.6`, top-k `20`, top-p `0.95`.
+  - Does not force Qwen thinking mode on by default.
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
   - Uses ONNX `q4` weights.
   - Requires WebGPU for browser inference, so it is unavailable when WebGPU is unavailable or when `WASM only` is selected.
@@ -111,7 +112,7 @@ Student-facing browser chat UI with local model inference.
 - Model support configuration lives in `src/config/models.json`:
   - `models`: options shown in the model selector
   - `models[].runtime`: per-model runtime hints (`dtype`, optional `enableThinking`, optional `requiresWebGpu`, optional `useExternalDataFormat`)
-  - `models[].generation`: per-model defaults and limits for output/context tokens and temperature
+  - `models[].generation`: per-model defaults and limits for output/context tokens, temperature, `defaultTopK`, and `defaultTopP`
   - `defaultModelId`: fallback/default selection
   - `legacyAliases`: stored legacy IDs remapped at runtime
 - Orchestration definitions are JSON files for transparency:

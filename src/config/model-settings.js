@@ -98,6 +98,12 @@ export function normalizeGenerationLimits(rawLimits) {
     MIN_TOKEN_LIMIT,
     maxOutputTokens,
   );
+  const defaultTopK = quantizeTopKInput(
+    toPositiveInt(rawLimits?.defaultTopK, DEFAULT_GENERATION_LIMITS.defaultTopK),
+  );
+  const defaultTopP = quantizeTopPInput(
+    toFiniteNumber(rawLimits?.defaultTopP, DEFAULT_GENERATION_LIMITS.defaultTopP),
+  );
   return {
     defaultMaxOutputTokens: Math.min(defaultMaxOutputTokens, defaultMaxContextTokens),
     maxOutputTokens,
@@ -106,6 +112,8 @@ export function normalizeGenerationLimits(rawLimits) {
     minTemperature: boundedMinTemperature,
     maxTemperature: boundedMaxTemperature,
     defaultTemperature,
+    defaultTopK,
+    defaultTopP,
   };
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   DEFAULT_MODEL,
+  MODEL_OPTIONS_BY_ID,
   browserSupportsWebGpu,
   getFirstAvailableModelId,
   getModelAvailability,
@@ -68,5 +69,23 @@ describe('model-settings availability', () => {
     expect(browserSupportsWebGpu(/** @type {any} */ ({ gpu: {} }))).toBe(true);
     expect(browserSupportsWebGpu(/** @type {any} */ ({}))).toBe(false);
     expect(browserSupportsWebGpu(null)).toBe(false);
+  });
+
+  test('loads model-specific default sampling settings from config', () => {
+    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-3B-Instruct-onnx-web')?.generation).toMatchObject({
+      defaultTemperature: 0.6,
+      defaultTopK: 50,
+      defaultTopP: 0.9,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')?.generation).toMatchObject({
+      defaultTemperature: 0.6,
+      defaultTopK: 20,
+      defaultTopP: 0.95,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.generation).toMatchObject({
+      defaultTemperature: 0.1,
+      defaultTopK: 50,
+      defaultTopP: 0.1,
+    });
   });
 });

@@ -80,7 +80,6 @@ const DEFAULT_SYSTEM_PROMPT_STORAGE_KEY = 'conversation-default-system-prompt';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
 const MODEL_GENERATION_SETTINGS_STORAGE_KEY = 'llm-model-generation-settings';
-const GLOBAL_SAMPLING_SETTINGS_STORAGE_KEY = 'llm-global-sampling-settings';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
 const SUPPORTED_BACKEND_PREFERENCES = new Set(['auto', 'webgpu', 'wasm', 'cpu']);
 const WEBGPU_REQUIRED_MODEL_SUFFIX = ' (WebGPU required)';
@@ -767,13 +766,8 @@ function sanitizeGenerationConfigForModel(modelId, candidateConfig) {
       limits.minTemperature,
       limits.maxTemperature,
     ),
-  };
-}
-
-function sanitizeGlobalSamplingSettings(candidateSettings) {
-  return {
-    topK: quantizeTopKInput(candidateSettings?.topK),
-    topP: quantizeTopPInput(candidateSettings?.topP),
+    topK: quantizeTopKInput(candidateConfig?.topK ?? limits.defaultTopK),
+    topP: quantizeTopPInput(candidateConfig?.topP ?? limits.defaultTopP),
   };
 }
 
@@ -787,22 +781,6 @@ function getStoredModelGenerationSettings() {
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (_error) {
     return {};
-  }
-}
-
-function getStoredGlobalSamplingSettings() {
-  try {
-    const raw = localStorage.getItem(GLOBAL_SAMPLING_SETTINGS_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      return null;
-    }
-    return sanitizeGlobalSamplingSettings(parsed);
-  } catch (_error) {
-    return null;
   }
 }
 
@@ -822,11 +800,6 @@ function persistGenerationConfigForModel(modelId, config) {
   const byModel = getStoredModelGenerationSettings();
   byModel[normalizedModelId] = sanitized;
   localStorage.setItem(MODEL_GENERATION_SETTINGS_STORAGE_KEY, JSON.stringify(byModel));
-}
-
-function persistGlobalSamplingSettings(settings) {
-  const sanitized = sanitizeGlobalSamplingSettings(settings);
-  localStorage.setItem(GLOBAL_SAMPLING_SETTINGS_STORAGE_KEY, JSON.stringify(sanitized));
 }
 
 function quantizeTokenInput(value, min, max) {
@@ -856,8 +829,8 @@ function buildGenerationConfigFromUI(modelId) {
     limits.minTemperature,
     limits.maxTemperature,
   );
-  const topK = quantizeTopKInput(topKInput?.value ?? DEFAULT_TOP_K);
-  const topP = quantizeTopPInput(topPInput?.value ?? DEFAULT_TOP_P);
+  const topK = quantizeTopKInput(topKInput?.value ?? limits.defaultTopK);
+  const topP = quantizeTopPInput(topPInput?.value ?? limits.defaultTopP);
   return { maxOutputTokens, maxContextTokens, temperature, topK, topP };
 }
 
@@ -878,31 +851,27 @@ function renderGenerationSettingsHelpText(config, limits) {
     )} in steps of ${TEMPERATURE_STEP.toFixed(1)}.`;
   }
   if (topKHelp) {
-    topKHelp.textContent = `Top K picks from the K most likely next-token options. Lower values are more predictable. Good default: ${formatInteger(DEFAULT_TOP_K)}.`;
+    topKHelp.textContent = `Top K picks from the K most likely next-token options. Lower values are more predictable. Current model default: ${formatInteger(limits.defaultTopK)}.`;
   }
   if (topPHelp) {
     topPHelp.textContent = `Also called nucleus sampling. Higher values can make responses more varied. Allowed: ${MIN_TOP_P.toFixed(
       2,
-    )} to ${MAX_TOP_P.toFixed(2)} in steps of ${TOP_P_STEP.toFixed(2)}.`;
+    )} to ${MAX_TOP_P.toFixed(2)} in steps of ${TOP_P_STEP.toFixed(2)}. Current model default: ${limits.defaultTopP.toFixed(2)}.`;
   }
 }
 
 function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
   const normalizedModelId = normalizeModelId(modelId);
   const limits = getModelGenerationLimits(normalizedModelId);
-  const globalSamplingSettings = getStoredGlobalSamplingSettings() || {
-    topK: DEFAULT_TOP_K,
-    topP: DEFAULT_TOP_P,
-  };
   const defaultConfig = {
     maxOutputTokens: Math.min(limits.defaultMaxOutputTokens, limits.defaultMaxContextTokens),
     maxContextTokens: limits.defaultMaxContextTokens,
     temperature: limits.defaultTemperature,
-    topK: globalSamplingSettings.topK,
-    topP: globalSamplingSettings.topP,
+    topK: limits.defaultTopK,
+    topP: limits.defaultTopP,
   };
   const config = useDefaults
-    ? { ...(getStoredGenerationConfigForModel(normalizedModelId) || defaultConfig), ...globalSamplingSettings }
+    ? getStoredGenerationConfigForModel(normalizedModelId) || defaultConfig
     : buildGenerationConfigFromUI(normalizedModelId);
   const boundedOutputMax = Math.min(limits.maxOutputTokens, config.maxContextTokens);
 
@@ -1010,7 +979,6 @@ function onGenerationSettingInputChanged() {
   appState.activeGenerationConfig = nextConfig;
   syncGenerationSettingsFromModel(selectedModel, false);
   persistGenerationConfigForModel(selectedModel, nextConfig);
-  persistGlobalSamplingSettings(nextConfig);
   if (appState.isGenerating) {
     appState.pendingGenerationConfig = nextConfig;
     setStatus('Generation settings will apply after current response.');
@@ -3003,7 +2971,6 @@ function persistInferencePreferences() {
   localStorage.setItem(MODEL_STORAGE_KEY, selectedModel);
   localStorage.setItem(BACKEND_STORAGE_KEY, selectedBackend);
   persistGenerationConfigForModel(selectedModel, appState.activeGenerationConfig);
-  persistGlobalSamplingSettings(appState.activeGenerationConfig);
 }
 
 const runOrchestration = createOrchestrationRunner({
