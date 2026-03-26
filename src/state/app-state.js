@@ -175,6 +175,10 @@ export function isMessageEditActive(state) {
   return mode === INTERACTION_MODES.MESSAGE_EDIT || mode === INTERACTION_MODES.MESSAGE_BRANCH;
 }
 
+export function getActiveUserEditMessageId(state) {
+  return typeof state?.activeUserEditMessageId === 'string' ? state.activeUserEditMessageId : null;
+}
+
 export function isVariantSwitchingState(state) {
   return deriveInteractionMode(state) === INTERACTION_MODES.VARIANT_SWITCH;
 }

@@ -1,3 +1,5 @@
+import { isEngineReady, isSettingsView } from '../state/app-state.js';
+
 export function bindSettingsEvents({
   appState,
   documentRef = document,
@@ -221,7 +223,7 @@ export function bindSettingsEvents({
 
   if (resetContextTokensButton instanceof HTMLButtonElement) {
     resetContextTokensButton.addEventListener('click', () => {
-      if (!appState.modelReady || !maxContextTokensInput) {
+      if (!isEngineReady(appState) || !maxContextTokensInput) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);
@@ -233,7 +235,7 @@ export function bindSettingsEvents({
 
   if (resetTemperatureButton instanceof HTMLButtonElement) {
     resetTemperatureButton.addEventListener('click', () => {
-      if (!appState.modelReady || !temperatureInput) {
+      if (!isEngineReady(appState) || !temperatureInput) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);
@@ -253,7 +255,7 @@ export function bindSettingsEvents({
 
   if (resetTopKButton instanceof HTMLButtonElement) {
     resetTopKButton.addEventListener('click', () => {
-      if (!appState.modelReady || !topKInput) {
+      if (!isEngineReady(appState) || !topKInput) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);
@@ -265,7 +267,7 @@ export function bindSettingsEvents({
 
   if (resetTopPButton instanceof HTMLButtonElement) {
     resetTopPButton.addEventListener('click', () => {
-      if (!appState.modelReady || !topPInput) {
+      if (!isEngineReady(appState) || !topPInput) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);
@@ -276,7 +278,7 @@ export function bindSettingsEvents({
   }
 
   documentRef.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !appState.isSettingsPageOpen || isAnyModalOpen()) {
+    if (event.key !== 'Escape' || !isSettingsView(appState) || isAnyModalOpen()) {
       return;
     }
     event.preventDefault();

@@ -82,6 +82,7 @@ import {
   createAppState,
   findConversationById as selectConversationById,
   getActiveConversation as selectActiveConversation,
+  getActiveUserEditMessageId,
   getCurrentViewRoute as selectCurrentViewRoute,
   hasConversationHistory as selectHasConversationHistory,
   hasSelectedConversationWithHistory as selectHasSelectedConversationWithHistory,
@@ -1429,7 +1430,7 @@ const transcriptView = createTranscriptView({
   scheduleMathTypeset,
   getToolDisplayName,
   getShowThinkingByDefault: () => appState.showThinkingByDefault,
-  getActiveUserEditMessageId: () => appState.activeUserEditMessageId,
+  getActiveUserEditMessageId: () => getActiveUserEditMessageId(appState),
   getControlsState: () => ({
     isGenerating: isGeneratingResponse(appState),
     isLoadingModel: isLoadingModelState(appState),
@@ -2839,7 +2840,7 @@ function beginUserMessageEdit(messageId) {
 function cancelUserMessageEdit(messageId) {
   if (
     !isMessageEditActive(appState) ||
-    (messageId && appState.activeUserEditMessageId !== messageId)
+    (messageId && getActiveUserEditMessageId(appState) !== messageId)
   ) {
     return;
   }
@@ -2855,7 +2856,7 @@ function saveUserMessageEdit(messageId) {
     isEngineBusy(appState) ||
     isOrchestrationRunningState(appState) ||
     isVariantSwitchingState(appState) ||
-    appState.activeUserEditMessageId !== messageId
+    getActiveUserEditMessageId(appState) !== messageId
   ) {
     return;
   }
