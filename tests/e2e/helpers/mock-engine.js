@@ -75,7 +75,20 @@ function installMockWorker() {
         const promptText = extractPromptText(promptPayload);
         const isLong = /long answer/i.test(promptText);
         const chunks = isLong
-          ? ['Mock ', 'streamed ', 'response ', 'that ', 'keeps ', 'going ', 'to ', 'allow ', 'cancellation.']
+          ? [
+              'Mock ',
+              'streamed ',
+              'response ',
+              'that ',
+              'keeps ',
+              'going ',
+              'long ',
+              'enough ',
+              'for ',
+              'the ',
+              'stop ',
+              'flow.',
+            ]
           : ['Mock ', 'streamed ', 'response.'];
         let index = 0;
         this.timer = setInterval(() => {
@@ -102,7 +115,7 @@ function installMockWorker() {
             type: 'status',
             payload: { message: 'Complete (WASM)' },
           });
-        }, isLong ? 180 : 60);
+        }, isLong ? 300 : 60);
       }
     }
 

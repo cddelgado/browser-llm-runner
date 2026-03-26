@@ -9,6 +9,7 @@ import './styles.css';
 import { bindConversationListEvents } from './app/conversation-list-events.js';
 import { createPreferencesController } from './app/preferences.js';
 import { createRoutingShell } from './app/routing-shell.js';
+import { bindShellEvents } from './app/shell-events.js';
 import { bindSettingsEvents } from './app/settings-events.js';
 import { bindTranscriptEvents } from './app/transcript-events.js';
 import { LLMEngineClient } from './llm/engine-client.js';
@@ -3289,74 +3290,6 @@ bindSettingsEvents({
   isAnyModalOpen,
 });
 
-if (openKeyboardShortcutsButton instanceof HTMLButtonElement) {
-  openKeyboardShortcutsButton.addEventListener('click', (event) => {
-    openKeyboardShortcuts(event.currentTarget);
-  });
-}
-
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && keyboardShortcutsModal?.classList.contains('show')) {
-    event.preventDefault();
-    closeKeyboardShortcuts();
-  }
-});
-
-document.addEventListener('keydown', (event) => {
-  if (handleGlobalShortcut(event)) {
-    return;
-  }
-  void handleFocusedMessageShortcut(event);
-});
-
-window.addEventListener(
-  'keydown',
-  (event) => {
-    if (event.key !== 'Escape' || !keyboardShortcutsModal?.classList.contains('show')) {
-      return;
-    }
-    event.preventDefault();
-    closeKeyboardShortcuts();
-  },
-  { capture: true }
-);
-
-window.addEventListener('hashchange', () => {
-  if (appState.ignoreNextHashChange) {
-    appState.ignoreNextHashChange = false;
-    return;
-  }
-  applyRouteFromHash();
-});
-
-if (startConversationButton instanceof HTMLButtonElement) {
-  startConversationButton.addEventListener('click', () => {
-    setChatWorkspaceStarted(appState, true);
-    updateWelcomePanelVisibility({ replaceRoute: false });
-    if (messageInput instanceof HTMLTextAreaElement) {
-      messageInput.focus();
-    }
-  });
-}
-
-if (newConversationBtn) {
-  newConversationBtn.addEventListener('click', () => {
-    if (isGeneratingResponse(appState)) {
-      return;
-    }
-    setChatWorkspaceStarted(appState, true);
-    const conversation = createConversation();
-    appState.conversations.unshift(conversation);
-    appState.activeConversationId = conversation.id;
-    clearUserMessageEditSession();
-    setChatTitleEditing(appState, false);
-    renderConversationList();
-    renderTranscript();
-    updateChatTitle();
-    queueConversationStateSave();
-  });
-}
-
 bindConversationListEvents({
   appState,
   documentRef: document,
@@ -3450,111 +3383,44 @@ bindTranscriptEvents({
   stepTranscriptNavigation,
 });
 
-window.addEventListener('beforeunload', () => {
-  if (appState.conversationSaveTimerId !== null) {
-    window.clearTimeout(appState.conversationSaveTimerId);
-    appState.conversationSaveTimerId = null;
-  }
-  void persistConversationStateNow();
-  engine.dispose();
+bindShellEvents({
+  appState,
+  documentRef: document,
+  windowRef: window,
+  keyboardShortcutsModal,
+  conversationSystemPromptModal,
+  openKeyboardShortcutsButton,
+  startConversationButton,
+  messageInput,
+  newConversationBtn,
+  isGeneratingResponse,
+  setChatWorkspaceStarted,
+  updateWelcomePanelVisibility,
+  createConversation,
+  clearUserMessageEditSession,
+  setChatTitleEditing,
+  renderConversationList,
+  renderTranscript,
+  updateChatTitle,
+  queueConversationStateSave,
+  openKeyboardShortcuts,
+  closeKeyboardShortcuts,
+  handleGlobalShortcut,
+  handleFocusedMessageShortcut,
+  applyRouteFromHash,
+  persistConversationStateNow,
+  disposeEngine: () => engine.dispose(),
+  preChatEditConversationSystemPromptBtn,
+  beginConversationSystemPromptEdit,
+  preChatLoadModelBtn,
+  loadModelForSelectedConversation: () => appController.loadModelForSelectedConversation(),
+  saveChatTitleBtn,
+  saveChatTitleEdit,
+  cancelChatTitleBtn,
+  cancelChatTitleEdit,
+  conversationSystemPromptInput,
+  saveConversationSystemPromptBtn,
+  saveConversationSystemPromptEdit,
+  chatTitleInput,
+  updateChatTitleEditorVisibility,
 });
-
-if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
-  preChatEditConversationSystemPromptBtn.addEventListener('click', (event) => {
-    beginConversationSystemPromptEdit({ trigger: event.currentTarget });
-  });
-}
-
-if (preChatLoadModelBtn instanceof HTMLButtonElement) {
-  preChatLoadModelBtn.addEventListener('click', () => {
-    void appController.loadModelForSelectedConversation();
-  });
-}
-
-if (saveChatTitleBtn instanceof HTMLButtonElement) {
-  saveChatTitleBtn.addEventListener('click', () => {
-    saveChatTitleEdit();
-  });
-}
-
-if (cancelChatTitleBtn instanceof HTMLButtonElement) {
-  cancelChatTitleBtn.addEventListener('click', () => {
-    cancelChatTitleEdit();
-  });
-}
-
-if (conversationSystemPromptModal instanceof HTMLElement) {
-  conversationSystemPromptModal.addEventListener('shown.bs.modal', () => {
-    if (conversationSystemPromptInput instanceof HTMLTextAreaElement) {
-      conversationSystemPromptInput.focus();
-      conversationSystemPromptInput.setSelectionRange(
-        conversationSystemPromptInput.value.length,
-        conversationSystemPromptInput.value.length
-      );
-    }
-  });
-  conversationSystemPromptModal.addEventListener('hidden.bs.modal', () => {
-    if (appState.lastConversationSystemPromptTrigger instanceof HTMLButtonElement) {
-      appState.lastConversationSystemPromptTrigger.focus();
-      appState.lastConversationSystemPromptTrigger = null;
-      return;
-    }
-    if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
-      const isVisible = !preChatEditConversationSystemPromptBtn.classList.contains('d-none');
-      if (isVisible) {
-        preChatEditConversationSystemPromptBtn.focus();
-        return;
-      }
-    }
-  });
-}
-
-if (keyboardShortcutsModal instanceof HTMLElement) {
-  keyboardShortcutsModal.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') {
-      return;
-    }
-    event.preventDefault();
-    closeKeyboardShortcuts();
-  });
-  keyboardShortcutsModal.addEventListener('keyup', (event) => {
-    if (event.key !== 'Escape') {
-      return;
-    }
-    event.preventDefault();
-    closeKeyboardShortcuts();
-  });
-  keyboardShortcutsModal.addEventListener('hidden.bs.modal', () => {
-    if (appState.lastKeyboardShortcutsTrigger instanceof HTMLElement) {
-      appState.lastKeyboardShortcutsTrigger.focus();
-      appState.lastKeyboardShortcutsTrigger = null;
-      return;
-    }
-    if (openKeyboardShortcutsButton instanceof HTMLButtonElement) {
-      openKeyboardShortcutsButton.focus();
-    }
-  });
-}
-
-if (saveConversationSystemPromptBtn instanceof HTMLButtonElement) {
-  saveConversationSystemPromptBtn.addEventListener('click', () => {
-    saveConversationSystemPromptEdit();
-  });
-}
-
-if (chatTitleInput instanceof HTMLInputElement) {
-  chatTitleInput.addEventListener('input', () => {
-    updateChatTitleEditorVisibility();
-  });
-  chatTitleInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      saveChatTitleEdit();
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      cancelChatTitleEdit();
-    }
-  });
-}
