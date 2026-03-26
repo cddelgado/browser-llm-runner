@@ -521,7 +521,7 @@ export function applyStoredConversationState(rawState, appState, { untitledPrefi
 
       if (
         messageNodes.length === 0 &&
-        !Boolean(rawConversation.hasGeneratedName) &&
+        rawConversation.hasGeneratedName !== true &&
         isLegacyNumberedUntitled
       ) {
         return null;

@@ -5,6 +5,8 @@ import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import MarkdownIt from 'markdown-it';
 import './styles.css';
+import { createPreferencesController } from './app/preferences.js';
+import { createRoutingShell } from './app/routing-shell.js';
 import { LLMEngineClient } from './llm/engine-client.js';
 import { createOrchestrationRunner } from './llm/orchestration-runner.js';
 import {
@@ -31,19 +33,16 @@ import {
   MIN_TOKEN_LIMIT,
   MIN_TOP_K,
   MIN_TOP_P,
-  MODEL_OPTIONS,
   MODEL_OPTIONS_BY_ID,
   TEMPERATURE_STEP,
   TOKEN_STEP,
   TOP_K_STEP,
   TOP_P_STEP,
-  getFirstAvailableModelId,
   getModelAvailability,
   clamp,
   browserSupportsWebGpu,
   normalizeGenerationLimits,
   normalizeModelId,
-  normalizeSupportedBackendPreference,
 } from './config/model-settings.js';
 import {
   addMessageToConversation,
@@ -2199,202 +2198,6 @@ function setRegionVisibility(region, visible) {
   region.inert = true;
 }
 
-function getRouteFromHash(hashValue = window.location.hash) {
-  const normalized = String(hashValue || '')
-    .replace(/^#\/?/, '')
-    .trim()
-    .toLowerCase();
-  if (normalized === ROUTE_SETTINGS) {
-    return ROUTE_SETTINGS;
-  }
-  if (normalized === ROUTE_CHAT) {
-    return ROUTE_CHAT;
-  }
-  return ROUTE_HOME;
-}
-
-function getCurrentViewRoute() {
-  return selectCurrentViewRoute(appState, {
-    routeHome: ROUTE_HOME,
-    routeChat: ROUTE_CHAT,
-    routeSettings: ROUTE_SETTINGS,
-  });
-}
-
-function setRouteHash(targetRoute, { replace = true } = {}) {
-  const route =
-    targetRoute === ROUTE_SETTINGS || targetRoute === ROUTE_CHAT ? targetRoute : ROUTE_HOME;
-  const targetHash = route === ROUTE_HOME ? '#/' : `#/${route}`;
-  if (window.location.hash === targetHash) {
-    return;
-  }
-  if (replace) {
-    window.history.replaceState(null, '', targetHash);
-    return;
-  }
-  appState.ignoreNextHashChange = true;
-  window.location.hash = targetHash;
-}
-
-function syncRouteToCurrentView({ replace = true } = {}) {
-  setRouteHash(getCurrentViewRoute(), { replace });
-}
-
-function applyRouteFromHash() {
-  const requestedRoute = getRouteFromHash();
-  if (requestedRoute === ROUTE_SETTINGS) {
-    setSettingsPageVisibility(true, { syncRoute: false });
-    return;
-  }
-
-  setSettingsPageVisibility(false, { syncRoute: false });
-  appState.hasStartedChatWorkspace = requestedRoute === ROUTE_CHAT;
-  updateWelcomePanelVisibility({ syncRoute: false });
-  if (appState.isSettingsPageOpen) {
-    return;
-  }
-}
-
-function setActiveSettingsTab(targetTabName, { focus = false } = {}) {
-  const tabName = typeof targetTabName === 'string' ? targetTabName.trim() : '';
-  if (!tabName || !settingsTabButtons.length || !settingsTabPanels.length) {
-    return;
-  }
-  appState.activeSettingsTab = tabName;
-  settingsTabButtons.forEach((button) => {
-    if (!(button instanceof HTMLButtonElement)) {
-      return;
-    }
-    const isActive = button.dataset.settingsTab === appState.activeSettingsTab;
-    button.classList.toggle('active', isActive);
-    button.setAttribute('aria-selected', String(isActive));
-    button.tabIndex = isActive ? 0 : -1;
-  });
-
-  settingsTabPanels.forEach((panel) => {
-    if (!(panel instanceof HTMLElement)) {
-      return;
-    }
-    const isActive = panel.dataset.settingsTabPanel === appState.activeSettingsTab;
-    panel.classList.toggle('d-none', !isActive);
-    if (isActive) {
-      panel.removeAttribute('aria-hidden');
-      panel.inert = false;
-    } else {
-      panel.setAttribute('aria-hidden', 'true');
-      panel.inert = true;
-    }
-  });
-
-  if (focus) {
-    const activeButton = Array.from(settingsTabButtons).find(
-      (button) =>
-        button instanceof HTMLButtonElement &&
-        button.dataset.settingsTab === appState.activeSettingsTab
-    );
-    if (activeButton instanceof HTMLButtonElement) {
-      activeButton.focus();
-    }
-  }
-}
-
-function setSettingsPageVisibility(visible, { syncRoute = true, replaceRoute = true } = {}) {
-  if (!settingsPage || !topBar) {
-    return;
-  }
-  appState.isSettingsPageOpen = Boolean(visible);
-  setRegionVisibility(settingsPage, appState.isSettingsPageOpen);
-  const conversationPanelToggle = topBar.querySelector('[data-bs-target="#conversationPanel"]');
-  if (openSettingsButton) {
-    openSettingsButton.setAttribute('aria-expanded', String(appState.isSettingsPageOpen));
-    openSettingsButton.classList.toggle('d-none', appState.isSettingsPageOpen);
-  }
-  if (conversationPanelToggle) {
-    conversationPanelToggle.classList.toggle('d-none', appState.isSettingsPageOpen);
-  }
-  if (appState.isSettingsPageOpen) {
-    setRegionVisibility(homePanel, false);
-    setRegionVisibility(preChatPanel, false);
-    setRegionVisibility(conversationPanel, false);
-    setRegionVisibility(chatTranscriptWrap, false);
-    setRegionVisibility(chatForm, false);
-    setRegionVisibility(topBar, true);
-    setActiveSettingsTab(appState.activeSettingsTab);
-    if (topBar instanceof HTMLElement) {
-      topBar.setAttribute('aria-label', 'Settings');
-      topBar.classList.toggle('top-bar-actions-only', !appState.hasStartedChatWorkspace);
-    }
-    if (syncRoute) {
-      syncRouteToCurrentView({ replace: replaceRoute });
-    }
-    return;
-  }
-
-  if (topBar) {
-    topBar.removeAttribute('aria-label');
-    topBar.classList.toggle('top-bar-actions-only', !appState.hasStartedChatWorkspace);
-  }
-  updateWelcomePanelVisibility({ syncRoute: false });
-  if (syncRoute) {
-    syncRouteToCurrentView({ replace: replaceRoute });
-  }
-}
-
-function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } = {}) {
-  if (appState.isSettingsPageOpen) {
-    return;
-  }
-  const previousView = appState.currentWorkspaceView;
-  const activeConversation = getActiveConversation();
-  const showHome = !appState.hasStartedChatWorkspace;
-  const showPreChat =
-    appState.hasStartedChatWorkspace && !appState.modelReady && !activeConversation;
-  const showChat =
-    appState.hasStartedChatWorkspace && (appState.modelReady || Boolean(activeConversation));
-  appState.currentWorkspaceView = showHome ? ROUTE_HOME : showPreChat ? 'prechat' : ROUTE_CHAT;
-  if (chatMain instanceof HTMLElement) {
-    chatMain.classList.toggle('is-home', showHome);
-    chatMain.classList.toggle('is-prechat', showPreChat);
-    chatMain.classList.toggle('is-chat', showChat);
-  }
-  setRegionVisibility(homePanel, showHome);
-  setRegionVisibility(preChatPanel, showPreChat);
-  setRegionVisibility(topBar, true);
-  if (topBar instanceof HTMLElement) {
-    topBar.classList.toggle('top-bar-actions-only', !appState.hasStartedChatWorkspace);
-  }
-  setRegionVisibility(conversationPanel, appState.hasStartedChatWorkspace);
-  const conversationPanelToggle = topBar?.querySelector('[data-bs-target="#conversationPanel"]');
-  if (conversationPanelToggle instanceof HTMLElement) {
-    conversationPanelToggle.classList.toggle('d-none', !appState.hasStartedChatWorkspace);
-  }
-  setRegionVisibility(chatTranscriptWrap, showChat);
-  updateComposerVisibility();
-  if (!showChat && appState.isChatTitleEditing) {
-    appState.isChatTitleEditing = false;
-  }
-  updateChatTitleEditorVisibility();
-  updateTranscriptNavigationButtonVisibility();
-  updateActionButtons();
-  updatePreChatStatusHint();
-  updatePreChatActionButtons();
-  if (appState.currentWorkspaceView !== previousView) {
-    if (showPreChat) {
-      playEntranceAnimation(preChatPanel);
-      playEntranceAnimation(chatForm, 'animate-dock');
-    } else if (showChat) {
-      playEntranceAnimation(topBar);
-      playEntranceAnimation(chatTranscriptWrap);
-      playEntranceAnimation(chatForm, 'animate-dock');
-    } else if (showHome) {
-      playEntranceAnimation(homePanel);
-    }
-  }
-  if (syncRoute) {
-    syncRouteToCurrentView({ replace: replaceRoute });
-  }
-}
-
 function updatePreChatActionButtons() {
   const activeConversation = getActiveConversation();
   const hasExistingConversation = hasConversationHistory(activeConversation);
@@ -2866,270 +2669,6 @@ function showLoadError(errorMessage) {
   modelLoadError.classList.remove('d-none');
 }
 
-function getStoredShowThinkingPreference() {
-  return localStorage.getItem(SHOW_THINKING_STORAGE_KEY) === 'true';
-}
-
-function getStoredToolCallingPreference() {
-  const stored = localStorage.getItem(ENABLE_TOOL_CALLING_STORAGE_KEY);
-  return stored === null ? true : stored === 'true';
-}
-
-function getStoredSingleKeyShortcutPreference() {
-  const stored = localStorage.getItem(SINGLE_KEY_SHORTCUTS_STORAGE_KEY);
-  return stored === null ? true : stored === 'true';
-}
-
-function getStoredTranscriptViewPreference() {
-  return localStorage.getItem(TRANSCRIPT_VIEW_STORAGE_KEY) === 'compact' ? 'compact' : 'standard';
-}
-
-function getStoredDefaultSystemPrompt() {
-  return normalizeSystemPrompt(localStorage.getItem(DEFAULT_SYSTEM_PROMPT_STORAGE_KEY));
-}
-
-function applyDefaultSystemPrompt(value, { persist = false } = {}) {
-  appState.defaultSystemPrompt = normalizeSystemPrompt(value);
-  if (defaultSystemPromptInput instanceof HTMLTextAreaElement) {
-    defaultSystemPromptInput.value = appState.defaultSystemPrompt;
-  }
-  if (persist) {
-    localStorage.setItem(DEFAULT_SYSTEM_PROMPT_STORAGE_KEY, appState.defaultSystemPrompt);
-  }
-}
-
-function applyShowThinkingPreference(value, { persist = false, refresh = false } = {}) {
-  appState.showThinkingByDefault = Boolean(value);
-  if (showThinkingToggle) {
-    showThinkingToggle.checked = appState.showThinkingByDefault;
-  }
-  if (persist) {
-    localStorage.setItem(SHOW_THINKING_STORAGE_KEY, String(appState.showThinkingByDefault));
-  }
-  if (refresh) {
-    refreshModelThinkingVisibility();
-  }
-}
-
-function applyToolCallingPreference(value, { persist = false } = {}) {
-  appState.enableToolCalling = Boolean(value);
-  if (enableToolCallingToggle instanceof HTMLInputElement) {
-    enableToolCallingToggle.checked = appState.enableToolCalling;
-  }
-  if (persist) {
-    localStorage.setItem(ENABLE_TOOL_CALLING_STORAGE_KEY, String(appState.enableToolCalling));
-  }
-}
-
-function applySingleKeyShortcutPreference(value, { persist = false } = {}) {
-  appState.enableSingleKeyShortcuts = Boolean(value);
-  if (enableSingleKeyShortcutsToggle instanceof HTMLInputElement) {
-    enableSingleKeyShortcutsToggle.checked = appState.enableSingleKeyShortcuts;
-  }
-  if (persist) {
-    localStorage.setItem(
-      SINGLE_KEY_SHORTCUTS_STORAGE_KEY,
-      String(appState.enableSingleKeyShortcuts)
-    );
-  }
-}
-
-function applyTranscriptViewPreference(value, { persist = false } = {}) {
-  appState.transcriptView = value === 'compact' ? 'compact' : 'standard';
-  if (transcriptViewSelect instanceof HTMLSelectElement) {
-    transcriptViewSelect.value = appState.transcriptView;
-  }
-  document.body.classList.toggle('transcript-compact', appState.transcriptView === 'compact');
-  if (persist) {
-    localStorage.setItem(TRANSCRIPT_VIEW_STORAGE_KEY, appState.transcriptView);
-  }
-}
-
-function getStoredThemePreference() {
-  const storedPreference = localStorage.getItem(THEME_STORAGE_KEY);
-  if (
-    storedPreference === 'light' ||
-    storedPreference === 'dark' ||
-    storedPreference === 'system'
-  ) {
-    return storedPreference;
-  }
-  return 'system';
-}
-
-function resolveTheme(preference) {
-  if (preference === 'system') {
-    return colorSchemeQuery.matches ? 'dark' : 'light';
-  }
-  return preference;
-}
-
-function applyTheme(preference) {
-  const resolvedTheme = resolveTheme(preference);
-  document.documentElement.setAttribute('data-theme', resolvedTheme);
-  document.documentElement.setAttribute('data-bs-theme', resolvedTheme);
-  if (themeSelect) {
-    themeSelect.value = preference;
-  }
-}
-
-function populateModelSelect() {
-  if (!modelSelect) {
-    return;
-  }
-  const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-  const selectedModel = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
-  const webGpuAvailable = getWebGpuAvailability();
-  modelSelect.replaceChildren();
-  MODEL_OPTIONS.forEach((model) => {
-    const option = document.createElement('option');
-    option.value = model.id;
-    const availability = getModelAvailability(model.id, {
-      backendPreference: selectedBackend,
-      webGpuAvailable,
-    });
-    option.disabled = !availability.available;
-    option.textContent =
-      model.runtime?.requiresWebGpu && !availability.available
-        ? `${model.label}${WEBGPU_REQUIRED_MODEL_SUFFIX}`
-        : model.label;
-    modelSelect.appendChild(option);
-  });
-  modelSelect.value = getAvailableModelId(selectedModel, selectedBackend);
-}
-
-function normalizeBackendPreference(value) {
-  const normalized = normalizeSupportedBackendPreference(value);
-  if (SUPPORTED_BACKEND_PREFERENCES.has(normalized)) {
-    return normalized;
-  }
-  return 'auto';
-}
-
-function formatBackendPreferenceLabel(value) {
-  if (value === 'webgpu') {
-    return 'WebGPU only';
-  }
-  if (value === 'wasm') {
-    return 'WASM only';
-  }
-  if (value === 'cpu') {
-    return 'CPU only';
-  }
-  return 'Auto';
-}
-
-function getAvailableModelId(
-  modelId,
-  backendPreference = normalizeBackendPreference(backendSelect?.value || 'auto')
-) {
-  const normalizedModelId = normalizeModelId(modelId);
-  const availability = getModelAvailability(normalizedModelId, {
-    backendPreference,
-    webGpuAvailable: getWebGpuAvailability(),
-  });
-  if (availability.available) {
-    return normalizedModelId;
-  }
-  return getFirstAvailableModelId({
-    backendPreference,
-    webGpuAvailable: getWebGpuAvailability(),
-  });
-}
-
-function syncModelSelectionForCurrentEnvironment({ announceFallback = false } = {}) {
-  if (!modelSelect) {
-    return DEFAULT_MODEL;
-  }
-
-  const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-  const requestedModelId = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
-
-  populateModelSelect();
-
-  const selectedModelId = getAvailableModelId(requestedModelId, selectedBackend);
-  if (modelSelect.value !== selectedModelId) {
-    modelSelect.value = selectedModelId;
-  }
-
-  if (announceFallback && selectedModelId !== requestedModelId) {
-    const requestedModel = MODEL_OPTIONS_BY_ID.get(requestedModelId);
-    const availability = getModelAvailability(requestedModelId, {
-      backendPreference: selectedBackend,
-      webGpuAvailable: getWebGpuAvailability(),
-    });
-    if (requestedModel?.runtime?.requiresWebGpu) {
-      setStatus(
-        `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`
-      );
-    }
-  }
-
-  return selectedModelId;
-}
-
-function getWebGpuAvailability() {
-  if (appState.webGpuProbeCompleted) {
-    return appState.webGpuAdapterAvailable;
-  }
-  return browserSupportsWebGpu();
-}
-
-async function probeWebGpuAvailability() {
-  if (!browserSupportsWebGpu()) {
-    appState.webGpuProbeCompleted = true;
-    appState.webGpuAdapterAvailable = false;
-    const selectedModel = syncModelSelectionForCurrentEnvironment();
-    syncGenerationSettingsFromModel(selectedModel, true);
-    return false;
-  }
-
-  try {
-    const adapter = await navigator.gpu.requestAdapter();
-    appState.webGpuProbeCompleted = true;
-    appState.webGpuAdapterAvailable = Boolean(adapter);
-  } catch (error) {
-    appState.webGpuProbeCompleted = true;
-    appState.webGpuAdapterAvailable = false;
-    appendDebug(
-      `WebGPU adapter probe failed: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-
-  const previousModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
-  const selectedModel = syncModelSelectionForCurrentEnvironment();
-  syncGenerationSettingsFromModel(selectedModel, true);
-
-  if (
-    previousModelId !== selectedModel &&
-    MODEL_OPTIONS_BY_ID.get(previousModelId)?.runtime?.requiresWebGpu &&
-    !appState.webGpuAdapterAvailable
-  ) {
-    setStatus(
-      `${previousModelId} is unavailable because no usable WebGPU adapter was found. Switched to ${selectedModel}.`
-    );
-  }
-
-  return appState.webGpuAdapterAvailable;
-}
-
-function restoreInferencePreferences() {
-  const storedModel = localStorage.getItem(MODEL_STORAGE_KEY);
-  const storedBackend = localStorage.getItem(BACKEND_STORAGE_KEY);
-  if (modelSelect && storedModel) {
-    const normalizedModel = normalizeModelId(storedModel);
-    modelSelect.value = normalizedModel;
-    localStorage.setItem(MODEL_STORAGE_KEY, normalizedModel);
-  }
-  if (backendSelect && storedBackend) {
-    const normalizedBackend = normalizeBackendPreference(storedBackend);
-    backendSelect.value = normalizedBackend;
-    localStorage.setItem(BACKEND_STORAGE_KEY, normalizedBackend);
-  }
-  const selectedModel = syncModelSelectionForCurrentEnvironment();
-  syncGenerationSettingsFromModel(selectedModel, true);
-}
-
 function getThinkingTagsForModel(modelId) {
   return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.thinkingTags || null;
 }
@@ -3147,6 +2686,99 @@ function getRuntimeConfigForModel(modelId) {
     ...(multimodalGeneration && features.videoInput ? { videoInput: true } : {}),
   };
 }
+
+const routingShell = createRoutingShell({
+  appState,
+  routeHome: ROUTE_HOME,
+  routeChat: ROUTE_CHAT,
+  routeSettings: ROUTE_SETTINGS,
+  windowRef: window,
+  selectCurrentViewRoute,
+  getActiveConversation,
+  setRegionVisibility,
+  settingsPage,
+  homePanel,
+  preChatPanel,
+  topBar,
+  conversationPanel,
+  chatTranscriptWrap,
+  chatForm,
+  chatMain,
+  openSettingsButton,
+  settingsTabButtons,
+  settingsTabPanels,
+  updateComposerVisibility,
+  updateChatTitleEditorVisibility,
+  updateTranscriptNavigationButtonVisibility,
+  updateActionButtons,
+  updatePreChatStatusHint,
+  updatePreChatActionButtons,
+  playEntranceAnimation,
+});
+
+const {
+  applyRouteFromHash,
+  setActiveSettingsTab,
+  setSettingsPageVisibility,
+  updateWelcomePanelVisibility,
+} = routingShell;
+
+const preferencesController = createPreferencesController({
+  appState,
+  storage: localStorage,
+  navigatorRef: navigator,
+  documentRef: document,
+  themeStorageKey: THEME_STORAGE_KEY,
+  showThinkingStorageKey: SHOW_THINKING_STORAGE_KEY,
+  enableToolCallingStorageKey: ENABLE_TOOL_CALLING_STORAGE_KEY,
+  singleKeyShortcutsStorageKey: SINGLE_KEY_SHORTCUTS_STORAGE_KEY,
+  transcriptViewStorageKey: TRANSCRIPT_VIEW_STORAGE_KEY,
+  defaultSystemPromptStorageKey: DEFAULT_SYSTEM_PROMPT_STORAGE_KEY,
+  modelStorageKey: MODEL_STORAGE_KEY,
+  backendStorageKey: BACKEND_STORAGE_KEY,
+  supportedBackendPreferences: SUPPORTED_BACKEND_PREFERENCES,
+  webGpuRequiredModelSuffix: WEBGPU_REQUIRED_MODEL_SUFFIX,
+  themeSelect,
+  showThinkingToggle,
+  enableToolCallingToggle,
+  enableSingleKeyShortcutsToggle,
+  transcriptViewSelect,
+  defaultSystemPromptInput,
+  modelSelect,
+  backendSelect,
+  colorSchemeQuery,
+  refreshModelThinkingVisibility,
+  getRuntimeConfigForModel,
+  syncGenerationSettingsFromModel,
+  persistGenerationConfigForModel,
+  setStatus,
+  appendDebug,
+});
+
+const {
+  applyDefaultSystemPrompt,
+  applyShowThinkingPreference,
+  applyTheme,
+  applyToolCallingPreference,
+  applyTranscriptViewPreference,
+  applySingleKeyShortcutPreference,
+  formatBackendPreferenceLabel,
+  getAvailableModelId,
+  getStoredDefaultSystemPrompt,
+  getStoredShowThinkingPreference,
+  getStoredSingleKeyShortcutPreference,
+  getStoredThemePreference,
+  getStoredToolCallingPreference,
+  getStoredTranscriptViewPreference,
+  getWebGpuAvailability,
+  normalizeBackendPreference,
+  persistInferencePreferences,
+  populateModelSelect,
+  probeWebGpuAvailability,
+  readEngineConfigFromUI,
+  restoreInferencePreferences,
+  syncModelSelectionForCurrentEnvironment,
+} = preferencesController;
 
 function parseThinkingText(rawText, thinkingTags) {
   const text = String(rawText || '');
@@ -3191,38 +2823,6 @@ function parseThinkingText(rawText, thinkingTags) {
   return { response, thoughts, hasThinking, isThinkingComplete };
 }
 
-function readEngineConfigFromUI() {
-  const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-  const selectedModel = getAvailableModelId(modelSelect?.value || DEFAULT_MODEL, selectedBackend);
-  if (modelSelect && modelSelect.value !== selectedModel) {
-    modelSelect.value = selectedModel;
-  }
-  if (backendSelect && backendSelect.value !== selectedBackend) {
-    backendSelect.value = selectedBackend;
-  }
-  syncGenerationSettingsFromModel(selectedModel, false);
-  return {
-    modelId: selectedModel,
-    backendPreference: selectedBackend,
-    runtime: getRuntimeConfigForModel(selectedModel),
-    generationConfig: appState.activeGenerationConfig,
-  };
-}
-
-function persistInferencePreferences() {
-  const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-  const selectedModel = getAvailableModelId(modelSelect?.value || DEFAULT_MODEL, selectedBackend);
-  if (modelSelect && modelSelect.value !== selectedModel) {
-    modelSelect.value = selectedModel;
-  }
-  if (backendSelect && backendSelect.value !== selectedBackend) {
-    backendSelect.value = selectedBackend;
-  }
-  localStorage.setItem(MODEL_STORAGE_KEY, selectedModel);
-  localStorage.setItem(BACKEND_STORAGE_KEY, selectedBackend);
-  persistGenerationConfigForModel(selectedModel, appState.activeGenerationConfig);
-}
-
 const runOrchestration = createOrchestrationRunner({
   generateText: requestSingleGeneration,
   formatStepOutput: (step, rawOutput) => {
@@ -3238,8 +2838,8 @@ const appController = createAppController({
   runOrchestration,
   renameOrchestration: RENAME_CHAT_ORCHESTRATION,
   fixOrchestration: FIX_RESPONSE_ORCHESTRATION,
-  readEngineConfig: readEngineConfigFromUI,
-  persistInferencePreferences,
+  readEngineConfig: () => readEngineConfigFromUI(appState.activeGenerationConfig),
+  persistInferencePreferences: () => persistInferencePreferences(appState.activeGenerationConfig),
   getActiveConversation,
   findConversationById,
   hasSelectedConversationWithHistory,
@@ -4244,7 +3844,7 @@ if (chatForm && messageInput && chatTranscript) {
     });
 
     if (!appState.modelReady || getLoadedModelId() !== activeConversationModelId) {
-      persistInferencePreferences();
+      persistInferencePreferences(appState.activeGenerationConfig);
       setStatus(
         appState.modelReady ? 'Switching models for this conversation...' : 'Loading model for your first message...'
       );
