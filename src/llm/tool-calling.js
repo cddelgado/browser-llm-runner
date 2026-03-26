@@ -1,6 +1,7 @@
 export const TOOL_DEFINITIONS = Object.freeze([
   {
     name: 'get_current_date_time',
+    displayName: 'Get Date and Time',
     description:
       'Returns the current local date and time for this browser session, plus a UTC ISO timestamp and timezone name.',
     enabled: true,
@@ -12,8 +13,36 @@ export const TOOL_DEFINITIONS = Object.freeze([
   },
 ]);
 
+function humanizeToolName(toolName) {
+  const normalizedName = typeof toolName === 'string' ? toolName.trim() : '';
+  if (!normalizedName) {
+    return 'Unknown Tool';
+  }
+  return normalizedName
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
 export function getEnabledToolDefinitions() {
   return TOOL_DEFINITIONS.filter((tool) => tool?.enabled === true);
+}
+
+export function getToolDefinitionByName(toolName) {
+  const normalizedName = typeof toolName === 'string' ? toolName.trim() : '';
+  if (!normalizedName) {
+    return null;
+  }
+  return TOOL_DEFINITIONS.find((tool) => tool?.name === normalizedName) || null;
+}
+
+export function getToolDisplayName(toolName) {
+  const displayName = getToolDefinitionByName(toolName)?.displayName;
+  return typeof displayName === 'string' && displayName.trim()
+    ? displayName.trim()
+    : humanizeToolName(toolName);
 }
 
 export function getEnabledToolNames() {

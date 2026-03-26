@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { buildToolCallingSystemPrompt, executeToolCall, sniffToolCalls } from '../../src/llm/tool-calling.js';
+import {
+  buildToolCallingSystemPrompt,
+  executeToolCall,
+  getToolDisplayName,
+  sniffToolCalls,
+} from '../../src/llm/tool-calling.js';
 
 describe('tool-calling prompt builder', () => {
   test('builds the Llama json tool-calling prompt', () => {
@@ -64,6 +69,11 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toContain(
       'Use this shape inside the wrapper: tool_name(arg1="value1", arg2="value2").'
     );
+  });
+
+  test('returns a friendly tool display name', () => {
+    expect(getToolDisplayName('get_current_date_time')).toBe('Get Date and Time');
+    expect(getToolDisplayName('lookup_fact')).toBe('Lookup Fact');
   });
 
   test('lists none when no tools are enabled', () => {

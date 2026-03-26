@@ -8,6 +8,7 @@ export function createTranscriptView(dependencies) {
     getUserVariantState,
     renderModelMarkdown,
     scheduleMathTypeset,
+    getToolDisplayName,
     getShowThinkingByDefault,
     getActiveUserEditMessageId,
     getControlsState,
@@ -23,6 +24,8 @@ export function createTranscriptView(dependencies) {
   } = dependencies;
   const documentRef = container?.ownerDocument || document;
   const view = documentRef.defaultView || window;
+  const resolveToolDisplayName =
+    typeof getToolDisplayName === 'function' ? getToolDisplayName : (toolName) => String(toolName || 'Unknown Tool');
 
   function getUserImageParts(message) {
     const rawParts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
@@ -123,12 +126,27 @@ export function createTranscriptView(dependencies) {
     );
   }
 
+  function formatToolStructuredText(text) {
+    const normalizedText = String(text || '').trim();
+    if (!normalizedText) {
+      return '';
+    }
+    if (normalizedText.startsWith('{') && normalizedText.endsWith('}')) {
+      try {
+        return JSON.stringify(JSON.parse(normalizedText), null, 2);
+      } catch {
+        return normalizedText;
+      }
+    }
+    return normalizedText;
+  }
+
   function formatToolResultText(toolMessages) {
     if (!Array.isArray(toolMessages) || !toolMessages.length) {
       return '';
     }
     return toolMessages
-      .map((message) => String(message.toolResult || message.text || '').trim())
+      .map((message) => formatToolStructuredText(message.toolResult || message.text || ''))
       .filter(Boolean)
       .join('\n\n');
   }
@@ -149,6 +167,11 @@ export function createTranscriptView(dependencies) {
     }
 
     const isExpanded = refs.toolCallToggle.getAttribute('aria-expanded') === 'true';
+    const primaryToolName =
+      typeof toolCalls[0]?.name === 'string' && toolCalls[0].name.trim() ? toolCalls[0].name.trim() : '';
+    const toolLabel = primaryToolName ? resolveToolDisplayName(primaryToolName) : 'Unknown Tool';
+    refs.toolCallToggle.textContent = `🛠️ Tool Call: ${toolLabel}`;
+    refs.toolCallToggle.setAttribute('aria-label', `Tool call details for ${toolLabel}`);
     refs.toolCallToggle.setAttribute('aria-expanded', String(isExpanded));
     refs.toolCallBody.hidden = !isExpanded;
     refs.toolCallRequest.textContent = toolCalls.map(formatToolCallText).filter(Boolean).join('\n\n');
@@ -243,17 +266,17 @@ export function createTranscriptView(dependencies) {
             <h3 class="visually-hidden">Tool call</h3>
             <button
               type="button"
-              class="btn btn-sm btn-outline-primary tool-call-toggle"
+              class="btn btn-sm tool-call-toggle"
               aria-expanded="false"
             >
               🛠️ Tool Call
             </button>
             <div class="tool-call-body mt-2" hidden>
               <p class="mb-1 fw-semibold">Request</p>
-              <pre class="tool-call-request mb-2"></pre>
+              <pre class="tool-call-panel tool-call-request mb-2"></pre>
               <section class="tool-call-result-section" hidden>
                 <p class="mb-1 fw-semibold">Response</p>
-                <pre class="tool-call-result mb-0"></pre>
+                <pre class="tool-call-panel tool-call-result mb-0"></pre>
               </section>
             </div>
           </section>

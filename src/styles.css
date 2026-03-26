@@ -943,6 +943,31 @@
   border-color: var(--action-btn-hover-bg);
 }
 
+.tool-call-toggle {
+  color: var(--action-btn-text);
+  border: 1px solid var(--action-btn-border);
+  background: color-mix(in srgb, var(--surface-elevated) 82%, var(--action-btn-text) 18%);
+  font-weight: 700;
+}
+
+.tool-call-toggle:hover,
+.tool-call-toggle:focus-visible {
+  color: var(--action-btn-hover-text);
+  background: color-mix(in srgb, var(--action-btn-hover-bg) 78%, var(--surface-elevated));
+  border-color: var(--action-btn-hover-bg);
+}
+
+.tool-call-panel {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .response-actions .btn .bi,
 .conversation-menu-toggle .bi {
   font-size: 0.95rem;

@@ -74,6 +74,7 @@ describe('transcript-view', () => {
       }),
       renderModelMarkdown: (content) => `<p>${content}</p>`,
       scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => (toolName === 'get_weather' ? 'Get Weather' : toolName),
       getShowThinkingByDefault: () => false,
       getActiveUserEditMessageId: () => null,
       getControlsState: () => ({
@@ -131,6 +132,7 @@ describe('transcript-view', () => {
       }),
       renderModelMarkdown: (content) => `<p>${content}</p>`,
       scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => toolName,
       getShowThinkingByDefault: () => false,
       getActiveUserEditMessageId: () => 'user-1',
       getControlsState: () => ({
@@ -171,9 +173,9 @@ describe('transcript-view', () => {
       id: 'tool-1',
       role: 'tool',
       speaker: 'Tool',
-      text: '72 F and sunny.',
+      text: '{"temperature":72,"summary":"72 F and sunny."}',
       toolName: 'get_weather',
-      toolResult: '72 F and sunny.',
+      toolResult: '{"temperature":72,"summary":"72 F and sunny."}',
       parentId: 'model-1',
     };
     harness.conversation.messageNodes.push(toolMessage);
@@ -201,6 +203,7 @@ describe('transcript-view', () => {
       }),
       renderModelMarkdown: (content) => `<p>${content}</p>`,
       scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => (toolName === 'get_weather' ? 'Get Weather' : toolName),
       getShowThinkingByDefault: () => false,
       getActiveUserEditMessageId: () => null,
       getControlsState: () => ({
@@ -225,11 +228,12 @@ describe('transcript-view', () => {
     expect(harness.container.querySelectorAll('.message-row')).toHaveLength(2);
     expect(harness.container.querySelector('.tool-message')).toBeNull();
     const toggle = harness.container.querySelector('.tool-call-toggle');
-    expect(toggle?.textContent).toContain('🛠️ Tool Call');
+    expect(toggle?.textContent).toContain('🛠️ Tool Call: Get Weather');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     toggle?.dispatchEvent(new harness.document.defaultView.Event('click', { bubbles: true }));
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     expect(harness.container.querySelector('.tool-call-request')?.textContent).toContain('"name": "get_weather"');
+    expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain('"temperature": 72');
     expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain('72 F and sunny.');
   });
 });

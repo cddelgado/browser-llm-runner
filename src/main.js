@@ -12,6 +12,7 @@ import {
   executeToolCall,
   getEnabledToolDefinitions,
   getEnabledToolNames,
+  getToolDisplayName,
   sniffToolCalls,
 } from './llm/tool-calling.js';
 import renameChatOrchestration from './config/orchestrations/rename-chat.json';
@@ -805,7 +806,20 @@ async function handleMessageCopyAction(messageId, copyType) {
   if (copyType === 'thoughts') {
     textToCopy = message.role === 'model' ? String(message.thoughts || '') : '';
   } else if (copyType === 'response') {
-    textToCopy = message.role === 'model' ? String(message.response || message.text || '') : '';
+    if (message.role === 'model') {
+      const toolResultTexts = Array.isArray(message.childIds)
+        ? message.childIds
+            .map((childId) => getMessageNodeById(activeConversation, childId))
+            .filter((childMessage) => childMessage?.role === 'tool')
+            .map((toolMessage) => String(toolMessage.toolResult || toolMessage.text || '').trim())
+            .filter(Boolean)
+        : [];
+      textToCopy = [String(message.response || message.text || '').trim(), ...toolResultTexts]
+        .filter(Boolean)
+        .join('\n\n');
+    } else {
+      textToCopy = '';
+    }
   } else {
     textToCopy = String(message.text || '');
   }
@@ -2275,6 +2289,7 @@ const transcriptView = createTranscriptView({
   getUserVariantState,
   renderModelMarkdown,
   scheduleMathTypeset,
+  getToolDisplayName,
   getShowThinkingByDefault: () => appState.showThinkingByDefault,
   getActiveUserEditMessageId: () => appState.activeUserEditMessageId,
   getControlsState: () => ({
