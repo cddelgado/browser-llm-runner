@@ -13,6 +13,7 @@ This module is the pure domain layer for:
 - pruning descendants after user edits
 - building structured prompts for inference
 - building conversation export payloads and Markdown output
+- preserving model-emitted tool calls and `tool` role execution results
 
 It must not depend on:
 
@@ -32,6 +33,7 @@ Keeping this logic pure allows focused unit tests for:
 - edit pruning behavior
 - system prompt composition
 - tool-calling prompt suffix composition
+- tool-call persistence and export payload generation
 - export payload generation
 
 ## What remains in `src/main.js`

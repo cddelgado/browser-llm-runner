@@ -7,6 +7,7 @@ Rendering-heavy DOM code is now split into small view modules under `src/ui/`.
 - `src/ui/transcript-view.js`
   - transcript message rendering
   - per-message DOM updates for model and user rows
+  - inline disclosure rendering for emitted tool calls and tool results
   - transcript empty state
 - `src/ui/conversation-list-view.js`
   - conversation sidebar list rendering
