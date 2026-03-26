@@ -11,6 +11,7 @@ import { createPreferencesController } from './app/preferences.js';
 import { createRoutingShell } from './app/routing-shell.js';
 import { bindShellEvents } from './app/shell-events.js';
 import { bindSettingsEvents } from './app/settings-events.js';
+import { createShortcutHandlers } from './app/shortcut-events.js';
 import { bindTranscriptEvents } from './app/transcript-events.js';
 import { LLMEngineClient } from './llm/engine-client.js';
 import { createOrchestrationRunner } from './llm/orchestration-runner.js';
@@ -389,42 +390,8 @@ function playEntranceAnimation(element, className = 'animate-in') {
   }, 450);
 }
 
-function isEditableElement(element) {
-  return (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement ||
-    element instanceof HTMLSelectElement ||
-    Boolean(element instanceof HTMLElement && element.isContentEditable)
-  );
-}
-
 function isAnyModalOpen() {
   return Boolean(document.querySelector('.modal.show'));
-}
-
-function isShortcutTriggerAllowed(element) {
-  return !isEditableElement(element) && !isAnyModalOpen();
-}
-
-function clickShortcutTarget(target) {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (target.classList.contains('d-none') || target.closest('.d-none')) {
-    return false;
-  }
-  if (target.hasAttribute('disabled') || target.getAttribute('aria-disabled') === 'true') {
-    return false;
-  }
-  if (target.tagName === 'A') {
-    target.click();
-    return true;
-  }
-  if (target instanceof HTMLButtonElement) {
-    target.click();
-    return true;
-  }
-  return false;
 }
 
 function findConversationMenuButton(conversationId, selector) {
@@ -548,231 +515,6 @@ function closeKeyboardShortcuts() {
   if (modalInstance) {
     modalInstance.hide();
   }
-}
-
-function getFocusedMessageShortcutContext() {
-  const activeElement = document.activeElement;
-  if (!(activeElement instanceof Element)) {
-    return null;
-  }
-  const messageRow = activeElement.closest('.message-row');
-  if (!(messageRow instanceof HTMLElement)) {
-    return null;
-  }
-  const messageId = messageRow.dataset.messageId;
-  if (!messageId) {
-    return null;
-  }
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) {
-    return null;
-  }
-  const message = getMessageNodeById(activeConversation, messageId);
-  if (!message) {
-    return null;
-  }
-  return { activeConversation, message, messageRow };
-}
-
-function handleFocusedMessageShortcut(event) {
-  if (!isShortcutTriggerAllowed(event.target)) {
-    return false;
-  }
-  if (!appState.enableSingleKeyShortcuts) {
-    return false;
-  }
-  const context = getFocusedMessageShortcutContext();
-  if (!context) {
-    return false;
-  }
-  const { message, messageRow } = context;
-  const normalizedKey = String(event.key || '').toLowerCase();
-  if (event.altKey || event.ctrlKey || event.metaKey) {
-    return false;
-  }
-  if (event.key === '[') {
-    event.preventDefault();
-    if (message.role === 'model') {
-      switchModelVariant(message.id, -1);
-      return true;
-    }
-    if (message.role === 'user') {
-      switchUserVariant(message.id, -1);
-      return true;
-    }
-    return false;
-  }
-  if (event.key === ']') {
-    event.preventDefault();
-    if (message.role === 'model') {
-      switchModelVariant(message.id, 1);
-      return true;
-    }
-    if (message.role === 'user') {
-      switchUserVariant(message.id, 1);
-      return true;
-    }
-    return false;
-  }
-  if (message.role === 'model') {
-    if (normalizedKey === SHORTCUT_KEY.regenerate) {
-      event.preventDefault();
-      appController.regenerateFromMessage(message.id);
-      return true;
-    }
-    if (normalizedKey === SHORTCUT_KEY.fix) {
-      event.preventDefault();
-      void appController.fixResponseFromMessage(message.id);
-      return true;
-    }
-    if (normalizedKey === SHORTCUT_KEY.copy) {
-      event.preventDefault();
-      void handleMessageCopyAction(message.id, event.shiftKey ? 'thoughts' : 'response');
-      return true;
-    }
-    return false;
-  }
-  if (message.role === 'user') {
-    if (normalizedKey === SHORTCUT_KEY.edit) {
-      event.preventDefault();
-      beginUserMessageEdit(message.id);
-      return true;
-    }
-    if (normalizedKey === SHORTCUT_KEY.branch) {
-      event.preventDefault();
-      branchFromUserMessage(message.id);
-      return true;
-    }
-    if (normalizedKey === SHORTCUT_KEY.copy) {
-      event.preventDefault();
-      void handleMessageCopyAction(message.id, 'message');
-      return true;
-    }
-    const editor = messageRow.querySelector('.user-message-editor');
-    if (
-      editor instanceof HTMLTextAreaElement &&
-      document.activeElement === editor &&
-      normalizedKey === SHORTCUT_KEY.edit
-    ) {
-      return false;
-    }
-  }
-  return false;
-}
-
-function handleGlobalShortcut(event) {
-  const normalizedKey = String(event.key || '').toLowerCase();
-  const target = event.target;
-  const editableTarget = isEditableElement(target);
-
-  if (event.ctrlKey && !event.altKey && !event.metaKey && normalizedKey === '/') {
-    event.preventDefault();
-    if (isAnyModalOpen() && keyboardShortcutsModal?.classList.contains('show')) {
-      closeKeyboardShortcuts();
-      return true;
-    }
-    if (isAnyModalOpen()) {
-      return false;
-    }
-    openKeyboardShortcuts(target instanceof HTMLElement ? target : null);
-    return true;
-  }
-
-  if (event.ctrlKey && !event.altKey && !event.metaKey && normalizedKey === 'enter') {
-    if (
-      document.activeElement === messageInput &&
-      sendButton instanceof HTMLButtonElement &&
-      !sendButton.disabled
-    ) {
-      event.preventDefault();
-      sendButton.click();
-      return true;
-    }
-    return false;
-  }
-
-  if (editableTarget || isAnyModalOpen()) {
-    return false;
-  }
-
-  if (!event.altKey || event.ctrlKey || event.metaKey) {
-    return false;
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.settings) {
-    event.preventDefault();
-    if (isSettingsView(appState)) {
-      setSettingsPageVisibility(false, { replaceRoute: false });
-      if (openSettingsButton instanceof HTMLButtonElement) {
-        openSettingsButton.focus();
-      }
-    } else if (openSettingsButton instanceof HTMLButtonElement && !openSettingsButton.disabled) {
-      openSettingsButton.click();
-    }
-    return true;
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.help) {
-    event.preventDefault();
-    return clickShortcutTarget(document.getElementById('openHelpButton'));
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.newConversation) {
-    event.preventDefault();
-    if (!selectHasStartedWorkspace(appState)) {
-      return clickShortcutTarget(startConversationButton);
-    }
-    return clickShortcutTarget(newConversationBtn);
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.loadModel) {
-    event.preventDefault();
-    return clickShortcutTarget(preChatLoadModelBtn);
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.jumpPrompt) {
-    event.preventDefault();
-    return clickShortcutTarget(jumpToPreviousUserButton);
-  }
-
-  if (event.shiftKey && normalizedKey === SHORTCUT_KEY.jumpLatest) {
-    event.preventDefault();
-    downloadActiveConversationBranchAsJson();
-    return true;
-  }
-
-  if (event.shiftKey && normalizedKey === 'm') {
-    event.preventDefault();
-    downloadActiveConversationBranchAsMarkdown();
-    return true;
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.jumpLatest) {
-    event.preventDefault();
-    return clickShortcutTarget(jumpToLatestButton);
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.systemPrompt) {
-    event.preventDefault();
-    if (getActiveConversation()) {
-      beginConversationSystemPromptEdit();
-      return true;
-    }
-    return clickShortcutTarget(preChatEditConversationSystemPromptBtn);
-  }
-
-  if (normalizedKey === SHORTCUT_KEY.title) {
-    event.preventDefault();
-    beginChatTitleEdit();
-    return true;
-  }
-
-  if (normalizedKey === '.' && isGeneratingResponse(appState)) {
-    event.preventDefault();
-    return clickShortcutTarget(sendButton);
-  }
-
-  return false;
 }
 
 async function copyTextToClipboard(text) {
@@ -2895,6 +2637,42 @@ const appController = createAppController({
   showLoadError,
   applyPendingGenerationSettingsIfReady,
   markActiveIncompleteModelMessageComplete,
+});
+
+const { handleFocusedMessageShortcut, handleGlobalShortcut } = createShortcutHandlers({
+  appState,
+  documentRef: document,
+  keyboardShortcutsModal,
+  shortcutKeys: SHORTCUT_KEY,
+  isAnyModalOpen,
+  openKeyboardShortcuts,
+  closeKeyboardShortcuts,
+  messageInput,
+  sendButton,
+  isSettingsView,
+  setSettingsPageVisibility,
+  openSettingsButton,
+  hasStartedWorkspace: selectHasStartedWorkspace,
+  startConversationButton,
+  newConversationBtn,
+  preChatLoadModelBtn,
+  jumpToPreviousUserButton,
+  jumpToLatestButton,
+  downloadActiveConversationBranchAsJson,
+  downloadActiveConversationBranchAsMarkdown,
+  getActiveConversation,
+  beginConversationSystemPromptEdit,
+  preChatEditConversationSystemPromptBtn,
+  beginChatTitleEdit,
+  isGeneratingResponse,
+  getMessageNodeById,
+  switchModelVariant,
+  switchUserVariant,
+  regenerateFromMessage: (messageId) => appController.regenerateFromMessage(messageId),
+  fixResponseFromMessage: (messageId) => appController.fixResponseFromMessage(messageId),
+  handleMessageCopyAction,
+  beginUserMessageEdit,
+  branchFromUserMessage,
 });
 
 function animateVariantSwitch(outgoingMessageId, incomingMessageId, direction, options = {}) {
