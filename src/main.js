@@ -4,11 +4,13 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import MarkdownIt from 'markdown-it';
+import { bindComposerEvents } from './app/composer-events.js';
 import './styles.css';
 import { bindConversationListEvents } from './app/conversation-list-events.js';
 import { createPreferencesController } from './app/preferences.js';
 import { createRoutingShell } from './app/routing-shell.js';
 import { bindSettingsEvents } from './app/settings-events.js';
+import { bindTranscriptEvents } from './app/transcript-events.js';
 import { LLMEngineClient } from './llm/engine-client.js';
 import { createOrchestrationRunner } from './llm/orchestration-runner.js';
 import {
@@ -3381,319 +3383,72 @@ bindConversationListEvents({
   setActiveConversationById,
 });
 
-if (sendButton) {
-  sendButton.addEventListener('click', async (event) => {
-    if (!isGeneratingResponse(appState)) {
-      return;
-    }
-    event.preventDefault();
-    await appController.stopGeneration();
-  });
-}
+bindComposerEvents({
+  appState,
+  chatForm,
+  messageInput,
+  sendButton,
+  addImagesButton,
+  imageAttachmentInput,
+  composerAttachmentTray,
+  isGeneratingResponse,
+  isOrchestrationRunningState,
+  isMessageEditActive,
+  isEngineReady,
+  hasStartedWorkspace: selectHasStartedWorkspace,
+  setChatWorkspaceStarted,
+  updateWelcomePanelVisibility,
+  getPendingComposerAttachments,
+  selectedModelSupportsImageInput,
+  createComposerAttachmentFromFile,
+  renderComposerAttachments,
+  setStatus,
+  clearPendingComposerAttachments,
+  createConversation,
+  clearUserMessageEditSession,
+  setChatTitleEditing,
+  renderConversationList,
+  renderTranscript,
+  updateChatTitle,
+  queueConversationStateSave,
+  getActiveConversation,
+  syncConversationModelSelection,
+  getLoadedModelId,
+  persistInferencePreferences,
+  initializeEngine: () => appController.initializeEngine(),
+  appendDebug,
+  buildUserMessageAttachmentPayload,
+  addMessageToConversation,
+  addMessageElement,
+  buildPromptForActiveConversation,
+  startModelGeneration: (conversation, prompt, options) =>
+    appController.startModelGeneration(conversation, prompt, options),
+  stopGeneration: () => appController.stopGeneration(),
+});
 
-if (messageInput instanceof HTMLTextAreaElement) {
-  messageInput.addEventListener('keydown', (event) => {
-    if (
-      event.key !== 'Enter' ||
-      event.shiftKey ||
-      event.ctrlKey ||
-      event.altKey ||
-      event.metaKey ||
-      event.isComposing
-    ) {
-      return;
-    }
-    if (messageInput.disabled || sendButton?.hasAttribute('disabled')) {
-      return;
-    }
-    event.preventDefault();
-    if (sendButton instanceof HTMLButtonElement) {
-      sendButton.click();
-      return;
-    }
-    if (chatForm && typeof chatForm.requestSubmit === 'function') {
-      chatForm.requestSubmit();
-    }
-  });
-}
-
-if (
-  addImagesButton instanceof HTMLButtonElement &&
-  imageAttachmentInput instanceof HTMLInputElement
-) {
-  addImagesButton.addEventListener('click', () => {
-    if (!selectedModelSupportsImageInput()) {
-      return;
-    }
-    imageAttachmentInput.click();
-  });
-
-  imageAttachmentInput.addEventListener('change', async (event) => {
-    if (!selectedModelSupportsImageInput()) {
-      imageAttachmentInput.value = '';
-      return;
-    }
-    const files =
-      event.target instanceof HTMLInputElement ? Array.from(event.target.files || []) : [];
-    if (!files.length) {
-      return;
-    }
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-    if (!imageFiles.length) {
-      setStatus('Only image files can be attached.');
-      clearPendingComposerAttachments({ resetInput: true });
-      return;
-    }
-    try {
-      const nextAttachments = await Promise.all(
-        imageFiles.map((file) => createComposerAttachmentFromFile(file))
-      );
-      appState.pendingComposerAttachments = [
-        ...getPendingComposerAttachments(),
-        ...nextAttachments,
-      ];
-      renderComposerAttachments();
-      setStatus(
-        `${nextAttachments.length} image${nextAttachments.length === 1 ? '' : 's'} attached.`
-      );
-    } catch (error) {
-      setStatus(
-        `Unable to read selected images. ${error instanceof Error ? error.message : 'Try again.'}`
-      );
-    } finally {
-      imageAttachmentInput.value = '';
-    }
-  });
-}
-
-if (composerAttachmentTray instanceof HTMLElement) {
-  composerAttachmentTray.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-    const removeButton = target.closest('.composer-attachment-remove');
-    if (!(removeButton instanceof HTMLButtonElement)) {
-      return;
-    }
-    const index = Number.parseInt(removeButton.dataset.attachmentIndex || '', 10);
-    if (!Number.isInteger(index) || index < 0) {
-      return;
-    }
-    const attachments = getPendingComposerAttachments();
-    if (index >= attachments.length) {
-      return;
-    }
-    const [removedAttachment] = attachments.splice(index, 1);
-    appState.pendingComposerAttachments = [...attachments];
-    renderComposerAttachments();
-    setStatus(
-      removedAttachment?.filename
-        ? `Removed ${removedAttachment.filename}.`
-        : 'Removed attached image.'
-    );
-  });
-}
-
-if (chatForm && messageInput && chatTranscript) {
-  chatForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const value = messageInput.value.trim();
-    const attachments = getPendingComposerAttachments();
-    const hasAttachments = attachments.length > 0;
-    if (
-      (!value && !hasAttachments) ||
-      isGeneratingResponse(appState) ||
-      isOrchestrationRunningState(appState) ||
-      isMessageEditActive(appState)
-    ) {
-      if (isMessageEditActive(appState)) {
-        setStatus('Save or cancel the current message edit before sending a new message.');
-      } else if (isOrchestrationRunningState(appState)) {
-        setStatus('Please wait for the current orchestration step to finish.');
-      }
-      return;
-    }
-
-    if (!selectHasStartedWorkspace(appState)) {
-      setChatWorkspaceStarted(appState, true);
-      updateWelcomePanelVisibility({ replaceRoute: false });
-    }
-
-    let activeConversation = getActiveConversation();
-    if (!activeConversation) {
-      const conversation = createConversation();
-      appState.conversations.unshift(conversation);
-      appState.activeConversationId = conversation.id;
-      activeConversation = conversation;
-      clearUserMessageEditSession();
-      setChatTitleEditing(appState, false);
-      renderConversationList();
-      renderTranscript();
-      updateChatTitle();
-      queueConversationStateSave();
-    }
-
-    const { selectedModelId: activeConversationModelId } = syncConversationModelSelection(activeConversation, {
-      useDefaults: false,
-    });
-
-    if (!isEngineReady(appState) || getLoadedModelId() !== activeConversationModelId) {
-      persistInferencePreferences(appState.activeGenerationConfig);
-      setStatus(
-        isEngineReady(appState)
-          ? 'Switching models for this conversation...'
-          : 'Loading model for your first message...'
-      );
-      try {
-        await appController.initializeEngine();
-      } catch (_error) {
-        return;
-      }
-      activeConversation = getActiveConversation();
-      if (!activeConversation) {
-        setStatus('Select a conversation or start a new conversation before sending a message.');
-        appendDebug('Send blocked: no active conversation selected after model load.');
-        return;
-      }
-    }
-
-    const attachmentPayload = buildUserMessageAttachmentPayload(attachments);
-    const userMessage = addMessageToConversation(activeConversation, 'user', value, {
-      contentParts: [
-        ...(value ? [{ type: 'text', text: value }] : []),
-        ...attachmentPayload.contentParts,
-      ],
-      artifactRefs: attachmentPayload.artifactRefs,
-    });
-    activeConversation.lastSpokenLeafMessageId = userMessage.id;
-    addMessageElement(userMessage);
-    messageInput.value = '';
-    clearPendingComposerAttachments();
-    queueConversationStateSave();
-    appController.startModelGeneration(
-      activeConversation,
-      buildPromptForActiveConversation(activeConversation),
-      {
-        updateLastSpokenOnComplete: true,
-      }
-    );
-  });
-}
-
-if (chatTranscript) {
-  chatTranscript.addEventListener('click', async (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-    const prevVariantButton = target.closest('.response-variant-prev');
-    if (prevVariantButton instanceof HTMLButtonElement) {
-      switchModelVariant(prevVariantButton.dataset.messageId || '', -1);
-      return;
-    }
-    const nextVariantButton = target.closest('.response-variant-next');
-    if (nextVariantButton instanceof HTMLButtonElement) {
-      switchModelVariant(nextVariantButton.dataset.messageId || '', 1);
-      return;
-    }
-    const regenerateButton = target.closest('.regenerate-response-btn');
-    if (regenerateButton instanceof HTMLButtonElement) {
-      appController.regenerateFromMessage(regenerateButton.dataset.messageId || '');
-      return;
-    }
-    const fixButton = target.closest('.fix-response-btn');
-    if (fixButton instanceof HTMLButtonElement) {
-      void appController.fixResponseFromMessage(fixButton.dataset.messageId || '');
-      return;
-    }
-    const userVariantPrevButton = target.closest('.user-variant-prev');
-    if (userVariantPrevButton instanceof HTMLButtonElement) {
-      switchUserVariant(userVariantPrevButton.dataset.messageId || '', -1);
-      return;
-    }
-    const userVariantNextButton = target.closest('.user-variant-next');
-    if (userVariantNextButton instanceof HTMLButtonElement) {
-      switchUserVariant(userVariantNextButton.dataset.messageId || '', 1);
-      return;
-    }
-    const editUserButton = target.closest('.edit-user-message-btn');
-    if (editUserButton instanceof HTMLButtonElement) {
-      beginUserMessageEdit(editUserButton.dataset.messageId || '');
-      return;
-    }
-    const saveUserButton = target.closest('.save-user-message-btn');
-    if (saveUserButton instanceof HTMLButtonElement) {
-      saveUserMessageEdit(saveUserButton.dataset.messageId || '');
-      return;
-    }
-    const cancelUserEditButton = target.closest('.cancel-user-edit-btn');
-    if (cancelUserEditButton instanceof HTMLButtonElement) {
-      cancelUserMessageEdit(cancelUserEditButton.dataset.messageId || '');
-      return;
-    }
-    const branchUserButton = target.closest('.branch-user-message-btn');
-    if (branchUserButton instanceof HTMLButtonElement) {
-      branchFromUserMessage(branchUserButton.dataset.messageId || '');
-      return;
-    }
-    const copyButton = target.closest('.copy-message-btn, .thoughts-copy-btn');
-    if (copyButton instanceof HTMLButtonElement) {
-      await handleMessageCopyAction(
-        copyButton.dataset.messageId || '',
-        copyButton.dataset.copyType || 'message'
-      );
-    }
-  });
-}
-
-if (chatMain) {
-  chatMain.addEventListener('scroll', () => {
-    updateTranscriptNavigationButtonVisibility();
-  });
-}
-
-if (jumpToTopButton instanceof HTMLButtonElement) {
-  jumpToTopButton.addEventListener('click', () => {
-    if (jumpToTopButton.getAttribute('aria-disabled') === 'true') {
-      return;
-    }
-    focusTranscriptBoundary(chatTranscriptStart, { align: 'start' });
-  });
-}
-
-if (jumpToPreviousUserButton instanceof HTMLButtonElement) {
-  jumpToPreviousUserButton.addEventListener('click', () => {
-    if (jumpToPreviousUserButton.getAttribute('aria-disabled') === 'true') {
-      return;
-    }
-    stepTranscriptNavigation('user', -1);
-    updateTranscriptNavigationButtonVisibility();
-  });
-}
-
-if (jumpToNextModelButton instanceof HTMLButtonElement) {
-  jumpToNextModelButton.addEventListener('click', () => {
-    if (jumpToNextModelButton.getAttribute('aria-disabled') === 'true') {
-      return;
-    }
-    stepTranscriptNavigation('model', 1);
-    updateTranscriptNavigationButtonVisibility();
-  });
-}
-
-if (jumpToLatestButton instanceof HTMLButtonElement) {
-  jumpToLatestButton.addEventListener('click', () => {
-    if (jumpToLatestButton.getAttribute('aria-disabled') === 'true') {
-      return;
-    }
-    const restoreComposerFocus = document.activeElement === jumpToLatestButton;
-    focusTranscriptBoundary(chatTranscriptEnd, { align: 'end' });
-    if (restoreComposerFocus && messageInput instanceof HTMLTextAreaElement) {
-      messageInput.focus();
-    }
-  });
-}
+bindTranscriptEvents({
+  chatTranscript,
+  chatMain,
+  jumpToTopButton,
+  jumpToPreviousUserButton,
+  jumpToNextModelButton,
+  jumpToLatestButton,
+  chatTranscriptStart,
+  chatTranscriptEnd,
+  messageInput,
+  switchModelVariant,
+  regenerateFromMessage: (messageId) => appController.regenerateFromMessage(messageId),
+  fixResponseFromMessage: (messageId) => appController.fixResponseFromMessage(messageId),
+  switchUserVariant,
+  beginUserMessageEdit,
+  saveUserMessageEdit,
+  cancelUserMessageEdit,
+  branchFromUserMessage,
+  handleMessageCopyAction,
+  updateTranscriptNavigationButtonVisibility,
+  focusTranscriptBoundary,
+  stepTranscriptNavigation,
+});
 
 window.addEventListener('beforeunload', () => {
   if (appState.conversationSaveTimerId !== null) {
