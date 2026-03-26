@@ -24,6 +24,7 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain('Enabled tools: get_current_date_time.');
+    expect(prompt).toContain('After you receive a tool result, use it to answer the user naturally.');
     expect(prompt).toContain('Available tool definitions:');
     expect(prompt).toContain('Parameters schema: {"type":"object","properties":{},"additionalProperties":false}');
     expect(prompt).toContain(

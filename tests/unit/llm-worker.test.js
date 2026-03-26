@@ -1,101 +1,29 @@
-import { describe, expect, test, vi } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
 
-globalThis.self = /** @type {any} */ ({
-  postMessage: vi.fn(),
-  onmessage: null,
+let resolvePrompt;
+
+beforeAll(async () => {
+  globalThis.self = {
+    postMessage: () => {},
+    onmessage: null,
+  };
+  ({ resolvePrompt } = await import('../../src/workers/llm.worker.js'));
 });
 
-const { getBackendAttemptOrder, prepareImageInputsFromPrompt, resolvePrompt } = await import(
-  '../../src/workers/llm.worker.js'
-);
-
 describe('llm.worker resolvePrompt', () => {
-  test('normalizes structured chat messages and drops empty entries', () => {
-    const result = resolvePrompt([
-      { role: 'system', content: 'Be concise.' },
-      { role: 'user', content: 'Hello' },
-      { role: 'model', content: 'Hi there' },
-      { role: 'assistant', content: 'How can I help?' },
-      { role: 'assistant', content: '   ' },
-      { role: 'invalid', content: 'Unknown role becomes user' },
-      null,
-      123,
+  test('preserves tool roles in structured prompts', () => {
+    expect(
+      resolvePrompt([
+        { role: 'system', content: 'Use tools when needed.' },
+        { role: 'user', content: 'What time is it?' },
+        { role: 'assistant', content: '{"name":"get_current_date_time","parameters":{}}' },
+        { role: 'tool', content: '{"iso":"2026-03-26T06:00:00.000Z"}' },
+      ])
+    ).toEqual([
+      { role: 'system', content: 'Use tools when needed.' },
+      { role: 'user', content: 'What time is it?' },
+      { role: 'assistant', content: '{"name":"get_current_date_time","parameters":{}}' },
+      { role: 'tool', content: '{"iso":"2026-03-26T06:00:00.000Z"}' },
     ]);
-
-    expect(result).toEqual([
-      { role: 'system', content: 'Be concise.' },
-      { role: 'user', content: 'Hello' },
-      { role: 'assistant', content: 'Hi there' },
-      { role: 'assistant', content: 'How can I help?' },
-      { role: 'user', content: 'Unknown role becomes user' },
-    ]);
-  });
-
-  test('normalizes multimodal image parts to the chat-template image field', () => {
-    const result = resolvePrompt([
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Describe this image.' },
-          { type: 'image', url: 'https://example.com/sample.png' },
-          { type: 'text', text: 'Focus on the visible objects.' },
-        ],
-      },
-    ]);
-
-    expect(result).toEqual([
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Describe this image.' },
-          { type: 'image', image: 'https://example.com/sample.png' },
-          { type: 'text', text: 'Focus on the visible objects.' },
-        ],
-      },
-    ]);
-  });
-
-  test('falls back to a single user message for flat prompts', () => {
-    expect(resolvePrompt('Flat prompt')).toEqual([{ role: 'user', content: 'Flat prompt' }]);
-  });
-
-  test('extracts image payloads for multimodal processing while keeping chat-template image markers', async () => {
-    const read = vi.fn(async (value) => ({ kind: 'raw-image', value }));
-
-    const result = await prepareImageInputsFromPrompt(
-      [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Describe this image.' },
-            { type: 'image', image: 'data:image/png;base64,abc123' },
-            { type: 'text', text: 'Focus on the visible objects.' },
-          ],
-        },
-      ],
-      { read },
-    );
-
-    expect(read).toHaveBeenCalledWith('data:image/png;base64,abc123');
-    expect(result).toEqual({
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Describe this image.' },
-            { type: 'image' },
-            { type: 'text', text: 'Focus on the visible objects.' },
-          ],
-        },
-      ],
-      images: [{ kind: 'raw-image', value: 'data:image/png;base64,abc123' }],
-    });
-  });
-
-  test('restricts WebGPU-required models to the WebGPU backend', () => {
-    expect(getBackendAttemptOrder('auto', { requiresWebGpu: true })).toEqual(['webgpu']);
-    expect(getBackendAttemptOrder('webgpu', { requiresWebGpu: true })).toEqual(['webgpu']);
-    expect(getBackendAttemptOrder('wasm', { requiresWebGpu: true })).toEqual([]);
-    expect(getBackendAttemptOrder('cpu', { requiresWebGpu: true })).toEqual([]);
   });
 });

@@ -315,6 +315,8 @@ function resolvePrompt(rawPrompt) {
           role = 'assistant';
         } else if (roleCandidate === 'system') {
           role = 'system';
+        } else if (roleCandidate === 'tool') {
+          role = 'tool';
         }
         return { role, content };
       })

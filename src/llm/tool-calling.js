@@ -89,6 +89,8 @@ export function buildToolCallingSystemPrompt(
     'Tool calling is enabled for this conversation.',
     `Enabled tools: ${toolList.join(', ')}.`,
     'If no tools are enabled, answer normally and do not attempt any tool calls.',
+    'After you receive a tool result, use it to answer the user naturally.',
+    'Do not call the same tool again unless the tool result is missing required information or the user asks for refreshed data.',
     ...buildEnabledToolInstructions(enabledTools),
     ...buildToolCallingFormatInstructions(toolCallingConfig),
     'Do not wrap tool calls in Markdown, and never invent tool names that are not enabled.',
