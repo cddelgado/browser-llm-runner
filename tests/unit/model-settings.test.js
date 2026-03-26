@@ -165,5 +165,27 @@ describe('model-settings availability', () => {
         decoder_model_merged: 'q4',
       },
     });
+    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-3B-Instruct-onnx-web')?.toolCalling).toEqual({
+      format: 'json',
+      nameKey: 'name',
+      argumentsKey: 'parameters',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')?.toolCalling).toEqual({
+      format: 'tagged-json',
+      nameKey: 'name',
+      argumentsKey: 'arguments',
+      openTag: '<tool_call>',
+      closeTag: '</tool_call>',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.toolCalling).toEqual({
+      format: 'special-token-call',
+      callOpen: '<|tool_call_start|>[',
+      callClose: ']<|tool_call_end|>',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.toolCalling).toEqual({
+      format: 'json',
+      nameKey: 'name',
+      argumentsKey: 'arguments',
+    });
   });
 });

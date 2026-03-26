@@ -1295,23 +1295,29 @@ function modelSupportsToolCalling(modelId) {
   return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.features?.toolCalling === true;
 }
 
+function getToolCallingConfigForModel(modelId) {
+  return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.toolCalling || null;
+}
+
 function getToolCallingContext(modelId) {
   const enabled = appState.enableToolCalling === true;
-  const supported = enabled && modelSupportsToolCalling(modelId);
+  const config = enabled ? getToolCallingConfigForModel(modelId) : null;
+  const supported = enabled && modelSupportsToolCalling(modelId) && Boolean(config);
   const enabledTools = getEnabledToolNames();
   return {
     enabled,
     supported,
     enabledTools,
+    config,
   };
 }
 
 function getToolCallingSystemPromptSuffix(modelId) {
   const toolContext = getToolCallingContext(modelId);
-  if (!toolContext.supported) {
+  if (!toolContext.supported || !toolContext.config) {
     return '';
   }
-  return buildToolCallingSystemPrompt(toolContext.enabledTools);
+  return buildToolCallingSystemPrompt(toolContext.config, toolContext.enabledTools);
 }
 
 function clearPendingComposerAttachments({ resetInput = true } = {}) {

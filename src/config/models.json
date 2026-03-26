@@ -7,6 +7,11 @@
       "runtime": {
         "useExternalDataFormat": true
       },
+      "toolCalling": {
+        "format": "json",
+        "nameKey": "name",
+        "argumentsKey": "parameters"
+      },
       "generation": {
         "defaultMaxOutputTokens": 1024,
         "maxOutputTokens": 131072,
@@ -59,6 +64,13 @@
       "runtime": {
         "dtype": "q4f16"
       },
+      "toolCalling": {
+        "format": "tagged-json",
+        "nameKey": "name",
+        "argumentsKey": "arguments",
+        "openTag": "<tool_call>",
+        "closeTag": "</tool_call>"
+      },
       "thinkingTags": {
         "open": "<think>",
         "close": "</think>"
@@ -90,6 +102,11 @@
         "dtype": "q4",
         "requiresWebGpu": true,
         "useExternalDataFormat": true
+      },
+      "toolCalling": {
+        "format": "special-token-call",
+        "callOpen": "<|tool_call_start|>[",
+        "callClose": "]<|tool_call_end|>"
       },
       "thinkingTags": {
         "open": "<think>",
@@ -127,6 +144,11 @@
         },
         "requiresWebGpu": true,
         "multimodalGeneration": true
+      },
+      "toolCalling": {
+        "format": "json",
+        "nameKey": "name",
+        "argumentsKey": "arguments"
       },
       "generation": {
         "defaultMaxOutputTokens": 1024,
