@@ -25,6 +25,7 @@ function toErrorMessage(value) {
  *   getLoadedModelId?: () => string | null;
  *   getThinkingTagsForModel: (modelId: string) => any;
  *   detectToolCalls?: (rawText: string, modelId: string) => any[];
+ *   executeToolCall?: (toolCall: any) => Promise<any>;
  *   getSelectedModelId: () => string;
  *   addMessageToConversation: (conversation: any, role: string, text: string, options?: any) => any;
  *   buildPromptForConversationLeaf: (conversation: any, leafMessageId?: string) => any;
@@ -135,6 +136,56 @@ export function createAppController(dependencies) {
     }
   }
 
+  async function continueGenerationAfterToolCalls(
+    activeConversation,
+    modelMessage,
+    toolCalls,
+    { updateLastSpokenOnComplete = false } = {},
+  ) {
+    let parentMessageId = modelMessage.id;
+    for (const toolCall of toolCalls) {
+      let executionResult;
+      try {
+        executionResult = await dependencies.executeToolCall(toolCall);
+        dependencies.appendDebug(`Executed tool: ${executionResult.toolName}`);
+      } catch (error) {
+        const message = toErrorMessage(error);
+        executionResult = {
+          toolName: toolCall?.name || 'unknown_tool',
+          arguments:
+            toolCall?.arguments && typeof toolCall.arguments === 'object'
+              ? toolCall.arguments
+              : {},
+          resultText: JSON.stringify({ error: message }),
+        };
+        dependencies.appendDebug(`Tool execution failed: ${message}`);
+      }
+      const toolMessage = dependencies.addMessageToConversation(
+        activeConversation,
+        'tool',
+        executionResult.resultText || '',
+        {
+          parentId: parentMessageId,
+          toolName: executionResult.toolName,
+          toolArguments: executionResult.arguments,
+        },
+      );
+      parentMessageId = toolMessage.id;
+      dependencies.renderTranscript({ scrollToBottom: false });
+      dependencies.scrollTranscriptToBottom();
+      dependencies.queueConversationStateSave();
+    }
+    dependencies.setStatus('Tool result ready. Continuing response...');
+    startModelGeneration(
+      activeConversation,
+      dependencies.buildPromptForConversationLeaf(activeConversation),
+      {
+        parentMessageId,
+        updateLastSpokenOnComplete,
+      },
+    );
+  }
+
   function startModelGeneration(activeConversation, prompt, options = {}) {
     const selectedModelId = dependencies.normalizeModelId(dependencies.getSelectedModelId());
     const thinkingTags = dependencies.getThinkingTagsForModel(selectedModelId);
@@ -221,11 +272,13 @@ export function createAppController(dependencies) {
           modelMessage.isResponseComplete = true;
           dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
           dependencies.scrollTranscriptToBottom();
-          if (updateLastSpokenOnComplete) {
+          const hasDetectedToolCalls =
+            Array.isArray(modelMessage.toolCalls) && modelMessage.toolCalls.length > 0;
+          if (updateLastSpokenOnComplete && !hasDetectedToolCalls) {
             activeConversation.lastSpokenLeafMessageId = modelMessage.id;
           }
 
-          if (!activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
+          if (!hasDetectedToolCalls && !activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
             const parentUserMessage = modelMessage.parentId
               ? dependencies.getMessageNodeById(activeConversation, modelMessage.parentId)
               : null;
@@ -239,12 +292,21 @@ export function createAppController(dependencies) {
           }
 
           dependencies.appendDebug('Generation completed.');
-          if (Array.isArray(modelMessage.toolCalls) && modelMessage.toolCalls.length) {
+          if (hasDetectedToolCalls) {
             dependencies.appendDebug(
               `Detected ${modelMessage.toolCalls.length} emitted tool call${modelMessage.toolCalls.length === 1 ? '' : 's'}.`,
             );
           }
           dependencies.queueConversationStateSave();
+          if (hasDetectedToolCalls && typeof dependencies.executeToolCall === 'function') {
+            dependencies.setStatus('Running tool call...');
+            scheduleTask(() => {
+              void continueGenerationAfterToolCalls(activeConversation, modelMessage, modelMessage.toolCalls, {
+                updateLastSpokenOnComplete,
+              });
+            });
+            return;
+          }
           dependencies.state.isGenerating = false;
           dependencies.updateActionButtons();
           dependencies.applyPendingGenerationSettingsIfReady();

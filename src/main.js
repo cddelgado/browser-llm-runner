@@ -7,7 +7,13 @@ import MarkdownIt from 'markdown-it';
 import './styles.css';
 import { LLMEngineClient } from './llm/engine-client.js';
 import { createOrchestrationRunner } from './llm/orchestration-runner.js';
-import { buildToolCallingSystemPrompt, getEnabledToolNames, sniffToolCalls } from './llm/tool-calling.js';
+import {
+  buildToolCallingSystemPrompt,
+  executeToolCall,
+  getEnabledToolDefinitions,
+  getEnabledToolNames,
+  sniffToolCalls,
+} from './llm/tool-calling.js';
 import renameChatOrchestration from './config/orchestrations/rename-chat.json';
 import fixResponseOrchestration from './config/orchestrations/fix-response.json';
 import {
@@ -1303,11 +1309,13 @@ function getToolCallingContext(modelId) {
   const enabled = appState.enableToolCalling === true;
   const config = enabled ? getToolCallingConfigForModel(modelId) : null;
   const supported = enabled && modelSupportsToolCalling(modelId) && Boolean(config);
+  const enabledToolDefinitions = getEnabledToolDefinitions();
   const enabledTools = getEnabledToolNames();
   return {
     enabled,
     supported,
     enabledTools,
+    enabledToolDefinitions,
     config,
   };
 }
@@ -1317,7 +1325,11 @@ function getToolCallingSystemPromptSuffix(modelId) {
   if (!toolContext.supported || !toolContext.config) {
     return '';
   }
-  return buildToolCallingSystemPrompt(toolContext.config, toolContext.enabledTools);
+  return buildToolCallingSystemPrompt(
+    toolContext.config,
+    toolContext.enabledTools,
+    toolContext.enabledToolDefinitions
+  );
 }
 
 function detectToolCallsForModel(rawText, modelId) {
@@ -3849,6 +3861,7 @@ const appController = createAppController({
   getLoadedModelId,
   getThinkingTagsForModel,
   detectToolCalls: detectToolCallsForModel,
+  executeToolCall,
   getSelectedModelId: () => modelSelect?.value || DEFAULT_MODEL,
   addMessageToConversation,
   buildPromptForConversationLeaf: buildPromptForActiveConversation,

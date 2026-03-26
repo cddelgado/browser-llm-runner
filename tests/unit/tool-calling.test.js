@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { buildToolCallingSystemPrompt, sniffToolCalls } from '../../src/llm/tool-calling.js';
+import { buildToolCallingSystemPrompt, executeToolCall, sniffToolCalls } from '../../src/llm/tool-calling.js';
 
 describe('tool-calling prompt builder', () => {
   test('builds the Llama json tool-calling prompt', () => {
@@ -9,10 +9,23 @@ describe('tool-calling prompt builder', () => {
         nameKey: 'name',
         argumentsKey: 'parameters',
       },
-      ['get_weather']
+      ['get_current_date_time'],
+      [
+        {
+          name: 'get_current_date_time',
+          description: 'Returns the current local date and time.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+          },
+        },
+      ]
     );
 
-    expect(prompt).toContain('Enabled tools: get_weather.');
+    expect(prompt).toContain('Enabled tools: get_current_date_time.');
+    expect(prompt).toContain('Available tool definitions:');
+    expect(prompt).toContain('Parameters schema: {"type":"object","properties":{},"additionalProperties":false}');
     expect(prompt).toContain(
       'Use this shape: {"name":"<tool-name>","parameters":{...}}.'
     );
@@ -117,5 +130,26 @@ describe('tool-calling prompt builder', () => {
         format: 'special-token-call',
       },
     ]);
+  });
+
+  test('executes get_current_date_time without arguments', async () => {
+    const result = await executeToolCall({
+      name: 'get_current_date_time',
+      arguments: {},
+    });
+
+    expect(result.toolName).toBe('get_current_date_time');
+    expect(result.arguments).toEqual({});
+    expect(result.result).toMatchObject({
+      iso: expect.any(String),
+      unixMs: expect.any(Number),
+      localDate: expect.any(String),
+      localTime: expect.any(String),
+      timeZone: expect.any(String),
+    });
+    expect(JSON.parse(result.resultText)).toMatchObject({
+      iso: expect.any(String),
+      unixMs: expect.any(Number),
+    });
   });
 });

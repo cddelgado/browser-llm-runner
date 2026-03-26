@@ -62,6 +62,7 @@ function createControllerHarness() {
     getLoadedModelId: () => engine.loadedModelId,
     getThinkingTagsForModel: () => null,
     detectToolCalls: vi.fn(() => []),
+    executeToolCall: vi.fn(),
     getSelectedModelId: () => 'test-model',
     addMessageToConversation,
     buildPromptForConversationLeaf,
@@ -201,14 +202,17 @@ describe('app-controller', () => {
     harness.conversations.push(conversation);
     harness.activeConversationId.value = conversation.id;
     harness.state.modelReady = true;
-    harness.dependencies.detectToolCalls.mockReturnValue([
-      {
-        name: 'get_weather',
-        arguments: { location: 'Milwaukee, WI' },
-        rawText: '{"name":"get_weather","parameters":{"location":"Milwaukee, WI"}}',
-        format: 'json',
-      },
-    ]);
+    harness.dependencies.detectToolCalls
+      .mockReturnValueOnce([
+        {
+          name: 'get_weather',
+          arguments: { location: 'Milwaukee, WI' },
+          rawText: '{"name":"get_weather","parameters":{"location":"Milwaukee, WI"}}',
+          format: 'json',
+        },
+      ])
+      .mockReturnValueOnce([]);
+    harness.dependencies.executeToolCall = undefined;
 
     harness.engine.generate.mockImplementation((_prompt, handlers) => {
       handlers.onComplete('{"name":"get_weather","parameters":{"location":"Milwaukee, WI"}}');
@@ -227,5 +231,57 @@ describe('app-controller', () => {
         format: 'json',
       },
     ]);
+  });
+
+  test('executes detected tool calls and continues generation', async () => {
+    const harness = createControllerHarness();
+    const conversation = createConversation({ id: 'conversation-1', modelId: 'test-model' });
+    const userMessage = addMessageToConversation(conversation, 'user', 'What time is it?');
+    harness.conversations.push(conversation);
+    harness.activeConversationId.value = conversation.id;
+    harness.state.modelReady = true;
+    harness.dependencies.detectToolCalls
+      .mockReturnValueOnce([
+        {
+          name: 'get_current_date_time',
+          arguments: {},
+          rawText: '{"name":"get_current_date_time","parameters":{}}',
+          format: 'json',
+        },
+      ])
+      .mockReturnValueOnce([]);
+    harness.dependencies.executeToolCall.mockResolvedValue({
+      toolName: 'get_current_date_time',
+      arguments: {},
+      resultText: '{"iso":"2026-03-26T06:00:00.000Z"}',
+    });
+
+    harness.engine.generate
+      .mockImplementationOnce((_prompt, handlers) => {
+        handlers.onComplete('{"name":"get_current_date_time","parameters":{}}');
+      })
+      .mockImplementationOnce((_prompt, handlers) => {
+        handlers.onComplete('It is currently 1:00 AM local time.');
+      });
+
+    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
+      parentMessageId: userMessage.id,
+      updateLastSpokenOnComplete: true,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const toolMessage = conversation.messageNodes.find((message) => message.role === 'tool');
+    const finalModelMessages = conversation.messageNodes.filter((message) => message.role === 'model');
+    expect(harness.dependencies.executeToolCall).toHaveBeenCalledWith({
+      name: 'get_current_date_time',
+      arguments: {},
+      rawText: '{"name":"get_current_date_time","parameters":{}}',
+      format: 'json',
+    });
+    expect(toolMessage?.toolName).toBe('get_current_date_time');
+    expect(toolMessage?.toolResult).toBe('{"iso":"2026-03-26T06:00:00.000Z"}');
+    expect(finalModelMessages.at(-1)?.text).toBe('It is currently 1:00 AM local time.');
   });
 });

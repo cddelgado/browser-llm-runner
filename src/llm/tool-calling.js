@@ -1,7 +1,23 @@
-export const TOOL_DEFINITIONS = Object.freeze([]);
+export const TOOL_DEFINITIONS = Object.freeze([
+  {
+    name: 'get_current_date_time',
+    description:
+      'Returns the current local date and time for this browser session, plus a UTC ISO timestamp and timezone name.',
+    enabled: true,
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+]);
+
+export function getEnabledToolDefinitions() {
+  return TOOL_DEFINITIONS.filter((tool) => tool?.enabled === true);
+}
 
 export function getEnabledToolNames() {
-  return TOOL_DEFINITIONS.filter((tool) => tool?.enabled === true)
+  return getEnabledToolDefinitions()
     .map((tool) => (typeof tool.name === 'string' ? tool.name.trim() : ''))
     .filter(Boolean);
 }
@@ -42,12 +58,38 @@ function buildToolCallingFormatInstructions(toolCallingConfig) {
   return [];
 }
 
-export function buildToolCallingSystemPrompt(toolCallingConfig, enabledToolNames = []) {
+function buildEnabledToolInstructions(enabledTools = []) {
+  if (!Array.isArray(enabledTools) || !enabledTools.length) {
+    return [];
+  }
+  return [
+    'Available tool definitions:',
+    ...enabledTools.map((tool) => {
+      const name = typeof tool?.name === 'string' ? tool.name.trim() : 'unknown_tool';
+      const description =
+        typeof tool?.description === 'string' && tool.description.trim()
+          ? tool.description.trim()
+          : 'No description provided.';
+      const parameters =
+        tool?.parameters && typeof tool.parameters === 'object'
+          ? JSON.stringify(tool.parameters)
+          : '{}';
+      return `- ${name}: ${description} Parameters schema: ${parameters}`;
+    }),
+  ];
+}
+
+export function buildToolCallingSystemPrompt(
+  toolCallingConfig,
+  enabledToolNames = [],
+  enabledTools = []
+) {
   const toolList = getNormalizedToolList(enabledToolNames);
   return [
     'Tool calling is enabled for this conversation.',
     `Enabled tools: ${toolList.join(', ')}.`,
     'If no tools are enabled, answer normally and do not attempt any tool calls.',
+    ...buildEnabledToolInstructions(enabledTools),
     ...buildToolCallingFormatInstructions(toolCallingConfig),
     'Do not wrap tool calls in Markdown, and never invent tool names that are not enabled.',
   ]
@@ -211,4 +253,49 @@ export function sniffToolCalls(rawText, toolCallingConfig) {
     return detectSpecialTokenCall(rawText, toolCallingConfig);
   }
   return [];
+}
+
+function executeGetCurrentDateTime(argumentsValue = {}) {
+  if (argumentsValue && typeof argumentsValue === 'object' && Object.keys(argumentsValue).length > 0) {
+    throw new Error('get_current_date_time does not accept any arguments.');
+  }
+  const now = new Date();
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  return {
+    iso: now.toISOString(),
+    unixMs: now.getTime(),
+    localDate: new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(now),
+    localTime: new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(now),
+    timeZone,
+  };
+}
+
+export async function executeToolCall(toolCall) {
+  if (!toolCall || typeof toolCall !== 'object') {
+    throw new Error('Tool call is required.');
+  }
+  const toolName = typeof toolCall.name === 'string' ? toolCall.name.trim() : '';
+  const argumentsValue =
+    toolCall.arguments && typeof toolCall.arguments === 'object' && !Array.isArray(toolCall.arguments)
+      ? toolCall.arguments
+      : {};
+  if (toolName === 'get_current_date_time') {
+    const result = executeGetCurrentDateTime(argumentsValue);
+    return {
+      toolName,
+      arguments: argumentsValue,
+      result,
+      resultText: JSON.stringify(result),
+    };
+  }
+  throw new Error(`Unknown tool: ${toolName}`);
 }
