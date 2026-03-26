@@ -150,8 +150,14 @@ const MATH_INLINE_DELIMITER_PATTERN = /\\\(([\s\S]*?)\\\)/g;
 window.MathJax = window.MathJax || {};
 window.MathJax.tex = {
   ...(window.MathJax.tex || {}),
-  inlineMath: [['$', '$'], ['\\(', '\\)']],
-  displayMath: [['$$', '$$'], ['\\[', '\\]']],
+  inlineMath: [
+    ['$', '$'],
+    ['\\(', '\\)'],
+  ],
+  displayMath: [
+    ['$$', '$$'],
+    ['\\[', '\\]'],
+  ],
   processEscapes: true,
 };
 window.MathJax.options = {
@@ -223,7 +229,7 @@ const onboardingStatusRegionMessage = document.getElementById('onboardingStatusR
 const preChatActions = document.getElementById('preChatActions');
 const preChatLoadModelBtn = document.getElementById('preChatLoadModelBtn');
 const preChatEditConversationSystemPromptBtn = document.getElementById(
-  'preChatEditConversationSystemPromptBtn',
+  'preChatEditConversationSystemPromptBtn'
 );
 const chatTitle = document.getElementById('chatTitle');
 const chatTitleInput = document.getElementById('chatTitleInput');
@@ -241,7 +247,7 @@ const keyboardShortcutsModal = document.getElementById('keyboardShortcutsModal')
 const conversationSystemPromptModal = document.getElementById('conversationSystemPromptModal');
 const conversationSystemPromptInput = document.getElementById('conversationSystemPromptInput');
 const conversationSystemPromptAppendToggle = document.getElementById(
-  'conversationSystemPromptAppendToggle',
+  'conversationSystemPromptAppendToggle'
 );
 const saveConversationSystemPromptBtn = document.getElementById('saveConversationSystemPromptBtn');
 const openSettingsButton = document.getElementById('openSettingsButton');
@@ -253,7 +259,9 @@ const settingsTabContainer = document.querySelector('.settings-tabs');
 const settingsTabButtons = settingsTabContainer
   ? settingsTabContainer.querySelectorAll('[data-settings-tab]')
   : [];
-const settingsTabPanels = settingsPage ? settingsPage.querySelectorAll('[data-settings-tab-panel]') : [];
+const settingsTabPanels = settingsPage
+  ? settingsPage.querySelectorAll('[data-settings-tab-panel]')
+  : [];
 const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -295,8 +303,7 @@ const SHORTCUT_KEY = {
 };
 const mathTypesetTimers = new WeakMap();
 const PRE_CHAT_STATUS_HINT_DEFAULT = 'Send your first message to load the selected model.';
-const PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION =
-  'To see your conversation, load a model first.';
+const PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION = 'To see your conversation, load a model first.';
 const appState = createAppState({
   activeGenerationConfig: {
     ...normalizeGenerationLimits(null),
@@ -559,7 +566,11 @@ function handleGlobalShortcut(event) {
   }
 
   if (event.ctrlKey && !event.altKey && !event.metaKey && normalizedKey === 'enter') {
-    if (document.activeElement === messageInput && sendButton instanceof HTMLButtonElement && !sendButton.disabled) {
+    if (
+      document.activeElement === messageInput &&
+      sendButton instanceof HTMLButtonElement &&
+      !sendButton.disabled
+    ) {
       event.preventDefault();
       sendButton.click();
       return true;
@@ -723,7 +734,10 @@ function normalizeMathDelimitersForMarkdown(content) {
   return content
     .replace(MATH_DISPLAY_DELIMITER_PATTERN, (_match, expression) => `\n$$\n${expression}\n$$\n`)
     .replace(MATH_INLINE_DELIMITER_PATTERN, (_match, expression) => `$${expression}$`)
-    .replace(MATH_BLOCK_LINE_PATTERN, (_match, leading, expression) => `${leading}$$\n${expression}\n$$`);
+    .replace(
+      MATH_BLOCK_LINE_PATTERN,
+      (_match, leading, expression) => `${leading}$$\n${expression}\n$$`
+    );
 }
 
 function containsMathDelimiters(text) {
@@ -737,7 +751,9 @@ function ensureMathJaxLoaded() {
   if (!appState.mathJaxLoadPromise) {
     appState.mathJaxLoadPromise = import('mathjax/es5/tex-mml-svg.js').catch((error) => {
       if (!appState.hasLoggedMathJaxError) {
-        appendDebug(`MathJax failed to load: ${error instanceof Error ? error.message : String(error)}`);
+        appendDebug(
+          `MathJax failed to load: ${error instanceof Error ? error.message : String(error)}`
+        );
         appState.hasLoggedMathJaxError = true;
       }
     });
@@ -759,7 +775,9 @@ async function typesetMathInElement(element) {
     await mathJax.typesetPromise([element]);
   } catch (error) {
     if (!appState.hasLoggedMathJaxError) {
-      appendDebug(`MathJax render failed: ${error instanceof Error ? error.message : String(error)}`);
+      appendDebug(
+        `MathJax render failed: ${error instanceof Error ? error.message : String(error)}`
+      );
       appState.hasLoggedMathJaxError = true;
     }
   }
@@ -794,7 +812,8 @@ function scheduleMathTypeset(element, options = {}) {
 
 function getModelGenerationLimits(modelId) {
   return (
-    MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.generation || normalizeGenerationLimits(null)
+    MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.generation ||
+    normalizeGenerationLimits(null)
   );
 }
 
@@ -803,19 +822,19 @@ function sanitizeGenerationConfigForModel(modelId, candidateConfig) {
   const maxContextTokens = quantizeTokenInput(
     candidateConfig?.maxContextTokens,
     MIN_TOKEN_LIMIT,
-    limits.maxContextTokens,
+    limits.maxContextTokens
   );
   return {
     maxContextTokens,
     maxOutputTokens: quantizeTokenInput(
       candidateConfig?.maxOutputTokens,
       MIN_TOKEN_LIMIT,
-      Math.min(limits.maxOutputTokens, maxContextTokens),
+      Math.min(limits.maxOutputTokens, maxContextTokens)
     ),
     temperature: quantizeTemperature(
       candidateConfig?.temperature,
       limits.minTemperature,
-      limits.maxTemperature,
+      limits.maxTemperature
     ),
     topK: quantizeTopKInput(candidateConfig?.topK ?? limits.defaultTopK),
     topP: quantizeTopPInput(candidateConfig?.topP ?? limits.defaultTopP),
@@ -868,17 +887,17 @@ function buildGenerationConfigFromUI(modelId) {
   const maxContextTokens = quantizeTokenInput(
     maxContextTokensInput?.value ?? limits.defaultMaxContextTokens,
     MIN_TOKEN_LIMIT,
-    limits.maxContextTokens,
+    limits.maxContextTokens
   );
   const maxOutputTokens = quantizeTokenInput(
     maxOutputTokensInput?.value ?? limits.defaultMaxOutputTokens,
     MIN_TOKEN_LIMIT,
-    Math.min(limits.maxOutputTokens, maxContextTokens),
+    Math.min(limits.maxOutputTokens, maxContextTokens)
   );
   const temperature = quantizeTemperature(
     temperatureInput?.value ?? limits.defaultTemperature,
     limits.minTemperature,
-    limits.maxTemperature,
+    limits.maxTemperature
   );
   const topK = quantizeTopKInput(topKInput?.value ?? limits.defaultTopK);
   const topP = quantizeTopPInput(topPInput?.value ?? limits.defaultTopP);
@@ -888,17 +907,17 @@ function buildGenerationConfigFromUI(modelId) {
 function renderGenerationSettingsHelpText(config, limits) {
   if (maxOutputTokensHelp) {
     maxOutputTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
-      Math.min(limits.maxOutputTokens, config.maxContextTokens),
+      Math.min(limits.maxOutputTokens, config.maxContextTokens)
     )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxOutputTokens)}.`;
   }
   if (maxContextTokensHelp) {
     maxContextTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
-      limits.maxContextTokens,
+      limits.maxContextTokens
     )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxContextTokens)}.`;
   }
   if (temperatureHelp) {
     temperatureHelp.textContent = `Allowed: ${limits.minTemperature.toFixed(1)} to ${limits.maxTemperature.toFixed(
-      1,
+      1
     )} in steps of ${TEMPERATURE_STEP.toFixed(1)}.`;
   }
   if (topKHelp) {
@@ -906,7 +925,7 @@ function renderGenerationSettingsHelpText(config, limits) {
   }
   if (topPHelp) {
     topPHelp.textContent = `Also called nucleus sampling. Higher values can make responses more varied. Allowed: ${MIN_TOP_P.toFixed(
-      2,
+      2
     )} to ${MAX_TOP_P.toFixed(2)} in steps of ${TOP_P_STEP.toFixed(2)}. Current model default: ${limits.defaultTopP.toFixed(2)}.`;
   }
 }
@@ -1003,19 +1022,19 @@ function applyPendingGenerationSettingsIfReady() {
   const nextMaxContextTokens = quantizeTokenInput(
     appState.pendingGenerationConfig.maxContextTokens,
     MIN_TOKEN_LIMIT,
-    limits.maxContextTokens,
+    limits.maxContextTokens
   );
   const nextConfig = {
     maxContextTokens: nextMaxContextTokens,
     maxOutputTokens: quantizeTokenInput(
       appState.pendingGenerationConfig.maxOutputTokens,
       MIN_TOKEN_LIMIT,
-      Math.min(limits.maxOutputTokens, nextMaxContextTokens),
+      Math.min(limits.maxOutputTokens, nextMaxContextTokens)
     ),
     temperature: quantizeTemperature(
       appState.pendingGenerationConfig.temperature,
       limits.minTemperature,
-      limits.maxTemperature,
+      limits.maxTemperature
     ),
     topK: quantizeTopKInput(appState.pendingGenerationConfig.topK),
     topP: quantizeTopPInput(appState.pendingGenerationConfig.topP),
@@ -1026,7 +1045,7 @@ function applyPendingGenerationSettingsIfReady() {
   syncGenerationSettingsFromModel(selectedModel, false);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`,
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`
   );
 }
 
@@ -1045,7 +1064,7 @@ function onGenerationSettingInputChanged() {
   engine.setGenerationConfig(nextConfig);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`,
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`
   );
 }
 
@@ -1071,7 +1090,11 @@ function getStatusTone(message) {
   if (/loading|preparing|stopping|please wait|apply after current response/i.test(normalized)) {
     return { heading: 'Chat status', variant: 'warning', role: 'status', live: 'polite' };
   }
-  if (/ready|saved|downloaded|copied|stopped|generated|updated|canceled|branch mode enabled/i.test(normalized)) {
+  if (
+    /ready|saved|downloaded|copied|stopped|generated|updated|canceled|branch mode enabled/i.test(
+      normalized
+    )
+  ) {
     return { heading: 'Chat status', variant: 'success', role: 'status', live: 'polite' };
   }
   return { heading: 'Chat status', variant: 'secondary', role: 'status', live: 'polite' };
@@ -1088,7 +1111,13 @@ function applyStatusRegion(region, headingElement, messageElement, message, head
     return;
   }
   const tone = getStatusTone(normalizedMessage);
-  region.classList.remove('alert-secondary', 'alert-success', 'alert-warning', 'alert-danger', 'alert-info');
+  region.classList.remove(
+    'alert-secondary',
+    'alert-success',
+    'alert-warning',
+    'alert-danger',
+    'alert-info'
+  );
   region.classList.add(`alert-${tone.variant}`);
   region.setAttribute('role', tone.role);
   region.setAttribute('aria-live', tone.live);
@@ -1100,7 +1129,13 @@ function applyStatusRegion(region, headingElement, messageElement, message, head
 
 function setStatus(message) {
   if (statusRegion instanceof HTMLElement) {
-    applyStatusRegion(statusRegion, statusRegionHeading, statusRegionMessage, message, 'Chat status');
+    applyStatusRegion(
+      statusRegion,
+      statusRegionHeading,
+      statusRegionMessage,
+      message,
+      'Chat status'
+    );
   }
   if (onboardingStatusRegion instanceof HTMLElement) {
     applyStatusRegion(
@@ -1108,7 +1143,7 @@ function setStatus(message) {
       onboardingStatusRegionHeading,
       onboardingStatusRegionMessage,
       message,
-      'Setup status',
+      'Setup status'
     );
   }
   appendDebug(`Status: ${message}`);
@@ -1126,7 +1161,7 @@ function updatePreChatStatusHint() {
       hasSelectedConversationWithHistory()
         ? PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION
         : PRE_CHAT_STATUS_HINT_DEFAULT,
-      'Setup status',
+      'Setup status'
     );
   }
 }
@@ -1144,7 +1179,9 @@ function shouldDisableComposerForPreChatConversationSelection() {
 }
 
 function getPendingComposerAttachments() {
-  return Array.isArray(appState.pendingComposerAttachments) ? appState.pendingComposerAttachments : [];
+  return Array.isArray(appState.pendingComposerAttachments)
+    ? appState.pendingComposerAttachments
+    : [];
 }
 
 function selectedModelSupportsImageInput() {
@@ -1259,7 +1296,8 @@ function getMessageArtifacts(message, conversationId) {
   return imageParts
     .map((part) => {
       const ref = refs.find((candidate) => candidate?.id === part.artifactId) || null;
-      const artifactId = typeof part.artifactId === 'string' && part.artifactId.trim() ? part.artifactId.trim() : '';
+      const artifactId =
+        typeof part.artifactId === 'string' && part.artifactId.trim() ? part.artifactId.trim() : '';
       const data = typeof part.base64 === 'string' && part.base64.trim() ? part.base64.trim() : '';
       const mimeType =
         typeof part.mimeType === 'string' && part.mimeType.trim()
@@ -1327,7 +1365,10 @@ function buildConversationStateSnapshot() {
     conversations: appState.conversations.map((conversation) => {
       const pathMessages = getConversationPathMessages(conversation);
       const serializeMessage = (message) => {
-        const contentParts = normalizeMessageContentParts(message.content?.parts, message.text || '').map((part) =>
+        const contentParts = normalizeMessageContentParts(
+          message.content?.parts,
+          message.text || ''
+        ).map((part) =>
           part.type === 'image'
             ? {
                 type: 'image',
@@ -1343,12 +1384,17 @@ function buildConversationStateSnapshot() {
             : {
                 type: 'text',
                 text: String(part.text || ''),
-              },
+              }
         );
         const artifactRefs = Array.isArray(message.artifactRefs)
           ? message.artifactRefs
               .map((ref) => {
-                if (!ref || typeof ref !== 'object' || typeof ref.id !== 'string' || !ref.id.trim()) {
+                if (
+                  !ref ||
+                  typeof ref !== 'object' ||
+                  typeof ref.id !== 'string' ||
+                  !ref.id.trim()
+                ) {
                   return null;
                 }
                 return {
@@ -1381,9 +1427,7 @@ function buildConversationStateSnapshot() {
           createdAt: normalizeTimestamp(message.createdAt),
           thoughts: typeof message.thoughts === 'string' ? message.thoughts : '',
           response:
-            typeof message.response === 'string'
-              ? message.response
-              : String(message.text || ''),
+            typeof message.response === 'string' ? message.response : String(message.text || ''),
           hasThinking: Boolean(message.hasThinking),
           isThinkingComplete: Boolean(message.isThinkingComplete),
           isResponseComplete: Boolean(message.isResponseComplete ?? true),
@@ -1408,7 +1452,9 @@ function buildConversationStateSnapshot() {
                     ? contentParts
                     : {
                         type: 'text',
-                        text: String(getTextFromMessageContentParts(contentParts, message.text || '') || ''),
+                        text: String(
+                          getTextFromMessageContentParts(contentParts, message.text || '') || ''
+                        ),
                       },
           },
           artifactRefs,
@@ -1433,7 +1479,9 @@ function buildConversationStateSnapshot() {
         hasGeneratedName: Boolean(conversation.hasGeneratedName),
         artifacts: [],
         activeLeafMessageId:
-          typeof conversation.activeLeafMessageId === 'string' ? conversation.activeLeafMessageId : null,
+          typeof conversation.activeLeafMessageId === 'string'
+            ? conversation.activeLeafMessageId
+            : null,
         lastSpokenLeafMessageId:
           typeof conversation.lastSpokenLeafMessageId === 'string'
             ? conversation.lastSpokenLeafMessageId
@@ -1473,7 +1521,12 @@ function buildStoredArtifactLookup(rawState) {
   const artifactMap = new Map();
   const rawArtifacts = Array.isArray(rawState?.artifacts) ? rawState.artifacts : [];
   rawArtifacts.forEach((artifact) => {
-    if (!artifact || typeof artifact !== 'object' || typeof artifact.id !== 'string' || !artifact.id.trim()) {
+    if (
+      !artifact ||
+      typeof artifact !== 'object' ||
+      typeof artifact.id !== 'string' ||
+      !artifact.id.trim()
+    ) {
       return;
     }
     artifactMap.set(artifact.id.trim(), artifact);
@@ -1528,14 +1581,20 @@ function coerceStoredMessage(rawMessage, fallbackMessageId, artifactLookup = new
   }
 
   const id =
-    typeof rawMessage.id === 'string' && rawMessage.id.trim() ? rawMessage.id.trim() : fallbackMessageId;
+    typeof rawMessage.id === 'string' && rawMessage.id.trim()
+      ? rawMessage.id.trim()
+      : fallbackMessageId;
   const contentParts = coerceStoredMessageContentParts(rawMessage, artifactLookup);
-  const firstTextPart = contentParts.find((part) => part?.type === 'text' && typeof part.text === 'string');
+  const firstTextPart = contentParts.find(
+    (part) => part?.type === 'text' && typeof part.text === 'string'
+  );
   const llmText =
     typeof rawMessage.content?.llmRepresentation?.text === 'string'
       ? rawMessage.content.llmRepresentation.text
       : '';
-  const text = String(rawMessage.text || rawMessage.response || firstTextPart?.text || llmText || '');
+  const text = String(
+    rawMessage.text || rawMessage.response || firstTextPart?.text || llmText || ''
+  );
   const message = {
     id,
     role,
@@ -1576,12 +1635,12 @@ function coerceStoredMessage(rawMessage, fallbackMessageId, artifactLookup = new
       rawMessage.response ||
         rawMessage.inference?.output?.verbatimText ||
         rawMessage.content?.llmRepresentation?.text ||
-        text,
+        text
     );
     message.hasThinking = Boolean(rawMessage.hasThinking || message.thoughts.trim());
     message.isThinkingComplete = Boolean(rawMessage.isThinkingComplete);
     message.isResponseComplete = Boolean(
-      rawMessage.isResponseComplete ?? rawMessage.inference?.status?.complete ?? true,
+      rawMessage.isResponseComplete ?? rawMessage.inference?.status?.complete ?? true
     );
     message.text = message.response;
   } else {
@@ -1589,7 +1648,7 @@ function coerceStoredMessage(rawMessage, fallbackMessageId, artifactLookup = new
       rawMessage.inference?.input?.verbatimText ||
         rawMessage.content?.llmRepresentation?.text ||
         getTextFromMessageContentParts(contentParts, message.text) ||
-        message.text,
+        message.text
     );
     setUserMessageText(message, message.text);
   }
@@ -1603,7 +1662,9 @@ function coerceStoredMessageNode(rawMessage, fallbackMessageId, artifactLookup) 
     return null;
   }
   message.parentId =
-    typeof rawMessage.parentId === 'string' && rawMessage.parentId.trim() ? rawMessage.parentId.trim() : null;
+    typeof rawMessage.parentId === 'string' && rawMessage.parentId.trim()
+      ? rawMessage.parentId.trim()
+      : null;
   message.childIds = Array.isArray(rawMessage.childIds)
     ? rawMessage.childIds.filter((childId) => typeof childId === 'string' && childId.trim())
     : [];
@@ -1651,11 +1712,15 @@ function applyStoredConversationState(rawState) {
         ? UNTITLED_CONVERSATION_PREFIX
         : normalizedStoredName || UNTITLED_CONVERSATION_PREFIX;
       const systemPrompt = normalizeSystemPrompt(rawConversation.systemPrompt);
-      const conversationSystemPrompt = normalizeSystemPrompt(rawConversation.conversationSystemPrompt);
-      const appendConversationSystemPrompt = normalizeConversationPromptMode(
-        rawConversation.appendConversationSystemPrompt,
+      const conversationSystemPrompt = normalizeSystemPrompt(
+        rawConversation.conversationSystemPrompt
       );
-      const rawMessageNodes = Array.isArray(rawConversation.messageNodes) ? rawConversation.messageNodes : [];
+      const appendConversationSystemPrompt = normalizeConversationPromptMode(
+        rawConversation.appendConversationSystemPrompt
+      );
+      const rawMessageNodes = Array.isArray(rawConversation.messageNodes)
+        ? rawConversation.messageNodes
+        : [];
       const hasNodeSchema = rawMessageNodes.length > 0;
       const rawMessages = hasNodeSchema
         ? rawMessageNodes
@@ -1666,7 +1731,7 @@ function applyStoredConversationState(rawState) {
         .map((rawMessage, messageIndex) =>
           hasNodeSchema
             ? coerceStoredMessageNode(rawMessage, `${id}-node-${messageIndex + 1}`, artifactLookup)
-            : coerceStoredMessage(rawMessage, `${id}-node-${messageIndex + 1}`, artifactLookup),
+            : coerceStoredMessage(rawMessage, `${id}-node-${messageIndex + 1}`, artifactLookup)
         )
         .filter(Boolean);
 
@@ -1703,9 +1768,12 @@ function applyStoredConversationState(rawState) {
 
       const messageNodeCounterFromIds = messageNodes.reduce(
         (maxCounter, message) => Math.max(maxCounter, parseMessageNodeCounterFromId(message.id)),
-        0,
+        0
       );
-      const storedNodeCounter = Number.parseInt(String(rawConversation.messageNodeCounter || ''), 10);
+      const storedNodeCounter = Number.parseInt(
+        String(rawConversation.messageNodeCounter || ''),
+        10
+      );
       const messageNodeCounter =
         Number.isInteger(storedNodeCounter) && storedNodeCounter > 0
           ? Math.max(storedNodeCounter, messageNodeCounterFromIds)
@@ -1721,7 +1789,9 @@ function applyStoredConversationState(rawState) {
         typeof rawConversation.lastSpokenLeafMessageId === 'string'
           ? rawConversation.lastSpokenLeafMessageId
           : activeLeafMessageId;
-      const lastSpokenLeafMessageId = messageNodes.some((message) => message.id === requestedLastSpokenLeaf)
+      const lastSpokenLeafMessageId = messageNodes.some(
+        (message) => message.id === requestedLastSpokenLeaf
+      )
         ? requestedLastSpokenLeaf
         : activeLeafMessageId;
       const earliestMessageTimestamp = messageNodes.reduce((earliest, message) => {
@@ -1769,8 +1839,9 @@ function applyStoredConversationState(rawState) {
   appState.activeConversationId = null;
 
   const maxCounterFromIds = appState.conversations.reduce(
-    (maxCounter, conversation) => Math.max(maxCounter, parseConversationCounterFromId(conversation.id)),
-    0,
+    (maxCounter, conversation) =>
+      Math.max(maxCounter, parseConversationCounterFromId(conversation.id)),
+    0
   );
   const storedIdCounter = Number.parseInt(String(rawState.conversationIdCounter || ''), 10);
   const storedConversationCount = Number.parseInt(String(rawState.conversationCount || ''), 10);
@@ -1877,8 +1948,14 @@ function applyVariantCardSignals(item, variantState) {
   if (!bubble) {
     return;
   }
-  bubble.classList.toggle('has-variant-prev', Boolean(variantState?.hasVariants && variantState.canGoPrev));
-  bubble.classList.toggle('has-variant-next', Boolean(variantState?.hasVariants && variantState.canGoNext));
+  bubble.classList.toggle(
+    'has-variant-prev',
+    Boolean(variantState?.hasVariants && variantState.canGoPrev)
+  );
+  bubble.classList.toggle(
+    'has-variant-next',
+    Boolean(variantState?.hasVariants && variantState.canGoNext)
+  );
 }
 
 function applyFixCardSignals(item, message) {
@@ -1960,7 +2037,9 @@ function removeLeafMessageFromConversation(conversation, messageId) {
   if (!message || !Array.isArray(message.childIds) || message.childIds.length) {
     return false;
   }
-  conversation.messageNodes = conversation.messageNodes.filter((candidate) => candidate.id !== messageId);
+  conversation.messageNodes = conversation.messageNodes.filter(
+    (candidate) => candidate.id !== messageId
+  );
   if (message.parentId) {
     const parentMessage = getMessageNodeById(conversation, message.parentId);
     if (parentMessage && Array.isArray(parentMessage.childIds)) {
@@ -2008,7 +2087,11 @@ function ensureModelVariantControlsVisible(messageId) {
       : responseActions instanceof HTMLElement
         ? responseActions
         : messageItem;
-  target.scrollIntoView({ behavior: getPreferredScrollBehavior(), block: 'nearest', inline: 'nearest' });
+  target.scrollIntoView({
+    behavior: getPreferredScrollBehavior(),
+    block: 'nearest',
+    inline: 'nearest',
+  });
   updateTranscriptNavigationButtonVisibility();
 }
 
@@ -2071,12 +2154,12 @@ function scrollElementIntoAccessibleView(element, { align = 'start' } = {}) {
   const topClearance =
     Math.max(
       getElementClearanceFromTop(topBar, containerRect),
-      getElementClearanceFromTop(jumpToLastPromptButton, containerRect),
+      getElementClearanceFromTop(jumpToLastPromptButton, containerRect)
     ) + 16;
   const bottomClearance =
     Math.max(
       getElementClearanceFromBottom(jumpToLatestButton, containerRect),
-      getElementClearanceFromBottom(openSettingsButton, containerRect),
+      getElementClearanceFromBottom(openSettingsButton, containerRect)
     ) + 16;
   let delta = 0;
   if (align === 'end') {
@@ -2084,11 +2167,9 @@ function scrollElementIntoAccessibleView(element, { align = 'start' } = {}) {
   } else if (align === 'center') {
     const visibleHeight = Math.max(
       0,
-      containerRect.height - topClearance - bottomClearance - elementRect.height,
+      containerRect.height - topClearance - bottomClearance - elementRect.height
     );
-    delta =
-      elementRect.top -
-      (containerRect.top + topClearance + Math.max(0, visibleHeight / 2));
+    delta = elementRect.top - (containerRect.top + topClearance + Math.max(0, visibleHeight / 2));
   } else {
     delta = elementRect.top - (containerRect.top + topClearance);
   }
@@ -2129,12 +2210,16 @@ function updateTranscriptNavigationButtonVisibility() {
     return;
   }
   const hasTranscriptItems = Boolean(chatTranscript?.children.length);
-  const shouldShowJumpToLatest = appState.modelReady && hasTranscriptItems && !isTranscriptNearBottom();
+  const shouldShowJumpToLatest =
+    appState.modelReady && hasTranscriptItems && !isTranscriptNearBottom();
   jumpToLatestButton.classList.toggle('d-none', !shouldShowJumpToLatest);
 
   const lastPromptMessageId = getLastPromptMessageId();
   const shouldShowJumpToPrompt =
-    appState.modelReady && hasTranscriptItems && Boolean(lastPromptMessageId) && !isMessageInView(lastPromptMessageId);
+    appState.modelReady &&
+    hasTranscriptItems &&
+    Boolean(lastPromptMessageId) &&
+    !isMessageInView(lastPromptMessageId);
   jumpToLastPromptButton.classList.toggle('d-none', !shouldShowJumpToPrompt);
 }
 
@@ -2153,7 +2238,9 @@ function buildActiveConversationExportPayload(activeConversation) {
       : normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
   const temperature = Number.isFinite(engine?.config?.generationConfig?.temperature)
     ? Number(engine.config.generationConfig.temperature)
-    : Number(appState.activeGenerationConfig?.temperature ?? DEFAULT_GENERATION_LIMITS.defaultTemperature);
+    : Number(
+        appState.activeGenerationConfig?.temperature ?? DEFAULT_GENERATION_LIMITS.defaultTemperature
+      );
   return buildConversationDownloadPayload(activeConversation, {
     modelId: selectedModelId,
     temperature,
@@ -2178,7 +2265,7 @@ function updateChatTitleEditorVisibility() {
   const activeConversation = getActiveConversation();
   const pathMessages = activeConversation ? getConversationPathMessages(activeConversation) : [];
   const hasCompletedGeneration = pathMessages.some(
-    (message) => message?.role === 'model' && Boolean(message.isResponseComplete),
+    (message) => message?.role === 'model' && Boolean(message.isResponseComplete)
   );
   const canEditTitle = appState.modelReady && Boolean(activeConversation?.hasGeneratedName);
   const canEditConversationSystemPrompt = Boolean(activeConversation);
@@ -2255,7 +2342,9 @@ function getConversationSystemPromptModalInstance() {
     return null;
   }
   if (!appState.conversationSystemPromptModalInstance) {
-    appState.conversationSystemPromptModalInstance = Modal.getOrCreateInstance(conversationSystemPromptModal);
+    appState.conversationSystemPromptModalInstance = Modal.getOrCreateInstance(
+      conversationSystemPromptModal
+    );
   }
   return appState.conversationSystemPromptModalInstance;
 }
@@ -2276,10 +2365,10 @@ function beginConversationSystemPromptEdit({ trigger = null } = {}) {
     appState.lastConversationSystemPromptTrigger = trigger;
   }
   conversationSystemPromptInput.value = normalizeSystemPrompt(
-    activeConversation.conversationSystemPrompt,
+    activeConversation.conversationSystemPrompt
   );
   conversationSystemPromptAppendToggle.checked = normalizeConversationPromptMode(
-    activeConversation.appendConversationSystemPrompt,
+    activeConversation.appendConversationSystemPrompt
   );
   const modalInstance = getConversationSystemPromptModalInstance();
   if (modalInstance) {
@@ -2298,8 +2387,12 @@ function saveConversationSystemPromptEdit() {
   if (!activeConversation) {
     return;
   }
-  activeConversation.conversationSystemPrompt = normalizeSystemPrompt(conversationSystemPromptInput.value);
-  activeConversation.appendConversationSystemPrompt = Boolean(conversationSystemPromptAppendToggle.checked);
+  activeConversation.conversationSystemPrompt = normalizeSystemPrompt(
+    conversationSystemPromptInput.value
+  );
+  activeConversation.appendConversationSystemPrompt = Boolean(
+    conversationSystemPromptAppendToggle.checked
+  );
   queueConversationStateSave();
   setStatus('Conversation system prompt saved.');
   const modalInstance = getConversationSystemPromptModalInstance();
@@ -2399,7 +2492,8 @@ function getCurrentViewRoute() {
 }
 
 function setRouteHash(targetRoute, { replace = true } = {}) {
-  const route = targetRoute === ROUTE_SETTINGS || targetRoute === ROUTE_CHAT ? targetRoute : ROUTE_HOME;
+  const route =
+    targetRoute === ROUTE_SETTINGS || targetRoute === ROUTE_CHAT ? targetRoute : ROUTE_HOME;
   const targetHash = route === ROUTE_HOME ? '#/' : `#/${route}`;
   if (window.location.hash === targetHash) {
     return;
@@ -2464,7 +2558,9 @@ function setActiveSettingsTab(targetTabName, { focus = false } = {}) {
 
   if (focus) {
     const activeButton = Array.from(settingsTabButtons).find(
-      (button) => button instanceof HTMLButtonElement && button.dataset.settingsTab === appState.activeSettingsTab,
+      (button) =>
+        button instanceof HTMLButtonElement &&
+        button.dataset.settingsTab === appState.activeSettingsTab
     );
     if (activeButton instanceof HTMLButtonElement) {
       activeButton.focus();
@@ -2517,9 +2613,12 @@ function updateWelcomePanelVisibility({ syncRoute = true, replaceRoute = true } 
     return;
   }
   const previousView = appState.currentWorkspaceView;
+  const activeConversation = getActiveConversation();
   const showHome = !appState.hasStartedChatWorkspace;
-  const showPreChat = appState.hasStartedChatWorkspace && !appState.modelReady;
-  const showChat = appState.hasStartedChatWorkspace && appState.modelReady;
+  const showPreChat =
+    appState.hasStartedChatWorkspace && !appState.modelReady && !activeConversation;
+  const showChat =
+    appState.hasStartedChatWorkspace && (appState.modelReady || Boolean(activeConversation));
   appState.currentWorkspaceView = showHome ? ROUTE_HOME : showPreChat ? 'prechat' : ROUTE_CHAT;
   if (chatMain instanceof HTMLElement) {
     chatMain.classList.toggle('is-home', showHome);
@@ -2565,7 +2664,10 @@ function updatePreChatActionButtons() {
   const activeConversation = getActiveConversation();
   const hasExistingConversation = hasConversationHistory(activeConversation);
   const canShowPreChatActions =
-    appState.hasStartedChatWorkspace && !appState.modelReady && !appState.isSettingsPageOpen && Boolean(activeConversation);
+    appState.hasStartedChatWorkspace &&
+    !appState.modelReady &&
+    !appState.isSettingsPageOpen &&
+    Boolean(activeConversation);
   const isBusy = isUiBusy();
 
   if (preChatActions instanceof HTMLElement) {
@@ -2587,7 +2689,11 @@ function updateComposerVisibility() {
     (!appState.modelReady || Boolean(getActiveConversation()));
   setRegionVisibility(chatForm, showComposer);
   if (chatForm instanceof HTMLElement) {
-    const showPreChatComposer = appState.hasStartedChatWorkspace && !appState.modelReady && !appState.isSettingsPageOpen;
+    const showPreChatComposer =
+      appState.hasStartedChatWorkspace &&
+      !appState.modelReady &&
+      !appState.isSettingsPageOpen &&
+      !getActiveConversation();
     chatForm.classList.toggle('is-prechat', showPreChatComposer);
   }
   if (messageInput instanceof HTMLTextAreaElement) {
@@ -2670,7 +2776,8 @@ function updateActionButtons() {
   }
   if (addImagesButton instanceof HTMLButtonElement) {
     addImagesButton.classList.toggle('d-none', !imageInputSupported);
-    addImagesButton.disabled = !imageInputSupported || composerControlsDisabled || appState.isGenerating;
+    addImagesButton.disabled =
+      !imageInputSupported || composerControlsDisabled || appState.isGenerating;
   }
   if (imageAttachmentInput instanceof HTMLInputElement) {
     imageAttachmentInput.disabled =
@@ -2687,7 +2794,7 @@ function updateActionButtons() {
   }
   if (newConversationBtn) {
     newConversationBtn.disabled =
-      appState.isGenerating || appState.isRunningOrchestration || !appState.hasStartedChatWorkspace || !appState.modelReady;
+      appState.isGenerating || appState.isRunningOrchestration || !appState.hasStartedChatWorkspace;
   }
   updateRegenerateButtons();
   updateUserMessageButtons();
@@ -2711,7 +2818,7 @@ function updateRegenerateButtons() {
     const messageId = item.dataset.messageId;
     const activeConversation = getActiveConversation();
     const modelMessage = activeConversation?.messageNodes.find(
-      (message) => message.id === messageId && message.role === 'model',
+      (message) => message.id === messageId && message.role === 'model'
     );
     const hideActions = !modelMessage?.isResponseComplete;
     const responseActions = item.querySelector('.response-actions');
@@ -2756,7 +2863,7 @@ function updateUserMessageButtons() {
     const messageId = item.dataset.messageId;
     const activeConversation = getActiveConversation();
     const userMessage = activeConversation?.messageNodes.find(
-      (message) => message.id === messageId && message.role === 'user',
+      (message) => message.id === messageId && message.role === 'user'
     );
     if (!userMessage) {
       return;
@@ -2777,7 +2884,9 @@ function markActiveIncompleteModelMessageComplete() {
     return;
   }
   pendingModelMessage.isResponseComplete = true;
-  const pendingItem = chatTranscript?.querySelector(`[data-message-id="${pendingModelMessage.id}"]`);
+  const pendingItem = chatTranscript?.querySelector(
+    `[data-message-id="${pendingModelMessage.id}"]`
+  );
   if (pendingItem instanceof HTMLElement) {
     updateModelMessageElement(pendingModelMessage, pendingItem);
   }
@@ -2878,7 +2987,9 @@ function renderLoadProgressFiles() {
   if (!modelLoadProgressSummary && !modelLoadCurrentFileLabel && !modelLoadCurrentFileValue) {
     return;
   }
-  const entries = [...appState.loadProgressFiles.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+  const entries = [...appState.loadProgressFiles.values()].sort(
+    (a, b) => b.updatedAt - a.updatedAt
+  );
   const completeCount = entries.filter((entry) => entry.isComplete).length;
   const latestEntry = entries[0] || null;
   if (modelLoadProgressSummary) {
@@ -2938,7 +3049,9 @@ function trackLoadFileProgress(file, percent, status, loadedBytes, totalBytes) {
     label: formatLoadFileLabel(key),
     percent: previous ? Math.max(previous.percent, effectivePercent) : effectivePercent,
     status: statusText || previous?.status || '',
-    loadedBytes: previous ? Math.max(previous.loadedBytes || 0, numericLoadedBytes) : numericLoadedBytes,
+    loadedBytes: previous
+      ? Math.max(previous.loadedBytes || 0, numericLoadedBytes)
+      : numericLoadedBytes,
     totalBytes: hasKnownTotal ? numericTotalBytes : previous?.totalBytes || 0,
     hasKnownTotal: hasKnownTotal || Boolean(previous?.hasKnownTotal),
     isIndeterminate: !hasKnownTotal && !isComplete,
@@ -3062,7 +3175,7 @@ function applySingleKeyShortcutPreference(value, { persist = false } = {}) {
   if (persist) {
     localStorage.setItem(
       SINGLE_KEY_SHORTCUTS_STORAGE_KEY,
-      String(appState.enableSingleKeyShortcuts),
+      String(appState.enableSingleKeyShortcuts)
     );
   }
 }
@@ -3080,7 +3193,11 @@ function applyTranscriptViewPreference(value, { persist = false } = {}) {
 
 function getStoredThemePreference() {
   const storedPreference = localStorage.getItem(THEME_STORAGE_KEY);
-  if (storedPreference === 'light' || storedPreference === 'dark' || storedPreference === 'system') {
+  if (
+    storedPreference === 'light' ||
+    storedPreference === 'dark' ||
+    storedPreference === 'system'
+  ) {
     return storedPreference;
   }
   return 'system';
@@ -3148,7 +3265,10 @@ function formatBackendPreferenceLabel(value) {
   return 'Auto';
 }
 
-function getAvailableModelId(modelId, backendPreference = normalizeBackendPreference(backendSelect?.value || 'auto')) {
+function getAvailableModelId(
+  modelId,
+  backendPreference = normalizeBackendPreference(backendSelect?.value || 'auto')
+) {
   const normalizedModelId = normalizeModelId(modelId);
   const availability = getModelAvailability(normalizedModelId, {
     backendPreference,
@@ -3186,7 +3306,7 @@ function syncModelSelectionForCurrentEnvironment({ announceFallback = false } = 
     });
     if (requestedModel?.runtime?.requiresWebGpu) {
       setStatus(
-        `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`,
+        `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`
       );
     }
   }
@@ -3217,7 +3337,9 @@ async function probeWebGpuAvailability() {
   } catch (error) {
     appState.webGpuProbeCompleted = true;
     appState.webGpuAdapterAvailable = false;
-    appendDebug(`WebGPU adapter probe failed: ${error instanceof Error ? error.message : String(error)}`);
+    appendDebug(
+      `WebGPU adapter probe failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 
   const previousModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
@@ -3230,7 +3352,7 @@ async function probeWebGpuAvailability() {
     !appState.webGpuAdapterAvailable
   ) {
     setStatus(
-      `${previousModelId} is unavailable because no usable WebGPU adapter was found. Switched to ${selectedModel}.`,
+      `${previousModelId} is unavailable because no usable WebGPU adapter was found. Switched to ${selectedModel}.`
     );
   }
 
@@ -3435,7 +3557,7 @@ function animateVariantSwitch(outgoingMessageId, incomingMessageId, direction, o
         const boundedAdjustment = clamp(
           incomingOffsetWithinChat - outgoingOffsetWithinChat,
           -chatMain.clientHeight,
-          chatMain.clientHeight,
+          chatMain.clientHeight
         );
         if (Math.abs(boundedAdjustment) > 1) {
           chatMain.scrollTop += boundedAdjustment;
@@ -3539,7 +3661,13 @@ function switchUserVariant(messageId, direction) {
 }
 
 function beginUserMessageEdit(messageId) {
-  if (!messageId || appState.isGenerating || appState.isLoadingModel || appState.isRunningOrchestration || appState.isSwitchingVariant) {
+  if (
+    !messageId ||
+    appState.isGenerating ||
+    appState.isLoadingModel ||
+    appState.isRunningOrchestration ||
+    appState.isSwitchingVariant
+  ) {
     return;
   }
   const activeConversation = getActiveConversation();
@@ -3550,11 +3678,14 @@ function beginUserMessageEdit(messageId) {
   if (!userMessage || userMessage.role !== 'user') {
     return;
   }
-  activeConversation.activeLeafMessageId = findPreferredLeafForVariant(activeConversation, userMessage) || userMessage.id;
+  activeConversation.activeLeafMessageId =
+    findPreferredLeafForVariant(activeConversation, userMessage) || userMessage.id;
   startUserMessageEditSession(messageId);
   renderTranscript({ scrollToBottom: false });
   updateActionButtons();
-  const editor = chatTranscript?.querySelector(`[data-message-id="${messageId}"] .user-message-editor`);
+  const editor = chatTranscript?.querySelector(
+    `[data-message-id="${messageId}"] .user-message-editor`
+  );
   if (editor instanceof HTMLTextAreaElement) {
     editor.focus();
     editor.setSelectionRange(editor.value.length, editor.value.length);
@@ -3562,7 +3693,10 @@ function beginUserMessageEdit(messageId) {
 }
 
 function cancelUserMessageEdit(messageId) {
-  if (!appState.activeUserEditMessageId || (messageId && appState.activeUserEditMessageId !== messageId)) {
+  if (
+    !appState.activeUserEditMessageId ||
+    (messageId && appState.activeUserEditMessageId !== messageId)
+  ) {
     return;
   }
   clearUserMessageEditSession();
@@ -3590,7 +3724,9 @@ function saveUserMessageEdit(messageId) {
   if (!userMessage || userMessage.role !== 'user') {
     return;
   }
-  const editor = chatTranscript?.querySelector(`[data-message-id="${messageId}"] .user-message-editor`);
+  const editor = chatTranscript?.querySelector(
+    `[data-message-id="${messageId}"] .user-message-editor`
+  );
   if (!(editor instanceof HTMLTextAreaElement)) {
     return;
   }
@@ -3615,7 +3751,10 @@ function saveUserMessageEdit(messageId) {
     }
     const branchMessage = addMessageToConversation(activeConversation, 'user', nextText, {
       parentId: userMessage.parentId || null,
-      contentParts: normalizeMessageContentParts(userMessage.content?.parts, userMessage.text || ''),
+      contentParts: normalizeMessageContentParts(
+        userMessage.content?.parts,
+        userMessage.text || ''
+      ),
       artifactRefs: Array.isArray(userMessage.artifactRefs) ? userMessage.artifactRefs : [],
     });
     setUserMessageText(branchMessage, nextText);
@@ -3630,10 +3769,14 @@ function saveUserMessageEdit(messageId) {
       return;
     }
     setStatus('Branch saved. Generating response...');
-    appController.startModelGeneration(activeConversation, buildPromptForConversationLeaf(activeConversation), {
-      parentMessageId: branchMessage.id,
-      updateLastSpokenOnComplete: true,
-    });
+    appController.startModelGeneration(
+      activeConversation,
+      buildPromptForConversationLeaf(activeConversation),
+      {
+        parentMessageId: branchMessage.id,
+        updateLastSpokenOnComplete: true,
+      }
+    );
     return;
   }
   setUserMessageText(userMessage, nextText);
@@ -3653,10 +3796,14 @@ function saveUserMessageEdit(messageId) {
     return;
   }
   setStatus(`${saveStatus} Generating updated response...`);
-  appController.startModelGeneration(activeConversation, buildPromptForConversationLeaf(activeConversation), {
-    parentMessageId: userMessage.id,
-    updateLastSpokenOnComplete: true,
-  });
+  appController.startModelGeneration(
+    activeConversation,
+    buildPromptForConversationLeaf(activeConversation),
+    {
+      parentMessageId: userMessage.id,
+      updateLastSpokenOnComplete: true,
+    }
+  );
 }
 
 function branchFromUserMessage(messageId) {
@@ -3678,11 +3825,14 @@ function branchFromUserMessage(messageId) {
   if (!userMessage || userMessage.role !== 'user') {
     return;
   }
-  activeConversation.activeLeafMessageId = findPreferredLeafForVariant(activeConversation, userMessage) || userMessage.id;
+  activeConversation.activeLeafMessageId =
+    findPreferredLeafForVariant(activeConversation, userMessage) || userMessage.id;
   startUserMessageEditSession(messageId, { branchSourceMessageId: messageId });
   renderTranscript({ scrollToBottom: false });
   updateActionButtons();
-  const editor = chatTranscript?.querySelector(`[data-message-id="${messageId}"] .user-message-editor`);
+  const editor = chatTranscript?.querySelector(
+    `[data-message-id="${messageId}"] .user-message-editor`
+  );
   if (editor instanceof HTMLTextAreaElement) {
     editor.focus();
     editor.setSelectionRange(editor.value.length, editor.value.length);
@@ -3742,13 +3892,20 @@ if (settingsTabContainer) {
     if (!(event.target instanceof HTMLButtonElement)) {
       return;
     }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') {
+    if (
+      event.key !== 'ArrowDown' &&
+      event.key !== 'ArrowUp' &&
+      event.key !== 'Home' &&
+      event.key !== 'End'
+    ) {
       if (event.key === 'Enter' || event.key === ' ') {
         setActiveSettingsTab(event.target.dataset.settingsTab, { focus: false });
       }
       return;
     }
-    const buttons = Array.from(settingsTabButtons).filter((button) => button instanceof HTMLButtonElement);
+    const buttons = Array.from(settingsTabButtons).filter(
+      (button) => button instanceof HTMLButtonElement
+    );
     const currentIndex = buttons.indexOf(event.target);
     if (currentIndex < 0) {
       return;
@@ -3834,7 +3991,7 @@ window.addEventListener(
     event.preventDefault();
     closeKeyboardShortcuts();
   },
-  { capture: true },
+  { capture: true }
 );
 
 window.addEventListener('hashchange', () => {
@@ -3870,7 +4027,7 @@ if (enableSingleKeyShortcutsToggle instanceof HTMLInputElement) {
     setStatus(
       value
         ? 'Single-key transcript shortcuts enabled.'
-        : 'Single-key transcript shortcuts disabled.',
+        : 'Single-key transcript shortcuts disabled.'
     );
   });
 }
@@ -3880,7 +4037,7 @@ if (transcriptViewSelect instanceof HTMLSelectElement) {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : 'standard';
     applyTranscriptViewPreference(value, { persist: true });
     setStatus(
-      value === 'compact' ? 'Compact transcript view enabled.' : 'Standard transcript view enabled.',
+      value === 'compact' ? 'Compact transcript view enabled.' : 'Standard transcript view enabled.'
     );
   });
 }
@@ -4029,7 +4186,9 @@ if (conversationList) {
         return;
       }
 
-      const index = appState.conversations.findIndex((conversation) => conversation.id === conversationId);
+      const index = appState.conversations.findIndex(
+        (conversation) => conversation.id === conversationId
+      );
       if (index < 0) {
         return;
       }
@@ -4070,7 +4229,10 @@ if (sendButton) {
   });
 }
 
-if (addImagesButton instanceof HTMLButtonElement && imageAttachmentInput instanceof HTMLInputElement) {
+if (
+  addImagesButton instanceof HTMLButtonElement &&
+  imageAttachmentInput instanceof HTMLInputElement
+) {
   addImagesButton.addEventListener('click', () => {
     if (!selectedModelSupportsImageInput()) {
       return;
@@ -4083,7 +4245,8 @@ if (addImagesButton instanceof HTMLButtonElement && imageAttachmentInput instanc
       imageAttachmentInput.value = '';
       return;
     }
-    const files = event.target instanceof HTMLInputElement ? Array.from(event.target.files || []) : [];
+    const files =
+      event.target instanceof HTMLInputElement ? Array.from(event.target.files || []) : [];
     if (!files.length) {
       return;
     }
@@ -4094,12 +4257,21 @@ if (addImagesButton instanceof HTMLButtonElement && imageAttachmentInput instanc
       return;
     }
     try {
-      const nextAttachments = await Promise.all(imageFiles.map((file) => createComposerAttachmentFromFile(file)));
-      appState.pendingComposerAttachments = [...getPendingComposerAttachments(), ...nextAttachments];
+      const nextAttachments = await Promise.all(
+        imageFiles.map((file) => createComposerAttachmentFromFile(file))
+      );
+      appState.pendingComposerAttachments = [
+        ...getPendingComposerAttachments(),
+        ...nextAttachments,
+      ];
       renderComposerAttachments();
-      setStatus(`${nextAttachments.length} image${nextAttachments.length === 1 ? '' : 's'} attached.`);
+      setStatus(
+        `${nextAttachments.length} image${nextAttachments.length === 1 ? '' : 's'} attached.`
+      );
     } catch (error) {
-      setStatus(`Unable to read selected images. ${error instanceof Error ? error.message : 'Try again.'}`);
+      setStatus(
+        `Unable to read selected images. ${error instanceof Error ? error.message : 'Try again.'}`
+      );
     } finally {
       imageAttachmentInput.value = '';
     }
@@ -4130,7 +4302,7 @@ if (composerAttachmentTray instanceof HTMLElement) {
     setStatus(
       removedAttachment?.filename
         ? `Removed ${removedAttachment.filename}.`
-        : 'Removed attached image.',
+        : 'Removed attached image.'
     );
   });
 }
@@ -4141,7 +4313,12 @@ if (chatForm && messageInput && chatTranscript) {
     const value = messageInput.value.trim();
     const attachments = getPendingComposerAttachments();
     const hasAttachments = attachments.length > 0;
-    if ((!value && !hasAttachments) || appState.isGenerating || appState.isRunningOrchestration || appState.activeUserEditMessageId) {
+    if (
+      (!value && !hasAttachments) ||
+      appState.isGenerating ||
+      appState.isRunningOrchestration ||
+      appState.activeUserEditMessageId
+    ) {
       if (appState.activeUserEditMessageId) {
         setStatus('Save or cancel the current message edit before sending a new message.');
       } else if (appState.isRunningOrchestration) {
@@ -4198,9 +4375,13 @@ if (chatForm && messageInput && chatTranscript) {
     messageInput.value = '';
     clearPendingComposerAttachments();
     queueConversationStateSave();
-    appController.startModelGeneration(activeConversation, buildPromptForConversationLeaf(activeConversation), {
-      updateLastSpokenOnComplete: true,
-    });
+    appController.startModelGeneration(
+      activeConversation,
+      buildPromptForConversationLeaf(activeConversation),
+      {
+        updateLastSpokenOnComplete: true,
+      }
+    );
   });
 }
 
@@ -4262,7 +4443,10 @@ if (chatTranscript) {
     }
     const copyButton = target.closest('.copy-message-btn, .thoughts-copy-btn');
     if (copyButton instanceof HTMLButtonElement) {
-      await handleMessageCopyAction(copyButton.dataset.messageId || '', copyButton.dataset.copyType || 'message');
+      await handleMessageCopyAction(
+        copyButton.dataset.messageId || '',
+        copyButton.dataset.copyType || 'message'
+      );
     }
   });
 }
@@ -4386,7 +4570,7 @@ if (conversationSystemPromptModal instanceof HTMLElement) {
       conversationSystemPromptInput.focus();
       conversationSystemPromptInput.setSelectionRange(
         conversationSystemPromptInput.value.length,
-        conversationSystemPromptInput.value.length,
+        conversationSystemPromptInput.value.length
       );
     }
   });
@@ -4458,6 +4642,3 @@ if (chatTitleInput instanceof HTMLInputElement) {
     }
   });
 }
-
-
-

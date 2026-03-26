@@ -17,14 +17,14 @@ Student-facing browser chat UI with local model inference.
   - Browser back/forward navigation follows those screen transitions.
 - Header actions include a `Help` button that opens `help.html` in a new tab with feature and basic usage guidance.
 - Header actions include a `Keyboard shortcuts` button and the composer shows a visible shortcut hint (`Ctrl+/`) so users can discover available keyboard actions.
-- The app shell uses a two-row header: a centered window-style app title above the main control bar.
-- The footer shows the current release stamp (`2026.03.25-01`) plus links to the GitHub repository and MIT license.
+- The app shell uses a full-width `ClawsChat` banner above the main control bar.
+- The footer shows the current release stamp (`2026.03.25-01`), copyright for Catarino David Delgado, and links to the GitHub repository and MIT license.
 - `Settings -> Conversation` includes:
   - `Enable single-key transcript shortcuts` to disable focused transcript shortcuts like `E`, `B`, `R`, `F`, and `C`
   - `Transcript view` with `Standard` and `Compact`
 - After model load completes, the full conversation header controls appear and response streaming begins.
 - If saved conversations exist, no conversation is auto-opened after load; users choose one from the conversation list.
-- If an existing conversation is selected before model load, the pre-chat panel prompts the user to load a model first and provides a `Load model` action.
+- Before the first model load, the initial pre-chat panel is shown only when no active conversation exists; creating a new conversation opens the normal chat workspace immediately.
 - If no active conversation exists, a new untitled conversation is created when the first message is sent.
 - Backend selection supports:
   - `Auto (WebGPU then WASM then CPU)`

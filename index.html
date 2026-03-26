@@ -7,761 +7,762 @@
   </head>
   <body class="app-body">
     <div class="app-shell">
-      <aside
-        class="offcanvas-md offcanvas-start conversation-panel"
-        tabindex="-1"
-        id="conversationPanel"
-        aria-labelledby="conversationPanelLabel"
-      >
-        <div class="offcanvas-header border-bottom">
-          <h2 class="offcanvas-title h5 mb-0" id="conversationPanelLabel">Conversations</h2>
-          <button
-            type="button"
-            class="btn-close d-md-none"
-            data-bs-dismiss="offcanvas"
-            data-bs-target="#conversationPanel"
-            aria-label="Close conversations"
-          ></button>
+      <div class="app-chrome">
+        <div class="app-frame-header">
+          <h1 class="app-window-title">ClawsChat</h1>
         </div>
-        <div class="offcanvas-body d-flex flex-column gap-3 p-3">
-          <button
-            id="newConversationBtn"
-            type="button"
-            class="btn btn-primary square-icon-button"
-            aria-label="New conversation"
-            aria-keyshortcuts="Alt+N"
-            data-bs-toggle="tooltip"
-            data-bs-title="New conversation (Alt+N)"
-          >
-            <i class="bi bi-pencil-square" aria-hidden="true"></i>
-            <span class="visually-hidden">New conversation</span>
-          </button>
-          <h2 id="conversationListHeading" class="visually-hidden">Conversations</h2>
-          <nav aria-labelledby="conversationListHeading">
-            <ul id="conversationList" class="list-unstyled d-flex flex-column gap-2 mb-0"></ul>
-          </nav>
-        </div>
-      </aside>
-
-      <div class="main-column">
-        <div class="app-chrome">
-          <div class="app-frame-header">
-            <h1 class="app-window-title">ClawsChat</h1>
-          </div>
-          <header id="topBar" class="top-bar" aria-label="Application controls">
-            <div class="chat-title-wrap d-flex align-items-center gap-2">
-              <button
-                type="button"
-                class="btn btn-outline-secondary d-md-none"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#conversationPanel"
-                aria-controls="conversationPanel"
-              >
-                Conversations
-              </button>
-              <h2 id="chatTitle" class="h4 mb-0">Choose a Model to Chat</h2>
-              <input
-                id="chatTitleInput"
-                class="form-control form-control-sm chat-title-input d-none"
-                type="text"
-                aria-label="Conversation title"
-                maxlength="64"
-              />
-              <button
-                type="button"
-                id="editChatTitleBtn"
-                class="btn icon-button d-none"
-                aria-label="Edit conversation title"
-                aria-keyshortcuts="Alt+T"
-                data-bs-toggle="tooltip"
-                data-bs-title="Edit conversation title (Alt+T)"
-              >
-                <i class="bi bi-pencil-fill" aria-hidden="true"></i>
-                <span class="visually-hidden">Edit conversation title</span>
-              </button>
-              <button
-                type="button"
-                id="editConversationSystemPromptBtn"
-                class="btn icon-button d-none"
-                aria-label="Edit conversation system prompt"
-                aria-keyshortcuts="Alt+P"
-                data-icon-tooltip="true"
-                data-bs-title="Edit conversation system prompt (Alt+P)"
-              >
-                <i class="bi bi-card-checklist" aria-hidden="true"></i>
-                <span class="visually-hidden">Edit conversation system prompt</span>
-              </button>
-              <div id="downloadConversationMenu" class="dropdown d-none">
-                <button
-                  type="button"
-                  id="downloadConversationBtn"
-                  class="btn icon-button dropdown-toggle dropdown-toggle-no-caret"
-                  aria-label="Download conversation"
-                  data-bs-toggle="dropdown"
-                  data-bs-auto-close="true"
-                  data-icon-tooltip="true"
-                  data-bs-title="Download conversation"
-                  aria-expanded="false"
-                >
-                  <i class="bi bi-download" aria-hidden="true"></i>
-                  <span class="visually-hidden">Download conversation</span>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li>
-                    <button
-                      id="downloadConversationJsonBtn"
-                      type="button"
-                      class="dropdown-item"
-                      aria-keyshortcuts="Alt+Shift+J"
-                    >
-                      JSON (.llm.json) File
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      id="downloadConversationMarkdownBtn"
-                      type="button"
-                      class="dropdown-item"
-                      aria-keyshortcuts="Alt+Shift+M"
-                    >
-                      Markdown (.md) File
-                    </button>
-                  </li>
-                </ul>
-              </div>
-              <button
-                type="button"
-                id="saveChatTitleBtn"
-                class="btn icon-button d-none"
-                aria-label="Save conversation title"
-                data-bs-toggle="tooltip"
-                data-bs-title="Save conversation title"
-              >
-                <i class="bi bi-floppy-fill" aria-hidden="true"></i>
-                <span class="visually-hidden">Save conversation title</span>
-              </button>
-              <button
-                type="button"
-                id="cancelChatTitleBtn"
-                class="btn icon-button d-none"
-                aria-label="Cancel editing conversation title"
-                data-bs-toggle="tooltip"
-                data-bs-title="Cancel editing conversation title"
-              >
-                <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
-                <span class="visually-hidden">Cancel editing conversation title</span>
-              </button>
-            </div>
-            <div
-              id="statusRegion"
-              class="alert alert-secondary status-alert mb-0 d-none"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <h2 id="statusRegionHeading" class="alert-heading h6 mb-1">Chat status</h2>
-              <p id="statusRegionMessage" class="mb-0"></p>
-            </div>
-            <div class="top-bar-actions">
-              <button
-                id="openKeyboardShortcutsButton"
-                type="button"
-                class="btn icon-button"
-                aria-label="Open keyboard shortcuts"
-                aria-keyshortcuts="Control+/"
-                data-icon-tooltip="true"
-                data-bs-title="Keyboard shortcuts (Ctrl+/)"
-              >
-                <i class="bi bi-keyboard-fill" aria-hidden="true"></i>
-                <span class="visually-hidden">Open keyboard shortcuts</span>
-              </button>
-              <a
-                id="openHelpButton"
-                class="btn icon-button"
-                href="help.html"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open help in a new tab"
-                aria-keyshortcuts="Alt+H"
-                data-icon-tooltip="true"
-                data-bs-title="Open help in a new tab (Alt+H)"
-              >
-                <i class="bi bi-question-circle-fill" aria-hidden="true"></i>
-                <span class="visually-hidden">Open help in a new tab</span>
-              </a>
-              <button
-                type="button"
-                id="openSettingsButton"
-                class="btn icon-button"
-                aria-label="Open settings"
-                aria-keyshortcuts="Alt+S"
-                data-icon-tooltip="true"
-                data-bs-title="Open settings (Alt+S)"
-              >
-                <i class="bi bi-gear-fill" aria-hidden="true"></i>
-                <span class="visually-hidden">Open settings</span>
-              </button>
-            </div>
-          </header>
-        </div>
-
-        <main class="chat-main">
-          <section
-            id="homePanel"
-            class="welcome-panel card shadow-sm mb-3 home-panel"
-            aria-labelledby="homeTitle"
-          >
-            <div class="card-body home-panel-body">
-              <h2 id="homeTitle" class="home-title mb-3">Local AI chat, ready when you are</h2>
-              <p class="home-lead mb-4">
-                Start a conversation first. Your selected model will load when you send your first
-                message.
-              </p>
-              <button
-                id="startConversationButton"
-                type="button"
-                class="btn btn-primary btn-lg"
-                aria-keyshortcuts="Alt+N"
-              >
-                Start a conversation
-              </button>
-            </div>
-          </section>
-
-          <section id="preChatPanel" class="pre-chat-panel d-none" aria-labelledby="preChatHeading">
-            <div class="pre-chat-inner">
-              <h2 id="preChatHeading" class="h3 mb-2">ChatClaws</h2>
-              <div class="pre-chat-model-picker">
-                <label class="form-label" for="modelSelect">Choose a model</label>
-                <select id="modelSelect" class="form-select"></select>
-              </div>
-              <div
-                id="onboardingStatusRegion"
-                class="alert alert-secondary status-alert mb-3 mt-3 d-none"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-              >
-                <h3 id="onboardingStatusRegionHeading" class="alert-heading h6 mb-1">
-                  Setup status
-                </h3>
-                <p id="onboardingStatusRegionMessage" class="mb-0"></p>
-              </div>
-              <div id="preChatActions" class="pre-chat-actions d-none">
-                <button
-                  id="preChatLoadModelBtn"
-                  type="button"
-                  class="btn btn-primary"
-                  aria-label="Load model"
-                  aria-keyshortcuts="Alt+L"
-                >
-                  Load model
-                </button>
-                <button
-                  id="preChatEditConversationSystemPromptBtn"
-                  type="button"
-                  class="btn icon-button"
-                  aria-label="Edit conversation system prompt"
-                  aria-keyshortcuts="Alt+P"
-                  data-icon-tooltip="true"
-                  data-bs-title="Edit conversation system prompt (Alt+P)"
-                >
-                  <i class="bi bi-card-checklist" aria-hidden="true"></i>
-                  <span class="visually-hidden">Edit conversation system prompt</span>
-                </button>
-              </div>
-              <div id="modelLoadFeedback" class="pre-chat-progress">
-                <div id="modelLoadProgressWrap" class="d-none" aria-live="off">
-                  <div class="d-flex justify-content-between align-items-center mb-1">
-                    <p id="modelLoadProgressLabel" class="mb-0 small text-body-secondary">
-                      Preparing model...
-                    </p>
-                    <p id="modelLoadProgressValue" class="mb-0 small text-body-secondary">0%</p>
-                  </div>
-                  <div class="progress" role="presentation">
-                    <div
-                      id="modelLoadProgressBar"
-                      class="progress-bar progress-bar-striped progress-bar-animated"
-                      role="progressbar"
-                      aria-label="Model loading progress"
-                      aria-valuemin="0"
-                      aria-valuemax="100"
-                      aria-valuenow="0"
-                      style="width: 0%"
-                    ></div>
-                  </div>
-                  <p id="modelLoadProgressSummary" class="small text-body-secondary mt-2 mb-1">
-                    Waiting for download details...
-                  </p>
-                </div>
-                <div id="modelLoadError" class="alert alert-danger d-none mt-3 mb-0" role="alert">
-                  <h3 class="h6 mb-2">Model loading failed</h3>
-                  <p id="modelLoadErrorSummary" class="mb-2"></p>
-                  <ul id="modelLoadErrorDetails" class="mb-0"></ul>
-                </div>
-              </div>
-            </div>
-          </section>
-          <section
-            id="chatTranscriptWrap"
-            class="chat-transcript-wrap"
-            aria-label="Chat transcript"
-          >
-            <div id="chatTranscriptStart" class="transcript-boundary" tabindex="-1"></div>
-            <nav class="transcript-helper-links mb-3" aria-label="Transcript navigation">
-              <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="start">
-                Jump to transcript start
-              </button>
-              <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="end">
-                Jump to transcript end
-              </button>
-              <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="input">
-                Jump to message input
-              </button>
-            </nav>
-            <div
-              class="alert alert-info transcript-note"
-              role="note"
-              aria-labelledby="transcriptNoteHeading"
-            >
-              <h2 id="transcriptNoteHeading" class="alert-heading h6 mb-1">
-                Transcript navigation
-              </h2>
-              <p class="mb-0">
-                Each chat exchange has a heading that assistive technology can index. Use the
-                transcript links to jump to the start or end of the conversation.
-              </p>
-            </div>
+        <header id="topBar" class="top-bar" aria-label="Application controls">
+          <div class="chat-title-wrap d-flex align-items-center gap-2">
             <button
-              id="jumpToLastPromptButton"
               type="button"
-              class="btn btn-primary jump-to-last-prompt-btn d-none"
-              aria-keyshortcuts="Alt+K"
+              class="btn btn-outline-secondary d-md-none"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#conversationPanel"
+              aria-controls="conversationPanel"
             >
-              <i class="bi bi-arrow-up-circle" aria-hidden="true"></i>
-              <span>Jump to last prompt</span>
+              Conversations
             </button>
-            <ol id="chatTranscript" class="chat-transcript"></ol>
-            <nav class="transcript-helper-links mt-3" aria-label="Transcript end navigation">
-              <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="start">
-                Jump to transcript start
-              </button>
-              <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="end">
-                Jump to transcript end
-              </button>
-              <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="input">
-                Jump to message input
-              </button>
-            </nav>
-            <div id="chatTranscriptEnd" class="transcript-boundary" tabindex="-1"></div>
+            <h2 id="chatTitle" class="h4 mb-0">Choose a Model to Chat</h2>
+            <input
+              id="chatTitleInput"
+              class="form-control form-control-sm chat-title-input d-none"
+              type="text"
+              aria-label="Conversation title"
+              maxlength="64"
+            />
             <button
-              id="jumpToLatestButton"
               type="button"
-              class="btn btn-primary jump-to-latest-btn d-none"
-              aria-keyshortcuts="Alt+J"
-            >
-              <i class="bi bi-arrow-down-circle" aria-hidden="true"></i>
-              <span>Jump to latest</span>
-            </button>
-          </section>
-        </main>
-
-        <form class="composer" aria-label="Message input">
-          <label class="visually-hidden" for="messageInput">Message input</label>
-          <input
-            id="imageAttachmentInput"
-            class="visually-hidden"
-            type="file"
-            aria-label="Choose image attachments"
-            accept="image/*"
-            multiple
-          />
-          <div class="composer-shortcuts-hint">
-            <button
-              id="composerShortcutsHintButton"
-              type="button"
-              class="btn btn-link btn-sm composer-shortcuts-link"
-              aria-describedby="composerShortcutsHintText"
-            >
-              Keyboard shortcuts
-            </button>
-            <span id="composerShortcutsHintText" class="small text-body-secondary">
-              Press <kbd>Ctrl</kbd>+<kbd>/</kbd> to view available actions.
-            </span>
-          </div>
-          <section
-            id="composerAttachmentTray"
-            class="composer-attachment-tray d-none"
-            aria-label="Attached images"
-          ></section>
-          <div class="composer-row">
-            <button
-              id="addImagesButton"
-              type="button"
-              class="btn btn-outline-secondary composer-attach-button d-none"
-              aria-label="Add images"
-              title="Add images"
-            >
-              <i class="bi bi-plus-lg" aria-hidden="true"></i>
-              <span class="visually-hidden">Add images</span>
-            </button>
-            <textarea
-              id="messageInput"
-              class="form-control"
-              rows="2"
-              placeholder="Type your message..."
-            ></textarea>
-            <button
-              id="sendButton"
-              type="submit"
-              class="btn btn-primary"
-              aria-label="Send message"
-              aria-keyshortcuts="Control+Enter"
+              id="editChatTitleBtn"
+              class="btn icon-button d-none"
+              aria-label="Edit conversation title"
+              aria-keyshortcuts="Alt+T"
               data-bs-toggle="tooltip"
-              data-bs-title="Send message (Ctrl+Enter)"
+              data-bs-title="Edit conversation title (Alt+T)"
             >
-              <i class="bi bi-send" aria-hidden="true"></i>
-              <span class="visually-hidden">Send message</span>
+              <i class="bi bi-pencil-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Edit conversation title</span>
             </button>
-          </div>
-        </form>
-        <section id="settingsPage" class="settings-page d-none" aria-labelledby="settingsPageTitle">
-          <div class="settings-page-inner">
-            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-              <div>
-                <h2 id="settingsPageTitle" class="h4 mb-1">Settings</h2>
-                <p class="small text-body-secondary mb-0">Saving is automatic.</p>
-              </div>
+            <button
+              type="button"
+              id="editConversationSystemPromptBtn"
+              class="btn icon-button d-none"
+              aria-label="Edit conversation system prompt"
+              aria-keyshortcuts="Alt+P"
+              data-icon-tooltip="true"
+              data-bs-title="Edit conversation system prompt (Alt+P)"
+            >
+              <i class="bi bi-card-checklist" aria-hidden="true"></i>
+              <span class="visually-hidden">Edit conversation system prompt</span>
+            </button>
+            <div id="downloadConversationMenu" class="dropdown d-none">
               <button
                 type="button"
-                id="closeSettingsButton"
-                class="btn btn-outline-secondary btn-sm"
-                aria-label="Back to chat"
+                id="downloadConversationBtn"
+                class="btn icon-button dropdown-toggle dropdown-toggle-no-caret"
+                aria-label="Download conversation"
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="true"
+                data-icon-tooltip="true"
+                data-bs-title="Download conversation"
+                aria-expanded="false"
               >
-                <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                <span>Back to chat</span>
+                <i class="bi bi-download" aria-hidden="true"></i>
+                <span class="visually-hidden">Download conversation</span>
               </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <button
+                    id="downloadConversationJsonBtn"
+                    type="button"
+                    class="dropdown-item"
+                    aria-keyshortcuts="Alt+Shift+J"
+                  >
+                    JSON (.llm.json) File
+                  </button>
+                </li>
+                <li>
+                  <button
+                    id="downloadConversationMarkdownBtn"
+                    type="button"
+                    class="dropdown-item"
+                    aria-keyshortcuts="Alt+Shift+M"
+                  >
+                    Markdown (.md) File
+                  </button>
+                </li>
+              </ul>
             </div>
+            <button
+              type="button"
+              id="saveChatTitleBtn"
+              class="btn icon-button d-none"
+              aria-label="Save conversation title"
+              data-bs-toggle="tooltip"
+              data-bs-title="Save conversation title"
+            >
+              <i class="bi bi-floppy-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Save conversation title</span>
+            </button>
+            <button
+              type="button"
+              id="cancelChatTitleBtn"
+              class="btn icon-button d-none"
+              aria-label="Cancel editing conversation title"
+              data-bs-toggle="tooltip"
+              data-bs-title="Cancel editing conversation title"
+            >
+              <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Cancel editing conversation title</span>
+            </button>
+          </div>
+          <div class="top-bar-actions">
+            <button
+              id="openKeyboardShortcutsButton"
+              type="button"
+              class="btn icon-button"
+              aria-label="Open keyboard shortcuts"
+              aria-keyshortcuts="Control+/"
+              data-icon-tooltip="true"
+              data-bs-title="Keyboard shortcuts (Ctrl+/)"
+            >
+              <i class="bi bi-keyboard-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Open keyboard shortcuts</span>
+            </button>
+            <a
+              id="openHelpButton"
+              class="btn icon-button"
+              href="help.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open help in a new tab"
+              aria-keyshortcuts="Alt+H"
+              data-icon-tooltip="true"
+              data-bs-title="Open help in a new tab (Alt+H)"
+            >
+              <i class="bi bi-question-circle-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Open help in a new tab</span>
+            </a>
+            <button
+              type="button"
+              id="openSettingsButton"
+              class="btn icon-button"
+              aria-label="Open settings"
+              aria-keyshortcuts="Alt+S"
+              data-icon-tooltip="true"
+              data-bs-title="Open settings (Alt+S)"
+            >
+              <i class="bi bi-gear-fill" aria-hidden="true"></i>
+              <span class="visually-hidden">Open settings</span>
+            </button>
+          </div>
+        </header>
+        <div
+          id="statusRegion"
+          class="visually-hidden"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <h2 id="statusRegionHeading">Chat status</h2>
+          <p id="statusRegionMessage" class="mb-0"></p>
+        </div>
+      </div>
+      <div class="app-workspace">
+        <aside
+          class="offcanvas-md offcanvas-start conversation-panel"
+          tabindex="-1"
+          id="conversationPanel"
+          aria-labelledby="conversationPanelLabel"
+        >
+          <div class="offcanvas-header border-bottom">
+            <h2 class="offcanvas-title h5 mb-0" id="conversationPanelLabel">Conversations</h2>
+            <button
+              type="button"
+              class="btn-close d-md-none"
+              data-bs-dismiss="offcanvas"
+              data-bs-target="#conversationPanel"
+              aria-label="Close conversations"
+            ></button>
+          </div>
+          <div class="offcanvas-body d-flex flex-column gap-3 p-3">
+            <button
+              id="newConversationBtn"
+              type="button"
+              class="btn btn-primary square-icon-button"
+              aria-label="New conversation"
+              aria-keyshortcuts="Alt+N"
+              data-bs-toggle="tooltip"
+              data-bs-title="New conversation (Alt+N)"
+            >
+              <i class="bi bi-pencil-square" aria-hidden="true"></i>
+              <span class="visually-hidden">New conversation</span>
+            </button>
+            <h2 id="conversationListHeading" class="visually-hidden">Conversations</h2>
+            <nav aria-labelledby="conversationListHeading">
+              <ul id="conversationList" class="list-unstyled d-flex flex-column gap-2 mb-0"></ul>
+            </nav>
+          </div>
+        </aside>
 
-            <div class="settings-layout">
-              <nav class="settings-tabs-column" aria-label="Settings sections">
-                <div
-                  class="settings-tabs nav flex-column"
-                  role="tablist"
-                  aria-orientation="vertical"
+        <div class="main-column">
+          <main class="chat-main">
+            <section
+              id="homePanel"
+              class="welcome-panel card shadow-sm mb-3 home-panel"
+              aria-labelledby="homeTitle"
+            >
+              <div class="card-body home-panel-body">
+                <h2 id="homeTitle" class="home-title mb-3">Local AI chat, ready when you are</h2>
+                <p class="home-lead mb-4">
+                  Start a conversation first. Your selected model will load when you send your first
+                  message.
+                </p>
+                <button
+                  id="startConversationButton"
+                  type="button"
+                  class="btn btn-primary btn-lg"
+                  aria-keyshortcuts="Alt+N"
                 >
+                  Start a conversation
+                </button>
+              </div>
+            </section>
+
+            <section
+              id="preChatPanel"
+              class="pre-chat-panel d-none"
+              aria-labelledby="preChatHeading"
+            >
+              <div class="pre-chat-inner">
+                <h2 id="preChatHeading" class="h3 mb-3">Start a New Chat</h2>
+                <div class="pre-chat-model-picker">
+                  <label class="form-label" for="modelSelect">Choose a model</label>
+                  <select id="modelSelect" class="form-select"></select>
+                </div>
+                <div id="preChatActions" class="pre-chat-actions d-none">
                   <button
+                    id="preChatLoadModelBtn"
                     type="button"
-                    class="nav-link active"
-                    id="settingsTabSystem"
-                    role="tab"
-                    data-settings-tab="system"
-                    aria-controls="settingsSystemPanel"
-                    aria-selected="true"
+                    class="btn btn-primary"
+                    aria-label="Load model"
+                    aria-keyshortcuts="Alt+L"
                   >
-                    System
+                    Load model
                   </button>
                   <button
+                    id="preChatEditConversationSystemPromptBtn"
                     type="button"
-                    class="nav-link"
-                    id="settingsTabModel"
-                    role="tab"
-                    data-settings-tab="model"
-                    aria-controls="settingsModelPanel"
-                    aria-selected="false"
+                    class="btn icon-button"
+                    aria-label="Edit conversation system prompt"
+                    aria-keyshortcuts="Alt+P"
+                    data-icon-tooltip="true"
+                    data-bs-title="Edit conversation system prompt (Alt+P)"
                   >
-                    Model
-                  </button>
-                  <button
-                    type="button"
-                    class="nav-link"
-                    id="settingsTabConversation"
-                    role="tab"
-                    data-settings-tab="conversation"
-                    aria-controls="settingsConversationPanel"
-                    aria-selected="false"
-                  >
-                    Conversation
+                    <i class="bi bi-card-checklist" aria-hidden="true"></i>
+                    <span class="visually-hidden">Edit conversation system prompt</span>
                   </button>
                 </div>
-              </nav>
-              <form class="settings-panels">
-                <section
-                  id="settingsSystemPanel"
-                  class="settings-tab-panel"
-                  role="tabpanel"
-                  data-settings-tab-panel="system"
-                  aria-labelledby="settingsTabSystem"
-                >
-                  <h3 class="h6 mb-0" id="settingsSystemHeading">System</h3>
-                  <div class="settings-control-group">
-                    <label class="form-label" for="backendSelect">Backend</label>
-                    <select id="backendSelect" class="form-select">
-                      <option value="auto" selected>Auto (WebGPU then WASM then CPU)</option>
-                      <option value="webgpu">WebGPU only</option>
-                      <option value="wasm">WASM only</option>
-                    </select>
-                  </div>
-                  <div class="settings-control-group">
-                    <label class="form-label" for="themeSelect">Theme</label>
-                    <select id="themeSelect" class="form-select">
-                      <option value="light" selected>Light</option>
-                      <option value="dark">Dark</option>
-                      <option value="system">System</option>
-                    </select>
-                  </div>
-                  <div class="form-check form-switch">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      role="switch"
-                      id="streamToggle"
-                      checked
-                    />
-                    <label class="form-check-label" for="streamToggle">Stream responses</label>
-                  </div>
-                  <div class="accordion settings-accordion" id="debugAccordion">
-                    <div class="accordion-item">
-                      <h2 class="accordion-header" id="debugAccordionHeading">
-                        <button
-                          class="accordion-button collapsed"
-                          type="button"
-                          data-bs-toggle="collapse"
-                          data-bs-target="#debugAccordionBody"
-                          aria-expanded="false"
-                          aria-controls="debugAccordionBody"
-                        >
-                          Debug info
-                        </button>
-                      </h2>
+                <div id="modelLoadFeedback" class="pre-chat-progress">
+                  <div id="modelLoadProgressWrap" class="d-none" aria-live="off">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <p id="modelLoadProgressLabel" class="mb-0 small text-body-secondary">
+                        Preparing model...
+                      </p>
+                      <p id="modelLoadProgressValue" class="mb-0 small text-body-secondary">0%</p>
+                    </div>
+                    <div class="progress" role="presentation">
                       <div
-                        id="debugAccordionBody"
-                        class="accordion-collapse collapse"
-                        aria-labelledby="debugAccordionHeading"
-                        data-bs-parent="#debugAccordion"
-                      >
-                        <div class="accordion-body">
-                          <pre id="debugInfo" class="debug-info mb-0" aria-live="off"></pre>
+                        id="modelLoadProgressBar"
+                        class="progress-bar progress-bar-striped progress-bar-animated"
+                        role="progressbar"
+                        aria-label="Model loading progress"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                        aria-valuenow="0"
+                        style="width: 0%"
+                      ></div>
+                    </div>
+                    <p id="modelLoadProgressSummary" class="small text-body-secondary mt-2 mb-1">
+                      Waiting for download details...
+                    </p>
+                  </div>
+                  <div id="modelLoadError" class="alert alert-danger d-none mt-3 mb-0" role="alert">
+                    <h3 class="h6 mb-2">Model loading failed</h3>
+                    <p id="modelLoadErrorSummary" class="mb-2"></p>
+                    <ul id="modelLoadErrorDetails" class="mb-0"></ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section
+              id="chatTranscriptWrap"
+              class="chat-transcript-wrap"
+              aria-label="Chat transcript"
+            >
+              <div id="chatTranscriptStart" class="transcript-boundary" tabindex="-1"></div>
+              <nav class="transcript-helper-links mb-3" aria-label="Transcript navigation">
+                <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="start">
+                  Jump to transcript start
+                </button>
+                <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="end">
+                  Jump to transcript end
+                </button>
+                <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="input">
+                  Jump to message input
+                </button>
+              </nav>
+              <div
+                class="alert alert-info transcript-note"
+                role="note"
+                aria-labelledby="transcriptNoteHeading"
+              >
+                <h2 id="transcriptNoteHeading" class="alert-heading h6 mb-1">
+                  Transcript navigation
+                </h2>
+                <p class="mb-0">
+                  Each chat exchange has a heading that assistive technology can index. Use the
+                  transcript links to jump to the start or end of the conversation.
+                </p>
+              </div>
+              <button
+                id="jumpToLastPromptButton"
+                type="button"
+                class="btn btn-primary jump-to-last-prompt-btn d-none"
+                aria-keyshortcuts="Alt+K"
+              >
+                <i class="bi bi-arrow-up-circle" aria-hidden="true"></i>
+                <span>Jump to last prompt</span>
+              </button>
+              <ol id="chatTranscript" class="chat-transcript"></ol>
+              <nav class="transcript-helper-links mt-3" aria-label="Transcript end navigation">
+                <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="start">
+                  Jump to transcript start
+                </button>
+                <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="end">
+                  Jump to transcript end
+                </button>
+                <button type="button" class="btn btn-link btn-sm p-0" data-transcript-nav="input">
+                  Jump to message input
+                </button>
+              </nav>
+              <div id="chatTranscriptEnd" class="transcript-boundary" tabindex="-1"></div>
+              <button
+                id="jumpToLatestButton"
+                type="button"
+                class="btn btn-primary jump-to-latest-btn d-none"
+                aria-keyshortcuts="Alt+J"
+              >
+                <i class="bi bi-arrow-down-circle" aria-hidden="true"></i>
+                <span>Jump to latest</span>
+              </button>
+            </section>
+          </main>
+
+          <form class="composer" aria-label="Message input">
+            <label class="visually-hidden" for="messageInput">Message input</label>
+            <input
+              id="imageAttachmentInput"
+              class="visually-hidden"
+              type="file"
+              aria-label="Choose image attachments"
+              accept="image/*"
+              multiple
+            />
+            <div class="composer-shortcuts-hint">
+              <button
+                id="composerShortcutsHintButton"
+                type="button"
+                class="btn btn-link btn-sm composer-shortcuts-link"
+                aria-describedby="composerShortcutsHintText"
+              >
+                Keyboard shortcuts
+              </button>
+              <span id="composerShortcutsHintText" class="small text-body-secondary">
+                Press <kbd>Ctrl</kbd>+<kbd>/</kbd> to view available actions.
+              </span>
+            </div>
+            <section
+              id="composerAttachmentTray"
+              class="composer-attachment-tray d-none"
+              aria-label="Attached images"
+            ></section>
+            <div class="composer-row">
+              <button
+                id="addImagesButton"
+                type="button"
+                class="btn btn-outline-secondary composer-attach-button d-none"
+                aria-label="Add images"
+                title="Add images"
+              >
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                <span class="visually-hidden">Add images</span>
+              </button>
+              <textarea
+                id="messageInput"
+                class="form-control"
+                rows="2"
+                placeholder="Type your message..."
+              ></textarea>
+              <button
+                id="sendButton"
+                type="submit"
+                class="btn btn-primary"
+                aria-label="Send message"
+                aria-keyshortcuts="Control+Enter"
+                data-bs-toggle="tooltip"
+                data-bs-title="Send message (Ctrl+Enter)"
+              >
+                <i class="bi bi-send" aria-hidden="true"></i>
+                <span class="visually-hidden">Send message</span>
+              </button>
+            </div>
+          </form>
+          <section
+            id="settingsPage"
+            class="settings-page d-none"
+            aria-labelledby="settingsPageTitle"
+          >
+            <div class="settings-page-inner">
+              <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                  <h2 id="settingsPageTitle" class="h4 mb-1">Settings</h2>
+                  <p class="small text-body-secondary mb-0">Saving is automatic.</p>
+                </div>
+                <button
+                  type="button"
+                  id="closeSettingsButton"
+                  class="btn btn-outline-secondary btn-sm"
+                  aria-label="Back to chat"
+                >
+                  <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                  <span>Back to chat</span>
+                </button>
+              </div>
+
+              <div class="settings-layout">
+                <nav class="settings-tabs-column" aria-label="Settings sections">
+                  <div
+                    class="settings-tabs nav flex-column"
+                    role="tablist"
+                    aria-orientation="vertical"
+                  >
+                    <button
+                      type="button"
+                      class="nav-link active"
+                      id="settingsTabSystem"
+                      role="tab"
+                      data-settings-tab="system"
+                      aria-controls="settingsSystemPanel"
+                      aria-selected="true"
+                    >
+                      System
+                    </button>
+                    <button
+                      type="button"
+                      class="nav-link"
+                      id="settingsTabModel"
+                      role="tab"
+                      data-settings-tab="model"
+                      aria-controls="settingsModelPanel"
+                      aria-selected="false"
+                    >
+                      Model
+                    </button>
+                    <button
+                      type="button"
+                      class="nav-link"
+                      id="settingsTabConversation"
+                      role="tab"
+                      data-settings-tab="conversation"
+                      aria-controls="settingsConversationPanel"
+                      aria-selected="false"
+                    >
+                      Conversation
+                    </button>
+                  </div>
+                </nav>
+                <form class="settings-panels">
+                  <section
+                    id="settingsSystemPanel"
+                    class="settings-tab-panel"
+                    role="tabpanel"
+                    data-settings-tab-panel="system"
+                    aria-labelledby="settingsTabSystem"
+                  >
+                    <h3 class="h6 mb-0" id="settingsSystemHeading">System</h3>
+                    <div class="settings-control-group">
+                      <label class="form-label" for="backendSelect">Backend</label>
+                      <select id="backendSelect" class="form-select">
+                        <option value="auto" selected>Auto (WebGPU then WASM then CPU)</option>
+                        <option value="webgpu">WebGPU only</option>
+                        <option value="wasm">WASM only</option>
+                      </select>
+                    </div>
+                    <div class="settings-control-group">
+                      <label class="form-label" for="themeSelect">Theme</label>
+                      <select id="themeSelect" class="form-select">
+                        <option value="light" selected>Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="system">System</option>
+                      </select>
+                    </div>
+                    <div class="form-check form-switch">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id="streamToggle"
+                        checked
+                      />
+                      <label class="form-check-label" for="streamToggle">Stream responses</label>
+                    </div>
+                    <div class="accordion settings-accordion" id="debugAccordion">
+                      <div class="accordion-item">
+                        <h2 class="accordion-header" id="debugAccordionHeading">
+                          <button
+                            class="accordion-button collapsed"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#debugAccordionBody"
+                            aria-expanded="false"
+                            aria-controls="debugAccordionBody"
+                          >
+                            Debug info
+                          </button>
+                        </h2>
+                        <div
+                          id="debugAccordionBody"
+                          class="accordion-collapse collapse"
+                          aria-labelledby="debugAccordionHeading"
+                          data-bs-parent="#debugAccordion"
+                        >
+                          <div class="accordion-body">
+                            <pre id="debugInfo" class="debug-info mb-0" aria-live="off"></pre>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </section>
+                  </section>
 
-                <section
-                  id="settingsModelPanel"
-                  class="settings-tab-panel d-none"
-                  role="tabpanel"
-                  data-settings-tab-panel="model"
-                  aria-labelledby="settingsTabModel"
-                >
-                  <h3 class="h6 mb-0" id="settingsModelHeading">Model</h3>
-                  <div class="settings-control-group">
-                    <label class="form-label" for="maxOutputTokensInput"
-                      >Maximum output tokens</label
-                    >
-                    <input
-                      id="maxOutputTokensInput"
-                      class="form-control"
-                      type="number"
-                      inputmode="numeric"
-                      min="8"
-                      step="8"
-                      disabled
-                    />
-                    <p id="maxOutputTokensHelp" class="form-text mb-0">
-                      Load a model to edit this setting.
-                    </p>
-                  </div>
-                  <div class="settings-control-group">
-                    <div class="d-flex align-items-baseline justify-content-between gap-2">
-                      <label class="form-label mb-0" for="maxContextTokensInput"
-                        >Context size (short-term memory)</label
+                  <section
+                    id="settingsModelPanel"
+                    class="settings-tab-panel d-none"
+                    role="tabpanel"
+                    data-settings-tab-panel="model"
+                    aria-labelledby="settingsTabModel"
+                  >
+                    <h3 class="h6 mb-0" id="settingsModelHeading">Model</h3>
+                    <div class="settings-control-group">
+                      <label class="form-label" for="maxOutputTokensInput"
+                        >Maximum output tokens</label
                       >
-                      <button
-                        id="resetContextTokensButton"
-                        type="button"
-                        class="btn btn-link btn-sm p-0"
+                      <input
+                        id="maxOutputTokensInput"
+                        class="form-control"
+                        type="number"
+                        inputmode="numeric"
+                        min="8"
+                        step="8"
                         disabled
-                      >
-                        Reset to model default
-                      </button>
+                      />
+                      <p id="maxOutputTokensHelp" class="form-text mb-0">
+                        Load a model to edit this setting.
+                      </p>
                     </div>
-                    <input
-                      id="maxContextTokensInput"
-                      class="form-control"
-                      type="number"
-                      inputmode="numeric"
-                      min="8"
-                      step="8"
-                      disabled
-                    />
-                    <p id="maxContextTokensHelp" class="form-text mb-0">
-                      Load a model to edit this setting.
-                    </p>
-                  </div>
-                  <div class="settings-control-group">
-                    <div class="d-flex align-items-baseline justify-content-between gap-2">
-                      <label class="form-label mb-0" for="temperatureInput"
-                        >Temperature (Creativity)</label
-                      >
-                      <button
-                        id="resetTemperatureButton"
-                        type="button"
-                        class="btn btn-link btn-sm p-0"
+                    <div class="settings-control-group">
+                      <div class="d-flex align-items-baseline justify-content-between gap-2">
+                        <label class="form-label mb-0" for="maxContextTokensInput"
+                          >Context size (short-term memory)</label
+                        >
+                        <button
+                          id="resetContextTokensButton"
+                          type="button"
+                          class="btn btn-link btn-sm p-0"
+                          disabled
+                        >
+                          Reset to model default
+                        </button>
+                      </div>
+                      <input
+                        id="maxContextTokensInput"
+                        class="form-control"
+                        type="number"
+                        inputmode="numeric"
+                        min="8"
+                        step="8"
                         disabled
-                      >
-                        Reset to model default
-                      </button>
+                      />
+                      <p id="maxContextTokensHelp" class="form-text mb-0">
+                        Load a model to edit this setting.
+                      </p>
                     </div>
-                    <input
-                      id="temperatureInput"
-                      class="form-control"
-                      type="number"
-                      inputmode="decimal"
-                      min="0.1"
-                      max="2.0"
-                      step="0.1"
-                      disabled
-                    />
-                    <p id="temperatureHelp" class="form-text mb-0">
-                      Load a model to edit this setting.
-                    </p>
-                  </div>
-                  <div class="settings-control-group">
-                    <div class="d-flex align-items-baseline justify-content-between gap-2">
-                      <label class="form-label mb-0" for="topKInput">Top K (Predictability)</label>
-                      <button
-                        id="resetTopKButton"
-                        type="button"
-                        class="btn btn-link btn-sm p-0"
+                    <div class="settings-control-group">
+                      <div class="d-flex align-items-baseline justify-content-between gap-2">
+                        <label class="form-label mb-0" for="temperatureInput"
+                          >Temperature (Creativity)</label
+                        >
+                        <button
+                          id="resetTemperatureButton"
+                          type="button"
+                          class="btn btn-link btn-sm p-0"
+                          disabled
+                        >
+                          Reset to model default
+                        </button>
+                      </div>
+                      <input
+                        id="temperatureInput"
+                        class="form-control"
+                        type="number"
+                        inputmode="decimal"
+                        min="0.1"
+                        max="2.0"
+                        step="0.1"
                         disabled
-                      >
-                        Reset to model default
-                      </button>
+                      />
+                      <p id="temperatureHelp" class="form-text mb-0">
+                        Load a model to edit this setting.
+                      </p>
                     </div>
-                    <input
-                      id="topKInput"
-                      class="form-control"
-                      type="number"
-                      inputmode="numeric"
-                      min="5"
-                      step="5"
-                      disabled
-                    />
-                    <p id="topKHelp" class="form-text mb-0">Load a model to edit this setting.</p>
-                  </div>
-                  <div class="settings-control-group">
-                    <div class="d-flex align-items-baseline justify-content-between gap-2">
-                      <label class="form-label mb-0" for="topPInput">Top P (Strangeness)</label>
-                      <button
-                        id="resetTopPButton"
-                        type="button"
-                        class="btn btn-link btn-sm p-0"
+                    <div class="settings-control-group">
+                      <div class="d-flex align-items-baseline justify-content-between gap-2">
+                        <label class="form-label mb-0" for="topKInput"
+                          >Top K (Predictability)</label
+                        >
+                        <button
+                          id="resetTopKButton"
+                          type="button"
+                          class="btn btn-link btn-sm p-0"
+                          disabled
+                        >
+                          Reset to model default
+                        </button>
+                      </div>
+                      <input
+                        id="topKInput"
+                        class="form-control"
+                        type="number"
+                        inputmode="numeric"
+                        min="5"
+                        step="5"
                         disabled
-                      >
-                        Reset to model default
-                      </button>
+                      />
+                      <p id="topKHelp" class="form-text mb-0">Load a model to edit this setting.</p>
                     </div>
-                    <input
-                      id="topPInput"
-                      class="form-control"
-                      type="number"
-                      inputmode="decimal"
-                      min="0.00"
-                      max="1.00"
-                      step="0.05"
-                      disabled
-                    />
-                    <p id="topPHelp" class="form-text mb-0">Load a model to edit this setting.</p>
-                  </div>
-                </section>
+                    <div class="settings-control-group">
+                      <div class="d-flex align-items-baseline justify-content-between gap-2">
+                        <label class="form-label mb-0" for="topPInput">Top P (Strangeness)</label>
+                        <button
+                          id="resetTopPButton"
+                          type="button"
+                          class="btn btn-link btn-sm p-0"
+                          disabled
+                        >
+                          Reset to model default
+                        </button>
+                      </div>
+                      <input
+                        id="topPInput"
+                        class="form-control"
+                        type="number"
+                        inputmode="decimal"
+                        min="0.00"
+                        max="1.00"
+                        step="0.05"
+                        disabled
+                      />
+                      <p id="topPHelp" class="form-text mb-0">Load a model to edit this setting.</p>
+                    </div>
+                  </section>
 
-                <section
-                  id="settingsConversationPanel"
-                  class="settings-tab-panel d-none"
-                  role="tabpanel"
-                  data-settings-tab-panel="conversation"
-                  aria-labelledby="settingsTabConversation"
-                >
-                  <h3 class="h6 mb-0" id="settingsConversationHeading">Conversation</h3>
-                  <div class="settings-control-group">
-                    <label class="form-label" for="defaultSystemPromptInput"
-                      >Default system prompt</label
-                    >
-                    <textarea
-                      id="defaultSystemPromptInput"
-                      class="form-control"
-                      rows="4"
-                      placeholder="Optional instructions applied to new conversations."
-                    ></textarea>
-                    <p class="form-text mb-0">
-                      Applied only when creating a new conversation. Existing conversations keep
-                      their current behavior.
-                    </p>
-                  </div>
-                  <div class="form-check form-switch">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      role="switch"
-                      id="showThinkingToggle"
-                    />
-                    <label class="form-check-label" for="showThinkingToggle">Show thinking</label>
-                  </div>
-                  <div class="form-check form-switch">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      role="switch"
-                      id="enableSingleKeyShortcutsToggle"
-                      checked
-                    />
-                    <label class="form-check-label" for="enableSingleKeyShortcutsToggle">
-                      Enable single-key transcript shortcuts
-                    </label>
-                    <p class="form-text mb-0">
-                      Keeps single-key message actions like edit, branch, regenerate, and copy
-                      active when focus is on a transcript card.
-                    </p>
-                  </div>
-                  <div class="settings-control-group">
-                    <label class="form-label" for="transcriptViewSelect">Transcript view</label>
-                    <select id="transcriptViewSelect" class="form-select">
-                      <option value="standard" selected>Standard</option>
-                      <option value="compact">Compact</option>
-                    </select>
-                    <p class="form-text mb-0">
-                      Compact view reduces transcript spacing while keeping every learning control
-                      visible.
-                    </p>
-                  </div>
-                </section>
-              </form>
+                  <section
+                    id="settingsConversationPanel"
+                    class="settings-tab-panel d-none"
+                    role="tabpanel"
+                    data-settings-tab-panel="conversation"
+                    aria-labelledby="settingsTabConversation"
+                  >
+                    <h3 class="h6 mb-0" id="settingsConversationHeading">Conversation</h3>
+                    <div class="settings-control-group">
+                      <label class="form-label" for="defaultSystemPromptInput"
+                        >Default system prompt</label
+                      >
+                      <textarea
+                        id="defaultSystemPromptInput"
+                        class="form-control"
+                        rows="4"
+                        placeholder="Optional instructions applied to new conversations."
+                      ></textarea>
+                      <p class="form-text mb-0">
+                        Applied only when creating a new conversation. Existing conversations keep
+                        their current behavior.
+                      </p>
+                    </div>
+                    <div class="form-check form-switch">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id="showThinkingToggle"
+                      />
+                      <label class="form-check-label" for="showThinkingToggle">Show thinking</label>
+                    </div>
+                    <div class="form-check form-switch">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id="enableSingleKeyShortcutsToggle"
+                        checked
+                      />
+                      <label class="form-check-label" for="enableSingleKeyShortcutsToggle">
+                        Enable single-key transcript shortcuts
+                      </label>
+                      <p class="form-text mb-0">
+                        Keeps single-key message actions like edit, branch, regenerate, and copy
+                        active when focus is on a transcript card.
+                      </p>
+                    </div>
+                    <div class="settings-control-group">
+                      <label class="form-label" for="transcriptViewSelect">Transcript view</label>
+                      <select id="transcriptViewSelect" class="form-select">
+                        <option value="standard" selected>Standard</option>
+                        <option value="compact">Compact</option>
+                      </select>
+                      <p class="form-text mb-0">
+                        Compact view reduces transcript spacing while keeping every learning control
+                        visible.
+                      </p>
+                    </div>
+                  </section>
+                </form>
+              </div>
             </div>
-          </div>
-        </section>
-        <footer class="app-footer" aria-label="Application footer">
-          <p class="app-version mb-0">Version 2026.03.25-01 · Copyright 2026 Catarino David Delgado</p>
-          <div class="app-footer-links" aria-label="Project links">
-            <a
-              class="app-footer-link"
-              href="https://github.com/cddelgado/browser-llm-runner"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              GitHub repository
-            </a>
-            <a
-              class="app-footer-link"
-              href="https://github.com/cddelgado/browser-llm-runner?tab=MIT-1-ov-file#readme"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              MIT license
-            </a>
-          </div>
-        </footer>
+          </section>
+          <footer class="app-footer" aria-label="Application footer">
+            <p class="app-version mb-0">
+              Version 2026.03.25-01 · Copyright 2026 Catarino David Delgado
+            </p>
+            <div class="app-footer-links" aria-label="Project links">
+              <a
+                class="app-footer-link"
+                href="https://github.com/cddelgado/browser-llm-runner"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                GitHub repository
+              </a>
+              <a
+                class="app-footer-link"
+                href="https://github.com/cddelgado/browser-llm-runner?tab=MIT-1-ov-file#readme"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                MIT license
+              </a>
+            </div>
+          </footer>
+        </div>
       </div>
     </div>
     <div
