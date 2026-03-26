@@ -574,12 +574,10 @@
 
 .transcript-step-nav {
   position: fixed;
-  left: max(0.75rem, env(safe-area-inset-left));
-  top: 50%;
-  transform: translateY(-50%);
+  right: max(0.75rem, env(safe-area-inset-right));
+  top: calc(clamp(4.5rem, 9vh, 6.2rem) + 3.4rem);
   display: grid;
   gap: 0.5rem;
-  box-shadow: var(--shadow-ambient);
   z-index: 1030;
 }
 
@@ -1449,7 +1447,7 @@
   }
 
   .transcript-step-nav {
-    left: max(0.5rem, env(safe-area-inset-left));
+    right: max(0.5rem, env(safe-area-inset-right));
     gap: 0.4rem;
   }
 
