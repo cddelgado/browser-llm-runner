@@ -2615,7 +2615,7 @@ function updateChatTitle() {
     updateChatTitleEditorVisibility();
     return;
   }
-  chatTitle.textContent = appState.modelReady ? 'Start Your Chat Now' : 'Ready to Chat?';
+  chatTitle.textContent = appState.modelReady ? 'Start Your Chat Now' : 'ChatClaws';
   if (!appState.isChatTitleEditing && chatTitleInput && activeConversation) {
     chatTitleInput.value = activeConversation.name;
   }

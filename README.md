@@ -86,7 +86,7 @@ Student-facing browser chat UI with local model inference.
   - `Append after default prompt` is enabled by default; when enabled, the conversation prompt is appended after the conversation's captured default prompt.
   - When `Append after default prompt` is disabled, the conversation prompt replaces the conversation's captured default prompt.
   - The captured default prompt for a conversation does not change after that conversation is created.
-- The pre-chat `Ready to Chat?` panel also exposes conversation prompt editing for the currently selected conversation.
+- The pre-chat `ChatClaws` panel also exposes conversation prompt editing for the currently selected conversation.
 - Each user message and model response includes a copy action; model response copy excludes thought text.
 - The Thinking section includes a dedicated copy action to copy thoughts only.
 - Keyboard shortcuts cover the primary workspace actions (start/new conversation, help, settings, send/stop, load model, downloads, transcript jumps) plus focused transcript actions (edit, branch, regenerate, fix, copy, and branch/response variant navigation).
