@@ -1358,9 +1358,19 @@
   --bs-btn-disabled-border-color: var(--primary-btn-border);
 }
 
+.tooltip {
+  --bs-tooltip-bg: #1f2328;
+  --bs-tooltip-color: #ffffff;
+  --bs-tooltip-opacity: 1;
+}
+
+.tooltip.show {
+  opacity: 1;
+}
+
 .tooltip-inner {
-  background-color: #1f2328;
-  color: #ffffff;
+  background-color: var(--bs-tooltip-bg);
+  color: var(--bs-tooltip-color);
 }
 
 .conversation-menu-toggle {

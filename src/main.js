@@ -5,6 +5,7 @@ import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import MarkdownIt from 'markdown-it';
 import { bindComposerEvents } from './app/composer-events.js';
+import { createConversationEditors } from './app/conversation-editors.js';
 import './styles.css';
 import { bindConversationListEvents } from './app/conversation-list-events.js';
 import { createPreferencesController } from './app/preferences.js';
@@ -345,7 +346,7 @@ function initializeTooltips(root = document) {
     return;
   }
   root.querySelectorAll('[data-bs-toggle="tooltip"], [data-icon-tooltip]').forEach((element) => {
-    Tooltip.getOrCreateInstance(element);
+    Tooltip.getOrCreateInstance(element, { animation: false });
   });
 }
 
@@ -1757,24 +1758,6 @@ function buildPromptForActiveConversation(
   });
 }
 
-function updateChatTitleEditorVisibility() {
-  if (!chatTitle || !chatTitleInput || !saveChatTitleBtn || !cancelChatTitleBtn) {
-    return;
-  }
-  const activeConversation = getActiveConversation();
-  const menuState = getConversationMenuState(activeConversation);
-  const canEditTitle = menuState.canEditName;
-  const controlsDisabled = isUiBusy();
-  const showEditor = canEditTitle && isChatTitleEditingState(appState);
-  chatTitle.classList.toggle('d-none', showEditor);
-  chatTitleInput.classList.toggle('d-none', !showEditor);
-  saveChatTitleBtn.classList.toggle('d-none', !showEditor);
-  cancelChatTitleBtn.classList.toggle('d-none', !showEditor);
-  chatTitleInput.disabled = !showEditor || controlsDisabled;
-  saveChatTitleBtn.disabled = controlsDisabled || !chatTitleInput.value.trim();
-  cancelChatTitleBtn.disabled = controlsDisabled;
-}
-
 function downloadActiveConversationBranchAsJson() {
   const activeConversation = getActiveConversation();
   if (!activeConversation) {
@@ -1823,128 +1806,6 @@ function downloadActiveConversationBranchAsMarkdown() {
   setStatus('Conversation downloaded as Markdown.');
 }
 
-function getConversationSystemPromptModalInstance() {
-  if (!(conversationSystemPromptModal instanceof HTMLElement)) {
-    return null;
-  }
-  if (!appState.conversationSystemPromptModalInstance) {
-    appState.conversationSystemPromptModalInstance = Modal.getOrCreateInstance(
-      conversationSystemPromptModal
-    );
-  }
-  return appState.conversationSystemPromptModalInstance;
-}
-
-function beginConversationSystemPromptEdit({ trigger = null } = {}) {
-  if (
-    isUiBusy() ||
-    !(conversationSystemPromptInput instanceof HTMLTextAreaElement) ||
-    !(conversationSystemPromptAppendToggle instanceof HTMLInputElement)
-  ) {
-    return;
-  }
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) {
-    return;
-  }
-  if (trigger instanceof HTMLElement) {
-    appState.lastConversationSystemPromptTrigger = trigger;
-  }
-  conversationSystemPromptInput.value = normalizeSystemPrompt(
-    activeConversation.conversationSystemPrompt
-  );
-  conversationSystemPromptAppendToggle.checked = normalizeConversationPromptMode(
-    activeConversation.appendConversationSystemPrompt
-  );
-  const modalInstance = getConversationSystemPromptModalInstance();
-  if (modalInstance) {
-    modalInstance.show();
-  }
-}
-
-function saveConversationSystemPromptEdit() {
-  if (
-    !(conversationSystemPromptInput instanceof HTMLTextAreaElement) ||
-    !(conversationSystemPromptAppendToggle instanceof HTMLInputElement)
-  ) {
-    return;
-  }
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) {
-    return;
-  }
-  activeConversation.conversationSystemPrompt = normalizeSystemPrompt(
-    conversationSystemPromptInput.value
-  );
-  activeConversation.appendConversationSystemPrompt = Boolean(
-    conversationSystemPromptAppendToggle.checked
-  );
-  queueConversationStateSave();
-  setStatus('Conversation system prompt saved.');
-  const modalInstance = getConversationSystemPromptModalInstance();
-  if (modalInstance) {
-    modalInstance.hide();
-  }
-}
-
-function beginChatTitleEdit({ trigger = null } = {}) {
-  if (isUiBusy()) {
-    return;
-  }
-  const activeConversation = getActiveConversation();
-  if (!activeConversation?.hasGeneratedName || !chatTitleInput) {
-    return;
-  }
-  if (trigger instanceof HTMLElement) {
-    appState.lastConversationTitleTrigger = trigger;
-  }
-  setChatTitleEditing(appState, true);
-  chatTitleInput.value = activeConversation.name;
-  updateChatTitleEditorVisibility();
-  chatTitleInput.focus();
-  chatTitleInput.select();
-}
-
-function cancelChatTitleEdit({ restoreFocus = true } = {}) {
-  if (!isChatTitleEditingState(appState)) {
-    return;
-  }
-  setChatTitleEditing(appState, false);
-  updateChatTitle();
-  if (restoreFocus && appState.lastConversationTitleTrigger instanceof HTMLElement) {
-    appState.lastConversationTitleTrigger.focus();
-  }
-  appState.lastConversationTitleTrigger = null;
-}
-
-function saveChatTitleEdit() {
-  if (!isChatTitleEditingState(appState) || !chatTitleInput) {
-    return;
-  }
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) {
-    cancelChatTitleEdit({ restoreFocus: false });
-    return;
-  }
-  const nextName = normalizeConversationName(chatTitleInput.value);
-  if (!nextName) {
-    setStatus('Conversation title cannot be empty.');
-    chatTitleInput.focus();
-    chatTitleInput.select();
-    return;
-  }
-  activeConversation.name = nextName;
-  activeConversation.hasGeneratedName = true;
-  setChatTitleEditing(appState, false);
-  renderConversationList();
-  updateChatTitle();
-  queueConversationStateSave();
-  setStatus('Conversation title saved.');
-  if (appState.lastConversationTitleTrigger instanceof HTMLElement) {
-    appState.lastConversationTitleTrigger.focus();
-  }
-  appState.lastConversationTitleTrigger = null;
-}
 
 function setRegionVisibility(region, visible) {
   if (!(region instanceof HTMLElement)) {
@@ -2450,6 +2311,37 @@ function getRuntimeConfigForModel(modelId) {
     ...(multimodalGeneration && features.videoInput ? { videoInput: true } : {}),
   };
 }
+
+const {
+  updateChatTitleEditorVisibility,
+  beginConversationSystemPromptEdit,
+  saveConversationSystemPromptEdit,
+  beginChatTitleEdit,
+  cancelChatTitleEdit,
+  saveChatTitleEdit,
+} = createConversationEditors({
+  appState,
+  conversationSystemPromptModal,
+  conversationSystemPromptInput,
+  conversationSystemPromptAppendToggle,
+  chatTitle,
+  chatTitleInput,
+  saveChatTitleBtn,
+  cancelChatTitleBtn,
+  getActiveConversation,
+  getConversationMenuState,
+  isUiBusy,
+  isChatTitleEditingState,
+  setChatTitleEditing,
+  normalizeSystemPrompt,
+  normalizeConversationPromptMode,
+  queueConversationStateSave,
+  setStatus,
+  renderConversationList,
+  updateChatTitle,
+  normalizeConversationName,
+  createConversationSystemPromptModalInstance: (element) => Modal.getOrCreateInstance(element),
+});
 
 const routingShell = createRoutingShell({
   appState,
