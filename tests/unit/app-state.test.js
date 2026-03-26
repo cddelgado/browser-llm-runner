@@ -5,6 +5,7 @@ import {
   getActiveConversation,
   getCurrentViewRoute,
   hasSelectedConversationWithHistory,
+  shouldShowNewConversationButton,
   shouldDisableComposerForPreChatConversationSelection,
 } from '../../src/state/app-state.js';
 
@@ -73,5 +74,34 @@ describe('app-state', () => {
         routeSettings: 'settings',
       }),
     ).toBe('settings');
+  });
+
+  test('shows new conversation only after inference has started in the chat workspace', () => {
+    const state = createAppState({
+      activeGenerationConfig: {},
+    });
+    state.hasStartedChatWorkspace = true;
+
+    expect(shouldShowNewConversationButton(state)).toBe(false);
+
+    state.modelReady = true;
+    expect(shouldShowNewConversationButton(state)).toBe(false);
+
+    state.isGenerating = true;
+    expect(shouldShowNewConversationButton(state)).toBe(true);
+
+    state.isGenerating = false;
+    state.conversations.push({
+      id: 'conversation-1',
+      activeLeafMessageId: 'message-2',
+      messageNodes: [
+        { id: 'message-1', role: 'user', parentId: null },
+        { id: 'message-2', role: 'model', parentId: 'message-1' },
+      ],
+    });
+    expect(shouldShowNewConversationButton(state)).toBe(true);
+
+    state.modelReady = false;
+    expect(shouldShowNewConversationButton(state)).toBe(false);
   });
 });

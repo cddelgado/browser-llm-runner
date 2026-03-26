@@ -84,12 +84,28 @@ export function hasSelectedConversationWithHistory(state) {
   return hasConversationHistory(getActiveConversation(state));
 }
 
+export function hasAnyStartedInference(state) {
+  return Boolean(
+    state?.conversations?.some((conversation) =>
+      conversation?.messageNodes?.some((message) => message?.role === 'model')
+    )
+  );
+}
+
 export function shouldDisableComposerForPreChatConversationSelection(state) {
   return (
     state.hasStartedChatWorkspace &&
     !state.isSettingsPageOpen &&
     !state.modelReady &&
     hasSelectedConversationWithHistory(state)
+  );
+}
+
+export function shouldShowNewConversationButton(state) {
+  return (
+    state.hasStartedChatWorkspace &&
+    !state.isSettingsPageOpen &&
+    (state.isGenerating || (state.modelReady && hasAnyStartedInference(state)))
   );
 }
 

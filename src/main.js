@@ -69,6 +69,7 @@ import {
   getCurrentViewRoute as selectCurrentViewRoute,
   hasConversationHistory as selectHasConversationHistory,
   hasSelectedConversationWithHistory as selectHasSelectedConversationWithHistory,
+  shouldShowNewConversationButton as selectShouldShowNewConversationButton,
   shouldDisableComposerForPreChatConversationSelection as selectShouldDisableComposerForPreChatConversationSelection,
 } from './state/app-state.js';
 import { loadConversationState, saveConversationState } from './state/conversation-store.js';
@@ -1268,6 +1269,10 @@ function hasSelectedConversationWithHistory() {
 
 function shouldDisableComposerForPreChatConversationSelection() {
   return selectShouldDisableComposerForPreChatConversationSelection(appState);
+}
+
+function shouldShowNewConversationButton() {
+  return selectShouldShowNewConversationButton(appState);
 }
 
 function getPendingComposerAttachments() {
@@ -3018,6 +3023,7 @@ function updateActionButtons() {
       false;
   }
   if (newConversationBtn) {
+    newConversationBtn.classList.toggle('d-none', !shouldShowNewConversationButton());
     newConversationBtn.disabled =
       appState.isGenerating || appState.isRunningOrchestration || !appState.hasStartedChatWorkspace;
   }
