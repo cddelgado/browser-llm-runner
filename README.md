@@ -68,9 +68,10 @@ Student-facing browser chat UI with local model inference.
   - Sent images are restored with the conversation transcript on reload.
 - New conversations start untitled and are automatically renamed after the first model response based on conversation content.
 - Automatic conversation renaming now runs through a one-step orchestration loaded from `src/config/orchestrations/rename-chat.json`.
-- Conversation title editing is disabled until that automatic model-generated title is available.
-- After the first completed model response on the visible branch, a header `Download conversation` (download icon) menu appears next to title-edit controls.
-- Download menu options:
+- Conversation title editing is disabled until that automatic model-generated title is available and is available from the active conversation's sidebar kebab menu.
+- The conversation list reveals a kebab actions menu on hover/focus for each conversation instead of a direct delete icon.
+- After the first completed model response on the visible branch, that kebab menu includes a nested `Download` submenu.
+- Download submenu options:
   - `JSON (.llm.json) File`: exports only the currently visible branch as `<conversation-name>.llm.json` with top-level `conversation` metadata (`name`, `startedAt`, `exportedAt`), `model`, `temperature`, optional `systemPrompt` (when present on that conversation), and an `exchanges` array containing per-exchange `heading` plus entered/generated timestamps.
   - `Markdown (.md) File`: exports the visible branch as `<conversation-name>.md` with conversation metadata (started/exported UTC times, model, temperature), optional `## System prompt` section (when present), and one section per exchange.
 - Model load progress UI collapses after successful initialization.
@@ -81,7 +82,7 @@ Student-facing browser chat UI with local model inference.
 - `Settings -> Conversation -> Default system prompt` sets an optional system prompt for newly created conversations only.
   - Existing conversations are not retroactively changed.
   - New generations in a conversation use that conversation's captured system prompt.
-- Conversation header includes `Edit conversation system prompt` (card-checklist icon, before download):
+- The active conversation's sidebar kebab menu includes `Edit conversation system prompt`:
   - Set optional per-conversation instructions.
   - `Append after default prompt` is enabled by default; when enabled, the conversation prompt is appended after the conversation's captured default prompt.
   - When `Append after default prompt` is disabled, the conversation prompt replaces the conversation's captured default prompt.

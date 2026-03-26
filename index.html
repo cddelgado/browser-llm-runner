@@ -12,148 +12,91 @@
           <h1 class="app-window-title">ClawsChat</h1>
         </div>
         <header id="topBar" class="top-bar" aria-label="Application controls">
-          <div class="chat-title-wrap d-flex align-items-center gap-2">
-            <button
-              type="button"
-              class="btn btn-outline-secondary d-md-none"
-              data-bs-toggle="offcanvas"
-              data-bs-target="#conversationPanel"
-              aria-controls="conversationPanel"
-            >
-              Conversations
-            </button>
-            <h2 id="chatTitle" class="h4 mb-0">Choose a Model to Chat</h2>
-            <input
-              id="chatTitleInput"
-              class="form-control form-control-sm chat-title-input d-none"
-              type="text"
-              aria-label="Conversation title"
-              maxlength="64"
-            />
-            <button
-              type="button"
-              id="editChatTitleBtn"
-              class="btn icon-button d-none"
-              aria-label="Edit conversation title"
-              aria-keyshortcuts="Alt+T"
-              data-bs-toggle="tooltip"
-              data-bs-title="Edit conversation title (Alt+T)"
-            >
-              <i class="bi bi-pencil-fill" aria-hidden="true"></i>
-              <span class="visually-hidden">Edit conversation title</span>
-            </button>
-            <button
-              type="button"
-              id="editConversationSystemPromptBtn"
-              class="btn icon-button d-none"
-              aria-label="Edit conversation system prompt"
-              aria-keyshortcuts="Alt+P"
-              data-icon-tooltip="true"
-              data-bs-title="Edit conversation system prompt (Alt+P)"
-            >
-              <i class="bi bi-card-checklist" aria-hidden="true"></i>
-              <span class="visually-hidden">Edit conversation system prompt</span>
-            </button>
-            <div id="downloadConversationMenu" class="dropdown d-none">
+          <div class="top-bar-sidebar-spacer d-none d-md-block" aria-hidden="true"></div>
+          <div class="top-bar-main">
+            <div class="top-bar-start">
               <button
                 type="button"
-                id="downloadConversationBtn"
-                class="btn icon-button dropdown-toggle dropdown-toggle-no-caret"
-                aria-label="Download conversation"
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="true"
-                data-icon-tooltip="true"
-                data-bs-title="Download conversation"
-                aria-expanded="false"
+                class="btn btn-outline-secondary d-md-none"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#conversationPanel"
+                aria-controls="conversationPanel"
               >
-                <i class="bi bi-download" aria-hidden="true"></i>
-                <span class="visually-hidden">Download conversation</span>
+                Conversations
               </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                  <button
-                    id="downloadConversationJsonBtn"
-                    type="button"
-                    class="dropdown-item"
-                    aria-keyshortcuts="Alt+Shift+J"
-                  >
-                    JSON (.llm.json) File
-                  </button>
-                </li>
-                <li>
-                  <button
-                    id="downloadConversationMarkdownBtn"
-                    type="button"
-                    class="dropdown-item"
-                    aria-keyshortcuts="Alt+Shift+M"
-                  >
-                    Markdown (.md) File
-                  </button>
-                </li>
-              </ul>
             </div>
-            <button
-              type="button"
-              id="saveChatTitleBtn"
-              class="btn icon-button d-none"
-              aria-label="Save conversation title"
-              data-bs-toggle="tooltip"
-              data-bs-title="Save conversation title"
-            >
-              <i class="bi bi-floppy-fill" aria-hidden="true"></i>
-              <span class="visually-hidden">Save conversation title</span>
-            </button>
-            <button
-              type="button"
-              id="cancelChatTitleBtn"
-              class="btn icon-button d-none"
-              aria-label="Cancel editing conversation title"
-              data-bs-toggle="tooltip"
-              data-bs-title="Cancel editing conversation title"
-            >
-              <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
-              <span class="visually-hidden">Cancel editing conversation title</span>
-            </button>
-          </div>
-          <div class="top-bar-actions">
-            <button
-              id="openKeyboardShortcutsButton"
-              type="button"
-              class="btn icon-button"
-              aria-label="Open keyboard shortcuts"
-              aria-keyshortcuts="Control+/"
-              data-icon-tooltip="true"
-              data-bs-title="Keyboard shortcuts (Ctrl+/)"
-            >
-              <i class="bi bi-keyboard-fill" aria-hidden="true"></i>
-              <span class="visually-hidden">Open keyboard shortcuts</span>
-            </button>
-            <a
-              id="openHelpButton"
-              class="btn icon-button"
-              href="help.html"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open help in a new tab"
-              aria-keyshortcuts="Alt+H"
-              data-icon-tooltip="true"
-              data-bs-title="Open help in a new tab (Alt+H)"
-            >
-              <i class="bi bi-question-circle-fill" aria-hidden="true"></i>
-              <span class="visually-hidden">Open help in a new tab</span>
-            </a>
-            <button
-              type="button"
-              id="openSettingsButton"
-              class="btn icon-button"
-              aria-label="Open settings"
-              aria-keyshortcuts="Alt+S"
-              data-icon-tooltip="true"
-              data-bs-title="Open settings (Alt+S)"
-            >
-              <i class="bi bi-gear-fill" aria-hidden="true"></i>
-              <span class="visually-hidden">Open settings</span>
-            </button>
+            <div class="chat-title-wrap d-flex align-items-center justify-content-center gap-2">
+              <h2 id="chatTitle" class="h4 mb-0">Choose a Model to Chat</h2>
+              <input
+                id="chatTitleInput"
+                class="form-control form-control-sm chat-title-input d-none"
+                type="text"
+                aria-label="Conversation title"
+                maxlength="64"
+              />
+              <button
+                type="button"
+                id="saveChatTitleBtn"
+                class="btn icon-button d-none"
+                aria-label="Save conversation title"
+                data-bs-toggle="tooltip"
+                data-bs-title="Save conversation title"
+              >
+                <i class="bi bi-floppy-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Save conversation title</span>
+              </button>
+              <button
+                type="button"
+                id="cancelChatTitleBtn"
+                class="btn icon-button d-none"
+                aria-label="Cancel editing conversation title"
+                data-bs-toggle="tooltip"
+                data-bs-title="Cancel editing conversation title"
+              >
+                <i class="bi bi-x-circle-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Cancel editing conversation title</span>
+              </button>
+            </div>
+            <div class="top-bar-actions">
+              <button
+                id="openKeyboardShortcutsButton"
+                type="button"
+                class="btn icon-button"
+                aria-label="Open keyboard shortcuts"
+                aria-keyshortcuts="Control+/"
+                data-icon-tooltip="true"
+                data-bs-title="Keyboard shortcuts (Ctrl+/)"
+              >
+                <i class="bi bi-keyboard-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Open keyboard shortcuts</span>
+              </button>
+              <a
+                id="openHelpButton"
+                class="btn icon-button"
+                href="help.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open help in a new tab"
+                aria-keyshortcuts="Alt+H"
+                data-icon-tooltip="true"
+                data-bs-title="Open help in a new tab (Alt+H)"
+              >
+                <i class="bi bi-question-circle-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Open help in a new tab</span>
+              </a>
+              <button
+                type="button"
+                id="openSettingsButton"
+                class="btn icon-button"
+                aria-label="Open settings"
+                aria-keyshortcuts="Alt+S"
+                data-icon-tooltip="true"
+                data-bs-title="Open settings (Alt+S)"
+              >
+                <i class="bi bi-gear-fill" aria-hidden="true"></i>
+                <span class="visually-hidden">Open settings</span>
+              </button>
+            </div>
           </div>
         </header>
         <div

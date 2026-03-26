@@ -233,12 +233,6 @@ const preChatEditConversationSystemPromptBtn = document.getElementById(
 );
 const chatTitle = document.getElementById('chatTitle');
 const chatTitleInput = document.getElementById('chatTitleInput');
-const editChatTitleBtn = document.getElementById('editChatTitleBtn');
-const editConversationSystemPromptBtn = document.getElementById('editConversationSystemPromptBtn');
-const downloadConversationMenu = document.getElementById('downloadConversationMenu');
-const downloadConversationBtn = document.getElementById('downloadConversationBtn');
-const downloadConversationJsonBtn = document.getElementById('downloadConversationJsonBtn');
-const downloadConversationMarkdownBtn = document.getElementById('downloadConversationMarkdownBtn');
 const saveChatTitleBtn = document.getElementById('saveChatTitleBtn');
 const cancelChatTitleBtn = document.getElementById('cancelChatTitleBtn');
 const openKeyboardShortcutsButton = document.getElementById('openKeyboardShortcutsButton');
@@ -404,6 +398,99 @@ function clickShortcutTarget(target) {
     return true;
   }
   return false;
+}
+
+function findConversationMenuButton(conversationId, selector) {
+  if (!conversationList || !conversationId) {
+    return null;
+  }
+  const item = Array.from(conversationList.querySelectorAll('.conversation-item')).find(
+    (candidate) => candidate instanceof HTMLElement && candidate.dataset.conversationId === conversationId
+  );
+  return item?.querySelector(selector) || null;
+}
+
+function closeConversationMenus({ restoreFocusTo = null } = {}) {
+  if (!(conversationList instanceof HTMLElement)) {
+    return;
+  }
+  conversationList.querySelectorAll('.conversation-item.menu-open').forEach((item) => {
+    item.classList.remove('menu-open');
+  });
+  conversationList.querySelectorAll('.conversation-menu').forEach((menu) => {
+    menu.classList.add('d-none');
+  });
+  conversationList.querySelectorAll('.conversation-submenu').forEach((menu) => {
+    menu.classList.add('d-none');
+  });
+  conversationList.querySelectorAll('.conversation-menu-toggle').forEach((button) => {
+    button.setAttribute('aria-expanded', 'false');
+  });
+  conversationList.querySelectorAll('.conversation-download-toggle').forEach((button) => {
+    button.setAttribute('aria-expanded', 'false');
+  });
+  if (restoreFocusTo instanceof HTMLElement) {
+    restoreFocusTo.focus();
+  }
+}
+
+function openConversationMenu(item, toggleButton) {
+  if (!(item instanceof HTMLElement) || !(toggleButton instanceof HTMLButtonElement)) {
+    return;
+  }
+  const menu = item.querySelector('.conversation-menu');
+  if (!(menu instanceof HTMLElement)) {
+    return;
+  }
+  const isOpen = item.classList.contains('menu-open');
+  closeConversationMenus();
+  if (isOpen) {
+    return;
+  }
+  item.classList.add('menu-open');
+  menu.classList.remove('d-none');
+  toggleButton.setAttribute('aria-expanded', 'true');
+}
+
+function toggleConversationDownloadMenu(item, toggleButton) {
+  if (!(item instanceof HTMLElement) || !(toggleButton instanceof HTMLButtonElement)) {
+    return;
+  }
+  const submenu = item.querySelector('.conversation-submenu');
+  if (!(submenu instanceof HTMLElement)) {
+    return;
+  }
+  const isOpen = !submenu.classList.contains('d-none');
+  submenu.classList.toggle('d-none', isOpen);
+  toggleButton.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+}
+
+function getConversationMenuState(conversation) {
+  const pathMessages = conversation ? getConversationPathMessages(conversation) : [];
+  const hasCompletedGeneration = pathMessages.some(
+    (message) => message?.role === 'model' && Boolean(message.isResponseComplete)
+  );
+  return {
+    canEditName: appState.modelReady && Boolean(conversation?.hasGeneratedName),
+    canEditPrompt: Boolean(conversation),
+    canDownload: appState.modelReady && hasCompletedGeneration,
+    controlsDisabled: isUiBusy(),
+  };
+}
+
+function runConversationMenuAction(conversationId, actionButton, callback) {
+  if (!conversationId) {
+    return;
+  }
+  if (appState.activeConversationId !== conversationId) {
+    setActiveConversationById(conversationId);
+  }
+  closeConversationMenus();
+  const refreshedActionButton =
+    actionButton instanceof HTMLElement
+      ? findConversationMenuButton(conversationId, `.${Array.from(actionButton.classList).join('.')}`)
+      : null;
+  callback(refreshedActionButton);
 }
 
 function getKeyboardShortcutsModalInstance() {
@@ -623,12 +710,14 @@ function handleGlobalShortcut(event) {
 
   if (event.shiftKey && normalizedKey === SHORTCUT_KEY.jumpLatest) {
     event.preventDefault();
-    return clickShortcutTarget(downloadConversationJsonBtn);
+    downloadActiveConversationBranchAsJson();
+    return true;
   }
 
   if (event.shiftKey && normalizedKey === 'm') {
     event.preventDefault();
-    return clickShortcutTarget(downloadConversationMarkdownBtn);
+    downloadActiveConversationBranchAsMarkdown();
+    return true;
   }
 
   if (normalizedKey === SHORTCUT_KEY.jumpLatest) {
@@ -638,7 +727,8 @@ function handleGlobalShortcut(event) {
 
   if (normalizedKey === SHORTCUT_KEY.systemPrompt) {
     event.preventDefault();
-    if (clickShortcutTarget(editConversationSystemPromptBtn)) {
+    if (getActiveConversation()) {
+      beginConversationSystemPromptEdit();
       return true;
     }
     return clickShortcutTarget(preChatEditConversationSystemPromptBtn);
@@ -646,7 +736,8 @@ function handleGlobalShortcut(event) {
 
   if (normalizedKey === SHORTCUT_KEY.title) {
     event.preventDefault();
-    return clickShortcutTarget(editChatTitleBtn);
+    beginChatTitleEdit();
+    return true;
   }
 
   if (normalizedKey === '.' && appState.isGenerating) {
@@ -2000,11 +2091,13 @@ function renderConversationList() {
   if (!conversationList) {
     return;
   }
+  closeConversationMenus();
   disposeTooltips(conversationList);
   renderConversationListView({
     container: conversationList,
     conversations: appState.conversations,
     activeConversationId: appState.activeConversationId,
+    getConversationMenuState,
     setIconButtonContent,
   });
   initializeTooltips(conversationList);
@@ -2247,43 +2340,19 @@ function buildActiveConversationExportPayload(activeConversation) {
 }
 
 function updateChatTitleEditorVisibility() {
-  if (
-    !chatTitle ||
-    !chatTitleInput ||
-    !editChatTitleBtn ||
-    !editConversationSystemPromptBtn ||
-    !downloadConversationMenu ||
-    !downloadConversationBtn ||
-    !downloadConversationJsonBtn ||
-    !downloadConversationMarkdownBtn ||
-    !saveChatTitleBtn ||
-    !cancelChatTitleBtn
-  ) {
+  if (!chatTitle || !chatTitleInput || !saveChatTitleBtn || !cancelChatTitleBtn) {
     return;
   }
   const activeConversation = getActiveConversation();
-  const pathMessages = activeConversation ? getConversationPathMessages(activeConversation) : [];
-  const hasCompletedGeneration = pathMessages.some(
-    (message) => message?.role === 'model' && Boolean(message.isResponseComplete)
-  );
-  const canEditTitle = appState.modelReady && Boolean(activeConversation?.hasGeneratedName);
-  const canEditConversationSystemPrompt = Boolean(activeConversation);
-  const canDownloadConversation = appState.modelReady && hasCompletedGeneration;
+  const menuState = getConversationMenuState(activeConversation);
+  const canEditTitle = menuState.canEditName;
   const controlsDisabled = isUiBusy();
   const showEditor = canEditTitle && appState.isChatTitleEditing;
   chatTitle.classList.toggle('d-none', showEditor);
   chatTitleInput.classList.toggle('d-none', !showEditor);
-  editChatTitleBtn.classList.toggle('d-none', !canEditTitle || showEditor);
-  editConversationSystemPromptBtn.classList.toggle('d-none', !canEditConversationSystemPrompt);
-  downloadConversationMenu.classList.toggle('d-none', !canDownloadConversation);
   saveChatTitleBtn.classList.toggle('d-none', !showEditor);
   cancelChatTitleBtn.classList.toggle('d-none', !showEditor);
   chatTitleInput.disabled = !showEditor || controlsDisabled;
-  editChatTitleBtn.disabled = controlsDisabled;
-  editConversationSystemPromptBtn.disabled = controlsDisabled || !canEditConversationSystemPrompt;
-  downloadConversationBtn.disabled = controlsDisabled || !canDownloadConversation;
-  downloadConversationJsonBtn.disabled = controlsDisabled || !canDownloadConversation;
-  downloadConversationMarkdownBtn.disabled = controlsDisabled || !canDownloadConversation;
   saveChatTitleBtn.disabled = controlsDisabled || !chatTitleInput.value.trim();
   cancelChatTitleBtn.disabled = controlsDisabled;
 }
@@ -2400,13 +2469,16 @@ function saveConversationSystemPromptEdit() {
   }
 }
 
-function beginChatTitleEdit() {
+function beginChatTitleEdit({ trigger = null } = {}) {
   if (isUiBusy()) {
     return;
   }
   const activeConversation = getActiveConversation();
   if (!activeConversation?.hasGeneratedName || !chatTitleInput) {
     return;
+  }
+  if (trigger instanceof HTMLElement) {
+    appState.lastConversationTitleTrigger = trigger;
   }
   appState.isChatTitleEditing = true;
   chatTitleInput.value = activeConversation.name;
@@ -2421,9 +2493,10 @@ function cancelChatTitleEdit({ restoreFocus = true } = {}) {
   }
   appState.isChatTitleEditing = false;
   updateChatTitle();
-  if (restoreFocus && editChatTitleBtn instanceof HTMLButtonElement) {
-    editChatTitleBtn.focus();
+  if (restoreFocus && appState.lastConversationTitleTrigger instanceof HTMLElement) {
+    appState.lastConversationTitleTrigger.focus();
   }
+  appState.lastConversationTitleTrigger = null;
 }
 
 function saveChatTitleEdit() {
@@ -2449,9 +2522,10 @@ function saveChatTitleEdit() {
   updateChatTitle();
   queueConversationStateSave();
   setStatus('Conversation title saved.');
-  if (editChatTitleBtn instanceof HTMLButtonElement) {
-    editChatTitleBtn.focus();
+  if (appState.lastConversationTitleTrigger instanceof HTMLElement) {
+    appState.lastConversationTitleTrigger.focus();
   }
+  appState.lastConversationTitleTrigger = null;
 }
 
 function setRegionVisibility(region, visible) {
@@ -4176,8 +4250,22 @@ if (conversationList) {
       return;
     }
 
+    const menuToggle = target.closest('.conversation-menu-toggle');
+    if (menuToggle instanceof HTMLButtonElement) {
+      const item = menuToggle.closest('.conversation-item');
+      openConversationMenu(item, menuToggle);
+      return;
+    }
+
+    const downloadToggle = target.closest('.conversation-download-toggle');
+    if (downloadToggle instanceof HTMLButtonElement) {
+      const item = downloadToggle.closest('.conversation-item');
+      toggleConversationDownloadMenu(item, downloadToggle);
+      return;
+    }
+
     const deleteButton = target.closest('.conversation-delete');
-    if (deleteButton) {
+    if (deleteButton instanceof HTMLButtonElement) {
       const item = deleteButton.closest('.conversation-item');
       const conversationId = item?.dataset.conversationId;
       if (!conversationId) {
@@ -4206,6 +4294,58 @@ if (conversationList) {
       return;
     }
 
+    const editNameButton = target.closest('.conversation-edit-name');
+    if (editNameButton instanceof HTMLButtonElement) {
+      const item = editNameButton.closest('.conversation-item');
+      const conversationId = item?.dataset.conversationId;
+      if (!conversationId) {
+        return;
+      }
+      runConversationMenuAction(conversationId, editNameButton, (trigger) => {
+        beginChatTitleEdit({ trigger });
+      });
+      return;
+    }
+
+    const editPromptButton = target.closest('.conversation-edit-prompt');
+    if (editPromptButton instanceof HTMLButtonElement) {
+      const item = editPromptButton.closest('.conversation-item');
+      const conversationId = item?.dataset.conversationId;
+      if (!conversationId) {
+        return;
+      }
+      runConversationMenuAction(conversationId, editPromptButton, (trigger) => {
+        beginConversationSystemPromptEdit({ trigger });
+      });
+      return;
+    }
+
+    const downloadJsonButton = target.closest('.conversation-download-json');
+    if (downloadJsonButton instanceof HTMLButtonElement) {
+      const item = downloadJsonButton.closest('.conversation-item');
+      const conversationId = item?.dataset.conversationId;
+      if (!conversationId) {
+        return;
+      }
+      runConversationMenuAction(conversationId, downloadJsonButton, () => {
+        downloadActiveConversationBranchAsJson();
+      });
+      return;
+    }
+
+    const downloadMarkdownButton = target.closest('.conversation-download-markdown');
+    if (downloadMarkdownButton instanceof HTMLButtonElement) {
+      const item = downloadMarkdownButton.closest('.conversation-item');
+      const conversationId = item?.dataset.conversationId;
+      if (!conversationId) {
+        return;
+      }
+      runConversationMenuAction(conversationId, downloadMarkdownButton, () => {
+        downloadActiveConversationBranchAsMarkdown();
+      });
+      return;
+    }
+
     const selectButton = target.closest('.conversation-select');
     if (selectButton) {
       const item = selectButton.closest('.conversation-item');
@@ -4215,7 +4355,33 @@ if (conversationList) {
       }
     }
   });
+
+  conversationList.addEventListener('keydown', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (event.key === 'Escape') {
+      const item = target.closest('.conversation-item');
+      const menuToggle = item?.querySelector('.conversation-menu-toggle');
+      if (item?.classList.contains('menu-open') && menuToggle instanceof HTMLElement) {
+        event.preventDefault();
+        closeConversationMenus({ restoreFocusTo: menuToggle });
+      }
+    }
+  });
 }
+
+document.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  if (target.closest('#conversationList')) {
+    return;
+  }
+  closeConversationMenus();
+});
 
 if (sendButton) {
   sendButton.addEventListener('click', async (event) => {
@@ -4534,18 +4700,6 @@ window.addEventListener('beforeunload', () => {
   engine.dispose();
 });
 
-if (editChatTitleBtn instanceof HTMLButtonElement) {
-  editChatTitleBtn.addEventListener('click', () => {
-    beginChatTitleEdit();
-  });
-}
-
-if (editConversationSystemPromptBtn instanceof HTMLButtonElement) {
-  editConversationSystemPromptBtn.addEventListener('click', (event) => {
-    beginConversationSystemPromptEdit({ trigger: event.currentTarget });
-  });
-}
-
 if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
   preChatEditConversationSystemPromptBtn.addEventListener('click', (event) => {
     beginConversationSystemPromptEdit({ trigger: event.currentTarget });
@@ -4555,24 +4709,6 @@ if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
 if (preChatLoadModelBtn instanceof HTMLButtonElement) {
   preChatLoadModelBtn.addEventListener('click', () => {
     void appController.loadModelForSelectedConversation();
-  });
-}
-
-if (downloadConversationJsonBtn instanceof HTMLButtonElement) {
-  downloadConversationJsonBtn.addEventListener('click', () => {
-    if (appState.isGenerating) {
-      return;
-    }
-    downloadActiveConversationBranchAsJson();
-  });
-}
-
-if (downloadConversationMarkdownBtn instanceof HTMLButtonElement) {
-  downloadConversationMarkdownBtn.addEventListener('click', () => {
-    if (appState.isGenerating) {
-      return;
-    }
-    downloadActiveConversationBranchAsMarkdown();
   });
 }
 
@@ -4610,9 +4746,6 @@ if (conversationSystemPromptModal instanceof HTMLElement) {
         preChatEditConversationSystemPromptBtn.focus();
         return;
       }
-    }
-    if (editConversationSystemPromptBtn instanceof HTMLButtonElement) {
-      editConversationSystemPromptBtn.focus();
     }
   });
 }

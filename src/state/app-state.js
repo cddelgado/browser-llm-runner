@@ -48,6 +48,7 @@ export function createAppState({
     mathJaxLoadPromise: null,
     lastKeyboardShortcutsTrigger: null,
     lastConversationSystemPromptTrigger: null,
+    lastConversationTitleTrigger: null,
   };
 }
 
