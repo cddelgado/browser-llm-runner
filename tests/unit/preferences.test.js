@@ -157,13 +157,12 @@ describe('preferences controller', () => {
     expect(
       /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))?.textContent
     ).toBe('Model details');
-    expect(qwenCard?.querySelectorAll('.model-feature-pill')).toHaveLength(3);
+    expect(qwenCard?.querySelectorAll('.model-feature-pill')).toHaveLength(2);
     expect(
       Array.from(qwenCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
       )
     ).toEqual([
-      'Streams replies as they are generated',
       'Shows a thinking section',
       'Can use built-in tools',
     ]);
@@ -171,6 +170,7 @@ describe('preferences controller', () => {
     const legend = harness.document.getElementById('modelCardLegend');
     expect(legend?.textContent).toContain('Model abilities');
     expect(legend?.textContent).toContain('Accepts image input');
+    expect(legend?.textContent).not.toContain('Streams replies as they are generated');
 
     const qwenButton = /** @type {HTMLButtonElement | null} */ (
       qwenCard?.querySelector('.model-card-button')

@@ -226,11 +226,6 @@ export function createPreferencesController({
   function getFeatureDefinitions() {
     return [
       {
-        key: 'streaming',
-        icon: 'bi-lightning-charge-fill',
-        label: 'Streams replies as they are generated',
-      },
-      {
         key: 'thinking',
         icon: 'bi-stars',
         label: 'Shows a thinking section',
@@ -397,7 +392,7 @@ export function createPreferencesController({
       } else if (model.runtime?.requiresWebGpu) {
         const requirement = documentRef.createElement('p');
         requirement.className = 'model-card-note';
-        requirement.textContent = 'WebGPU required in this app.';
+        requirement.textContent = 'This model requires WebGPU.';
         selectButton.appendChild(requirement);
       }
 
