@@ -14,7 +14,7 @@ Student-facing browser chat UI with local model inference.
 - Switching to a saved conversation with a different model unloads the previous model worker and loads the selected conversation's model.
 - Clicking `New Conversation` returns the workspace to the pre-chat model picker without adding a sidebar item yet.
 - After leaving the launch screen, the `New Conversation` button remains visible in the top bar; it is disabled while a fresh conversation is being prepared.
-- From that pre-chat state, users can keep the currently loaded model or choose a different model before sending the first message.
+- From that pre-chat state, users can keep the currently loaded model or choose a different model card before sending the first message.
 - If a different model is selected for the next chat, the currently loaded model worker is unloaded before the replacement model is loaded.
 - During model load, the workspace shows one progress bar.
 - The URL hash reflects the visible screen:
@@ -140,7 +140,10 @@ Student-facing browser chat UI with local model inference.
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - Model support configuration lives in `src/config/models.json`:
-  - `models`: options shown in the model selector
+- `models`: options shown in the pre-chat model card picker
+- `models[].displayName`: friendly name shown on the card
+- `models[].summary`: short description shown on the card
+- `models[].repositoryUrl`: Hugging Face model page linked from the card
   - `models[].features`: normalized capability flags (`streaming`, `thinking`, `imageInput`, `audioInput`, `videoInput`)
   - `models[].runtime`: per-model runtime hints (`dtype`, optional `enableThinking`, optional `requiresWebGpu`, optional `multimodalGeneration`, optional `useExternalDataFormat`)
   - `models[].generation`: per-model defaults and limits for output/context tokens, temperature, `defaultTopK`, and `defaultTopP`

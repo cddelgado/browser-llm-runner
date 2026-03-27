@@ -177,8 +177,28 @@
               <div class="pre-chat-inner">
                 <h2 id="preChatHeading" class="h3 mb-3">Start a New Chat</h2>
                 <div class="pre-chat-model-picker">
-                  <label class="form-label" for="modelSelect">Choose a model</label>
-                  <select id="modelSelect" class="form-select"></select>
+                  <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                    <div>
+                      <p id="modelPickerLabel" class="form-label mb-1">Choose a model</p>
+                      <p id="modelPickerHint" class="small text-body-secondary mb-0">
+                        Pick one model card. Each card includes supported features, max context,
+                        and a link to the Hugging Face model page.
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    id="modelCardList"
+                    class="model-card-list"
+                    role="radiogroup"
+                    aria-labelledby="modelPickerLabel"
+                    aria-describedby="modelPickerHint"
+                  ></div>
+                  <select
+                    id="modelSelect"
+                    class="visually-hidden"
+                    tabindex="-1"
+                    aria-hidden="true"
+                  ></select>
                 </div>
                 <div id="preChatActions" class="pre-chat-actions d-none">
                   <button

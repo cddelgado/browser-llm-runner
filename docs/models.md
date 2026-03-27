@@ -2,7 +2,10 @@
 
 Model support is configured in `src/config/models.json`:
 
-- `models`: list of selectable models (`id`, `label`, optional `features`)
+- `models`: list of selectable models (`id`, `label`, optional card metadata, optional `features`)
+- `models[].displayName`: friendly card title shown in the pre-chat model picker
+- `models[].summary`: short supporting description shown under the title
+- `models[].repositoryUrl`: Hugging Face page opened from the card footer
 - `models[].features`: normalized capability flags used by the app UI/runtime gating:
   - `streaming`
   - `thinking`
@@ -65,6 +68,7 @@ Notes:
 
 - The model is downloaded at runtime by Transformers.js and cached in-browser for reuse.
 - Model assets are not committed to this repository.
+- The pre-chat picker presents each model as a single-select card with feature icons, maximum context, and a rough word estimate (`tokens * 0.75`).
 - Model capability flags describe what a model can support; the image/audio/video UI is only enabled when the runtime also declares `multimodalGeneration: true`.
 - Settings fields for maximum output/context tokens are numeric, step in 8, and disabled until a model is loaded.
 - Token fields show an estimated words value based on `tokens * 0.75`.

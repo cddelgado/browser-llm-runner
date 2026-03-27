@@ -95,6 +95,26 @@ function normalizeHiddenFlag(rawHidden) {
   return rawHidden === true;
 }
 
+function normalizeModelCardText(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+function normalizeRepositoryUrl(rawUrl, fallbackId) {
+  const fallback = fallbackId ? `https://huggingface.co/${fallbackId}` : '';
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return fallback;
+  }
+  try {
+    const url = new URL(rawUrl.trim());
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return url.toString();
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
 function normalizeToolCalling(rawToolCalling, { enabled = false } = {}) {
   if (!enabled || !rawToolCalling || typeof rawToolCalling !== 'object' || Array.isArray(rawToolCalling)) {
     return null;
@@ -178,6 +198,9 @@ const configuredModels = Array.isArray(modelCatalog?.models)
         }
         const label =
           typeof model?.label === 'string' && model.label.trim() ? model.label.trim() : id;
+        const displayName = normalizeModelCardText(model?.displayName) || label;
+        const summary = normalizeModelCardText(model?.summary);
+        const repositoryUrl = normalizeRepositoryUrl(model?.repositoryUrl, id);
         const openThinkingTag = model?.thinkingTags?.open;
         const closeThinkingTag = model?.thinkingTags?.close;
         const thinkingTags =
@@ -197,6 +220,9 @@ const configuredModels = Array.isArray(modelCatalog?.models)
         return {
           id,
           label,
+          displayName,
+          summary,
+          repositoryUrl,
           features,
           toolCalling,
           thinkingTags,
@@ -220,6 +246,9 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
   configuredModels.unshift({
     id: DEFAULT_MODEL,
     label: DEFAULT_MODEL,
+    displayName: DEFAULT_MODEL,
+    summary: '',
+    repositoryUrl: `https://huggingface.co/${DEFAULT_MODEL}`,
     features: normalizeFeatures(null),
     toolCalling: null,
     thinkingTags: null,

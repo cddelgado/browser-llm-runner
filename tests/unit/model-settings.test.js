@@ -187,5 +187,10 @@ describe('model-settings availability', () => {
       nameKey: 'name',
       argumentsKey: 'arguments',
     });
+    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')).toMatchObject({
+      displayName: 'Qwen3 0.6B',
+      summary: 'Small reasoning-friendly model with thinking and tool-call support.',
+      repositoryUrl: 'https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX',
+    });
   });
 });

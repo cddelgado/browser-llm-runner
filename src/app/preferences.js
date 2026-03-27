@@ -34,6 +34,7 @@ export function createPreferencesController({
   transcriptViewSelect,
   defaultSystemPromptInput,
   modelSelect,
+  modelCardList,
   backendSelect,
   colorSchemeQuery,
   refreshModelThinkingVisibility,
@@ -208,12 +209,196 @@ export function createPreferencesController({
     });
   }
 
+  function getModelPickerValue() {
+    return modelSelect?.value || DEFAULT_MODEL;
+  }
+
+  function formatInteger(value) {
+    return new Intl.NumberFormat('en-US').format(Math.max(0, Number(value) || 0));
+  }
+
+  function formatWordEstimate(tokenCount) {
+    return formatInteger(Math.round((Number(tokenCount) || 0) * 0.75));
+  }
+
+  function buildFeatureTokens(model) {
+    const features = model?.features || {};
+    const runtime = model?.runtime || {};
+    return [
+      {
+        enabled: features.streaming === true,
+        icon: 'bi-lightning-charge-fill',
+        label: 'Streaming',
+      },
+      {
+        enabled: features.thinking === true,
+        icon: 'bi-stars',
+        label: 'Thinking',
+      },
+      {
+        enabled: features.toolCalling === true,
+        icon: 'bi-wrench-adjustable-circle',
+        label: 'Tool calls',
+      },
+      {
+        enabled: features.imageInput === true && runtime.multimodalGeneration === true,
+        icon: 'bi-image',
+        label: 'Image input',
+      },
+      {
+        enabled: features.audioInput === true && runtime.multimodalGeneration === true,
+        icon: 'bi-mic-fill',
+        label: 'Audio input',
+      },
+      {
+        enabled: features.videoInput === true && runtime.multimodalGeneration === true,
+        icon: 'bi-camera-video-fill',
+        label: 'Video input',
+      },
+    ];
+  }
+
+  function syncModelCardSelection() {
+    if (!(modelCardList instanceof HTMLElement)) {
+      return;
+    }
+    const selectedModelId = normalizeModelId(getModelPickerValue());
+    modelCardList.querySelectorAll('.model-card-button').forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+      const isSelected = button.dataset.modelId === selectedModelId;
+      button.classList.toggle('is-selected', isSelected);
+      button.setAttribute('aria-checked', String(isSelected));
+    });
+  }
+
+  function setSelectedModelId(modelId, { dispatch = false } = {}) {
+    if (!modelSelect) {
+      return DEFAULT_MODEL;
+    }
+    const nextModelId = normalizeModelId(modelId || DEFAULT_MODEL);
+    const changed = modelSelect.value !== nextModelId;
+    modelSelect.value = nextModelId;
+    syncModelCardSelection();
+    if (dispatch && changed) {
+      modelSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return nextModelId;
+  }
+
+  function populateModelCards() {
+    if (!(modelCardList instanceof HTMLElement)) {
+      return;
+    }
+    const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
+    const selectedModel = normalizeModelId(getModelPickerValue());
+    const webGpuAvailable = getWebGpuAvailability();
+    modelCardList.replaceChildren();
+    MODEL_OPTIONS.forEach((model) => {
+      const availability = getModelAvailability(model.id, {
+        backendPreference: selectedBackend,
+        webGpuAvailable,
+      });
+      const card = documentRef.createElement('article');
+      card.className = 'model-card';
+      if (!availability.available) {
+        card.classList.add('is-unavailable');
+      }
+
+      const selectButton = documentRef.createElement('button');
+      selectButton.type = 'button';
+      selectButton.className = 'model-card-button';
+      selectButton.dataset.modelId = model.id;
+      selectButton.setAttribute('role', 'radio');
+      selectButton.setAttribute('aria-checked', 'false');
+      selectButton.disabled = !availability.available;
+
+      const titleRow = documentRef.createElement('div');
+      titleRow.className = 'model-card-title-row';
+      const title = documentRef.createElement('span');
+      title.className = 'model-card-title';
+      title.textContent = model.displayName || model.label;
+      titleRow.appendChild(title);
+      if (model.id === DEFAULT_MODEL) {
+        const badge = documentRef.createElement('span');
+        badge.className = 'badge text-bg-primary model-card-badge';
+        badge.textContent = 'Default';
+        titleRow.appendChild(badge);
+      }
+      selectButton.appendChild(titleRow);
+
+      const idLabel = documentRef.createElement('p');
+      idLabel.className = 'model-card-id';
+      idLabel.textContent = model.label;
+      selectButton.appendChild(idLabel);
+
+      if (model.summary) {
+        const summary = documentRef.createElement('p');
+        summary.className = 'model-card-summary';
+        summary.textContent = model.summary;
+        selectButton.appendChild(summary);
+      }
+
+      const context = documentRef.createElement('p');
+      context.className = 'model-card-context';
+      context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> Max context: <strong>${formatInteger(
+        model.generation.maxContextTokens
+      )} tokens</strong> (about ${formatWordEstimate(model.generation.maxContextTokens)} words)`;
+      selectButton.appendChild(context);
+
+      const featureList = documentRef.createElement('ul');
+      featureList.className = 'model-card-features';
+      buildFeatureTokens(model).forEach((feature) => {
+        const item = documentRef.createElement('li');
+        item.className = `model-feature-pill ${feature.enabled ? 'is-enabled' : 'is-disabled'}`;
+        item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i><span>${feature.label}</span>`;
+        featureList.appendChild(item);
+      });
+      selectButton.appendChild(featureList);
+
+      if (!availability.available) {
+        const availabilityNote = documentRef.createElement('p');
+        availabilityNote.className = 'model-card-note';
+        availabilityNote.textContent = availability.reason;
+        selectButton.appendChild(availabilityNote);
+      } else if (model.runtime?.requiresWebGpu) {
+        const requirement = documentRef.createElement('p');
+        requirement.className = 'model-card-note';
+        requirement.textContent = 'WebGPU required in this app.';
+        selectButton.appendChild(requirement);
+      }
+
+      selectButton.addEventListener('click', () => {
+        if (selectButton.disabled) {
+          return;
+        }
+        setSelectedModelId(model.id, { dispatch: true });
+      });
+      card.appendChild(selectButton);
+
+      const footer = documentRef.createElement('div');
+      footer.className = 'model-card-footer';
+      const detailsLink = documentRef.createElement('a');
+      detailsLink.className = 'model-card-link';
+      detailsLink.href = model.repositoryUrl || `https://huggingface.co/${model.id}`;
+      detailsLink.target = '_blank';
+      detailsLink.rel = 'noopener noreferrer';
+      detailsLink.textContent = 'View on Hugging Face';
+      footer.appendChild(detailsLink);
+      card.appendChild(footer);
+
+      modelCardList.appendChild(card);
+    });
+    setSelectedModelId(selectedModel, { dispatch: false });
+  }
+
   function populateModelSelect() {
     if (!modelSelect) {
       return;
     }
     const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-    const selectedModel = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
+    const selectedModel = normalizeModelId(getModelPickerValue());
     const webGpuAvailable = getWebGpuAvailability();
     modelSelect.replaceChildren();
     MODEL_OPTIONS.forEach((model) => {
@@ -230,7 +415,8 @@ export function createPreferencesController({
           : model.label;
       modelSelect.appendChild(option);
     });
-    modelSelect.value = getAvailableModelId(selectedModel, selectedBackend);
+    setSelectedModelId(getAvailableModelId(selectedModel, selectedBackend), { dispatch: false });
+    populateModelCards();
   }
 
   function syncModelSelectionForCurrentEnvironment({ announceFallback = false } = {}) {
@@ -239,14 +425,12 @@ export function createPreferencesController({
     }
 
     const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-    const requestedModelId = normalizeModelId(modelSelect.value || DEFAULT_MODEL);
+    const requestedModelId = normalizeModelId(getModelPickerValue());
 
     populateModelSelect();
 
     const selectedModelId = getAvailableModelId(requestedModelId, selectedBackend);
-    if (modelSelect.value !== selectedModelId) {
-      modelSelect.value = selectedModelId;
-    }
+    setSelectedModelId(selectedModelId, { dispatch: false });
 
     if (announceFallback && selectedModelId !== requestedModelId) {
       const requestedModel = MODEL_OPTIONS_BY_ID.get(requestedModelId);
@@ -308,7 +492,7 @@ export function createPreferencesController({
     const storedBackend = storage.getItem(backendStorageKey);
     if (modelSelect && storedModel) {
       const normalizedModel = normalizeModelId(storedModel);
-      modelSelect.value = normalizedModel;
+      setSelectedModelId(normalizedModel, { dispatch: false });
       storage.setItem(modelStorageKey, normalizedModel);
     }
     if (backendSelect && storedBackend) {
@@ -322,10 +506,8 @@ export function createPreferencesController({
 
   function readEngineConfigFromUI(activeGenerationConfig) {
     const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-    const selectedModel = getAvailableModelId(modelSelect?.value || DEFAULT_MODEL, selectedBackend);
-    if (modelSelect && modelSelect.value !== selectedModel) {
-      modelSelect.value = selectedModel;
-    }
+    const selectedModel = getAvailableModelId(getModelPickerValue(), selectedBackend);
+    setSelectedModelId(selectedModel, { dispatch: false });
     if (backendSelect && backendSelect.value !== selectedBackend) {
       backendSelect.value = selectedBackend;
     }
@@ -340,16 +522,62 @@ export function createPreferencesController({
 
   function persistInferencePreferences(activeGenerationConfig) {
     const selectedBackend = normalizeBackendPreference(backendSelect?.value || 'auto');
-    const selectedModel = getAvailableModelId(modelSelect?.value || DEFAULT_MODEL, selectedBackend);
-    if (modelSelect && modelSelect.value !== selectedModel) {
-      modelSelect.value = selectedModel;
-    }
+    const selectedModel = getAvailableModelId(getModelPickerValue(), selectedBackend);
+    setSelectedModelId(selectedModel, { dispatch: false });
     if (backendSelect && backendSelect.value !== selectedBackend) {
       backendSelect.value = selectedBackend;
     }
     storage.setItem(modelStorageKey, selectedModel);
     storage.setItem(backendStorageKey, selectedBackend);
     persistGenerationConfigForModel(selectedModel, activeGenerationConfig);
+  }
+
+  if (modelCardList instanceof HTMLElement) {
+    modelCardList.addEventListener('keydown', (event) => {
+      if (
+        event.key !== 'ArrowRight' &&
+        event.key !== 'ArrowDown' &&
+        event.key !== 'ArrowLeft' &&
+        event.key !== 'ArrowUp' &&
+        event.key !== 'Home' &&
+        event.key !== 'End'
+      ) {
+        return;
+      }
+      const enabledButtons = Array.from(modelCardList.querySelectorAll('.model-card-button')).filter(
+        (button) => button instanceof HTMLButtonElement && !button.disabled
+      );
+      if (!enabledButtons.length) {
+        return;
+      }
+      event.preventDefault();
+      if (event.key === 'Home') {
+        enabledButtons[0].focus();
+        setSelectedModelId(enabledButtons[0].dataset.modelId || DEFAULT_MODEL, { dispatch: true });
+        return;
+      }
+      if (event.key === 'End') {
+        const lastButton = enabledButtons[enabledButtons.length - 1];
+        lastButton.focus();
+        setSelectedModelId(lastButton.dataset.modelId || DEFAULT_MODEL, { dispatch: true });
+        return;
+      }
+      const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+      const currentIndex = enabledButtons.findIndex(
+        (button) => button.dataset.modelId === normalizeModelId(getModelPickerValue())
+      );
+      const nextIndex =
+        currentIndex < 0 ? 0 : (currentIndex + direction + enabledButtons.length) % enabledButtons.length;
+      const nextButton = enabledButtons[nextIndex];
+      nextButton.focus();
+      setSelectedModelId(nextButton.dataset.modelId || DEFAULT_MODEL, { dispatch: true });
+    });
+  }
+
+  if (modelSelect instanceof HTMLSelectElement) {
+    modelSelect.addEventListener('change', () => {
+      syncModelCardSelection();
+    });
   }
 
   return {
@@ -369,6 +597,7 @@ export function createPreferencesController({
     resolveTheme,
     applyTheme,
     populateModelSelect,
+    setSelectedModelId,
     normalizeBackendPreference,
     formatBackendPreferenceLabel,
     getAvailableModelId,

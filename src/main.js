@@ -210,6 +210,7 @@ const enableToolCallingToggle = document.getElementById('enableToolCallingToggle
 const renderMathMlToggle = document.getElementById('renderMathMlToggle');
 const defaultSystemPromptInput = document.getElementById('defaultSystemPromptInput');
 const modelSelect = document.getElementById('modelSelect');
+const modelCardList = document.getElementById('modelCardList');
 const backendSelect = document.getElementById('backendSelect');
 const maxOutputTokensInput = document.getElementById('maxOutputTokensInput');
 const maxContextTokensInput = document.getElementById('maxContextTokensInput');
@@ -1383,9 +1384,7 @@ function syncConversationModelSelection(
   if (conversation) {
     conversation.modelId = selectedModelId;
   }
-  if (modelSelect && modelSelect.value !== selectedModelId) {
-    modelSelect.value = selectedModelId;
-  }
+  setSelectedModelId(selectedModelId, { dispatch: false });
   syncGenerationSettingsFromModel(selectedModelId, useDefaults);
 
   if (announceFallback && selectedModelId !== requestedModelId) {
@@ -2508,6 +2507,7 @@ const preferencesController = createPreferencesController({
   transcriptViewSelect,
   defaultSystemPromptInput,
   modelSelect,
+  modelCardList,
   backendSelect,
   colorSchemeQuery,
   refreshModelThinkingVisibility,
@@ -2542,6 +2542,7 @@ const {
   probeWebGpuAvailability,
   readEngineConfigFromUI,
   restoreInferencePreferences,
+  setSelectedModelId,
   syncModelSelectionForCurrentEnvironment,
 } = preferencesController;
 

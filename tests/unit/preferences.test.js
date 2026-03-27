@@ -20,6 +20,7 @@ function createPreferencesHarness() {
         <option value="compact">Compact</option>
       </select>
       <textarea id="defaultSystemPromptInput"></textarea>
+      <div id="modelCardList"></div>
       <select id="modelSelect"></select>
       <select id="backendSelect">
         <option value="auto">Auto</option>
@@ -33,6 +34,9 @@ function createPreferencesHarness() {
   const document = dom.window.document;
   globalThis.document = document;
   globalThis.window = dom.window;
+  globalThis.Event = dom.window.Event;
+  globalThis.HTMLElement = dom.window.HTMLElement;
+  globalThis.HTMLButtonElement = dom.window.HTMLButtonElement;
   globalThis.HTMLInputElement = dom.window.HTMLInputElement;
   globalThis.HTMLSelectElement = dom.window.HTMLSelectElement;
   globalThis.HTMLTextAreaElement = dom.window.HTMLTextAreaElement;
@@ -67,6 +71,7 @@ function createPreferencesHarness() {
       transcriptViewSelect: document.getElementById('transcriptViewSelect'),
       defaultSystemPromptInput: document.getElementById('defaultSystemPromptInput'),
       modelSelect: document.getElementById('modelSelect'),
+      modelCardList: document.getElementById('modelCardList'),
       backendSelect: document.getElementById('backendSelect'),
       colorSchemeQuery: { matches: false },
       refreshModelThinkingVisibility: vi.fn(),
@@ -129,5 +134,32 @@ describe('preferences controller', () => {
 
     expect(selectedModel).not.toBe('onnx-community/gemma-3n-E2B-it-ONNX');
     expect(modelSelect.value).toBe(selectedModel);
+  });
+
+  test('renders model cards with metadata and syncs card selection to the hidden select', () => {
+    const harness = createPreferencesHarness();
+    const modelSelect = /** @type {HTMLSelectElement} */ (harness.document.getElementById('modelSelect'));
+    const modelCardList = harness.document.getElementById('modelCardList');
+
+    harness.controller.populateModelSelect();
+
+    const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
+    expect(cards.length).toBeGreaterThanOrEqual(5);
+
+    const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3 0.6B'));
+    expect(qwenCard?.textContent).toContain('about 30,720 words');
+    expect(qwenCard?.textContent).toContain('Tool calls');
+    expect(qwenCard?.textContent).toContain('Thinking');
+    expect(
+      /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))?.href
+    ).toBe('https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX');
+
+    const qwenButton = /** @type {HTMLButtonElement | null} */ (
+      qwenCard?.querySelector('.model-card-button')
+    );
+    qwenButton?.click();
+
+    expect(modelSelect.value).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(qwenButton?.getAttribute('aria-checked')).toBe('true');
   });
 });
