@@ -11,6 +11,24 @@ export const TOOL_DEFINITIONS = Object.freeze([
       additionalProperties: false,
     },
   },
+  {
+    name: 'get_user_location',
+    displayName: 'Get User Location',
+    description:
+      'Returns the user location from the browser geolocation API when permission is granted. Falls back to a coarse approximation from browser locale and timezone when permission is denied, unavailable, or times out.',
+    enabled: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        timeoutMs: {
+          type: 'integer',
+          minimum: 1000,
+          maximum: 30000,
+        },
+      },
+      additionalProperties: false,
+    },
+  },
 ]);
 
 function humanizeToolName(toolName) {
@@ -310,7 +328,173 @@ function executeGetCurrentDateTime(argumentsValue = {}) {
   };
 }
 
-export async function executeToolCall(toolCall) {
+function getValidatedLocationArguments(argumentsValue = {}) {
+  if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
+    throw new Error('get_user_location arguments must be an object.');
+  }
+  const supportedKeys = new Set(['timeoutMs']);
+  const unexpectedKeys = Object.keys(argumentsValue).filter((key) => !supportedKeys.has(key));
+  if (unexpectedKeys.length) {
+    throw new Error(`get_user_location does not accept: ${unexpectedKeys.join(', ')}.`);
+  }
+  const timeoutCandidate = argumentsValue.timeoutMs;
+  if (timeoutCandidate === undefined) {
+    return {
+      timeoutMs: 10000,
+    };
+  }
+  if (!Number.isInteger(timeoutCandidate) || timeoutCandidate < 1000 || timeoutCandidate > 30000) {
+    throw new Error('get_user_location timeoutMs must be an integer between 1000 and 30000.');
+  }
+  return {
+    timeoutMs: timeoutCandidate,
+  };
+}
+
+async function getGeolocationPermissionState(navigatorRef) {
+  const permissionsApi = navigatorRef?.permissions;
+  if (!permissionsApi || typeof permissionsApi.query !== 'function') {
+    return 'unavailable';
+  }
+  try {
+    const status = await permissionsApi.query({ name: 'geolocation' });
+    return typeof status?.state === 'string' ? status.state : 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+function requestCurrentPosition(navigatorRef, options) {
+  return new Promise((resolve, reject) => {
+    navigatorRef.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+function getTimeZoneOffsetMinutes(now, timeZone) {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'shortOffset',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const offsetValue = formatter
+      .formatToParts(now)
+      .find((part) => part.type === 'timeZoneName')?.value;
+    const match = offsetValue?.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
+    if (!match) {
+      return null;
+    }
+    const [, sign, hoursText, minutesText] = match;
+    const hours = Number(hoursText);
+    const minutes = Number(minutesText || '0');
+    const totalMinutes = hours * 60 + minutes;
+    return sign === '-' ? -totalMinutes : totalMinutes;
+  } catch {
+    return null;
+  }
+}
+
+function formatUtcOffset(offsetMinutes) {
+  if (!Number.isFinite(offsetMinutes)) {
+    return null;
+  }
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const absoluteMinutes = Math.abs(offsetMinutes);
+  const hours = String(Math.floor(absoluteMinutes / 60)).padStart(2, '0');
+  const minutes = String(absoluteMinutes % 60).padStart(2, '0');
+  return `UTC${sign}${hours}:${minutes}`;
+}
+
+function buildApproximateLocationResult(navigatorRef) {
+  const locale =
+    navigatorRef?.languages?.find((entry) => typeof entry === 'string' && entry.trim()) ||
+    (typeof navigatorRef?.language === 'string' ? navigatorRef.language : '') ||
+    'en-US';
+  const localeParts = String(locale).split(/[-_]/);
+  const regionCode = localeParts.length > 1 ? localeParts[localeParts.length - 1].toUpperCase() : null;
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const timeZoneParts = String(timeZone).split('/');
+  const timeZoneArea = timeZoneParts.length > 1 ? timeZoneParts[timeZoneParts.length - 1] : timeZoneParts[0];
+  const approximateArea = timeZoneArea ? timeZoneArea.replace(/_/g, ' ') : 'Unknown area';
+  const now = new Date();
+  const utcOffsetMinutes = getTimeZoneOffsetMinutes(now, timeZone);
+  return {
+    source: 'approximate_browser_signals',
+    confidenceLevel: 'low',
+    permissionState: 'denied',
+    coordinates: null,
+    approximateLocation: {
+      label: regionCode ? `${approximateArea}, ${regionCode}` : approximateArea,
+      regionCode,
+      timeZone,
+      utcOffset: formatUtcOffset(utcOffsetMinutes),
+      locale,
+    },
+  };
+}
+
+async function executeGetUserLocation(argumentsValue = {}, runtimeContext = {}) {
+  const { timeoutMs } = getValidatedLocationArguments(argumentsValue);
+  const navigatorRef =
+    runtimeContext.navigatorRef ||
+    (typeof navigator !== 'undefined' && navigator ? navigator : null);
+  if (!navigatorRef) {
+    return {
+      ...buildApproximateLocationResult(null),
+      permissionState: 'unavailable',
+    };
+  }
+
+  const permissionState = await getGeolocationPermissionState(navigatorRef);
+  const geolocationApi = navigatorRef.geolocation;
+  if (!geolocationApi || typeof geolocationApi.getCurrentPosition !== 'function') {
+    return {
+      ...buildApproximateLocationResult(navigatorRef),
+      permissionState,
+    };
+  }
+
+  try {
+    const position = await requestCurrentPosition(navigatorRef, {
+      enableHighAccuracy: true,
+      timeout: timeoutMs,
+      maximumAge: 0,
+    });
+    const accuracyMeters = Number(position?.coords?.accuracy);
+    const confidenceLevel =
+      Number.isFinite(accuracyMeters) && accuracyMeters <= 100
+        ? 'high'
+        : Number.isFinite(accuracyMeters) && accuracyMeters <= 1000
+          ? 'medium'
+          : 'low';
+    return {
+      source: 'browser_geolocation',
+      confidenceLevel,
+      permissionState: permissionState === 'unavailable' ? 'granted' : permissionState,
+      coordinates: {
+        latitude: Number(position?.coords?.latitude),
+        longitude: Number(position?.coords?.longitude),
+        accuracyMeters: Number.isFinite(accuracyMeters) ? accuracyMeters : null,
+      },
+      approximateLocation: null,
+    };
+  } catch (error) {
+    const errorCode = Number(error?.code);
+    const fallbackPermissionState =
+      errorCode === 1
+        ? 'denied'
+        : errorCode === 3
+          ? 'timeout'
+          : permissionState;
+    return {
+      ...buildApproximateLocationResult(navigatorRef),
+      permissionState: fallbackPermissionState,
+    };
+  }
+}
+
+export async function executeToolCall(toolCall, runtimeContext = {}) {
   if (!toolCall || typeof toolCall !== 'object') {
     throw new Error('Tool call is required.');
   }
@@ -321,6 +505,15 @@ export async function executeToolCall(toolCall) {
       : {};
   if (toolName === 'get_current_date_time') {
     const result = executeGetCurrentDateTime(argumentsValue);
+    return {
+      toolName,
+      arguments: argumentsValue,
+      result,
+      resultText: JSON.stringify(result),
+    };
+  }
+  if (toolName === 'get_user_location') {
+    const result = await executeGetUserLocation(argumentsValue, runtimeContext);
     return {
       toolName,
       arguments: argumentsValue,

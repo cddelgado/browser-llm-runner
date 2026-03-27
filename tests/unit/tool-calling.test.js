@@ -3,6 +3,7 @@ import {
   buildToolCallingSystemPrompt,
   executeToolCall,
   getToolDisplayName,
+  getEnabledToolDefinitions,
   sniffToolCalls,
 } from '../../src/llm/tool-calling.js';
 
@@ -73,7 +74,19 @@ describe('tool-calling prompt builder', () => {
 
   test('returns a friendly tool display name', () => {
     expect(getToolDisplayName('get_current_date_time')).toBe('Get Date and Time');
+    expect(getToolDisplayName('get_user_location')).toBe('Get User Location');
     expect(getToolDisplayName('lookup_fact')).toBe('Lookup Fact');
+  });
+
+  test('includes the user location tool definition', () => {
+    expect(getEnabledToolDefinitions()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'get_user_location',
+          displayName: 'Get User Location',
+        }),
+      ])
+    );
   });
 
   test('lists none when no tools are enabled', () => {
@@ -162,5 +175,90 @@ describe('tool-calling prompt builder', () => {
       iso: expect.any(String),
       unixMs: expect.any(Number),
     });
+  });
+
+  test('executes get_user_location with precise coordinates when geolocation succeeds', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'get_user_location',
+        arguments: {
+          timeoutMs: 5000,
+        },
+      },
+      {
+        navigatorRef: {
+          language: 'en-US',
+          languages: ['en-US'],
+          permissions: {
+            query: async () => ({ state: 'granted' }),
+          },
+          geolocation: {
+            getCurrentPosition: (success, _error, options) => {
+              expect(options).toMatchObject({
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0,
+              });
+              success({
+                coords: {
+                  latitude: 43.0389,
+                  longitude: -87.9065,
+                  accuracy: 25,
+                },
+              });
+            },
+          },
+        },
+      }
+    );
+
+    expect(result.toolName).toBe('get_user_location');
+    expect(result.result).toEqual({
+      source: 'browser_geolocation',
+      confidenceLevel: 'high',
+      permissionState: 'granted',
+      coordinates: {
+        latitude: 43.0389,
+        longitude: -87.9065,
+        accuracyMeters: 25,
+      },
+      approximateLocation: null,
+    });
+  });
+
+  test('falls back to an approximate location when geolocation permission is denied', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'get_user_location',
+        arguments: {},
+      },
+      {
+        navigatorRef: {
+          language: 'en-US',
+          languages: ['en-US'],
+          permissions: {
+            query: async () => ({ state: 'denied' }),
+          },
+          geolocation: {
+            getCurrentPosition: (_success, error) => {
+              error({
+                code: 1,
+              });
+            },
+          },
+        },
+      }
+    );
+
+    expect(result.toolName).toBe('get_user_location');
+    expect(result.result.source).toBe('approximate_browser_signals');
+    expect(result.result.confidenceLevel).toBe('low');
+    expect(result.result.permissionState).toBe('denied');
+    expect(result.result.coordinates).toBeNull();
+    expect(result.result.approximateLocation).toMatchObject({
+      locale: 'en-US',
+      regionCode: 'US',
+    });
+    expect(result.result.approximateLocation.timeZone).toEqual(expect.any(String));
   });
 });

@@ -96,7 +96,7 @@ Student-facing browser chat UI with local model inference.
   - New generations in a conversation use that conversation's captured system prompt.
 - When prompt-driven feature flags are enabled, the effective system prompt adds an `Optional feature flags` section before any tool-calling instructions.
 - When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt and any optional feature-flags section.
-- Tool-calling behavior, transcript presentation, export semantics, and the current built-in tool catalog are documented in `docs/tools.md`.
+- Tool-calling behavior, transcript presentation, export semantics, the current built-in tool catalog, and the planned function-call/MCP/`SKILL.md` capability model are documented in `docs/tools.md`.
 - The active conversation's sidebar kebab menu includes `Edit conversation system prompt`:
   - Set optional per-conversation instructions.
   - `Append after default prompt` is enabled by default; when enabled, the conversation prompt is appended after the conversation's captured default prompt.
@@ -171,4 +171,4 @@ Student-facing browser chat UI with local model inference.
 - Transcript and conversation-list DOM rendering live in `src/ui/`.
 - `src/main.js` remains the app shell for routing, page-level visibility, and wiring dependencies into those modules.
 - See `docs/conversation-domain.md`, `docs/app-state.md`, `docs/app-controller.md`, `docs/orchestrations.md`, and `docs/ui-views.md` for the current boundaries.
-- See `docs/tools.md` for tool-calling behavior, built-in tools, transcript UI behavior, and export details.
+- See `docs/tools.md` for current tool-calling behavior plus the planned separation between discrete function calls, MCP capability discovery, and `SKILL.md` playbooks.
