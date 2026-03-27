@@ -9,6 +9,7 @@ function createHarness() {
         <div id="chatTranscript">
           <button class="response-variant-prev" data-message-id="model-1"></button>
           <button class="copy-message-btn" data-message-id="model-2" data-copy-type="message"></button>
+          <button class="copy-mathml-btn" data-message-id="model-3" data-copy-type="mathml"></button>
         </div>
       </div>
       <button id="jumpToTopButton" aria-disabled="false"></button>
@@ -19,7 +20,7 @@ function createHarness() {
       <div id="chatTranscriptEnd" tabindex="-1"></div>
       <textarea id="messageInput"></textarea>
     `,
-    { url: 'https://example.test/' },
+    { url: 'https://example.test/' }
   );
   const document = dom.window.document;
   globalThis.document = document;
@@ -63,16 +64,20 @@ describe('transcript-events', () => {
     const harness = createHarness();
     bindTranscriptEvents(harness.deps);
 
-    harness.document.querySelector('.response-variant-prev')?.dispatchEvent(
-      new harness.dom.window.MouseEvent('click', { bubbles: true }),
-    );
-    harness.document.querySelector('.copy-message-btn')?.dispatchEvent(
-      new harness.dom.window.MouseEvent('click', { bubbles: true }),
-    );
+    harness.document
+      .querySelector('.response-variant-prev')
+      ?.dispatchEvent(new harness.dom.window.MouseEvent('click', { bubbles: true }));
+    harness.document
+      .querySelector('.copy-message-btn')
+      ?.dispatchEvent(new harness.dom.window.MouseEvent('click', { bubbles: true }));
+    harness.document
+      .querySelector('.copy-mathml-btn')
+      ?.dispatchEvent(new harness.dom.window.MouseEvent('click', { bubbles: true }));
 
     await Promise.resolve();
     expect(harness.deps.switchModelVariant).toHaveBeenCalledWith('model-1', -1);
     expect(harness.deps.handleMessageCopyAction).toHaveBeenCalledWith('model-2', 'message');
+    expect(harness.deps.handleMessageCopyAction).toHaveBeenCalledWith('model-3', 'mathml');
   });
 
   test('jump to latest restores composer focus when triggered from the button', () => {
@@ -81,12 +86,12 @@ describe('transcript-events', () => {
 
     harness.deps.jumpToLatestButton.focus();
     harness.deps.jumpToLatestButton.dispatchEvent(
-      new harness.dom.window.MouseEvent('click', { bubbles: true }),
+      new harness.dom.window.MouseEvent('click', { bubbles: true })
     );
 
     expect(harness.deps.focusTranscriptBoundary).toHaveBeenCalledWith(
       harness.deps.chatTranscriptEnd,
-      { align: 'end' },
+      { align: 'end' }
     );
     expect(harness.document.activeElement).toBe(harness.deps.messageInput);
   });

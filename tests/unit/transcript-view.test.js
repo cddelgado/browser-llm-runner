@@ -97,15 +97,80 @@ describe('transcript-view', () => {
     view.renderTranscript({ scrollToBottom: false });
 
     expect(harness.container.querySelectorAll('.message-row')).toHaveLength(2);
-    expect(harness.container.querySelector('.user-message .message-bubble')?.textContent).toContain('Hello there');
-    expect(harness.container.querySelector('.user-message .message-image-thumb')?.getAttribute('src')).toContain(
-      'data:image/png;base64,abc123',
+    expect(harness.container.querySelector('.user-message .message-bubble')?.textContent).toContain(
+      'Hello there'
     );
-    expect(harness.container.querySelector('.model-message .response-content')?.innerHTML).toContain('Hi back');
-    expect(harness.container.querySelector('.regenerate-response-btn')?.getAttribute('aria-keyshortcuts')).toBe('R');
-    expect(harness.container.querySelector('.copy-message-btn')?.getAttribute('data-bs-title')).toContain(
-      '(C)',
+    expect(
+      harness.container.querySelector('.user-message .message-image-thumb')?.getAttribute('src')
+    ).toContain('data:image/png;base64,abc123');
+    expect(
+      harness.container.querySelector('.model-message .response-content')?.innerHTML
+    ).toContain('Hi back');
+    expect(
+      harness.container.querySelector('.regenerate-response-btn')?.getAttribute('aria-keyshortcuts')
+    ).toBe('R');
+    expect(
+      harness.container.querySelector('.copy-message-btn')?.getAttribute('data-bs-title')
+    ).toContain('(C)');
+    expect(harness.container.querySelector('.copy-mathml-btn')?.classList.contains('d-none')).toBe(
+      true
     );
+  });
+
+  test('shows a dedicated MathML copy action for math responses', () => {
+    const harness = createViewHarness();
+    harness.conversation.messageNodes[1].response = '$x^2$';
+    harness.conversation.messageNodes[1].text = '$x^2$';
+
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      shouldShowMathMlCopyAction: (content) => String(content).includes('$'),
+      getToolDisplayName: (toolName) => toolName,
+      getShowThinkingByDefault: () => false,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: false,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    const mathMlButton = harness.container.querySelector('.copy-mathml-btn');
+    expect(mathMlButton?.classList.contains('d-none')).toBe(false);
+    expect(mathMlButton?.getAttribute('data-copy-type')).toBe('mathml');
+    expect(mathMlButton?.getAttribute('aria-label')).toBe('Copy MathML');
   });
 
   test('updates user message editing controls', () => {
@@ -152,11 +217,19 @@ describe('transcript-view', () => {
       saveUserMessageEdit: vi.fn(),
     });
 
-    const userItem = view.addMessageElement(harness.conversation.messageNodes[0], { scroll: false });
+    const userItem = view.addMessageElement(harness.conversation.messageNodes[0], {
+      scroll: false,
+    });
 
-    expect(userItem.querySelector('.user-message-editor')?.classList.contains('d-none')).toBe(false);
-    expect(userItem.querySelector('.save-user-message-btn')?.classList.contains('d-none')).toBe(false);
-    expect(userItem.querySelector('.edit-user-message-btn')?.classList.contains('d-none')).toBe(true);
+    expect(userItem.querySelector('.user-message-editor')?.classList.contains('d-none')).toBe(
+      false
+    );
+    expect(userItem.querySelector('.save-user-message-btn')?.classList.contains('d-none')).toBe(
+      false
+    );
+    expect(userItem.querySelector('.edit-user-message-btn')?.classList.contains('d-none')).toBe(
+      true
+    );
   });
 
   test('renders tool result messages', () => {
@@ -186,7 +259,11 @@ describe('transcript-view', () => {
       getActiveConversation: () => harness.conversation,
       getConversationPathMessages: (conversation) => conversation.messageNodes,
       getConversationCardHeading: (_conversation, message) =>
-        message.role === 'user' ? 'User Prompt 1' : message.role === 'tool' ? 'Tool Result 1' : 'Model Response 1',
+        message.role === 'user'
+          ? 'User Prompt 1'
+          : message.role === 'tool'
+            ? 'Tool Result 1'
+            : 'Model Response 1',
       getModelVariantState: () => ({
         index: 0,
         total: 1,
@@ -232,8 +309,14 @@ describe('transcript-view', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     toggle?.dispatchEvent(new harness.document.defaultView.Event('click', { bubbles: true }));
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(harness.container.querySelector('.tool-call-request')?.textContent).toContain('"name": "get_weather"');
-    expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain('"temperature": 72');
-    expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain('72 F and sunny.');
+    expect(harness.container.querySelector('.tool-call-request')?.textContent).toContain(
+      '"name": "get_weather"'
+    );
+    expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain(
+      '"temperature": 72'
+    );
+    expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain(
+      '72 F and sunny.'
+    );
   });
 });

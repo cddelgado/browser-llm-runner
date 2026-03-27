@@ -573,6 +573,8 @@ async function handleMessageCopyAction(messageId, copyType) {
     return;
   }
   let textToCopy = '';
+  let copiedStatus = 'Copied to clipboard.';
+  let emptyStatus = 'Nothing available to copy.';
   if (copyType === 'thoughts') {
     textToCopy = message.role === 'model' ? String(message.thoughts || '') : '';
   } else if (copyType === 'response') {
@@ -590,11 +592,51 @@ async function handleMessageCopyAction(messageId, copyType) {
     } else {
       textToCopy = '';
     }
+  } else if (copyType === 'mathml') {
+    if (message.role === 'model') {
+      const messageElement = findMessageElement(messageId);
+      const responseElement = messageElement?.querySelector('.response-content');
+      if (responseElement instanceof HTMLElement) {
+        await typesetMathInElement(responseElement);
+        textToCopy = extractMathMlFromElement(responseElement);
+      }
+    }
+    copiedStatus = 'MathML copied to clipboard.';
+    emptyStatus = 'No rendered MathML available to copy.';
   } else {
     textToCopy = String(message.text || '');
   }
+  if (!textToCopy) {
+    setStatus(emptyStatus);
+    return;
+  }
   const didCopy = await copyTextToClipboard(textToCopy);
-  setStatus(didCopy ? 'Copied to clipboard.' : 'Copy failed.');
+  setStatus(didCopy ? copiedStatus : 'Copy failed.');
+}
+
+function extractMathMlFromElement(element) {
+  if (!(element instanceof HTMLElement)) {
+    return '';
+  }
+  const mathMlNodes = Array.from(element.querySelectorAll('mjx-assistive-mml math'));
+  const fallbackNodes = mathMlNodes.length
+    ? []
+    : Array.from(element.querySelectorAll('math')).filter(
+        (mathNode) => !mathNode.parentElement?.closest('math')
+      );
+  const nodesToSerialize = mathMlNodes.length ? mathMlNodes : fallbackNodes;
+  if (!nodesToSerialize.length) {
+    return '';
+  }
+  const XMLSerializerClass = element.ownerDocument?.defaultView?.XMLSerializer;
+  if (typeof XMLSerializerClass !== 'function') {
+    return '';
+  }
+  const serializer = new XMLSerializerClass();
+  return nodesToSerialize
+    .map((node) => serializer.serializeToString(node).trim())
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function formatInteger(value) {
@@ -1496,6 +1538,7 @@ const transcriptView = createTranscriptView({
   getUserVariantState,
   renderModelMarkdown,
   scheduleMathTypeset,
+  shouldShowMathMlCopyAction: (content) => appState.renderMathMl && containsMathDelimiters(content),
   getToolDisplayName,
   getShowThinkingByDefault: () => appState.showThinkingByDefault,
   getActiveUserEditMessageId: () => getActiveUserEditMessageId(appState),

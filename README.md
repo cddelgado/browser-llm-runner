@@ -103,7 +103,8 @@ Student-facing browser chat UI with local model inference.
   - When `Append after default prompt` is disabled, the conversation prompt replaces the conversation's captured default prompt.
   - The captured default prompt for a conversation does not change after that conversation is created.
 - The pre-chat `ChatClaws` panel also exposes conversation prompt editing for the currently selected conversation.
-- Each user message and model response includes a copy action; model response copy excludes thought text.
+- Each user message and model response includes a copy action; model response copy excludes thought text and preserves the model's original LaTeX source.
+- Math-rendered model responses also expose a dedicated `Copy MathML` action for the rendered MathML.
 - The Thinking section includes a dedicated copy action to copy thoughts only.
 - Keyboard shortcuts cover the primary workspace actions (start/new conversation, help, settings, send/stop, load model, downloads, transcript jumps) plus focused transcript actions (edit, branch, regenerate, fix, copy, and branch/response variant navigation).
 - Composer keyboard behavior uses `Enter` to send and `Shift+Enter` to insert a new line.

@@ -48,6 +48,7 @@ Tool results are preserved in the underlying conversation object as `tool` role 
 
 - `Copy response` on a normal model response copies the model response text
 - `Copy response` on a model tool-call card copies the model message text plus any attached tool-result text
+- `Copy MathML` on a math-rendered model response copies the rendered MathML, not the source LaTeX
 - no extra Markdown or export-style formatting is added during copy
 
 ## Export behavior

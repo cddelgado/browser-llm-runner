@@ -77,7 +77,7 @@ export function bindTranscriptEvents({
         branchFromUserMessage(branchUserButton.dataset.messageId || '');
         return;
       }
-      const copyButton = target.closest('.copy-message-btn, .thoughts-copy-btn');
+      const copyButton = target.closest('.copy-message-btn, .thoughts-copy-btn, .copy-mathml-btn');
       if (copyButton instanceof HTMLButtonElement) {
         await handleMessageCopyAction(
           copyButton.dataset.messageId || '',

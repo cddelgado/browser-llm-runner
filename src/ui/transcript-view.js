@@ -8,6 +8,7 @@ export function createTranscriptView(dependencies) {
     getUserVariantState,
     renderModelMarkdown,
     scheduleMathTypeset,
+    shouldShowMathMlCopyAction,
     getToolDisplayName,
     getShowThinkingByDefault,
     getActiveUserEditMessageId,
@@ -24,8 +25,12 @@ export function createTranscriptView(dependencies) {
   } = dependencies;
   const documentRef = container?.ownerDocument || document;
   const view = documentRef.defaultView || window;
+  const canShowMathMlCopyAction =
+    typeof shouldShowMathMlCopyAction === 'function' ? shouldShowMathMlCopyAction : () => false;
   const resolveToolDisplayName =
-    typeof getToolDisplayName === 'function' ? getToolDisplayName : (toolName) => String(toolName || 'Unknown Tool');
+    typeof getToolDisplayName === 'function'
+      ? getToolDisplayName
+      : (toolName) => String(toolName || 'Unknown Tool');
 
   function getUserImageParts(message) {
     const rawParts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
@@ -117,7 +122,9 @@ export function createTranscriptView(dependencies) {
       {
         name: typeof toolCall.name === 'string' ? toolCall.name : '',
         arguments:
-          toolCall.arguments && typeof toolCall.arguments === 'object' && !Array.isArray(toolCall.arguments)
+          toolCall.arguments &&
+          typeof toolCall.arguments === 'object' &&
+          !Array.isArray(toolCall.arguments)
             ? toolCall.arguments
             : {},
       },
@@ -168,15 +175,22 @@ export function createTranscriptView(dependencies) {
 
     const isExpanded = refs.toolCallToggle.getAttribute('aria-expanded') === 'true';
     const primaryToolName =
-      typeof toolCalls[0]?.name === 'string' && toolCalls[0].name.trim() ? toolCalls[0].name.trim() : '';
+      typeof toolCalls[0]?.name === 'string' && toolCalls[0].name.trim()
+        ? toolCalls[0].name.trim()
+        : '';
     const toolLabel = primaryToolName ? resolveToolDisplayName(primaryToolName) : 'Unknown Tool';
     refs.toolCallToggle.textContent = `🛠️ Tool Call: ${toolLabel}`;
     refs.toolCallToggle.setAttribute('aria-label', `Tool call details for ${toolLabel}`);
     refs.toolCallToggle.setAttribute('aria-expanded', String(isExpanded));
     refs.toolCallBody.hidden = !isExpanded;
-    refs.toolCallRequest.textContent = toolCalls.map(formatToolCallText).filter(Boolean).join('\n\n');
+    refs.toolCallRequest.textContent = toolCalls
+      .map(formatToolCallText)
+      .filter(Boolean)
+      .join('\n\n');
 
-    const toolResultText = formatToolResultText(getInlineToolResultMessages(getActiveConversation(), message));
+    const toolResultText = formatToolResultText(
+      getInlineToolResultMessages(getActiveConversation(), message)
+    );
     refs.toolCallResult.textContent = toolResultText;
     refs.toolCallResultSection.hidden = !toolResultText;
   }
@@ -201,6 +215,9 @@ export function createTranscriptView(dependencies) {
     /** @type {HTMLElement} */ (refs.thinkingBody).hidden = !hasThinking || !isExpanded;
     refs.thoughtsText.textContent = message.thoughts || '';
     refs.responseText.innerHTML = renderModelMarkdown(message.response || message.text || '');
+    const hasMathMlCopyAction = canShowMathMlCopyAction(message.response || message.text || '');
+    refs.copyMathMlButton.classList.toggle('d-none', !hasMathMlCopyAction);
+    refs.copyMathMlButton.disabled = !hasMathMlCopyAction;
     setModelToolCallContent(message, refs);
     scheduleMathTypeset(refs.responseText, { immediate: Boolean(message.isResponseComplete) });
   }
@@ -231,7 +248,11 @@ export function createTranscriptView(dependencies) {
     const cardHeading = getConversationCardHeading(activeConversation, message);
     const item = documentRef.createElement('li');
     item.className = `message-row ${
-      message.role === 'user' ? 'user-message' : message.role === 'tool' ? 'tool-message' : 'model-message'
+      message.role === 'user'
+        ? 'user-message'
+        : message.role === 'tool'
+          ? 'tool-message'
+          : 'model-message'
     }`;
     item.dataset.messageId = message.id;
 
@@ -324,6 +345,17 @@ export function createTranscriptView(dependencies) {
             <i class="bi bi-copy" aria-hidden="true"></i>
             <span class="visually-hidden">Copy response</span>
           </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary copy-mathml-btn d-none"
+            data-message-id="${message.id}"
+            aria-label="Copy MathML"
+            data-copy-type="mathml"
+            data-bs-toggle="tooltip"
+            data-bs-title="Copy MathML"
+          >
+            MathML
+          </button>
           <div class="response-variant-nav${variantState.hasVariants ? '' : ' d-none'}">
             <button
               type="button"
@@ -372,6 +404,7 @@ export function createTranscriptView(dependencies) {
       const toolCallResult = item.querySelector('.tool-call-result');
       const responseRegion = item.querySelector('.response-region');
       const responseText = item.querySelector('.response-content');
+      const copyMathMlButton = item.querySelector('.copy-mathml-btn');
       if (
         thinkingRegion &&
         thinkingToggle &&
@@ -385,7 +418,8 @@ export function createTranscriptView(dependencies) {
         toolCallResultSection &&
         toolCallResult &&
         responseRegion &&
-        responseText
+        responseText &&
+        copyMathMlButton instanceof view.HTMLButtonElement
       ) {
         const refs = {
           thinkingRegion,
@@ -401,10 +435,11 @@ export function createTranscriptView(dependencies) {
           toolCallResult,
           responseRegion,
           responseText,
+          copyMathMlButton,
         };
         const showThinkingByDefault = getShowThinkingByDefault();
         thinkingToggle.setAttribute('aria-expanded', String(showThinkingByDefault));
-          /** @type {HTMLElement} */ (thinkingBody).hidden = !showThinkingByDefault;
+        /** @type {HTMLElement} */ (thinkingBody).hidden = !showThinkingByDefault;
         thinkingToggle.addEventListener('click', (event) => {
           event.preventDefault();
           const expanded = thinkingToggle.getAttribute('aria-expanded') === 'true';
@@ -625,7 +660,10 @@ export function createTranscriptView(dependencies) {
     const prevButton = item.querySelector('.response-variant-prev');
     const nextButton = item.querySelector('.response-variant-next');
     if (variantNav) {
-      variantNav.classList.toggle('d-none', !variantState.hasVariants || !message.isResponseComplete);
+      variantNav.classList.toggle(
+        'd-none',
+        !variantState.hasVariants || !message.isResponseComplete
+      );
     }
     if (variantLabel) {
       variantLabel.textContent = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
@@ -701,9 +739,10 @@ export function createTranscriptView(dependencies) {
     const showEmptyState = getEmptyStateVisible();
     if (!conversation) {
       if (showEmptyState) {
-      const emptyItem = documentRef.createElement('li');
+        const emptyItem = documentRef.createElement('li');
         emptyItem.className = 'transcript-empty-state text-body-secondary';
-        emptyItem.textContent = 'Select a conversation from the left panel, or start a new conversation.';
+        emptyItem.textContent =
+          'Select a conversation from the left panel, or start a new conversation.';
         container.appendChild(emptyItem);
       }
       updateTranscriptNavigationButtonVisibility();
@@ -711,8 +750,15 @@ export function createTranscriptView(dependencies) {
     }
     const suppressedToolMessageIds = new Set(
       getConversationPathMessages(conversation)
-        .filter((message) => message?.role === 'model' && Array.isArray(message.toolCalls) && message.toolCalls.length)
-        .flatMap((message) => getInlineToolResultMessages(conversation, message).map((toolMessage) => toolMessage.id))
+        .filter(
+          (message) =>
+            message?.role === 'model' &&
+            Array.isArray(message.toolCalls) &&
+            message.toolCalls.length
+        )
+        .flatMap((message) =>
+          getInlineToolResultMessages(conversation, message).map((toolMessage) => toolMessage.id)
+        )
     );
     getConversationPathMessages(conversation).forEach((message) => {
       if (message?.role === 'tool' && suppressedToolMessageIds.has(message.id)) {
