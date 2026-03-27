@@ -67,10 +67,7 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      'For get_user_location: a result with source "browser_geolocation" or "approximate_browser_signals" is a completed lookup.'
-    );
-    expect(prompt).toContain(
-      'For get_user_location: if the result includes shouldRetry false, do not call get_user_location again and answer using the returned location data.'
+      'For get_user_location: use the returned location and coordinate directly in your answer.'
     );
   });
 
@@ -207,9 +204,6 @@ describe('tool-calling prompt builder', () => {
         navigatorRef: {
           language: 'en-US',
           languages: ['en-US'],
-          permissions: {
-            query: async () => ({ state: 'granted' }),
-          },
           geolocation: {
             getCurrentPosition: (success, _error, options) => {
               expect(options).toMatchObject({
@@ -245,30 +239,11 @@ describe('tool-calling prompt builder', () => {
 
     expect(result.toolName).toBe('get_user_location');
     expect(result.result).toEqual({
-      source: 'browser_geolocation',
-      status: 'completed',
-      shouldRetry: false,
-      confidenceLevel: 'high',
-      permissionState: 'granted',
-      coordinates: {
+      location: 'Milwaukee, Wisconsin, United States',
+      coordinate: {
         latitude: 43.0389,
         longitude: -87.9065,
-        accuracyMeters: 25,
       },
-      formattedLocation: 'Milwaukee, Wisconsin, United States',
-      resolvedLocation: {
-        provider: 'OpenStreetMap Nominatim',
-        attribution: '© OpenStreetMap contributors',
-        formattedLocation: 'Milwaukee, Wisconsin, United States',
-        displayName: 'Milwaukee, Wisconsin, United States',
-        locality: 'Milwaukee',
-        state: 'Wisconsin',
-        country: 'United States',
-        countryCode: 'US',
-        postcode: '53202',
-      },
-      approximateLocation: null,
-      summary: 'User location: Milwaukee, Wisconsin, United States.',
     });
   });
 
@@ -282,9 +257,6 @@ describe('tool-calling prompt builder', () => {
         navigatorRef: {
           language: 'en-US',
           languages: ['en-US'],
-          permissions: {
-            query: async () => ({ state: 'denied' }),
-          },
           geolocation: {
             getCurrentPosition: (_success, error) => {
               error({
@@ -297,18 +269,9 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(result.toolName).toBe('get_user_location');
-    expect(result.result.source).toBe('approximate_browser_signals');
-    expect(result.result.status).toBe('completed');
-    expect(result.result.shouldRetry).toBe(false);
-    expect(result.result.confidenceLevel).toBe('low');
-    expect(result.result.permissionState).toBe('denied');
-    expect(result.result.coordinates).toBeNull();
-    expect(result.result.approximateLocation).toMatchObject({
-      locale: 'en-US',
-      regionCode: 'US',
-    });
-    expect(result.result.approximateLocation.timeZone).toEqual(expect.any(String));
-    expect(result.result.summary).toEqual(expect.stringContaining('Approximate user location:'));
+    expect(result.result.coordinate).toBeNull();
+    expect(result.result.location).toEqual(expect.any(String));
+    expect(result.result.location).toContain('US');
   });
 
   test('keeps coordinates when reverse geocoding is unavailable', async () => {
@@ -321,9 +284,6 @@ describe('tool-calling prompt builder', () => {
         navigatorRef: {
           language: 'en-US',
           languages: ['en-US'],
-          permissions: {
-            query: async () => ({ state: 'granted' }),
-          },
           geolocation: {
             getCurrentPosition: (success) => {
               success({
@@ -342,13 +302,14 @@ describe('tool-calling prompt builder', () => {
       }
     );
 
-    expect(result.result.formattedLocation).toBeNull();
-    expect(result.result.resolvedLocation).toBeNull();
-    expect(result.result.summary).toBe('Precise user coordinates: 43.044035, -87.9149.');
-    expect(result.result.shouldRetry).toBe(false);
+    expect(result.result.location).toBe('43.044035, -87.9149');
+    expect(result.result.coordinate).toEqual({
+      latitude: 43.044035,
+      longitude: -87.9149,
+    });
   });
 
-  test('marks a successful location lookup as granted even if the permissions api still says prompt', async () => {
+  test('waits for the geolocation request outcome even without relying on the permissions api', async () => {
     const result = await executeToolCall(
       {
         name: 'get_user_location',
@@ -358,9 +319,6 @@ describe('tool-calling prompt builder', () => {
         navigatorRef: {
           language: 'en-US',
           languages: ['en-US'],
-          permissions: {
-            query: async () => ({ state: 'prompt' }),
-          },
           geolocation: {
             getCurrentPosition: (success) => {
               success({
@@ -388,7 +346,12 @@ describe('tool-calling prompt builder', () => {
       }
     );
 
-    expect(result.result.permissionState).toBe('granted');
-    expect(result.result.shouldRetry).toBe(false);
+    expect(result.result).toEqual({
+      location: 'Milwaukee, Wisconsin, United States',
+      coordinate: {
+        latitude: 43.044035,
+        longitude: -87.9149,
+      },
+    });
   });
 });

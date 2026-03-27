@@ -45,21 +45,14 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 ### `get_user_location`
 
 - Display name: `Get User Location`
-- Purpose: requests the browser's geolocation permission and returns precise coordinates when the user allows access
+- Purpose: requests the browser's geolocation permission and waits for the browser prompt to be accepted, denied, or time out
 - Enrichment: when precise coordinates are available, the app also attempts reverse geocoding through OpenStreetMap Nominatim to return a human-readable location label
-- Fallback: if permission is denied, unavailable, or the request times out, returns a coarse approximation derived from browser locale and timezone signals instead of coordinates
+- Fallback: if permission is denied, unavailable, or the request times out, returns a coarse location label derived from browser locale and timezone signals with no coordinate
 - Arguments:
   - optional `timeoutMs`
 - Result fields:
-  - `source`
-  - `status`
-  - `shouldRetry`
-  - `confidenceLevel`
-  - `formattedLocation`
-  - `resolvedLocation`
-  - `permissionState`
-  - `coordinates`
-  - `approximateLocation`
+  - `location`
+  - `coordinate`
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js).
 

@@ -15,7 +15,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: 'get_user_location',
     displayName: 'Get User Location',
     description:
-      'Returns the user location from the browser geolocation API when permission is granted. Falls back to a coarse approximation from browser locale and timezone when permission is denied, unavailable, or times out.',
+      'Returns a location label and coordinates from the browser geolocation API. Falls back to a coarse location label when permission is denied, unavailable, or times out.',
     enabled: true,
     parameters: {
       type: 'object',
@@ -136,10 +136,7 @@ function buildToolSpecificUsageInstructions(enabledToolNames = []) {
     : [];
   const instructions = [];
   if (normalizedNames.includes('get_user_location')) {
-    instructions.push(
-      'For get_user_location: a result with source "browser_geolocation" or "approximate_browser_signals" is a completed lookup.',
-      'For get_user_location: if the result includes shouldRetry false, do not call get_user_location again and answer using the returned location data.'
-    );
+    instructions.push('For get_user_location: use the returned location and coordinate directly in your answer.');
   }
   return instructions;
 }
@@ -370,59 +367,10 @@ function getValidatedLocationArguments(argumentsValue = {}) {
   };
 }
 
-async function getGeolocationPermissionState(navigatorRef) {
-  const permissionsApi = navigatorRef?.permissions;
-  if (!permissionsApi || typeof permissionsApi.query !== 'function') {
-    return 'unavailable';
-  }
-  try {
-    const status = await permissionsApi.query({ name: 'geolocation' });
-    return typeof status?.state === 'string' ? status.state : 'unavailable';
-  } catch {
-    return 'unavailable';
-  }
-}
-
 function requestCurrentPosition(navigatorRef, options) {
   return new Promise((resolve, reject) => {
     navigatorRef.geolocation.getCurrentPosition(resolve, reject, options);
   });
-}
-
-function getTimeZoneOffsetMinutes(now, timeZone) {
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      timeZoneName: 'shortOffset',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const offsetValue = formatter
-      .formatToParts(now)
-      .find((part) => part.type === 'timeZoneName')?.value;
-    const match = offsetValue?.match(/^GMT([+-])(\d{1,2})(?::(\d{2}))?$/);
-    if (!match) {
-      return null;
-    }
-    const [, sign, hoursText, minutesText] = match;
-    const hours = Number(hoursText);
-    const minutes = Number(minutesText || '0');
-    const totalMinutes = hours * 60 + minutes;
-    return sign === '-' ? -totalMinutes : totalMinutes;
-  } catch {
-    return null;
-  }
-}
-
-function formatUtcOffset(offsetMinutes) {
-  if (!Number.isFinite(offsetMinutes)) {
-    return null;
-  }
-  const sign = offsetMinutes >= 0 ? '+' : '-';
-  const absoluteMinutes = Math.abs(offsetMinutes);
-  const hours = String(Math.floor(absoluteMinutes / 60)).padStart(2, '0');
-  const minutes = String(absoluteMinutes % 60).padStart(2, '0');
-  return `UTC${sign}${hours}:${minutes}`;
 }
 
 function buildNominatimReverseUrl(latitude, longitude, language) {
@@ -510,7 +458,7 @@ async function reverseGeocodeCoordinates(latitude, longitude, runtimeContext = {
   }
 }
 
-function buildApproximateLocationResult(navigatorRef) {
+function buildApproximateLocationLabel(navigatorRef) {
   const locale =
     navigatorRef?.languages?.find((entry) => typeof entry === 'string' && entry.trim()) ||
     (typeof navigatorRef?.language === 'string' ? navigatorRef.language : '') ||
@@ -521,26 +469,7 @@ function buildApproximateLocationResult(navigatorRef) {
   const timeZoneParts = String(timeZone).split('/');
   const timeZoneArea = timeZoneParts.length > 1 ? timeZoneParts[timeZoneParts.length - 1] : timeZoneParts[0];
   const approximateArea = timeZoneArea ? timeZoneArea.replace(/_/g, ' ') : 'Unknown area';
-  const now = new Date();
-  const utcOffsetMinutes = getTimeZoneOffsetMinutes(now, timeZone);
-  return {
-    source: 'approximate_browser_signals',
-    status: 'completed',
-    shouldRetry: false,
-    confidenceLevel: 'low',
-    permissionState: 'denied',
-    coordinates: null,
-    approximateLocation: {
-      label: regionCode ? `${approximateArea}, ${regionCode}` : approximateArea,
-      regionCode,
-      timeZone,
-      utcOffset: formatUtcOffset(utcOffsetMinutes),
-      locale,
-    },
-    summary: regionCode
-      ? `Approximate user location: ${approximateArea}, ${regionCode}.`
-      : `Approximate user location: ${approximateArea}.`,
-  };
+  return regionCode ? `${approximateArea}, ${regionCode}` : approximateArea;
 }
 
 async function executeGetUserLocation(argumentsValue = {}, runtimeContext = {}) {
@@ -550,17 +479,16 @@ async function executeGetUserLocation(argumentsValue = {}, runtimeContext = {}) 
     (typeof navigator !== 'undefined' && navigator ? navigator : null);
   if (!navigatorRef) {
     return {
-      ...buildApproximateLocationResult(null),
-      permissionState: 'unavailable',
+      location: buildApproximateLocationLabel(null),
+      coordinate: null,
     };
   }
 
-  const permissionState = await getGeolocationPermissionState(navigatorRef);
   const geolocationApi = navigatorRef.geolocation;
   if (!geolocationApi || typeof geolocationApi.getCurrentPosition !== 'function') {
     return {
-      ...buildApproximateLocationResult(navigatorRef),
-      permissionState,
+      location: buildApproximateLocationLabel(navigatorRef),
+      coordinate: null,
     };
   }
 
@@ -570,49 +498,24 @@ async function executeGetUserLocation(argumentsValue = {}, runtimeContext = {}) 
       timeout: timeoutMs,
       maximumAge: 0,
     });
-    const accuracyMeters = Number(position?.coords?.accuracy);
-    const confidenceLevel =
-      Number.isFinite(accuracyMeters) && accuracyMeters <= 100
-        ? 'high'
-        : Number.isFinite(accuracyMeters) && accuracyMeters <= 1000
-          ? 'medium'
-          : 'low';
     const latitude = Number(position?.coords?.latitude);
     const longitude = Number(position?.coords?.longitude);
     const resolvedLocation = await reverseGeocodeCoordinates(latitude, longitude, runtimeContext);
-    const formattedLocation =
+    const location =
       typeof resolvedLocation?.formattedLocation === 'string' && resolvedLocation.formattedLocation.trim()
         ? resolvedLocation.formattedLocation.trim()
-        : null;
+        : `${latitude}, ${longitude}`;
     return {
-      source: 'browser_geolocation',
-      status: 'completed',
-      shouldRetry: false,
-      confidenceLevel,
-      permissionState: 'granted',
-      coordinates: {
+      location,
+      coordinate: {
         latitude,
         longitude,
-        accuracyMeters: Number.isFinite(accuracyMeters) ? accuracyMeters : null,
       },
-      formattedLocation,
-      resolvedLocation,
-      approximateLocation: null,
-      summary: formattedLocation
-        ? `User location: ${formattedLocation}.`
-        : `Precise user coordinates: ${latitude}, ${longitude}.`,
     };
-  } catch (error) {
-    const errorCode = Number(error?.code);
-    const fallbackPermissionState =
-      errorCode === 1
-        ? 'denied'
-        : errorCode === 3
-          ? 'timeout'
-          : permissionState;
+  } catch {
     return {
-      ...buildApproximateLocationResult(navigatorRef),
-      permissionState: fallbackPermissionState,
+      location: buildApproximateLocationLabel(navigatorRef),
+      coordinate: null,
     };
   }
 }
