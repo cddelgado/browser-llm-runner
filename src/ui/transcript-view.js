@@ -199,6 +199,8 @@ export function createTranscriptView(dependencies) {
     if (!refs) {
       return;
     }
+    const responseContent = String(message.response || message.text || '');
+    const shouldShowPendingResponse = !message.isResponseComplete && !responseContent.trim();
 
     const hasThinking = Boolean(message.hasThinking || message.thoughts?.trim());
     const isExpanded = refs.thinkingToggle.getAttribute('aria-expanded') === 'true';
@@ -214,8 +216,10 @@ export function createTranscriptView(dependencies) {
     refs.thinkingCopyButton.disabled = !hasThinking || !message.thoughts?.trim();
     /** @type {HTMLElement} */ (refs.thinkingBody).hidden = !hasThinking || !isExpanded;
     refs.thoughtsText.textContent = message.thoughts || '';
-    refs.responseText.innerHTML = renderModelMarkdown(message.response || message.text || '');
-    const hasMathMlCopyAction = canShowMathMlCopyAction(message.response || message.text || '');
+    refs.waitMessage.textContent = 'Please wait';
+    refs.responseRegion.classList.toggle('is-response-pending', shouldShowPendingResponse);
+    refs.responseText.innerHTML = renderModelMarkdown(responseContent);
+    const hasMathMlCopyAction = canShowMathMlCopyAction(responseContent);
     refs.copyMathMlButton.classList.toggle('d-none', !hasMathMlCopyAction);
     refs.copyMathMlButton.disabled = !hasMathMlCopyAction;
     setModelToolCallContent(message, refs);
@@ -303,7 +307,7 @@ export function createTranscriptView(dependencies) {
           </section>
           <section class="response-region">
             <h3 class="visually-hidden">Response</h3>
-            <p class="fix-wait-message mb-0" aria-live="off">Please Wait</p>
+            <p class="fix-wait-message mb-0" aria-live="off">Please wait</p>
             <div class="response-content"></div>
           </section>
         </div>
@@ -403,6 +407,7 @@ export function createTranscriptView(dependencies) {
       const toolCallResultSection = item.querySelector('.tool-call-result-section');
       const toolCallResult = item.querySelector('.tool-call-result');
       const responseRegion = item.querySelector('.response-region');
+      const waitMessage = item.querySelector('.fix-wait-message');
       const responseText = item.querySelector('.response-content');
       const copyMathMlButton = item.querySelector('.copy-mathml-btn');
       if (
@@ -418,6 +423,7 @@ export function createTranscriptView(dependencies) {
         toolCallResultSection &&
         toolCallResult &&
         responseRegion &&
+        waitMessage &&
         responseText &&
         copyMathMlButton instanceof view.HTMLButtonElement
       ) {
@@ -434,6 +440,7 @@ export function createTranscriptView(dependencies) {
           toolCallResultSection,
           toolCallResult,
           responseRegion,
+          waitMessage,
           responseText,
           copyMathMlButton,
         };

@@ -181,8 +181,8 @@
                     <div>
                       <p id="modelPickerLabel" class="form-label mb-1">Choose a model</p>
                       <p id="modelPickerHint" class="small text-body-secondary mb-0">
-                        Pick one model card. Each card includes supported features, max context,
-                        and a link to the Hugging Face model page.
+                        Select a model. Each card shows what it can do and how much short-term
+                        memory it can use.
                       </p>
                     </div>
                   </div>
@@ -193,6 +193,7 @@
                     aria-labelledby="modelPickerLabel"
                     aria-describedby="modelPickerHint"
                   ></div>
+                  <div id="modelCardLegend" class="model-card-legend" aria-label="Model abilities legend"></div>
                   <select
                     id="modelSelect"
                     class="visually-hidden"

@@ -173,6 +173,62 @@ describe('transcript-view', () => {
     expect(mathMlButton?.getAttribute('aria-label')).toBe('Copy MathML');
   });
 
+  test('shows Please wait while a model response card is still empty', () => {
+    const harness = createViewHarness();
+    harness.conversation.messageNodes[1].response = '';
+    harness.conversation.messageNodes[1].text = '';
+    harness.conversation.messageNodes[1].isResponseComplete = false;
+
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => toolName,
+      getShowThinkingByDefault: () => false,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: true,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    const responseRegion = harness.container.querySelector('.model-message .response-region');
+    const waitMessage = harness.container.querySelector('.model-message .fix-wait-message');
+    expect(responseRegion?.classList.contains('is-response-pending')).toBe(true);
+    expect(waitMessage?.textContent).toBe('Please wait');
+  });
+
   test('updates user message editing controls', () => {
     const harness = createViewHarness();
     const view = createTranscriptView({

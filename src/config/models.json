@@ -5,7 +5,7 @@
       "id": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
       "label": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
       "displayName": "Llama 3.2 3B Instruct",
-      "summary": "Best default balance for general school and writing tasks.",
+      "summary": "Balanced default for general questions and writing.",
       "repositoryUrl": "https://huggingface.co/onnx-community/Llama-3.2-3B-Instruct-onnx-web",
       "runtime": {
         "useExternalDataFormat": true
@@ -68,7 +68,7 @@
       "id": "onnx-community/Qwen3-0.6B-ONNX",
       "label": "onnx-community/Qwen3-0.6B-ONNX",
       "displayName": "Qwen3 0.6B",
-      "summary": "Small reasoning-friendly model with thinking and tool-call support.",
+      "summary": "Small model with thinking and tool support.",
       "repositoryUrl": "https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX",
       "runtime": {
         "dtype": "q4f16"
@@ -108,7 +108,7 @@
       "id": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
       "label": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
       "displayName": "Liquid LFM 2.5 1.2B Thinking",
-      "summary": "Reasoning-oriented model that needs WebGPU in this app.",
+      "summary": "Reasoning-focused model that needs WebGPU in this app.",
       "repositoryUrl": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
       "runtime": {
         "dtype": "q4",
@@ -148,7 +148,7 @@
       "id": "onnx-community/gemma-3n-E2B-it-ONNX",
       "label": "onnx-community/gemma-3n-E2B-it-ONNX",
       "displayName": "Gemma 3n E2B",
-      "summary": "Multimodal option for text plus image-ready prompts.",
+      "summary": "Multimodal option for text, images, audio, and video.",
       "repositoryUrl": "https://huggingface.co/onnx-community/gemma-3n-E2B-it-ONNX",
       "runtime": {
         "dtype": {

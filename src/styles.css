@@ -604,17 +604,10 @@
   flex: 0 0 auto;
 }
 
-.model-card-id,
 .model-card-summary,
 .model-card-context,
 .model-card-note {
   margin: 0;
-}
-
-.model-card-id {
-  font-size: 0.78rem;
-  color: var(--ink-muted);
-  overflow-wrap: anywhere;
 }
 
 .model-card-summary,
@@ -642,23 +635,15 @@
 }
 
 .model-feature-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.32rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.8rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
   border: 1px solid color-mix(in srgb, var(--border-soft) 85%, transparent);
   background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
-}
-
-.model-feature-pill.is-enabled {
   color: var(--ink-strong);
-}
-
-.model-feature-pill.is-disabled {
-  color: var(--ink-muted);
-  opacity: 0.72;
 }
 
 .model-card-footer {
@@ -676,6 +661,34 @@
 .model-card-link:hover,
 .model-card-link:focus-visible {
   color: var(--primary-btn-hover-bg);
+}
+
+.model-card-legend {
+  margin-top: 0.85rem;
+}
+
+.model-card-legend-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.model-card-legend-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.model-card-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.86rem;
+  color: var(--ink-muted);
 }
 
 .pre-chat-actions {
@@ -997,7 +1010,19 @@
   transform: translateY(-0.3rem);
 }
 
+.model-message .response-region.is-response-pending .response-content {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-0.3rem);
+}
+
 .model-message .message-bubble.is-fix-preparing .fix-wait-message {
+  max-height: 2.2rem;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.model-message .response-region.is-response-pending .fix-wait-message {
   max-height: 2.2rem;
   opacity: 1;
   transform: translateY(0);

@@ -21,6 +21,7 @@ function createPreferencesHarness() {
       </select>
       <textarea id="defaultSystemPromptInput"></textarea>
       <div id="modelCardList"></div>
+      <div id="modelCardLegend"></div>
       <select id="modelSelect"></select>
       <select id="backendSelect">
         <option value="auto">Auto</option>
@@ -147,12 +148,29 @@ describe('preferences controller', () => {
     expect(cards.length).toBeGreaterThanOrEqual(5);
 
     const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3 0.6B'));
+    expect(qwenCard?.textContent).toContain('Short-term memory: 40,960 tokens');
     expect(qwenCard?.textContent).toContain('about 30,720 words');
-    expect(qwenCard?.textContent).toContain('Tool calls');
-    expect(qwenCard?.textContent).toContain('Thinking');
+    expect(qwenCard?.textContent).not.toContain('onnx-community/Qwen3-0.6B-ONNX');
     expect(
       /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))?.href
     ).toBe('https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX');
+    expect(
+      /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))?.textContent
+    ).toBe('Model details');
+    expect(qwenCard?.querySelectorAll('.model-feature-pill')).toHaveLength(3);
+    expect(
+      Array.from(qwenCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
+        node.getAttribute('aria-label')
+      )
+    ).toEqual([
+      'Streams replies as they are generated',
+      'Shows a thinking section',
+      'Can use built-in tools',
+    ]);
+
+    const legend = harness.document.getElementById('modelCardLegend');
+    expect(legend?.textContent).toContain('Model abilities');
+    expect(legend?.textContent).toContain('Accepts image input');
 
     const qwenButton = /** @type {HTMLButtonElement | null} */ (
       qwenCard?.querySelector('.model-card-button')

@@ -221,41 +221,74 @@ export function createPreferencesController({
     return formatInteger(Math.round((Number(tokenCount) || 0) * 0.75));
   }
 
+  const modelCardLegend = documentRef.getElementById('modelCardLegend');
+
+  function getFeatureDefinitions() {
+    return [
+      {
+        key: 'streaming',
+        icon: 'bi-lightning-charge-fill',
+        label: 'Streams replies as they are generated',
+      },
+      {
+        key: 'thinking',
+        icon: 'bi-stars',
+        label: 'Shows a thinking section',
+      },
+      {
+        key: 'toolCalling',
+        icon: 'bi-wrench-adjustable-circle',
+        label: 'Can use built-in tools',
+      },
+      {
+        key: 'imageInput',
+        icon: 'bi-image',
+        label: 'Accepts image input',
+      },
+      {
+        key: 'audioInput',
+        icon: 'bi-mic-fill',
+        label: 'Accepts audio input',
+      },
+      {
+        key: 'videoInput',
+        icon: 'bi-camera-video-fill',
+        label: 'Accepts video input',
+      },
+    ];
+  }
+
   function buildFeatureTokens(model) {
     const features = model?.features || {};
     const runtime = model?.runtime || {};
-    return [
-      {
-        enabled: features.streaming === true,
-        icon: 'bi-lightning-charge-fill',
-        label: 'Streaming',
-      },
-      {
-        enabled: features.thinking === true,
-        icon: 'bi-stars',
-        label: 'Thinking',
-      },
-      {
-        enabled: features.toolCalling === true,
-        icon: 'bi-wrench-adjustable-circle',
-        label: 'Tool calls',
-      },
-      {
-        enabled: features.imageInput === true && runtime.multimodalGeneration === true,
-        icon: 'bi-image',
-        label: 'Image input',
-      },
-      {
-        enabled: features.audioInput === true && runtime.multimodalGeneration === true,
-        icon: 'bi-mic-fill',
-        label: 'Audio input',
-      },
-      {
-        enabled: features.videoInput === true && runtime.multimodalGeneration === true,
-        icon: 'bi-camera-video-fill',
-        label: 'Video input',
-      },
-    ];
+    return getFeatureDefinitions().filter((feature) => {
+      if (feature.key === 'imageInput' || feature.key === 'audioInput' || feature.key === 'videoInput') {
+        return features[feature.key] === true && runtime.multimodalGeneration === true;
+      }
+      return features[feature.key] === true;
+    });
+  }
+
+  function renderModelCardLegend() {
+    if (!(modelCardLegend instanceof HTMLElement)) {
+      return;
+    }
+    modelCardLegend.replaceChildren();
+
+    const title = documentRef.createElement('p');
+    title.className = 'model-card-legend-title';
+    title.textContent = 'Model abilities';
+    modelCardLegend.appendChild(title);
+
+    const list = documentRef.createElement('ul');
+    list.className = 'model-card-legend-list';
+    getFeatureDefinitions().forEach((feature) => {
+      const item = documentRef.createElement('li');
+      item.className = 'model-card-legend-item';
+      item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i><span>${feature.label}</span>`;
+      list.appendChild(item);
+    });
+    modelCardLegend.appendChild(list);
   }
 
   function syncModelCardSelection() {
@@ -328,11 +361,6 @@ export function createPreferencesController({
       }
       selectButton.appendChild(titleRow);
 
-      const idLabel = documentRef.createElement('p');
-      idLabel.className = 'model-card-id';
-      idLabel.textContent = model.label;
-      selectButton.appendChild(idLabel);
-
       if (model.summary) {
         const summary = documentRef.createElement('p');
         summary.className = 'model-card-summary';
@@ -342,7 +370,7 @@ export function createPreferencesController({
 
       const context = documentRef.createElement('p');
       context.className = 'model-card-context';
-      context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> Max context: <strong>${formatInteger(
+      context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> Short-term memory: <strong>${formatInteger(
         model.generation.maxContextTokens
       )} tokens</strong> (about ${formatWordEstimate(model.generation.maxContextTokens)} words)`;
       selectButton.appendChild(context);
@@ -351,11 +379,15 @@ export function createPreferencesController({
       featureList.className = 'model-card-features';
       buildFeatureTokens(model).forEach((feature) => {
         const item = documentRef.createElement('li');
-        item.className = `model-feature-pill ${feature.enabled ? 'is-enabled' : 'is-disabled'}`;
-        item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i><span>${feature.label}</span>`;
+        item.className = 'model-feature-pill';
+        item.setAttribute('aria-label', feature.label);
+        item.title = feature.label;
+        item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i>`;
         featureList.appendChild(item);
       });
-      selectButton.appendChild(featureList);
+      if (featureList.childElementCount > 0) {
+        selectButton.appendChild(featureList);
+      }
 
       if (!availability.available) {
         const availabilityNote = documentRef.createElement('p');
@@ -384,12 +416,13 @@ export function createPreferencesController({
       detailsLink.href = model.repositoryUrl || `https://huggingface.co/${model.id}`;
       detailsLink.target = '_blank';
       detailsLink.rel = 'noopener noreferrer';
-      detailsLink.textContent = 'View on Hugging Face';
+      detailsLink.textContent = 'Model details';
       footer.appendChild(detailsLink);
       card.appendChild(footer);
 
       modelCardList.appendChild(card);
     });
+    renderModelCardLegend();
     setSelectedModelId(selectedModel, { dispatch: false });
   }
 
