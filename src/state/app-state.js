@@ -316,12 +316,7 @@ export function shouldDisableComposerForPreChatConversationSelection(state) {
 }
 
 export function shouldShowNewConversationButton(state) {
-  return (
-    state.hasStartedChatWorkspace &&
-    deriveWorkspaceView(state) !== WORKSPACE_VIEWS.SETTINGS &&
-    (deriveEnginePhase(state) === ENGINE_PHASES.GENERATING ||
-      (deriveEnginePhase(state) === ENGINE_PHASES.READY && hasAnyStartedInference(state)))
-  );
+  return Boolean(state?.hasStartedChatWorkspace);
 }
 
 export function getCurrentViewRoute(state, { routeHome, routeChat, routeSettings }) {

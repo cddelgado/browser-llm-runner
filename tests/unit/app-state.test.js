@@ -116,33 +116,20 @@ describe('app-state', () => {
     expect(shouldDisableComposerForPreChatConversationSelection(state)).toBe(false);
   });
 
-  test('shows new conversation only after inference has started in the chat workspace', () => {
+  test('shows new conversation after the launch page is dismissed', () => {
     const state = createAppState({
       activeGenerationConfig: {},
     });
+    expect(shouldShowNewConversationButton(state)).toBe(false);
+
     state.hasStartedChatWorkspace = true;
-
-    expect(shouldShowNewConversationButton(state)).toBe(false);
-
-    state.modelReady = true;
-    expect(shouldShowNewConversationButton(state)).toBe(false);
-
-    state.isGenerating = true;
     expect(shouldShowNewConversationButton(state)).toBe(true);
 
-    state.isGenerating = false;
-    state.conversations.push({
-      id: 'conversation-1',
-      activeLeafMessageId: 'message-2',
-      messageNodes: [
-        { id: 'message-1', role: 'user', parentId: null },
-        { id: 'message-2', role: 'model', parentId: 'message-1' },
-      ],
-    });
+    state.isSettingsPageOpen = true;
     expect(shouldShowNewConversationButton(state)).toBe(true);
 
-    state.modelReady = false;
-    expect(shouldShowNewConversationButton(state)).toBe(false);
+    state.isPreparingNewConversation = true;
+    expect(shouldShowNewConversationButton(state)).toBe(true);
   });
 
   test('tracks engine, interaction, orchestration, and workspace phases through helpers', () => {

@@ -1991,6 +1991,7 @@ function updateActionButtons() {
     newConversationBtn.disabled =
       isGeneratingResponse(appState) ||
       isOrchestrationRunningState(appState) ||
+      appState.isPreparingNewConversation ||
       !selectHasStartedWorkspace(appState);
   }
   updateRegenerateButtons();
