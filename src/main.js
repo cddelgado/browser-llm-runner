@@ -18,6 +18,10 @@ import { bindTranscriptEvents } from './app/transcript-events.js';
 import { LLMEngineClient } from './llm/engine-client.js';
 import { createOrchestrationRunner } from './llm/orchestration-runner.js';
 import {
+  buildMathRenderingFeaturePrompt,
+  buildOptionalFeaturePromptSection,
+} from './llm/system-prompt.js';
+import {
   buildToolCallingSystemPrompt,
   executeToolCall,
   getEnabledToolDefinitions,
@@ -113,6 +117,7 @@ import { createTranscriptView } from './ui/transcript-view.js';
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const SHOW_THINKING_STORAGE_KEY = 'ui-show-thinking';
 const ENABLE_TOOL_CALLING_STORAGE_KEY = 'conversation-enable-tool-calling';
+const RENDER_MATHML_STORAGE_KEY = 'conversation-render-mathml';
 const SINGLE_KEY_SHORTCUTS_STORAGE_KEY = 'ui-enable-single-key-shortcuts';
 const TRANSCRIPT_VIEW_STORAGE_KEY = 'ui-transcript-view';
 const DEFAULT_SYSTEM_PROMPT_STORAGE_KEY = 'conversation-default-system-prompt';
@@ -202,6 +207,7 @@ window.MathJax.startup = {
 const themeSelect = document.getElementById('themeSelect');
 const showThinkingToggle = document.getElementById('showThinkingToggle');
 const enableToolCallingToggle = document.getElementById('enableToolCallingToggle');
+const renderMathMlToggle = document.getElementById('renderMathMlToggle');
 const defaultSystemPromptInput = document.getElementById('defaultSystemPromptInput');
 const modelSelect = document.getElementById('modelSelect');
 const backendSelect = document.getElementById('backendSelect');
@@ -342,7 +348,6 @@ const appState = createAppState({
   enableToolCalling: true,
   maxDebugEntries: MAX_DEBUG_ENTRIES,
 });
-void ensureMathJaxLoaded();
 appState.webGpuAdapterAvailable = browserSupportsWebGpu();
 
 function initializeTooltips(root = document) {
@@ -405,7 +410,8 @@ function findConversationMenuButton(conversationId, selector) {
     return null;
   }
   const item = Array.from(conversationList.querySelectorAll('.conversation-item')).find(
-    (candidate) => candidate instanceof HTMLElement && candidate.dataset.conversationId === conversationId
+    (candidate) =>
+      candidate instanceof HTMLElement && candidate.dataset.conversationId === conversationId
   );
   return item?.querySelector(selector) || null;
 }
@@ -488,7 +494,10 @@ function runConversationMenuAction(conversationId, actionButton, callback) {
   closeConversationMenus();
   const refreshedActionButton =
     actionButton instanceof HTMLElement
-      ? findConversationMenuButton(conversationId, `.${Array.from(actionButton.classList).join('.')}`)
+      ? findConversationMenuButton(
+          conversationId,
+          `.${Array.from(actionButton.classList).join('.')}`
+        )
       : null;
   callback(refreshedActionButton);
 }
@@ -598,7 +607,9 @@ function formatWordEstimateFromTokens(tokenCount) {
 }
 
 function renderModelMarkdown(content) {
-  const normalizedContent = normalizeMathDelimitersForMarkdown(String(content || ''));
+  const normalizedContent = appState.renderMathMl
+    ? normalizeMathDelimitersForMarkdown(String(content || ''))
+    : String(content || '');
   if (!normalizedContent) {
     return '';
   }
@@ -623,6 +634,9 @@ function containsMathDelimiters(text) {
 }
 
 function ensureMathJaxLoaded() {
+  if (!appState.renderMathMl) {
+    return Promise.resolve();
+  }
   if (window.MathJax?.typesetPromise && window.MathJax?.startup?.promise) {
     return Promise.resolve();
   }
@@ -640,7 +654,11 @@ function ensureMathJaxLoaded() {
 }
 
 async function typesetMathInElement(element) {
-  if (!(element instanceof HTMLElement) || !containsMathDelimiters(element.textContent)) {
+  if (
+    !appState.renderMathMl ||
+    !(element instanceof HTMLElement) ||
+    !containsMathDelimiters(element.textContent)
+  ) {
     return;
   }
   await ensureMathJaxLoaded();
@@ -662,7 +680,11 @@ async function typesetMathInElement(element) {
 }
 
 function scheduleMathTypeset(element, options = {}) {
-  if (!(element instanceof HTMLElement) || !containsMathDelimiters(element.textContent)) {
+  if (
+    !appState.renderMathMl ||
+    !(element instanceof HTMLElement) ||
+    !containsMathDelimiters(element.textContent)
+  ) {
     if (element instanceof HTMLElement) {
       const timerId = mathTypesetTimers.get(element);
       if (timerId !== undefined) {
@@ -1045,6 +1067,19 @@ function getToolCallingSystemPromptSuffix(modelId) {
     toolContext.enabledTools,
     toolContext.enabledToolDefinitions
   );
+}
+
+function getOptionalFeatureSystemPromptSection() {
+  return buildOptionalFeaturePromptSection([
+    buildMathRenderingFeaturePrompt({ renderMathMl: appState.renderMathMl }),
+  ]);
+}
+
+function getConversationSystemPromptSuffix(modelId) {
+  return [getOptionalFeatureSystemPromptSection(), getToolCallingSystemPromptSuffix(modelId)]
+    .map((section) => normalizeSystemPrompt(section))
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function detectToolCallsForModel(rawText, modelId) {
@@ -1623,7 +1658,8 @@ function findTranscriptStepTarget(role, direction) {
     return null;
   }
   const containerRect = chatMain.getBoundingClientRect();
-  const referenceLine = containerRect.top + Math.max(getElementClearanceFromTop(topBar, containerRect), 16) + 24;
+  const referenceLine =
+    containerRect.top + Math.max(getElementClearanceFromTop(topBar, containerRect), 16) + 24;
   if (direction < 0) {
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const rect = rows[index].getBoundingClientRect();
@@ -1651,7 +1687,8 @@ function hasTranscriptStepTarget(role, direction) {
     return false;
   }
   const containerRect = chatMain.getBoundingClientRect();
-  const referenceLine = containerRect.top + Math.max(getElementClearanceFromTop(topBar, containerRect), 16) + 24;
+  const referenceLine =
+    containerRect.top + Math.max(getElementClearanceFromTop(topBar, containerRect), 16) + 24;
   if (direction < 0) {
     return rows.some((row) => row.getBoundingClientRect().top < referenceLine - 4);
   }
@@ -1741,15 +1778,11 @@ function updateTranscriptNavigationButtonVisibility() {
   );
   jumpToPreviousUserButton.setAttribute(
     'aria-disabled',
-    !engineReady || !hasTranscriptItems || !hasTranscriptStepTarget('user', -1)
-      ? 'true'
-      : 'false'
+    !engineReady || !hasTranscriptItems || !hasTranscriptStepTarget('user', -1) ? 'true' : 'false'
   );
   jumpToNextModelButton.setAttribute(
     'aria-disabled',
-    !engineReady || !hasTranscriptItems || !hasTranscriptStepTarget('model', 1)
-      ? 'true'
-      : 'false'
+    !engineReady || !hasTranscriptItems || !hasTranscriptStepTarget('model', 1) ? 'true' : 'false'
   );
   jumpToLatestButton.setAttribute(
     'aria-disabled',
@@ -1776,7 +1809,7 @@ function buildActiveConversationExportPayload(activeConversation) {
   return buildConversationDownloadPayload(activeConversation, {
     modelId: selectedModelId,
     temperature,
-    systemPromptSuffix: getToolCallingSystemPromptSuffix(selectedModelId),
+    systemPromptSuffix: getConversationSystemPromptSuffix(selectedModelId),
     toolContext,
   });
 }
@@ -1786,7 +1819,7 @@ function buildPromptForActiveConversation(
   leafMessageId = conversation?.activeLeafMessageId
 ) {
   return buildPromptForConversationLeaf(conversation, leafMessageId, {
-    systemPromptSuffix: getToolCallingSystemPromptSuffix(getConversationModelId(conversation)),
+    systemPromptSuffix: getConversationSystemPromptSuffix(getConversationModelId(conversation)),
   });
 }
 
@@ -1837,7 +1870,6 @@ function downloadActiveConversationBranchAsMarkdown() {
   window.URL.revokeObjectURL(url);
   setStatus('Conversation downloaded as Markdown.');
 }
-
 
 function setRegionVisibility(region, visible) {
   if (!(region instanceof HTMLElement)) {
@@ -2417,6 +2449,7 @@ const preferencesController = createPreferencesController({
   themeStorageKey: THEME_STORAGE_KEY,
   showThinkingStorageKey: SHOW_THINKING_STORAGE_KEY,
   enableToolCallingStorageKey: ENABLE_TOOL_CALLING_STORAGE_KEY,
+  renderMathMlStorageKey: RENDER_MATHML_STORAGE_KEY,
   singleKeyShortcutsStorageKey: SINGLE_KEY_SHORTCUTS_STORAGE_KEY,
   transcriptViewStorageKey: TRANSCRIPT_VIEW_STORAGE_KEY,
   defaultSystemPromptStorageKey: DEFAULT_SYSTEM_PROMPT_STORAGE_KEY,
@@ -2427,6 +2460,7 @@ const preferencesController = createPreferencesController({
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
   defaultSystemPromptInput,
@@ -2443,6 +2477,7 @@ const preferencesController = createPreferencesController({
 
 const {
   applyDefaultSystemPrompt,
+  applyMathRenderingPreference,
   applyShowThinkingPreference,
   applyTheme,
   applyToolCallingPreference,
@@ -2451,6 +2486,7 @@ const {
   formatBackendPreferenceLabel,
   getAvailableModelId,
   getStoredDefaultSystemPrompt,
+  getStoredMathRenderingPreference,
   getStoredShowThinkingPreference,
   getStoredSingleKeyShortcutPreference,
   getStoredThemePreference,
@@ -2655,9 +2691,13 @@ const themePreference = getStoredThemePreference();
 applyTheme(themePreference);
 applyShowThinkingPreference(getStoredShowThinkingPreference());
 applyToolCallingPreference(getStoredToolCallingPreference());
+applyMathRenderingPreference(getStoredMathRenderingPreference());
 applySingleKeyShortcutPreference(getStoredSingleKeyShortcutPreference());
 applyTranscriptViewPreference(getStoredTranscriptViewPreference());
 applyDefaultSystemPrompt(getStoredDefaultSystemPrompt());
+if (appState.renderMathMl) {
+  void ensureMathJaxLoaded();
+}
 populateModelSelect();
 restoreInferencePreferences();
 void probeWebGpuAvailability();
@@ -2681,6 +2721,7 @@ bindSettingsEvents({
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
   defaultSystemPromptInput,
@@ -2702,9 +2743,16 @@ bindSettingsEvents({
   applyTheme,
   applyShowThinkingPreference,
   applyToolCallingPreference,
+  applyMathRenderingPreference,
   applySingleKeyShortcutPreference,
   applyTranscriptViewPreference,
   applyDefaultSystemPrompt,
+  refreshMathRendering: () => {
+    if (appState.renderMathMl) {
+      void ensureMathJaxLoaded();
+    }
+    renderTranscript();
+  },
   syncModelSelectionForCurrentEnvironment,
   syncGenerationSettingsFromModel,
   getActiveConversation,

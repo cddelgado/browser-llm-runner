@@ -18,6 +18,7 @@ export function createPreferencesController({
   themeStorageKey,
   showThinkingStorageKey,
   enableToolCallingStorageKey,
+  renderMathMlStorageKey,
   singleKeyShortcutsStorageKey,
   transcriptViewStorageKey,
   defaultSystemPromptStorageKey,
@@ -28,6 +29,7 @@ export function createPreferencesController({
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
   defaultSystemPromptInput,
@@ -47,6 +49,11 @@ export function createPreferencesController({
 
   function getStoredToolCallingPreference() {
     const stored = storage.getItem(enableToolCallingStorageKey);
+    return stored === null ? true : stored === 'true';
+  }
+
+  function getStoredMathRenderingPreference() {
+    const stored = storage.getItem(renderMathMlStorageKey);
     return stored === null ? true : stored === 'true';
   }
 
@@ -93,6 +100,16 @@ export function createPreferencesController({
     }
     if (persist) {
       storage.setItem(enableToolCallingStorageKey, String(appState.enableToolCalling));
+    }
+  }
+
+  function applyMathRenderingPreference(value, { persist = false } = {}) {
+    appState.renderMathMl = Boolean(value);
+    if (renderMathMlToggle instanceof HTMLInputElement) {
+      renderMathMlToggle.checked = appState.renderMathMl;
+    }
+    if (persist) {
+      storage.setItem(renderMathMlStorageKey, String(appState.renderMathMl));
     }
   }
 
@@ -175,7 +192,7 @@ export function createPreferencesController({
 
   function getAvailableModelId(
     modelId,
-    backendPreference = normalizeBackendPreference(backendSelect?.value || 'auto'),
+    backendPreference = normalizeBackendPreference(backendSelect?.value || 'auto')
   ) {
     const normalizedModelId = normalizeModelId(modelId);
     const availability = getModelAvailability(normalizedModelId, {
@@ -239,7 +256,7 @@ export function createPreferencesController({
       });
       if (requestedModel?.runtime?.requiresWebGpu) {
         setStatus(
-          `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`,
+          `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`
         );
       }
     }
@@ -265,7 +282,7 @@ export function createPreferencesController({
       appState.webGpuProbeCompleted = true;
       appState.webGpuAdapterAvailable = false;
       appendDebug(
-        `WebGPU adapter probe failed: ${error instanceof Error ? error.message : String(error)}`,
+        `WebGPU adapter probe failed: ${error instanceof Error ? error.message : String(error)}`
       );
     }
 
@@ -279,7 +296,7 @@ export function createPreferencesController({
       !appState.webGpuAdapterAvailable
     ) {
       setStatus(
-        `${previousModelId} is unavailable because no usable WebGPU adapter was found. Switched to ${selectedModel}.`,
+        `${previousModelId} is unavailable because no usable WebGPU adapter was found. Switched to ${selectedModel}.`
       );
     }
 
@@ -338,12 +355,14 @@ export function createPreferencesController({
   return {
     getStoredShowThinkingPreference,
     getStoredToolCallingPreference,
+    getStoredMathRenderingPreference,
     getStoredSingleKeyShortcutPreference,
     getStoredTranscriptViewPreference,
     getStoredDefaultSystemPrompt,
     applyDefaultSystemPrompt,
     applyShowThinkingPreference,
     applyToolCallingPreference,
+    applyMathRenderingPreference,
     applySingleKeyShortcutPreference,
     applyTranscriptViewPreference,
     getStoredThemePreference,

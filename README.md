@@ -28,6 +28,7 @@ Student-facing browser chat UI with local model inference.
 - The footer shows the current release stamp (`2026.03.25-01`), copyright for Catarino David Delgado, and links to the GitHub repository and MIT license.
 - `Settings -> Conversation` includes:
   - `Enable tool calling` to append tool-call instructions only when the selected conversation model supports tool calling
+  - `Render MathML from LaTeX` to control transcript math rendering and the matching math-formatting prompt hint
   - `Enable single-key transcript shortcuts` to disable focused transcript shortcuts like `E`, `B`, `R`, `F`, and `C`
   - `Transcript view` with `Standard` and `Compact`
 - After model load completes, the full conversation header controls appear and response streaming begins.
@@ -87,12 +88,14 @@ Student-facing browser chat UI with local model inference.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in a collapsible "Thinking" section during streaming.
 - Model responses are rendered as Markdown (via `markdown-it`) in the transcript.
-- LaTeX math in model responses is rendered in the transcript with MathJax (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`).
+- `Settings -> Conversation -> Render MathML from LaTeX` controls whether LaTeX-delimited math is rendered in the transcript with MathJax (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`).
+- When `Render MathML from LaTeX` is enabled, the effective system prompt adds an optional feature-flags section reminding the model to format math in LaTeX with proper delimiters.
 - `Settings -> Conversation -> Show thinking` controls whether thought sections are expanded by default (`off` by default).
 - `Settings -> Conversation -> Default system prompt` sets an optional system prompt for newly created conversations only.
   - Existing conversations are not retroactively changed.
   - New generations in a conversation use that conversation's captured system prompt.
-- When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt.
+- When prompt-driven feature flags are enabled, the effective system prompt adds an `Optional feature flags` section before any tool-calling instructions.
+- When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt and any optional feature-flags section.
 - Tool-calling behavior, transcript presentation, export semantics, and the current built-in tool catalog are documented in `docs/tools.md`.
 - The active conversation's sidebar kebab menu includes `Edit conversation system prompt`:
   - Set optional per-conversation instructions.

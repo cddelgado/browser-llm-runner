@@ -3,9 +3,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { installMockWorker } = require('./helpers/mock-engine');
 
 async function expectNoCriticalA11yViolations(page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa'])
-    .analyze();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 }
 
@@ -29,7 +27,9 @@ test('@a11y onboarding screen has no wcag2a/2aa violations', async ({ page }) =>
   await expectNoCriticalA11yViolations(page);
 });
 
-test('@a11y chat screen has transcript semantics and no wcag2a/2aa violations', async ({ page }) => {
+test('@a11y chat screen has transcript semantics and no wcag2a/2aa violations', async ({
+  page,
+}) => {
   await page.getByRole('button', { name: 'Start a conversation' }).click();
   await expect(page).toHaveURL(/#\/chat$/);
   await ensureComposerVisible(page);
@@ -40,7 +40,10 @@ test('@a11y chat screen has transcript semantics and no wcag2a/2aa violations', 
 
   await expect(page.locator('#statusRegion')).toHaveAttribute('role', 'status');
   await expect(page.locator('#statusRegion')).toHaveAttribute('aria-live', 'polite');
-  await expect(page.locator('#chatTranscriptWrap')).toHaveAttribute('aria-label', 'Chat transcript');
+  await expect(page.locator('#chatTranscriptWrap')).toHaveAttribute(
+    'aria-label',
+    'Chat transcript'
+  );
   await expect(page.locator('form.composer')).toHaveAttribute('aria-label', 'Message input');
   await expect(page.locator('#chatTranscript')).not.toHaveAttribute('aria-live', /.+/);
   await expectNoCriticalA11yViolations(page);
@@ -54,6 +57,8 @@ test('@a11y settings screen keyboard open/close and no wcag2a/2aa violations', a
 
   await expect(page.getByRole('tabpanel', { name: 'System' })).toBeVisible();
   await expect(page.locator('#backendSelect')).toBeVisible();
+  await page.getByRole('tab', { name: 'Conversation' }).click();
+  await expect(page.getByLabel('Render MathML from LaTeX')).toBeVisible();
   await expectNoCriticalA11yViolations(page);
 
   await page.keyboard.press('Escape');

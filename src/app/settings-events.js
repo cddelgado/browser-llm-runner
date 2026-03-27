@@ -12,6 +12,7 @@ export function bindSettingsEvents({
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
   defaultSystemPromptInput,
@@ -33,9 +34,11 @@ export function bindSettingsEvents({
   applyTheme,
   applyShowThinkingPreference,
   applyToolCallingPreference,
+  applyMathRenderingPreference,
   applySingleKeyShortcutPreference,
   applyTranscriptViewPreference,
   applyDefaultSystemPrompt,
+  refreshMathRendering,
   syncModelSelectionForCurrentEnvironment,
   syncGenerationSettingsFromModel,
   getActiveConversation,
@@ -78,7 +81,7 @@ export function bindSettingsEvents({
         return;
       }
       const buttons = Array.from(settingsTabButtons).filter(
-        (button) => button instanceof HTMLButtonElement,
+        (button) => button instanceof HTMLButtonElement
       );
       const currentIndex = buttons.indexOf(event.target);
       if (currentIndex < 0) {
@@ -147,6 +150,17 @@ export function bindSettingsEvents({
     });
   }
 
+  if (renderMathMlToggle instanceof HTMLInputElement) {
+    renderMathMlToggle.addEventListener('change', (event) => {
+      const value = event.target instanceof HTMLInputElement ? event.target.checked : true;
+      applyMathRenderingPreference(value, { persist: true });
+      if (typeof refreshMathRendering === 'function') {
+        refreshMathRendering();
+      }
+      setStatus(value ? 'Math rendering enabled.' : 'Math rendering disabled.');
+    });
+  }
+
   if (enableSingleKeyShortcutsToggle instanceof HTMLInputElement) {
     enableSingleKeyShortcutsToggle.addEventListener('change', (event) => {
       const value = event.target instanceof HTMLInputElement ? event.target.checked : true;
@@ -154,7 +168,7 @@ export function bindSettingsEvents({
       setStatus(
         value
           ? 'Single-key transcript shortcuts enabled.'
-          : 'Single-key transcript shortcuts disabled.',
+          : 'Single-key transcript shortcuts disabled.'
       );
     });
   }
@@ -166,7 +180,7 @@ export function bindSettingsEvents({
       setStatus(
         value === 'compact'
           ? 'Compact transcript view enabled.'
-          : 'Standard transcript view enabled.',
+          : 'Standard transcript view enabled.'
       );
     });
   }

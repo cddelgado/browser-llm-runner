@@ -13,6 +13,7 @@ function createPreferencesHarness() {
       </select>
       <input id="showThinkingToggle" type="checkbox" />
       <input id="enableToolCallingToggle" type="checkbox" />
+      <input id="renderMathMlToggle" type="checkbox" />
       <input id="enableSingleKeyShortcutsToggle" type="checkbox" />
       <select id="transcriptViewSelect">
         <option value="standard">Standard</option>
@@ -27,7 +28,7 @@ function createPreferencesHarness() {
         <option value="cpu">CPU</option>
       </select>
     `,
-    { url: 'https://example.test/' },
+    { url: 'https://example.test/' }
   );
   const document = dom.window.document;
   globalThis.document = document;
@@ -50,6 +51,7 @@ function createPreferencesHarness() {
       themeStorageKey: 'theme',
       showThinkingStorageKey: 'show-thinking',
       enableToolCallingStorageKey: 'tool-calling',
+      renderMathMlStorageKey: 'render-mathml',
       singleKeyShortcutsStorageKey: 'single-key',
       transcriptViewStorageKey: 'transcript-view',
       defaultSystemPromptStorageKey: 'default-prompt',
@@ -60,6 +62,7 @@ function createPreferencesHarness() {
       themeSelect: document.getElementById('themeSelect'),
       showThinkingToggle: document.getElementById('showThinkingToggle'),
       enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
+      renderMathMlToggle: document.getElementById('renderMathMlToggle'),
       enableSingleKeyShortcutsToggle: document.getElementById('enableSingleKeyShortcutsToggle'),
       transcriptViewSelect: document.getElementById('transcriptViewSelect'),
       defaultSystemPromptInput: document.getElementById('defaultSystemPromptInput'),
@@ -82,16 +85,33 @@ describe('preferences controller', () => {
 
     harness.controller.applyTheme('dark');
     harness.controller.applyShowThinkingPreference(true, { persist: true, refresh: true });
+    harness.controller.applyMathRenderingPreference(false, { persist: true });
     harness.controller.applyTranscriptViewPreference('compact', { persist: true });
     harness.controller.applyDefaultSystemPrompt('  Be concise.  ', { persist: true });
 
     expect(harness.document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(harness.appState.showThinkingByDefault).toBe(true);
+    expect(harness.appState.renderMathMl).toBe(false);
     expect(harness.document.body.classList.contains('transcript-compact')).toBe(true);
     expect(harness.appState.defaultSystemPrompt).toBe('Be concise.');
     expect(harness.controller.getStoredShowThinkingPreference()).toBe(true);
+    expect(harness.controller.getStoredMathRenderingPreference()).toBe(false);
     expect(harness.controller.getStoredTranscriptViewPreference()).toBe('compact');
     expect(harness.controller.getStoredDefaultSystemPrompt()).toBe('Be concise.');
+  });
+
+  test('defaults math rendering to enabled when no preference is stored', () => {
+    const harness = createPreferencesHarness();
+    const renderMathMlToggle = /** @type {HTMLInputElement | null} */ (
+      harness.document.getElementById('renderMathMlToggle')
+    );
+
+    expect(harness.controller.getStoredMathRenderingPreference()).toBe(true);
+
+    harness.controller.applyMathRenderingPreference(true);
+
+    expect(harness.appState.renderMathMl).toBe(true);
+    expect(renderMathMlToggle?.checked).toBe(true);
   });
 
   test('falls back to an available model when the current backend cannot use the requested model', () => {

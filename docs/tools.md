@@ -6,11 +6,12 @@ This repo now includes an early browser-local tool-calling loop.
 
 When tool calling is enabled for a conversation and the selected model supports it, the app:
 
-1. Appends model-specific tool-call instructions to the effective system prompt.
-2. Detects emitted tool calls in the model's output.
-3. Executes the requested tool locally in the browser app.
-4. Stores the tool result as a `tool` role message in the conversation tree.
-5. Resubmits the conversation so the model can continue with a normal user-facing answer.
+1. Appends any enabled optional feature-flag prompt section to the effective system prompt.
+2. Appends model-specific tool-call instructions after that optional feature section.
+3. Detects emitted tool calls in the model's output.
+4. Executes the requested tool locally in the browser app.
+5. Stores the tool result as a `tool` role message in the conversation tree.
+6. Resubmits the conversation so the model can continue with a normal user-facing answer.
 
 Tool calling is model-aware. The app does not use one universal tool-call format for every model family.
 

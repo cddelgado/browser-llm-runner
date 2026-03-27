@@ -30,6 +30,7 @@ export const ORCHESTRATION_STATUSES = Object.freeze({
  *   activeGenerationConfig?: any;
  *   defaultSystemPrompt?: string;
  *   enableToolCalling?: boolean;
+ *   renderMathMl?: boolean;
  *   maxDebugEntries?: number;
  * }} [options]
  */
@@ -37,6 +38,7 @@ export function createAppState({
   activeGenerationConfig,
   defaultSystemPrompt = '',
   enableToolCalling = true,
+  renderMathMl = true,
   maxDebugEntries = 120,
 } = {}) {
   return {
@@ -58,6 +60,7 @@ export function createAppState({
     conversationSaveTimerId: null,
     showThinkingByDefault: false,
     enableToolCalling: Boolean(enableToolCalling),
+    renderMathMl: Boolean(renderMathMl),
     enableSingleKeyShortcuts: true,
     transcriptView: 'standard',
     defaultSystemPrompt,
@@ -194,7 +197,7 @@ export function isInteractionLocked(state) {
 
 export function setUserMessageEditState(
   state,
-  { messageId = null, branchSourceMessageId = null } = {},
+  { messageId = null, branchSourceMessageId = null } = {}
 ) {
   state.activeUserEditMessageId = messageId;
   state.activeUserBranchSourceMessageId = branchSourceMessageId;
@@ -266,7 +269,8 @@ export function setPreparingNewConversation(state, value) {
 
 export function getActiveConversation(state) {
   return (
-    state?.conversations?.find((conversation) => conversation.id === state.activeConversationId) || null
+    state?.conversations?.find((conversation) => conversation.id === state.activeConversationId) ||
+    null
   );
 }
 
