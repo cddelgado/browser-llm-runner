@@ -67,12 +67,15 @@ Student-facing browser chat UI with local model inference.
 - The transcript includes helper links at both the start and end to jump to the transcript start, transcript end, or message input.
 - The transcript includes a note that each exchange has a heading so assistive technologies can index the conversation structure.
 - Conversations are persisted locally in browser IndexedDB and restored on reload.
+- Legacy conversation snapshots are migrated automatically into the current normalized IndexedDB layout on load.
 - Saved conversation state includes stable IDs and forward-compatible metadata for future export/import:
   - message `content.parts` and `content.llmRepresentation` (verbatim LLM-facing text)
   - per-message `artifactRefs` for attachment metadata
   - model-message `toolCalls` metadata when emitted tool calls are detected
   - `tool` role messages for tool execution results
   - collection-level `artifacts` for text/binary artifacts (binary stored as base64 plus hash metadata)
+- IndexedDB persistence stores conversations, message nodes, and artifacts as separate records to avoid a single ever-growing snapshot entry.
+- Binary artifacts are stored once in IndexedDB as blob-backed records; repeated derived text payloads are gzip-compressed when the browser supports `CompressionStream`.
 - The composer supports local attachments:
   - `Add file or image` opens a file picker for supported attachments.
   - Image attachments remain available for models that support image input.
