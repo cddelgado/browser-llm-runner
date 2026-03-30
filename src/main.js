@@ -5,6 +5,7 @@ import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import MarkdownIt from 'markdown-it';
 import { bindComposerEvents } from './app/composer-events.js';
+import { convertHtmlToMarkdown } from './attachments/html-to-markdown.js';
 import { extractPdfText } from './attachments/pdf-extractor.js';
 import { createConversationEditors } from './app/conversation-editors.js';
 import './styles.css';
@@ -246,28 +247,48 @@ function getNormalizedTextAttachmentFormat({ mimeType, extension }) {
   if (normalizedMimeType === 'text/markdown' || normalizedExtension === 'md') {
     return 'markdown';
   }
+  if (normalizedMimeType === 'text/html' || normalizedExtension === 'html' || normalizedExtension === 'htm') {
+    return 'markdown';
+  }
   if (normalizedMimeType === 'text/csv' || normalizedExtension === 'csv') {
     return 'csv';
   }
   return 'text';
 }
 
-function buildTextFileLlmText({ filename, mimeType, text }) {
+function buildTextFileLlmText({ filename, mimeType, text, conversionNote = '' }) {
   const normalizedFilename = typeof filename === 'string' && filename.trim() ? filename.trim() : 'file';
   const normalizedMimeType =
     typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'text/plain';
   const body = normalizeAttachmentText(text);
-  return [`Attached file: ${normalizedFilename}`, `MIME type: ${normalizedMimeType}`, 'Contents:', body].join(
-    '\n'
-  );
+  return [
+    `Attached file: ${normalizedFilename}`,
+    `MIME type: ${normalizedMimeType}`,
+    conversionNote,
+    'Contents:',
+    body,
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function buildTextAttachmentConversion({ filename, mimeType, extension, text }) {
-  const normalizedText = normalizeAttachmentText(text);
+  const normalizedFormat = getNormalizedTextAttachmentFormat({ mimeType, extension });
+  const normalizedMimeType = typeof mimeType === 'string' ? mimeType.trim().toLowerCase() : '';
+  const normalizedExtension = typeof extension === 'string' ? extension.trim().toLowerCase() : '';
+  const isHtmlSource =
+    normalizedFormat === 'markdown' &&
+    (normalizedMimeType === 'text/html' ||
+      normalizedExtension === 'html' ||
+      normalizedExtension === 'htm');
+  const htmlConversion = isHtmlSource ? convertHtmlToMarkdown(text) : null;
+  const normalizedText = normalizeAttachmentText(
+    htmlConversion ? htmlConversion.markdown : text
+  );
   return {
     normalizedText,
-    normalizedFormat: getNormalizedTextAttachmentFormat({ mimeType, extension }),
-    conversionWarnings: [],
+    normalizedFormat,
+    conversionWarnings: Array.isArray(htmlConversion?.warnings) ? htmlConversion.warnings : [],
     memoryHint: {
       ingestible: true,
       preferredSource: 'normalizedText',
@@ -277,6 +298,7 @@ function buildTextAttachmentConversion({ filename, mimeType, extension, text }) 
       filename,
       mimeType,
       text: normalizedText,
+      conversionNote: isHtmlSource ? 'Converted from HTML to Markdown before prompt insertion.' : '',
     }),
   };
 }

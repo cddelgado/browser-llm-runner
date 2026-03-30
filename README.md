@@ -80,7 +80,8 @@ Student-facing browser chat UI with local model inference.
   - The `+` composer control opens an attachment menu with `Attach for Reference` and `Attach to Work With`.
   - `Attach for Reference` targets the current curated document formats, including `.txt`, `.csv`, `.md`, `.html`, `.htm`, `.css`, `.js`, and `.pdf`.
   - `Attach to Work With` opens an unfiltered picker, while the current ingestion pipeline still accepts the same supported attachment formats underneath.
-  - Text attachments currently support `.txt`, `.csv`, `.md`, `.html`, `.htm`, `.css`, and `.js` files and are added to the user prompt as model-visible text.
+- Text attachments currently support `.txt`, `.csv`, `.md`, `.html`, `.htm`, `.css`, and `.js` files.
+- HTML attachments (`.html`, `.htm`) are converted locally into Markdown before they are added to the user prompt.
   - PDF attachments (`.pdf`) are parsed locally in-browser and converted into page-aware extracted text before being added to the user prompt.
   - PDF importing is parser-first and deterministic in the current implementation; OCR is not available yet, so image-only PDFs are rejected.
   - Text-backed attachments preserve a normalized representation in conversation state so future features can reuse the same conversion output for search/memory ingestion without re-parsing the source file.

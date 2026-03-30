@@ -6,7 +6,7 @@ Rendering-heavy DOM code is now split into small view modules under `src/ui/`.
 
 - `src/ui/transcript-view.js`
   - transcript message rendering
-  - user attachment rendering for images and text-backed files, including parser-derived PDF text attachments
+  - user attachment rendering for images and text-backed files, including HTML-to-Markdown reference imports and parser-derived PDF text attachments
   - per-message DOM updates for model and user rows
   - inline disclosure rendering for emitted tool calls and tool results
   - transcript empty state
