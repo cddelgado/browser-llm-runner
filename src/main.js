@@ -1369,7 +1369,7 @@ function renderComposerAttachments() {
     name.textContent = attachment.filename;
     meta.appendChild(name);
     const size = document.createElement('p');
-    size.className = 'small text-body-secondary mb-0';
+    size.className = 'composer-attachment-detail';
     const metaBits = [];
     if (attachment.type === 'file') {
       metaBits.push(
