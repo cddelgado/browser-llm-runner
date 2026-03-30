@@ -137,7 +137,9 @@ describe('composer-events', () => {
     );
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
-    expect(harness.deps.imageAttachmentInput.accept).toBe('.txt,.csv,.md,.html,.htm,.css,.js,.pdf');
+    expect(harness.deps.imageAttachmentInput.accept).toBe(
+      'image/*,.txt,.csv,.md,.html,.htm,.css,.js,.pdf'
+    );
   });
 
   test('opens the file picker from the work-with menu option without an accept filter', () => {
@@ -194,15 +196,16 @@ describe('composer-events', () => {
     expect(harness.deps.startModelGeneration).toHaveBeenCalledTimes(1);
   });
 
-  test('accepts reference attachments for html files', async () => {
+  test('accepts reference attachments for html files and images when the model supports image input', async () => {
     const harness = createHarness();
     harness.appState.pendingComposerAttachments = [];
+    harness.deps.selectedModelSupportsImageInput.mockReturnValue(true);
     harness.deps.getPendingComposerAttachments.mockImplementation(
       () => harness.appState.pendingComposerAttachments
     );
     harness.deps.createComposerAttachmentFromFile.mockImplementation(async (file) => ({
       id: `attachment-${file.name}`,
-      type: 'file',
+      type: file.type.startsWith('image/') ? 'image' : 'file',
       filename: file.name,
     }));
     bindComposerEvents(harness.deps);
@@ -225,13 +228,12 @@ describe('composer-events', () => {
 
     await new Promise((resolve) => harness.dom.window.setTimeout(resolve, 0));
 
-    expect(harness.deps.createComposerAttachmentFromFile).toHaveBeenCalledTimes(1);
+    expect(harness.deps.createComposerAttachmentFromFile).toHaveBeenCalledTimes(2);
     expect(harness.appState.pendingComposerAttachments).toEqual([
       expect.objectContaining({ filename: 'index.html', type: 'file' }),
+      expect.objectContaining({ filename: 'photo.png', type: 'image' }),
     ]);
-    expect(harness.deps.setStatus).toHaveBeenCalledWith(
-      '1 file attached. 1 unsupported attachment skipped.'
-    );
+    expect(harness.deps.setStatus).toHaveBeenCalledWith('1 image and 1 file attached.');
   });
 
   test('accepts pdf attachments when image input is unavailable', async () => {
@@ -279,6 +281,37 @@ describe('composer-events', () => {
       type: 'file',
       filename: file.name,
     }));
+    bindComposerEvents(harness.deps);
+
+    harness.deps.attachReferenceMenuItem.dispatchEvent(
+      new harness.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }),
+    );
+
+    const attachmentInput = harness.deps.imageAttachmentInput;
+    Object.defineProperty(attachmentInput, 'files', {
+      configurable: true,
+      value: [new harness.dom.window.File(['zipdata'], 'archive.zip', { type: 'application/zip' })],
+    });
+
+    attachmentInput.dispatchEvent(
+      new harness.dom.window.Event('change', { bubbles: true, cancelable: true })
+    );
+
+    await new Promise((resolve) => harness.dom.window.setTimeout(resolve, 0));
+
+    expect(harness.deps.createComposerAttachmentFromFile).not.toHaveBeenCalled();
+    expect(harness.deps.setStatus).toHaveBeenCalledWith(
+      'Only image, .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached from this menu option.'
+    );
+  });
+
+  test('reference menu still blocks images when the selected model does not support image input', async () => {
+    const harness = createHarness();
+    harness.appState.pendingComposerAttachments = [];
+    harness.deps.selectedModelSupportsImageInput.mockReturnValue(false);
+    harness.deps.getPendingComposerAttachments.mockImplementation(
+      () => harness.appState.pendingComposerAttachments
+    );
     bindComposerEvents(harness.deps);
 
     harness.deps.attachReferenceMenuItem.dispatchEvent(

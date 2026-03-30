@@ -42,7 +42,7 @@ export function bindComposerEvents({
   startModelGeneration,
   stopGeneration,
 }) {
-  const REFERENCE_ATTACHMENT_ACCEPT = '.txt,.csv,.md,.html,.htm,.css,.js,.pdf';
+  const REFERENCE_ATTACHMENT_ACCEPT = 'image/*,.txt,.csv,.md,.html,.htm,.css,.js,.pdf';
   const WORK_WITH_ATTACHMENT_ACCEPT = '';
 
   const isSupportedTextAttachment = (file) => {
@@ -131,9 +131,6 @@ export function bindComposerEvents({
         event.target instanceof HTMLInputElement ? event.target.dataset.attachmentMode || '' : '';
       const imageInputSupported = selectedModelSupportsImageInput();
       const supportedFiles = files.filter((file) => {
-        if (attachmentMode === 'reference') {
-          return isSupportedTextAttachment(file);
-        }
         return (file.type && file.type.startsWith('image/')) || isSupportedTextAttachment(file);
       });
       const allowedFiles = supportedFiles.filter((file) => {
@@ -145,7 +142,9 @@ export function bindComposerEvents({
       if (!allowedFiles.length) {
         setStatus(
           attachmentMode === 'reference'
-            ? 'Only .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached from this menu option.'
+            ? imageInputSupported
+              ? 'Only image, .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached from this menu option.'
+              : 'Only .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached from this menu option.'
             : attachmentMode === 'workWith'
               ? imageInputSupported
                 ? 'The selected files are not supported yet. Try an image, .txt, .csv, .md, .html, .htm, .css, .js, or .pdf file.'
