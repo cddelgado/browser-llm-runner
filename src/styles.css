@@ -1556,6 +1556,28 @@
   color: var(--ink-strong);
 }
 
+.settings-close-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--surface-elevated);
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
+.settings-close-button .bi {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.settings-close-button:hover,
+.settings-close-button:focus-visible {
+  border-radius: var(--button-radius-rest);
+  background: color-mix(in srgb, var(--surface-muted) 70%, var(--surface-elevated));
+  color: var(--ink-strong);
+}
+
 .btn {
   border-radius: var(--button-radius-rest);
   transition:
