@@ -17,6 +17,8 @@ This module is the pure domain layer for:
 - building conversation export payloads and Markdown output
 - preserving model-emitted tool calls and `tool` role execution results
 
+For attachment-related document pipelines, this module should store the resulting normalized content and model-visible representation, but it should not perform parsing, chunking, or orchestration work itself.
+
 It must not depend on:
 
 - DOM APIs
@@ -47,6 +49,8 @@ Keeping this logic pure allows focused unit tests for:
 - engine initialization and generation flow
 - orchestration execution
 - route and focus handling
+
+Parser-first attachment preparation belongs in app/runtime coordination and orchestration layers, not in the pure conversation domain.
 
 ## Refactor direction
 

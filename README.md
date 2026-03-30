@@ -84,6 +84,10 @@ Student-facing browser chat UI with local model inference.
   - Selected attachments appear as removable cards above the composer before send.
   - Sent attachments are restored with the conversation transcript on reload.
   - Text-file attachments include a collapsible `Model sees` preview in the transcript so users can inspect the exact prompt text derived from the file.
+- Document-prep orchestration support is now built into the orchestration runtime for future attachment pipelines.
+  - Orchestrations are no longer limited to linear prompt-only flows.
+  - The runtime now supports prompt steps plus utility steps for deterministic preparation and chunk pipelines: `transform`, `forEach`, and `join`.
+  - This is intended for parser-first, LLM-guided conversions such as future PDF-to-Markdown attachment preparation.
 - New conversations start untitled and are automatically renamed after the first model response based on conversation content.
 - Automatic conversation renaming now runs through a one-step orchestration loaded from `src/config/orchestrations/rename-chat.json`.
 - Conversation title editing is disabled until that automatic model-generated title is available and is available from the active conversation's sidebar kebab menu.
@@ -161,6 +165,13 @@ Student-facing browser chat UI with local model inference.
 - Orchestration definitions are JSON files for transparency:
   - `src/config/orchestrations/rename-chat.json`
   - `src/config/orchestrations/fix-response.json`
+  - `src/config/orchestrations/pdf-to-markdown.json`
+    - Example document-prep orchestration for future parser-first PDF ingestion
+  - Orchestration steps can now be:
+    - `prompt` for model-generated text
+    - `transform` for deterministic local preparation such as chunking
+    - `forEach` for per-item prompt execution over prepared arrays
+    - `join` for merging array outputs into a later prompt or final result
 
 ## Scripts
 
@@ -179,8 +190,27 @@ Student-facing browser chat UI with local model inference.
 - Conversation tree and export domain logic live in `src/state/conversation-model.js`.
 - Centralized runtime state and selectors live in `src/state/app-state.js`.
 - App control flow for generation, stop, rename, and fix actions lives in `src/state/app-controller.js`.
-- Orchestration prompt templating and step execution live in `src/llm/orchestration-runner.js`.
+- Orchestration prompt templating, nested placeholder rendering, utility-step execution, and chunk-pipeline support live in `src/llm/orchestration-runner.js`.
 - Transcript and conversation-list DOM rendering live in `src/ui/`.
 - `src/main.js` remains the app shell for routing, page-level visibility, and wiring dependencies into those modules.
 - See `docs/conversation-domain.md`, `docs/app-state.md`, `docs/app-controller.md`, `docs/orchestrations.md`, and `docs/ui-views.md` for the current boundaries.
 - See `docs/tools.md` for current tool-calling behavior plus the planned separation between discrete function calls, MCP capability discovery, and `SKILL.md` playbooks.
+
+## Orchestrations
+
+Orchestrations are JSON-defined, inspectable workflows used for LLM-guided follow-up tasks and document preparation.
+
+- Existing shipped uses:
+  - chat renaming
+  - response fixing
+- Current runtime capabilities:
+  - linear prompt steps
+  - deterministic utility steps that do not call the model
+  - chunk-oriented processing via `transform` -> `forEach` -> `join`
+  - nested prompt placeholders such as `{{chunk.text}}`
+- Intended design:
+  - deterministic code handles extraction and data shaping
+  - the orchestration handles semantic conversion or validation
+  - parser-first attachment pipelines, including future PDF ingestion, should plug into this model rather than bypass it
+
+See [`docs/orchestrations.md`](docs/orchestrations.md) for the step contract and PDF-preparation example.
