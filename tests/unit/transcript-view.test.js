@@ -25,6 +25,12 @@ function createViewHarness() {
               filename: 'hello.png',
               alt: 'Attached image: hello.png',
             },
+            {
+              type: 'file',
+              filename: 'hello.md',
+              mimeType: 'text/markdown',
+              llmText: 'Attached file: hello.md\nMIME type: text/markdown\nContents:\n# Hello',
+            },
           ],
         },
       },
@@ -103,6 +109,9 @@ describe('transcript-view', () => {
     expect(
       harness.container.querySelector('.user-message .message-image-thumb')?.getAttribute('src')
     ).toContain('data:image/png;base64,abc123');
+    expect(harness.container.querySelector('.user-message .message-file-name')?.textContent).toBe(
+      'hello.md'
+    );
     expect(
       harness.container.querySelector('.model-message .response-content')?.innerHTML
     ).toContain('Hi back');
@@ -373,6 +382,64 @@ describe('transcript-view', () => {
     );
     expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain(
       '72 F and sunny.'
+    );
+  });
+
+  test('toggles model-visible text for a file attachment', () => {
+    const harness = createViewHarness();
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => toolName,
+      getShowThinkingByDefault: () => false,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: false,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    const toggle = harness.container.querySelector('.message-file-toggle');
+    const preview = harness.container.querySelector('.message-file-preview');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(preview?.hasAttribute('hidden')).toBe(true);
+    toggle?.dispatchEvent(new harness.document.defaultView.Event('click', { bubbles: true }));
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(preview?.hasAttribute('hidden')).toBe(false);
+    expect(harness.container.querySelector('.message-file-preview-text')?.textContent).toContain(
+      'Attached file: hello.md'
     );
   });
 });

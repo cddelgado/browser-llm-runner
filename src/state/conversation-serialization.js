@@ -58,7 +58,30 @@ function coerceStoredMessageContentParts(rawMessage, artifactLookup) {
   const rawParts = Array.isArray(rawMessage?.content?.parts) ? rawMessage.content.parts : [];
   return normalizeMessageContentParts(rawParts).map((part) => {
     if (part.type !== 'image') {
-      return part;
+      if (part.type !== 'file') {
+        return part;
+      }
+      const artifact =
+        typeof part.artifactId === 'string' && part.artifactId.trim()
+          ? artifactLookup.get(part.artifactId.trim()) || null
+          : null;
+      const mimeType =
+        typeof part.mimeType === 'string' && part.mimeType.trim()
+          ? part.mimeType.trim()
+          : typeof artifact?.mimeType === 'string' && artifact.mimeType.trim()
+            ? artifact.mimeType.trim()
+            : '';
+      const text =
+        typeof part.text === 'string'
+          ? part.text
+          : typeof artifact?.data === 'string'
+            ? artifact.data
+            : '';
+      return {
+        ...part,
+        ...(mimeType ? { mimeType } : {}),
+        ...(text ? { text } : {}),
+      };
     }
     const artifact =
       typeof part.artifactId === 'string' && part.artifactId.trim()
@@ -270,6 +293,17 @@ function serializeMessageContent(message) {
           base64: typeof part.base64 === 'string' ? part.base64 : undefined,
           url: typeof part.url === 'string' ? part.url : undefined,
         }
+      : part.type === 'file'
+        ? {
+            type: 'file',
+            artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
+            mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
+            filename: typeof part.filename === 'string' ? part.filename : undefined,
+            extension: typeof part.extension === 'string' ? part.extension : undefined,
+            size: Number.isFinite(part.size) ? part.size : undefined,
+            text: typeof part.text === 'string' ? part.text : undefined,
+            llmText: typeof part.llmText === 'string' ? part.llmText : undefined,
+          }
       : {
           type: 'text',
           text: String(part.text || ''),
@@ -285,6 +319,15 @@ function serializeMessageContent(message) {
           }
         : Array.isArray(message.content?.llmRepresentation)
           ? message.content.llmRepresentation
+          : typeof message.content?.llmRepresentation === 'string'
+            ? {
+                type: 'text',
+                text: message.content.llmRepresentation,
+              }
+            : message.content?.llmRepresentation &&
+                typeof message.content.llmRepresentation === 'object' &&
+                message.content.llmRepresentation.type === 'text'
+              ? message.content.llmRepresentation
           : contentParts.some((part) => part.type === 'image')
             ? contentParts
             : {

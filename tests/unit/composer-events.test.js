@@ -161,4 +161,41 @@ describe('composer-events', () => {
     expect(harness.deps.addMessageToConversation).toHaveBeenCalledTimes(1);
     expect(harness.deps.startModelGeneration).toHaveBeenCalledTimes(1);
   });
+
+  test('accepts text file attachments when image input is unavailable', async () => {
+    const harness = createHarness();
+    harness.appState.pendingComposerAttachments = [];
+    harness.deps.getPendingComposerAttachments.mockImplementation(
+      () => harness.appState.pendingComposerAttachments
+    );
+    harness.deps.createComposerAttachmentFromFile.mockImplementation(async (file) => ({
+      id: `attachment-${file.name}`,
+      type: 'file',
+      filename: file.name,
+    }));
+    bindComposerEvents(harness.deps);
+
+    const attachmentInput = harness.deps.imageAttachmentInput;
+    Object.defineProperty(attachmentInput, 'files', {
+      configurable: true,
+      value: [
+        new harness.dom.window.File(['alpha'], 'notes.txt', { type: 'text/plain' }),
+        new harness.dom.window.File(['beta'], 'photo.png', { type: 'image/png' }),
+      ],
+    });
+
+    attachmentInput.dispatchEvent(
+      new harness.dom.window.Event('change', { bubbles: true, cancelable: true })
+    );
+
+    await new Promise((resolve) => harness.dom.window.setTimeout(resolve, 0));
+
+    expect(harness.deps.createComposerAttachmentFromFile).toHaveBeenCalledTimes(1);
+    expect(harness.appState.pendingComposerAttachments).toEqual([
+      expect.objectContaining({ filename: 'notes.txt', type: 'file' }),
+    ]);
+    expect(harness.deps.setStatus).toHaveBeenCalledWith(
+      '1 file attached. 1 unsupported attachment skipped.'
+    );
+  });
 });

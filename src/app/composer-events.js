@@ -40,6 +40,11 @@ export function bindComposerEvents({
   startModelGeneration,
   stopGeneration,
 }) {
+  const isSupportedTextAttachment = (file) => {
+    const name = typeof file?.name === 'string' ? file.name.trim().toLowerCase() : '';
+    return name.endsWith('.txt') || name.endsWith('.csv') || name.endsWith('.md');
+  };
+
   if (sendButton) {
     sendButton.addEventListener('click', async (event) => {
       if (!isGeneratingResponse(appState)) {
@@ -88,36 +93,55 @@ export function bindComposerEvents({
     });
 
     imageAttachmentInput.addEventListener('change', async (event) => {
-      if (!selectedModelSupportsImageInput()) {
-        imageAttachmentInput.value = '';
-        return;
-      }
       const files =
         event.target instanceof HTMLInputElement ? Array.from(event.target.files || []) : [];
       if (!files.length) {
         return;
       }
-      const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-      if (!imageFiles.length) {
-        setStatus('Only image files can be attached.');
-        clearPendingComposerAttachments({ resetInput: true });
+      const imageInputSupported = selectedModelSupportsImageInput();
+      const supportedFiles = files.filter(
+        (file) => (file.type && file.type.startsWith('image/')) || isSupportedTextAttachment(file),
+      );
+      const allowedFiles = supportedFiles.filter(
+        (file) => !file.type.startsWith('image/') || imageInputSupported,
+      );
+      if (!allowedFiles.length) {
+        setStatus(
+          imageInputSupported
+            ? 'Only image, .txt, .csv, and .md files can be attached.'
+            : 'Only .txt, .csv, and .md files can be attached for this model.'
+        );
         return;
       }
       try {
         const nextAttachments = await Promise.all(
-          imageFiles.map((file) => createComposerAttachmentFromFile(file))
+          allowedFiles.map((file) => createComposerAttachmentFromFile(file))
         );
         appState.pendingComposerAttachments = [
           ...getPendingComposerAttachments(),
           ...nextAttachments,
         ];
         renderComposerAttachments();
-        setStatus(
-          `${nextAttachments.length} image${nextAttachments.length === 1 ? '' : 's'} attached.`
-        );
+        const imageCount = nextAttachments.filter((attachment) => attachment?.type === 'image').length;
+        const fileCount = nextAttachments.filter((attachment) => attachment?.type === 'file').length;
+        const summary = [];
+        if (imageCount) {
+          summary.push(`${imageCount} image${imageCount === 1 ? '' : 's'}`);
+        }
+        if (fileCount) {
+          summary.push(`${fileCount} file${fileCount === 1 ? '' : 's'}`);
+        }
+        const rejectedCount = files.length - allowedFiles.length;
+        const rejectedNotice =
+          rejectedCount > 0
+            ? ` ${rejectedCount} unsupported attachment${rejectedCount === 1 ? '' : 's'} skipped.`
+            : '';
+        setStatus(`${summary.join(' and ')} attached.${rejectedNotice}`);
       } catch (error) {
         setStatus(
-          `Unable to read selected images. ${error instanceof Error ? error.message : 'Try again.'}`
+          `Unable to read selected attachments. ${
+            error instanceof Error ? error.message : 'Try again.'
+          }`
         );
       } finally {
         imageAttachmentInput.value = '';
@@ -149,7 +173,7 @@ export function bindComposerEvents({
       setStatus(
         removedAttachment?.filename
           ? `Removed ${removedAttachment.filename}.`
-          : 'Removed attached image.'
+          : 'Removed attached item.'
       );
     });
   }

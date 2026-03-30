@@ -111,6 +111,41 @@ describe('conversation-model', () => {
     });
   });
 
+  test('adds text file attachments to the llm-facing user prompt while preserving file parts', () => {
+    const conversation = createConversation({ id: 'conversation-1' });
+    addMessageToConversation(conversation, 'user', 'Summarize these notes.', {
+      contentParts: [
+        { type: 'text', text: 'Summarize these notes.' },
+        {
+          type: 'file',
+          artifactId: 'artifact-2',
+          mimeType: 'text/markdown',
+          filename: 'notes.md',
+          text: '# Notes\n- Gravity pulls objects together.',
+          llmText:
+            'Attached file: notes.md\nMIME type: text/markdown\nContents:\n# Notes\n- Gravity pulls objects together.',
+        },
+      ],
+      artifactRefs: [
+        {
+          id: 'artifact-2',
+          kind: 'text',
+          mimeType: 'text/markdown',
+          filename: 'notes.md',
+          hash: { algorithm: 'sha256', value: 'feedface' },
+        },
+      ],
+    });
+
+    expect(buildPromptForConversationLeaf(conversation)).toEqual([
+      {
+        role: 'user',
+        content:
+          'Summarize these notes.\nAttached file: notes.md\nMIME type: text/markdown\nContents:\n# Notes\n- Gravity pulls objects together.',
+      },
+    ]);
+  });
+
   test('tracks branch variants and prefers a descendant leaf for the selected variant', () => {
     const conversation = createConversation({ id: 'conversation-1' });
     const rootUser = addMessageToConversation(conversation, 'user', 'Start');

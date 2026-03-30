@@ -162,4 +162,68 @@ describe('conversation-serialization', () => {
       url: 'data:image/png;base64,abc123',
     });
   });
+
+  test('restores text file attachments with model-visible text intact', () => {
+    const appState = createAppState();
+    const restored = applyStoredConversationState(
+      {
+        conversations: [
+          {
+            id: 'conversation-1',
+            name: 'Files',
+            activeLeafMessageId: 'conversation-1-node-1',
+            lastSpokenLeafMessageId: 'conversation-1-node-1',
+            messageNodeCounter: 1,
+            messageNodes: [
+              {
+                id: 'conversation-1-node-1',
+                role: 'user',
+                text: 'Read this file',
+                createdAt: 1710000001000,
+                parentId: null,
+                childIds: [],
+                content: {
+                  parts: [
+                    { type: 'text', text: 'Read this file' },
+                    {
+                      type: 'file',
+                      artifactId: 'artifact-2',
+                      mimeType: 'text/plain',
+                      filename: 'notes.txt',
+                      llmText:
+                        'Attached file: notes.txt\nMIME type: text/plain\nContents:\nThe mitochondria is the powerhouse of the cell.',
+                    },
+                  ],
+                },
+                artifactRefs: [{ id: 'artifact-2', kind: 'text', mimeType: 'text/plain', filename: 'notes.txt' }],
+              },
+            ],
+          },
+        ],
+        artifacts: [
+          {
+            id: 'artifact-2',
+            mimeType: 'text/plain',
+            encoding: 'utf-8',
+            data: 'The mitochondria is the powerhouse of the cell.',
+          },
+        ],
+        conversationCount: 1,
+        conversationIdCounter: 1,
+      },
+      appState,
+    );
+
+    expect(restored).toBe(true);
+    expect(appState.conversations[0]?.messageNodes[0]?.content.parts[1]).toMatchObject({
+      type: 'file',
+      mimeType: 'text/plain',
+      text: 'The mitochondria is the powerhouse of the cell.',
+      llmText:
+        'Attached file: notes.txt\nMIME type: text/plain\nContents:\nThe mitochondria is the powerhouse of the cell.',
+    });
+    expect(appState.conversations[0]?.messageNodes[0]?.content.llmRepresentation).toBe(
+      'Read this file\nAttached file: notes.txt\nMIME type: text/plain\nContents:\nThe mitochondria is the powerhouse of the cell.'
+    );
+  });
 });

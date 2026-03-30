@@ -73,10 +73,13 @@ Student-facing browser chat UI with local model inference.
   - model-message `toolCalls` metadata when emitted tool calls are detected
   - `tool` role messages for tool execution results
   - collection-level `artifacts` for text/binary artifacts (binary stored as base64 plus hash metadata)
-- The composer supports local image attachments:
-  - `Add images` opens a file picker for one or more images.
-  - Selected images appear as removable thumbnails above the composer before send.
-  - Sent images are restored with the conversation transcript on reload.
+- The composer supports local attachments:
+  - `Add file or image` opens a file picker for supported attachments.
+  - Image attachments remain available for models that support image input.
+  - Text attachments currently support `.txt`, `.csv`, and `.md` files and are added to the user prompt as model-visible text.
+  - Selected attachments appear as removable cards above the composer before send.
+  - Sent attachments are restored with the conversation transcript on reload.
+  - Text-file attachments include a collapsible `Model sees` preview in the transcript so users can inspect the exact prompt text derived from the file.
 - New conversations start untitled and are automatically renamed after the first model response based on conversation content.
 - Automatic conversation renaming now runs through a one-step orchestration loaded from `src/config/orchestrations/rename-chat.json`.
 - Conversation title editing is disabled until that automatic model-generated title is available and is available from the active conversation's sidebar kebab menu.

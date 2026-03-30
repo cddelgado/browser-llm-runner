@@ -114,6 +114,40 @@ function normalizeImageContentPart(rawPart) {
   return normalizedPart;
 }
 
+function normalizeFileContentPart(rawPart) {
+  const artifactId = typeof rawPart.artifactId === 'string' ? rawPart.artifactId.trim() : '';
+  const mimeType = typeof rawPart.mimeType === 'string' ? rawPart.mimeType.trim() : '';
+  const filename = typeof rawPart.filename === 'string' ? rawPart.filename.trim() : '';
+  const text = typeof rawPart.text === 'string' ? rawPart.text : '';
+  const llmText = typeof rawPart.llmText === 'string' ? rawPart.llmText : '';
+  if (!artifactId && !mimeType && !filename && !text.trim() && !llmText.trim()) {
+    return null;
+  }
+  const normalizedPart = { type: 'file' };
+  if (artifactId) {
+    normalizedPart.artifactId = artifactId;
+  }
+  if (mimeType) {
+    normalizedPart.mimeType = mimeType;
+  }
+  if (filename) {
+    normalizedPart.filename = filename;
+  }
+  if (text) {
+    normalizedPart.text = text;
+  }
+  if (llmText) {
+    normalizedPart.llmText = llmText;
+  }
+  if (typeof rawPart.extension === 'string' && rawPart.extension.trim()) {
+    normalizedPart.extension = rawPart.extension.trim().toLowerCase();
+  }
+  if (Number.isFinite(rawPart.size) && rawPart.size >= 0) {
+    normalizedPart.size = Math.round(rawPart.size);
+  }
+  return normalizedPart;
+}
+
 function normalizeMessageContentPart(rawPart) {
   if (!rawPart || typeof rawPart !== 'object') {
     return null;
@@ -130,6 +164,9 @@ function normalizeMessageContentPart(rawPart) {
   }
   if (rawPart.type === 'image') {
     return normalizeImageContentPart(rawPart);
+  }
+  if (rawPart.type === 'file') {
+    return normalizeFileContentPart(rawPart);
   }
   return null;
 }
@@ -161,6 +198,52 @@ export function getTextFromMessageContentParts(parts, fallbackText = '') {
   return joinedText || String(fallbackText || '');
 }
 
+function buildUserMessageLlmRepresentation(parts, fallbackText = '') {
+  const normalizedParts = normalizeMessageContentParts(parts, fallbackText);
+  if (!normalizedParts.length) {
+    return String(fallbackText || '').trim() ? String(fallbackText || '') : '';
+  }
+
+  const llmParts = normalizedParts
+    .map((part) => {
+      if (part.type === 'text') {
+        return {
+          type: 'text',
+          text: part.text,
+        };
+      }
+      if (part.type === 'image') {
+        return { ...part };
+      }
+      if (part.type === 'file') {
+        const llmText = typeof part.llmText === 'string' ? part.llmText : '';
+        if (!llmText.trim()) {
+          return null;
+        }
+        return {
+          type: 'text',
+          text: llmText,
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  if (!llmParts.length) {
+    return getTextFromMessageContentParts(normalizedParts, fallbackText);
+  }
+
+  const containsImage = llmParts.some((part) => part.type === 'image');
+  if (!containsImage) {
+    return llmParts
+      .filter((part) => part.type === 'text' && typeof part.text === 'string')
+      .map((part) => part.text)
+      .join('\n')
+      .trim();
+  }
+  return llmParts;
+}
+
 export function setUserMessageText(message, nextText) {
   if (!message || message.role !== 'user') {
     return message;
@@ -177,10 +260,7 @@ export function setUserMessageText(message, nextText) {
   message.text = normalizedText;
   message.content = {
     parts: nextParts,
-    llmRepresentation:
-      nextParts.some((part) => part.type === 'image') || nextParts.filter((part) => part.type === 'text').length > 1
-        ? nextParts.map((part) => ({ ...part }))
-        : normalizedText,
+    llmRepresentation: buildUserMessageLlmRepresentation(nextParts, normalizedText),
   };
   return message;
 }
@@ -195,15 +275,46 @@ function buildMessagePromptContent(message) {
   if (message.role !== 'user') {
     return String(message?.response || message?.text || '').trim();
   }
+  const explicitLlmRepresentation = message?.content?.llmRepresentation;
+  if (Array.isArray(explicitLlmRepresentation)) {
+    const normalizedExplicitParts = normalizeMessageContentParts(explicitLlmRepresentation);
+    if (normalizedExplicitParts.length) {
+      const containsImage = normalizedExplicitParts.some((part) => part.type === 'image');
+      if (containsImage) {
+        return normalizedExplicitParts.map((part) => ({ ...part }));
+      }
+      return getTextFromMessageContentParts(normalizedExplicitParts, message.text || '').trim();
+    }
+  }
+  if (
+    explicitLlmRepresentation &&
+    typeof explicitLlmRepresentation === 'object' &&
+    explicitLlmRepresentation.type === 'text' &&
+    typeof explicitLlmRepresentation.text === 'string'
+  ) {
+    return explicitLlmRepresentation.text.trim();
+  }
+  if (typeof explicitLlmRepresentation === 'string' && explicitLlmRepresentation.trim()) {
+    return explicitLlmRepresentation.trim();
+  }
   const normalizedParts = normalizeMessageContentParts(message.content?.parts, message.text || '');
   if (!normalizedParts.length) {
     return '';
+  }
+  const llmRepresentation = buildUserMessageLlmRepresentation(normalizedParts, message.text || '');
+  if (Array.isArray(llmRepresentation)) {
+    return llmRepresentation.map((part) => ({ ...part }));
+  }
+  if (typeof llmRepresentation === 'string' && llmRepresentation.trim()) {
+    return llmRepresentation.trim();
   }
   const containsImage = normalizedParts.some((part) => part.type === 'image');
   if (!containsImage) {
     return getTextFromMessageContentParts(normalizedParts, message.text || '').trim();
   }
-  return normalizedParts.map((part) => ({ ...part }));
+  return normalizedParts
+    .filter((part) => part.type === 'text' || part.type === 'image')
+    .map((part) => ({ ...part }));
 }
 
 function normalizeToolCall(rawToolCall) {

@@ -9,6 +9,7 @@ This module is the pure domain layer for:
 - creating conversation records
 - storing the selected model for each conversation
 - adding user/model messages to the tree
+- preserving structured user content parts for attachments, including text-backed file parts and their LLM-facing representation
 - resolving the visible branch and variant navigation state
 - pruning descendants after user edits
 - building structured prompts for inference

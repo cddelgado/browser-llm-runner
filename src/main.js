@@ -127,6 +127,13 @@ const MODEL_GENERATION_SETTINGS_STORAGE_KEY = 'llm-model-generation-settings';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
 const SUPPORTED_BACKEND_PREFERENCES = new Set(['auto', 'webgpu', 'wasm', 'cpu']);
 const WEBGPU_REQUIRED_MODEL_SUFFIX = ' (WebGPU required)';
+const SUPPORTED_TEXT_ATTACHMENT_TYPES = Object.freeze({
+  txt: { mimeType: 'text/plain', label: 'Text file' },
+  csv: { mimeType: 'text/csv', label: 'CSV file' },
+  md: { mimeType: 'text/markdown', label: 'Markdown file' },
+});
+const FILE_ATTACHMENT_ACCEPT = '.txt,.csv,.md';
+const IMAGE_AND_FILE_ATTACHMENT_ACCEPT = `image/*,${FILE_ATTACHMENT_ACCEPT}`;
 
 function base64FromArrayBuffer(buffer) {
   let binary = '';
@@ -169,6 +176,63 @@ function formatAttachmentSize(bytes) {
     return `${Math.round(bytes / 1024)} KB`;
   }
   return `${Math.round(bytes)} B`;
+}
+
+function getFileExtension(filename) {
+  const normalizedName = typeof filename === 'string' ? filename.trim() : '';
+  if (!normalizedName.includes('.')) {
+    return '';
+  }
+  return normalizedName.split('.').pop()?.trim().toLowerCase() || '';
+}
+
+function getSupportedAttachmentMetadata(file) {
+  const extension = getFileExtension(file?.name || '');
+  const mimeType = typeof file?.type === 'string' ? file.type.trim() : '';
+  if (mimeType.startsWith('image/')) {
+    return {
+      category: 'image',
+      mimeType,
+      extension,
+    };
+  }
+  const supportedTextType = SUPPORTED_TEXT_ATTACHMENT_TYPES[extension];
+  if (supportedTextType) {
+    return {
+      category: 'file',
+      mimeType: mimeType || supportedTextType.mimeType,
+      extension,
+      label: supportedTextType.label,
+    };
+  }
+  return null;
+}
+
+function getAttachmentButtonAcceptValue(imageInputSupported) {
+  return imageInputSupported ? IMAGE_AND_FILE_ATTACHMENT_ACCEPT : FILE_ATTACHMENT_ACCEPT;
+}
+
+function getAttachmentIconClass(attachment) {
+  if (attachment?.type === 'image') {
+    return 'bi-image';
+  }
+  if (attachment?.extension === 'csv' || attachment?.mimeType === 'text/csv') {
+    return 'bi-file-earmark-spreadsheet';
+  }
+  if (attachment?.extension === 'md' || attachment?.mimeType === 'text/markdown') {
+    return 'bi-file-earmark-richtext';
+  }
+  return 'bi-file-earmark-text';
+}
+
+function buildTextFileLlmText({ filename, mimeType, text }) {
+  const normalizedFilename = typeof filename === 'string' && filename.trim() ? filename.trim() : 'file';
+  const normalizedMimeType =
+    typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'text/plain';
+  const body = typeof text === 'string' ? text.replace(/\r\n?/g, '\n') : '';
+  return [`Attached file: ${normalizedFilename}`, `MIME type: ${normalizedMimeType}`, 'Contents:', body].join(
+    '\n'
+  );
 }
 
 const FIX_RESPONSE_ORCHESTRATION = fixResponseOrchestration;
@@ -1152,11 +1216,21 @@ function renderComposerAttachments() {
     const item = document.createElement('article');
     item.className = 'composer-attachment-card';
     item.dataset.attachmentId = attachment.id;
-    const image = document.createElement('img');
-    image.className = 'composer-attachment-thumb';
-    image.src = attachment.url;
-    image.alt = attachment.alt;
-    item.appendChild(image);
+    if (attachment.type === 'image') {
+      const image = document.createElement('img');
+      image.className = 'composer-attachment-thumb';
+      image.src = attachment.url;
+      image.alt = attachment.alt;
+      item.appendChild(image);
+    } else {
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'composer-attachment-icon';
+      const icon = document.createElement('i');
+      icon.className = `bi ${getAttachmentIconClass(attachment)}`;
+      icon.setAttribute('aria-hidden', 'true');
+      iconWrap.appendChild(icon);
+      item.appendChild(iconWrap);
+    }
 
     const meta = document.createElement('div');
     meta.className = 'composer-attachment-meta';
@@ -1166,7 +1240,17 @@ function renderComposerAttachments() {
     meta.appendChild(name);
     const size = document.createElement('p');
     size.className = 'small text-body-secondary mb-0';
-    size.textContent = formatAttachmentSize(attachment.size);
+    const metaBits = [];
+    if (attachment.type === 'file') {
+      metaBits.push(
+        attachment.extension ? attachment.extension.toUpperCase() : attachment.mimeType || 'FILE'
+      );
+    }
+    const sizeLabel = formatAttachmentSize(attachment.size);
+    if (sizeLabel) {
+      metaBits.push(sizeLabel);
+    }
+    size.textContent = metaBits.join(' · ');
     meta.appendChild(size);
     item.appendChild(meta);
 
@@ -1183,24 +1267,53 @@ function renderComposerAttachments() {
 
 async function createComposerAttachmentFromFile(file) {
   const buffer = await file.arrayBuffer();
-  const base64 = base64FromArrayBuffer(buffer);
-  const mimeType = file.type || 'application/octet-stream';
-  const url = `data:${mimeType};base64,${base64}`;
+  const attachmentMetadata = getSupportedAttachmentMetadata(file);
+  if (!attachmentMetadata) {
+    throw new Error('Unsupported attachment type.');
+  }
   const hashValue = await computeSha256Hex(buffer);
-  const dimensions = await loadImageDimensions(url);
   const id = crypto.randomUUID();
+  if (attachmentMetadata.category === 'image') {
+    const base64 = base64FromArrayBuffer(buffer);
+    const mimeType = attachmentMetadata.mimeType || 'application/octet-stream';
+    const url = `data:${mimeType};base64,${base64}`;
+    const dimensions = await loadImageDimensions(url);
+    return {
+      id,
+      type: 'image',
+      kind: 'binary',
+      mimeType,
+      encoding: 'base64',
+      data: base64,
+      url,
+      filename: file.name || 'image',
+      size: Number.isFinite(file.size) ? file.size : buffer.byteLength,
+      width: dimensions.width,
+      height: dimensions.height,
+      alt: file.name ? `Selected image: ${file.name}` : 'Selected image',
+      hash: {
+        algorithm: 'sha256',
+        value: hashValue,
+      },
+    };
+  }
+  const text = new window.TextDecoder('utf-8').decode(buffer);
+  const mimeType = attachmentMetadata.mimeType || 'text/plain';
   return {
     id,
-    kind: 'binary',
+    type: 'file',
+    kind: 'text',
     mimeType,
-    encoding: 'base64',
-    data: base64,
-    url,
-    filename: file.name || 'image',
+    encoding: 'utf-8',
+    data: text,
+    filename: file.name || 'file',
     size: Number.isFinite(file.size) ? file.size : buffer.byteLength,
-    width: dimensions.width,
-    height: dimensions.height,
-    alt: file.name ? `Selected image: ${file.name}` : 'Selected image',
+    extension: attachmentMetadata.extension || getFileExtension(file.name || ''),
+    llmText: buildTextFileLlmText({
+      filename: file.name || 'file',
+      mimeType,
+      text,
+    }),
     hash: {
       algorithm: 'sha256',
       value: hashValue,
@@ -1211,19 +1324,32 @@ async function createComposerAttachmentFromFile(file) {
 function buildUserMessageAttachmentPayload(attachments) {
   const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
   const contentParts = normalizedAttachments.map((attachment) => ({
-    type: 'image',
-    artifactId: attachment.id,
-    mimeType: attachment.mimeType,
-    base64: attachment.data,
-    url: attachment.url,
-    filename: attachment.filename,
-    width: attachment.width,
-    height: attachment.height,
-    alt: attachment.alt,
+    ...(attachment.type === 'image'
+      ? {
+          type: 'image',
+          artifactId: attachment.id,
+          mimeType: attachment.mimeType,
+          base64: attachment.data,
+          url: attachment.url,
+          filename: attachment.filename,
+          width: attachment.width,
+          height: attachment.height,
+          alt: attachment.alt,
+        }
+      : {
+          type: 'file',
+          artifactId: attachment.id,
+          mimeType: attachment.mimeType,
+          filename: attachment.filename,
+          extension: attachment.extension,
+          size: attachment.size,
+          text: attachment.data,
+          llmText: attachment.llmText,
+        }),
   }));
   const artifactRefs = normalizedAttachments.map((attachment) => ({
     id: attachment.id,
-    kind: 'binary',
+    kind: attachment.kind,
     mimeType: attachment.mimeType,
     filename: attachment.filename,
     hash: attachment.hash,
@@ -1233,22 +1359,53 @@ function buildUserMessageAttachmentPayload(attachments) {
 
 function getMessageArtifacts(message, conversationId) {
   const refs = Array.isArray(message?.artifactRefs) ? message.artifactRefs : [];
-  const imageParts = Array.isArray(message?.content?.parts)
-    ? message.content.parts.filter((part) => part?.type === 'image')
+  const attachmentParts = Array.isArray(message?.content?.parts)
+    ? message.content.parts.filter((part) => part?.type === 'image' || part?.type === 'file')
     : [];
-  return imageParts
+  return attachmentParts
     .map((part) => {
       const ref = refs.find((candidate) => candidate?.id === part.artifactId) || null;
       const artifactId =
         typeof part.artifactId === 'string' && part.artifactId.trim() ? part.artifactId.trim() : '';
-      const data = typeof part.base64 === 'string' && part.base64.trim() ? part.base64.trim() : '';
       const mimeType =
         typeof part.mimeType === 'string' && part.mimeType.trim()
           ? part.mimeType.trim()
           : typeof ref?.mimeType === 'string'
             ? ref.mimeType
             : '';
-      if (!artifactId || !data || !mimeType) {
+      if (!artifactId || !mimeType) {
+        return null;
+      }
+      if (part.type === 'file') {
+        const data = typeof part.text === 'string' ? part.text : '';
+        if (!data) {
+          return null;
+        }
+        return {
+          id: artifactId,
+          conversationId,
+          messageId: message.id,
+          kind: 'text',
+          mimeType,
+          encoding: 'utf-8',
+          data,
+          hash:
+            ref?.hash && typeof ref.hash === 'object'
+              ? {
+                  algorithm: ref.hash.algorithm,
+                  value: ref.hash.value,
+                }
+              : undefined,
+          filename:
+            typeof part.filename === 'string' && part.filename.trim()
+              ? part.filename.trim()
+              : typeof ref?.filename === 'string' && ref.filename.trim()
+                ? ref.filename.trim()
+                : null,
+        };
+      }
+      const data = typeof part.base64 === 'string' && part.base64.trim() ? part.base64.trim() : '';
+      if (!data) {
         return null;
       }
       return {
@@ -2043,16 +2200,18 @@ function updateActionButtons() {
     messageInput.disabled = disableComposerForPreChatSelection;
   }
   if (addImagesButton instanceof HTMLButtonElement) {
-    addImagesButton.classList.toggle('d-none', !imageInputSupported);
-    addImagesButton.disabled =
-      !imageInputSupported || composerControlsDisabled || isGeneratingResponse(appState);
+    addImagesButton.disabled = composerControlsDisabled || isGeneratingResponse(appState);
   }
   if (imageAttachmentInput instanceof HTMLInputElement) {
-    imageAttachmentInput.disabled =
-      !imageInputSupported || composerControlsDisabled || isGeneratingResponse(appState);
+    imageAttachmentInput.disabled = composerControlsDisabled || isGeneratingResponse(appState);
+    imageAttachmentInput.accept = getAttachmentButtonAcceptValue(imageInputSupported);
   }
-  if (!imageInputSupported && getPendingComposerAttachments().length) {
-    clearPendingComposerAttachments();
+  if (!imageInputSupported && getPendingComposerAttachments().some((attachment) => attachment?.type === 'image')) {
+    appState.pendingComposerAttachments = getPendingComposerAttachments().filter(
+      (attachment) => attachment?.type !== 'image'
+    );
+    renderComposerAttachments();
+    setStatus('Image attachments were removed because the selected model does not support them.');
   }
   if (sendButton) {
     sendButton.disabled =

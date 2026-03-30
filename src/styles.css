@@ -1373,6 +1373,23 @@
   background: color-mix(in srgb, var(--surface) 78%, transparent);
 }
 
+.composer-attachment-icon {
+  width: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 0.8rem;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 62%),
+    color-mix(in srgb, var(--surface) 78%, transparent);
+  color: var(--accent-strong);
+}
+
+.composer-attachment-icon .bi {
+  font-size: 2rem;
+  line-height: 1;
+}
+
 .composer-attachment-meta {
   margin-top: 0.35rem;
 }
@@ -1422,6 +1439,69 @@
   background: var(--composer-input-bg);
   color: var(--ink-strong);
   border-color: var(--control-border);
+}
+
+.message-file-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.message-file-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  padding: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.message-file-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.message-file-icon {
+  flex: 0 0 2.8rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 64%),
+    color-mix(in srgb, var(--surface) 80%, transparent);
+  color: var(--accent-strong);
+}
+
+.message-file-icon .bi {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.message-file-meta {
+  min-width: 0;
+}
+
+.message-file-name {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.message-file-detail {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.message-file-toggle {
+  margin-top: 0.75rem;
+}
+
+.message-file-preview-text {
+  max-height: 20rem;
+  overflow: auto;
 }
 
 .composer #sendButton {

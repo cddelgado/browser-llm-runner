@@ -37,6 +37,25 @@ export function createTranscriptView(dependencies) {
     return rawParts.filter((part) => part?.type === 'image');
   }
 
+  function getUserFileParts(message) {
+    const rawParts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
+    return rawParts.filter((part) => part?.type === 'file');
+  }
+
+  function getUserAttachmentCount(message) {
+    return getUserImageParts(message).length + getUserFileParts(message).length;
+  }
+
+  function getFileAttachmentIconClass(part) {
+    if (part?.extension === 'csv' || part?.mimeType === 'text/csv') {
+      return 'bi-file-earmark-spreadsheet';
+    }
+    if (part?.extension === 'md' || part?.mimeType === 'text/markdown') {
+      return 'bi-file-earmark-richtext';
+    }
+    return 'bi-file-earmark-text';
+  }
+
   function renderUserBubbleContent(message, bubble) {
     if (!bubble) {
       return;
@@ -77,6 +96,85 @@ export function createTranscriptView(dependencies) {
         gallery.appendChild(figure);
       });
       content.appendChild(gallery);
+    }
+
+    const fileParts = getUserFileParts(message);
+    if (fileParts.length) {
+      const fileList = documentRef.createElement('div');
+      fileList.className = 'message-file-list';
+      fileParts.forEach((part, index) => {
+        const card = documentRef.createElement('section');
+        card.className = 'message-file-card';
+
+        const header = documentRef.createElement('div');
+        header.className = 'message-file-header';
+
+        const iconWrap = documentRef.createElement('div');
+        iconWrap.className = 'message-file-icon';
+        const icon = documentRef.createElement('i');
+        icon.className = `bi ${getFileAttachmentIconClass(part)}`;
+        icon.setAttribute('aria-hidden', 'true');
+        iconWrap.appendChild(icon);
+        header.appendChild(iconWrap);
+
+        const meta = documentRef.createElement('div');
+        meta.className = 'message-file-meta';
+        const name = documentRef.createElement('p');
+        name.className = 'message-file-name';
+        name.textContent =
+          typeof part.filename === 'string' && part.filename.trim()
+            ? part.filename.trim()
+            : `Attached file ${index + 1}`;
+        meta.appendChild(name);
+        const detail = documentRef.createElement('p');
+        detail.className = 'message-file-detail';
+        const detailBits = [];
+        if (typeof part.mimeType === 'string' && part.mimeType.trim()) {
+          detailBits.push(part.mimeType.trim());
+        }
+        if (Number.isFinite(part.size) && part.size >= 0) {
+          detailBits.push(`${Math.round(part.size)} bytes`);
+        }
+        detail.textContent = detailBits.join(' · ');
+        meta.appendChild(detail);
+        header.appendChild(meta);
+        card.appendChild(header);
+
+        const llmText = typeof part.llmText === 'string' ? part.llmText.trim() : '';
+        if (llmText) {
+          const toggle = documentRef.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'btn btn-sm btn-outline-secondary message-file-toggle';
+          toggle.textContent = 'Model sees';
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.setAttribute(
+            'aria-label',
+            `Show model-visible text for ${name.textContent || `attached file ${index + 1}`}`
+          );
+
+          const preview = documentRef.createElement('div');
+          preview.className = 'tool-call-body message-file-preview mt-2';
+          preview.hidden = true;
+          const previewLabel = documentRef.createElement('p');
+          previewLabel.className = 'mb-1 fw-semibold';
+          previewLabel.textContent = 'Model-visible text';
+          const previewBody = documentRef.createElement('pre');
+          previewBody.className = 'tool-call-panel message-file-preview-text mb-0';
+          previewBody.textContent = llmText;
+          preview.append(previewLabel, previewBody);
+
+          toggle.addEventListener('click', () => {
+            const expanded = toggle.getAttribute('aria-expanded') === 'true';
+            toggle.setAttribute('aria-expanded', String(!expanded));
+            preview.hidden = expanded;
+          });
+
+          card.append(toggle, preview);
+        }
+
+        fileList.appendChild(card);
+      });
+      content.appendChild(fileList);
     }
 
     if (message.text) {
@@ -608,8 +706,8 @@ export function createTranscriptView(dependencies) {
         });
         editor.addEventListener('input', () => {
           const isCurrentEdit = getActiveUserEditMessageId() === message.id;
-          const hasImages = getUserImageParts(message).length > 0;
-          saveButton.disabled = !isCurrentEdit || (!editor.value.trim() && !hasImages);
+          const hasAttachments = getUserAttachmentCount(message) > 0;
+          saveButton.disabled = !isCurrentEdit || (!editor.value.trim() && !hasAttachments);
         });
         /** @type {any} */ (item)._userBubbleRefs = {
           bubble,
@@ -717,8 +815,7 @@ export function createTranscriptView(dependencies) {
     refs.editButton.disabled = controlsDisabled;
     refs.branchButton.disabled = controlsDisabled;
     refs.copyButton.disabled = controlsDisabled;
-    refs.saveButton.disabled =
-      controlsDisabled || (!refs.editor.value.trim() && getUserImageParts(message).length === 0);
+    refs.saveButton.disabled = controlsDisabled || (!refs.editor.value.trim() && getUserAttachmentCount(message) === 0);
     refs.cancelButton.disabled = controlsDisabled;
     if (refs.variantNav) {
       refs.variantNav.classList.toggle('d-none', !variantState.hasVariants || isEditing);
