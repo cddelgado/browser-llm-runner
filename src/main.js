@@ -132,9 +132,13 @@ const SUPPORTED_TEXT_ATTACHMENT_TYPES = Object.freeze({
   txt: { mimeType: 'text/plain', label: 'Text file' },
   csv: { mimeType: 'text/csv', label: 'CSV file' },
   md: { mimeType: 'text/markdown', label: 'Markdown file' },
+  html: { mimeType: 'text/html', label: 'HTML file' },
+  htm: { mimeType: 'text/html', label: 'HTML file' },
+  css: { mimeType: 'text/css', label: 'CSS file' },
+  js: { mimeType: 'text/javascript', label: 'JavaScript file' },
   pdf: { mimeType: 'application/pdf', label: 'PDF document', category: 'pdf' },
 });
-const FILE_ATTACHMENT_ACCEPT = '.txt,.csv,.md,.pdf';
+const FILE_ATTACHMENT_ACCEPT = '.txt,.csv,.md,.html,.htm,.css,.js,.pdf';
 const IMAGE_AND_FILE_ATTACHMENT_ACCEPT = `image/*,${FILE_ATTACHMENT_ACCEPT}`;
 const MAX_PDF_ATTACHMENT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const MAX_PDF_ATTACHMENT_TEXT_CHARS = 120000;
@@ -443,8 +447,8 @@ const chatForm = document.querySelector('.composer');
 const imageAttachmentInput = document.getElementById('imageAttachmentInput');
 const composerAttachmentTray = document.getElementById('composerAttachmentTray');
 const addImagesButton = document.getElementById('addImagesButton');
-const attachImageMenuItem = document.getElementById('attachImageMenuItem');
-const attachFileMenuItem = document.getElementById('attachFileMenuItem');
+const attachReferenceMenuItem = document.getElementById('attachReferenceMenuItem');
+const attachWorkWithMenuItem = document.getElementById('attachWorkWithMenuItem');
 const messageInput = document.getElementById('messageInput');
 const chatTranscript = document.getElementById('chatTranscript');
 const chatTranscriptWrap = document.getElementById('chatTranscriptWrap');
@@ -2371,16 +2375,15 @@ function updateActionButtons() {
   if (addImagesButton instanceof HTMLButtonElement) {
     addImagesButton.disabled = composerControlsDisabled || isGeneratingResponse(appState);
   }
-  if (attachImageMenuItem instanceof HTMLButtonElement) {
-    const imageMenuDisabled =
-      composerControlsDisabled || isGeneratingResponse(appState) || !imageInputSupported;
-    attachImageMenuItem.disabled = imageMenuDisabled;
-    attachImageMenuItem.setAttribute('aria-disabled', imageMenuDisabled ? 'true' : 'false');
+  if (attachReferenceMenuItem instanceof HTMLButtonElement) {
+    const referenceMenuDisabled = composerControlsDisabled || isGeneratingResponse(appState);
+    attachReferenceMenuItem.disabled = referenceMenuDisabled;
+    attachReferenceMenuItem.setAttribute('aria-disabled', referenceMenuDisabled ? 'true' : 'false');
   }
-  if (attachFileMenuItem instanceof HTMLButtonElement) {
-    const fileMenuDisabled = composerControlsDisabled || isGeneratingResponse(appState);
-    attachFileMenuItem.disabled = fileMenuDisabled;
-    attachFileMenuItem.setAttribute('aria-disabled', fileMenuDisabled ? 'true' : 'false');
+  if (attachWorkWithMenuItem instanceof HTMLButtonElement) {
+    const workWithMenuDisabled = composerControlsDisabled || isGeneratingResponse(appState);
+    attachWorkWithMenuItem.disabled = workWithMenuDisabled;
+    attachWorkWithMenuItem.setAttribute('aria-disabled', workWithMenuDisabled ? 'true' : 'false');
   }
   if (imageAttachmentInput instanceof HTMLInputElement) {
     imageAttachmentInput.disabled = composerControlsDisabled || isGeneratingResponse(appState);
@@ -3182,8 +3185,8 @@ bindComposerEvents({
   messageInput,
   sendButton,
   addImagesButton,
-  attachImageMenuItem,
-  attachFileMenuItem,
+  attachReferenceMenuItem,
+  attachWorkWithMenuItem,
   imageAttachmentInput,
   composerAttachmentTray,
   isGeneratingResponse,

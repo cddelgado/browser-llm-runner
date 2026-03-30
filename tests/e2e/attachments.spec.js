@@ -8,12 +8,12 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('#messageInput')).toBeVisible();
 });
 
-test('attachment menu disables image attach when the selected model cannot accept images', async ({
+test('attachment menu shows reference and work-with options', async ({
   page,
 }) => {
   await page.locator('#addImagesButton').click();
-  await expect(page.locator('#attachImageMenuItem')).toBeDisabled();
-  await expect(page.locator('#attachFileMenuItem')).toBeEnabled();
+  await expect(page.locator('#attachReferenceMenuItem')).toBeVisible();
+  await expect(page.locator('#attachWorkWithMenuItem')).toBeVisible();
 });
 
 test('pdf attachment is added to the prompt and transcript', async ({ page }) => {

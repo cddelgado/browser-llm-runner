@@ -4,8 +4,8 @@ export function bindComposerEvents({
   messageInput,
   sendButton,
   addImagesButton,
-  attachImageMenuItem,
-  attachFileMenuItem,
+  attachReferenceMenuItem,
+  attachWorkWithMenuItem,
   imageAttachmentInput,
   composerAttachmentTray,
   isGeneratingResponse,
@@ -42,8 +42,8 @@ export function bindComposerEvents({
   startModelGeneration,
   stopGeneration,
 }) {
-  const FILE_ATTACHMENT_ACCEPT = '.txt,.csv,.md,.pdf';
-  const IMAGE_ATTACHMENT_ACCEPT = 'image/*';
+  const REFERENCE_ATTACHMENT_ACCEPT = '.txt,.csv,.md,.html,.htm,.css,.js,.pdf';
+  const WORK_WITH_ATTACHMENT_ACCEPT = '';
 
   const isSupportedTextAttachment = (file) => {
     const name = typeof file?.name === 'string' ? file.name.trim().toLowerCase() : '';
@@ -51,6 +51,10 @@ export function bindComposerEvents({
       name.endsWith('.txt') ||
       name.endsWith('.csv') ||
       name.endsWith('.md') ||
+      name.endsWith('.html') ||
+      name.endsWith('.htm') ||
+      name.endsWith('.css') ||
+      name.endsWith('.js') ||
       name.endsWith('.pdf')
     );
   };
@@ -59,10 +63,10 @@ export function bindComposerEvents({
     if (!(imageAttachmentInput instanceof HTMLInputElement)) {
       return;
     }
-    if (mode === 'image') {
-      imageAttachmentInput.accept = IMAGE_ATTACHMENT_ACCEPT;
-    } else if (mode === 'file') {
-      imageAttachmentInput.accept = FILE_ATTACHMENT_ACCEPT;
+    if (mode === 'reference') {
+      imageAttachmentInput.accept = REFERENCE_ATTACHMENT_ACCEPT;
+    } else if (mode === 'workWith') {
+      imageAttachmentInput.accept = WORK_WITH_ATTACHMENT_ACCEPT;
     }
     imageAttachmentInput.dataset.attachmentMode = mode;
   };
@@ -107,21 +111,13 @@ export function bindComposerEvents({
     addImagesButton instanceof HTMLButtonElement &&
     imageAttachmentInput instanceof HTMLInputElement
   ) {
-    attachImageMenuItem?.addEventListener('click', () => {
-      if (attachImageMenuItem instanceof HTMLButtonElement && attachImageMenuItem.disabled) {
-        setStatus('Image attachments are not available for the selected model.');
-        return;
-      }
-      if (!selectedModelSupportsImageInput()) {
-        setStatus('Image attachments are not available for the selected model.');
-        return;
-      }
-      setAttachmentPickerMode('image');
+    attachReferenceMenuItem?.addEventListener('click', () => {
+      setAttachmentPickerMode('reference');
       imageAttachmentInput.click();
     });
 
-    attachFileMenuItem?.addEventListener('click', () => {
-      setAttachmentPickerMode('file');
+    attachWorkWithMenuItem?.addEventListener('click', () => {
+      setAttachmentPickerMode('workWith');
       imageAttachmentInput.click();
     });
 
@@ -135,10 +131,7 @@ export function bindComposerEvents({
         event.target instanceof HTMLInputElement ? event.target.dataset.attachmentMode || '' : '';
       const imageInputSupported = selectedModelSupportsImageInput();
       const supportedFiles = files.filter((file) => {
-        if (attachmentMode === 'image') {
-          return Boolean(file.type && file.type.startsWith('image/'));
-        }
-        if (attachmentMode === 'file') {
+        if (attachmentMode === 'reference') {
           return isSupportedTextAttachment(file);
         }
         return (file.type && file.type.startsWith('image/')) || isSupportedTextAttachment(file);
@@ -151,15 +144,15 @@ export function bindComposerEvents({
       });
       if (!allowedFiles.length) {
         setStatus(
-          attachmentMode === 'image'
-            ? imageInputSupported
-              ? 'Only image files can be attached from this menu option.'
-              : 'Image attachments are not available for the selected model.'
-            : attachmentMode === 'file'
-              ? 'Only .txt, .csv, .md, and .pdf files can be attached from this menu option.'
-              : imageInputSupported
-                ? 'Only image, .txt, .csv, .md, and .pdf files can be attached.'
-                : 'Only .txt, .csv, .md, and .pdf files can be attached for this model.'
+          attachmentMode === 'reference'
+            ? 'Only .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached from this menu option.'
+            : attachmentMode === 'workWith'
+              ? imageInputSupported
+                ? 'The selected files are not supported yet. Try an image, .txt, .csv, .md, .html, .htm, .css, .js, or .pdf file.'
+                : 'The selected files are not supported yet. Try a .txt, .csv, .md, .html, .htm, .css, .js, or .pdf file.'
+            : imageInputSupported
+              ? 'Only image, .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached.'
+              : 'Only .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached for this model.'
         );
         return;
       }
