@@ -1703,6 +1703,30 @@
   line-height: 1;
 }
 
+.composer #sendButton.is-stop-mode {
+  border-color: color-mix(in srgb, #d94b5f 72%, var(--control-border));
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.18), transparent 58%),
+    linear-gradient(180deg, #cf4458 0%, #a92c43 100%);
+  color: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 10px 20px rgba(169, 44, 67, 0.28);
+}
+
+.composer #sendButton.is-stop-mode:hover,
+.composer #sendButton.is-stop-mode:focus-visible {
+  border-color: #d94b5f;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.24), transparent 58%),
+    linear-gradient(180deg, #db5367 0%, #b2334b 100%);
+  color: #ffffff;
+}
+
+.composer #sendButton.is-stop-mode .bi {
+  font-size: 1.05rem;
+}
+
 .composer textarea::placeholder {
   color: var(--ink-muted);
 }

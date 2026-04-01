@@ -2582,16 +2582,18 @@ function updateSendButtonMode() {
     sendButton.type = 'button';
     sendButton.classList.remove('btn-primary');
     sendButton.classList.add('btn-outline-secondary');
+    sendButton.classList.add('is-stop-mode');
     sendButton.setAttribute('aria-label', 'Stop generating');
     sendButton.setAttribute('aria-keyshortcuts', 'Alt+.');
     sendButton.setAttribute('data-bs-title', 'Stop generating (Alt+.)');
-    setIconButtonContent(sendButton, 'bi-sign-stop', 'Stop generating');
+    setIconButtonContent(sendButton, 'bi-stop-fill', 'Stop generating');
     initializeTooltips(document);
     return;
   }
   sendButton.type = 'submit';
   sendButton.classList.remove('btn-outline-secondary');
   sendButton.classList.add('btn-primary');
+  sendButton.classList.remove('is-stop-mode');
   sendButton.setAttribute('aria-label', 'Send message');
   sendButton.setAttribute('aria-keyshortcuts', 'Enter');
   sendButton.setAttribute('data-bs-title', 'Send message (Enter)');
