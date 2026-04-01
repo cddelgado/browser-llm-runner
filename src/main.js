@@ -70,6 +70,7 @@ import {
   findPreferredLeafForVariant,
   getConversationCardHeading,
   getConversationPathMessages,
+  getTaskListForConversationLeaf,
   getMessageNodeById,
   getModelVariantState,
   getUserVariantState,
@@ -115,6 +116,7 @@ import {
 import { loadConversationState, saveConversationState } from './state/conversation-store.js';
 import { renderConversationListView } from './ui/conversation-list-view.js';
 import { createTranscriptView } from './ui/transcript-view.js';
+import { renderTaskListTray } from './ui/task-list-tray.js';
 
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const SHOW_THINKING_STORAGE_KEY = 'ui-show-thinking';
@@ -477,11 +479,13 @@ const chatTranscript = document.getElementById('chatTranscript');
 const chatTranscriptWrap = document.getElementById('chatTranscriptWrap');
 const chatTranscriptStart = document.getElementById('chatTranscriptStart');
 const chatTranscriptEnd = document.getElementById('chatTranscriptEnd');
+const taskListTray = document.getElementById('taskListTray');
 const jumpToTopButton = document.getElementById('jumpToTopButton');
 const jumpToPreviousUserButton = document.getElementById('jumpToPreviousUserButton');
 const jumpToNextModelButton = document.getElementById('jumpToNextModelButton');
 const jumpToLatestButton = document.getElementById('jumpToLatestButton');
 const chatMain = document.querySelector('.chat-main');
+let isTaskListTrayExpanded = false;
 const homePanel = document.getElementById('homePanel');
 const preChatPanel = document.getElementById('preChatPanel');
 const topBar = document.getElementById('topBar');
@@ -2191,6 +2195,34 @@ function updateTranscriptNavigationButtonVisibility() {
 
 function renderTranscript(options = {}) {
   transcriptView.renderTranscript(options);
+  renderActiveTaskListTray();
+}
+
+function renderActiveTaskListTray() {
+  if (!(taskListTray instanceof HTMLElement)) {
+    return;
+  }
+  const shouldShowTray = appState.workspaceView === 'chat' && !isSettingsView(appState);
+  if (!shouldShowTray) {
+    taskListTray.replaceChildren();
+    taskListTray.dataset.hasItems = 'false';
+    taskListTray.classList.add('d-none');
+    return;
+  }
+  const activeConversation = getActiveConversation();
+  const items = activeConversation ? getTaskListForConversationLeaf(activeConversation) : [];
+  if (!items.length) {
+    isTaskListTrayExpanded = false;
+  }
+  renderTaskListTray({
+    container: taskListTray,
+    items,
+    isExpanded: isTaskListTrayExpanded,
+    onToggle: () => {
+      isTaskListTrayExpanded = !isTaskListTrayExpanded;
+      renderActiveTaskListTray();
+    },
+  });
 }
 
 function isUiBusy() {
@@ -2309,6 +2341,13 @@ function updatePreChatActionButtons() {
 function updateComposerVisibility() {
   const showComposer = selectHasStartedWorkspace(appState) && !isSettingsView(appState);
   setRegionVisibility(chatForm, showComposer);
+  if (taskListTray instanceof HTMLElement) {
+    const showTaskTray =
+      showComposer &&
+      appState.workspaceView === 'chat' &&
+      taskListTray.dataset.hasItems === 'true';
+    setRegionVisibility(taskListTray, showTaskTray);
+  }
   if (chatForm instanceof HTMLElement) {
     chatForm.classList.remove('is-prechat');
   }
