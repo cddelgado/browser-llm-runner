@@ -1177,6 +1177,10 @@
   font-weight: 700;
 }
 
+.tool-call-region {
+  margin-top: 0.7rem;
+}
+
 .tool-call-toggle:hover,
 .tool-call-toggle:focus-visible {
   color: var(--action-btn-hover-text);

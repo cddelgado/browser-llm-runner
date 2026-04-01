@@ -374,7 +374,7 @@ describe('transcript-view', () => {
     expect(harness.container.querySelectorAll('.message-row')).toHaveLength(2);
     expect(harness.container.querySelector('.tool-message')).toBeNull();
     const toggle = harness.container.querySelector('.tool-call-toggle');
-    expect(toggle?.textContent).toContain('🛠️ Tool Call: Get Weather');
+    expect(toggle?.textContent).toContain('Tool action: Using Get Weather');
     expect(toggle?.getAttribute('aria-expanded')).toBe('false');
     toggle?.dispatchEvent(new harness.document.defaultView.Event('click', { bubbles: true }));
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
@@ -459,6 +459,12 @@ describe('transcript-view', () => {
     expect(harness.container.querySelector('.response-content')?.textContent).toContain(
       'Now I have the time as well.'
     );
+    const responseRegion = harness.container.querySelector('.response-region');
+    const toolCallRegion = harness.container.querySelector('.tool-call-region');
+    expect(
+      responseRegion?.compareDocumentPosition(toolCallRegion) &
+        harness.document.defaultView.Node.DOCUMENT_POSITION_FOLLOWING
+    ).not.toBe(0);
   });
 
   test('toggles model-visible text for a file attachment', () => {
@@ -517,6 +523,65 @@ describe('transcript-view', () => {
     expect(harness.container.querySelector('.message-file-preview-text')?.textContent).toContain(
       'Attached file: hello.md'
     );
+  });
+
+  test('uses task-oriented labels for tasklist actions', () => {
+    const harness = createViewHarness();
+    harness.conversation.messageNodes[1].toolCalls = [
+      {
+        name: 'tasklist',
+        arguments: { command: 'update', index: 0, status: 1 },
+        rawText: '{"name":"tasklist","parameters":{"command":"update","index":0,"status":1}}',
+      },
+    ];
+
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => (toolName === 'tasklist' ? 'Task List Planner' : toolName),
+      getShowThinkingByDefault: () => false,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: false,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    const toggle = harness.container.querySelector('.tool-call-toggle');
+    expect(toggle?.textContent).toContain('Tool action: Updating task list');
+    expect(toggle?.getAttribute('aria-label')).toBe('Updating task list: Task List Planner');
   });
 
   test('renders PDF attachment metadata in the transcript', () => {

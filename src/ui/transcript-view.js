@@ -293,6 +293,36 @@ export function createTranscriptView(dependencies) {
       .join('\n\n');
   }
 
+  function getToolCallActionLabel(toolCall) {
+    const toolName = typeof toolCall?.name === 'string' ? toolCall.name.trim() : '';
+    const toolLabel = toolName ? resolveToolDisplayName(toolName) : 'Tool';
+    const toolArguments =
+      toolCall?.arguments && typeof toolCall.arguments === 'object' && !Array.isArray(toolCall.arguments)
+        ? toolCall.arguments
+        : {};
+
+    if (toolName === 'tasklist') {
+      switch (toolArguments.command) {
+        case 'new':
+        case 'update':
+          return 'Updating task list';
+        case 'list':
+          return 'Checking task list';
+        case 'clear':
+          return 'Clearing task list';
+        default:
+          return 'Working with task list';
+      }
+    }
+    if (toolName === 'get_current_date_time') {
+      return 'Checking date and time';
+    }
+    if (toolName === 'get_user_location') {
+      return 'Checking location';
+    }
+    return `Using ${toolLabel}`;
+  }
+
   function getToolCallNarrationText(message) {
     const fullText = String(message?.response || message?.text || '');
     const toolCalls = Array.isArray(message?.toolCalls) ? message.toolCalls : [];
@@ -335,8 +365,9 @@ export function createTranscriptView(dependencies) {
         ? toolCalls[0].name.trim()
         : '';
     const toolLabel = primaryToolName ? resolveToolDisplayName(primaryToolName) : 'Unknown Tool';
-    refs.toolCallToggle.textContent = `🛠️ Tool Call: ${toolLabel}`;
-    refs.toolCallToggle.setAttribute('aria-label', `Tool call details for ${toolLabel}`);
+    const actionLabel = getToolCallActionLabel(toolCalls[0]);
+    refs.toolCallToggle.textContent = `Tool action: ${actionLabel}`;
+    refs.toolCallToggle.setAttribute('aria-label', `${actionLabel}: ${toolLabel}`);
     refs.toolCallToggle.setAttribute('aria-expanded', String(isExpanded));
     refs.toolCallBody.hidden = !isExpanded;
     refs.toolCallRequest.textContent = toolCalls
@@ -426,6 +457,11 @@ export function createTranscriptView(dependencies) {
         <h3 class="visually-hidden">${cardHeading}</h3>
         <p class="message-speaker">${message.speaker}</p>
         <div class="message-bubble">
+          <section class="response-region">
+            <h3 class="visually-hidden">Response</h3>
+            <p class="fix-wait-message mb-0" aria-live="off">Please wait</p>
+            <div class="response-content"></div>
+          </section>
           <section class="thoughts-region d-none">
             <h3 class="visually-hidden">Thoughts</h3>
             <div class="thoughts-toolbar">
@@ -453,7 +489,7 @@ export function createTranscriptView(dependencies) {
               class="btn btn-sm tool-call-toggle"
               aria-expanded="false"
             >
-              🛠️ Tool Call
+              Tool action
             </button>
             <div class="tool-call-body mt-2" hidden>
               <p class="mb-1 fw-semibold">Request</p>
@@ -463,11 +499,6 @@ export function createTranscriptView(dependencies) {
                 <pre class="tool-call-panel tool-call-result mb-0"></pre>
               </section>
             </div>
-          </section>
-          <section class="response-region">
-            <h3 class="visually-hidden">Response</h3>
-            <p class="fix-wait-message mb-0" aria-live="off">Please wait</p>
-            <div class="response-content"></div>
           </section>
         </div>
         <section class="response-actions">
