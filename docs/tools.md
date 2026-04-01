@@ -56,6 +56,25 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js).
 
+### `tasklist`
+
+- Display name: `Task List Planner`
+- Purpose: manages a conversation-scoped task list for multi-step work
+- Discovery behavior: when called with no arguments, it returns its own syntax plus a reminder that task lists matter because context may be short and next steps are easy to forget
+- Commands:
+  - `new` to add an undone task, optionally at a specific index
+  - `list` to return the current task list with indexes and done/undone state
+  - `clear` to remove all task list items
+  - `update` to mark an existing task as done (`1`) or undone (`0`)
+- Parameters:
+  - `command`
+  - `item`
+  - `index`
+  - `status`
+- Persistence: task list items are stored on the active conversation record, so they follow that conversation through local persistence and reloads
+
+This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js).
+
 ## Planned capability model
 
 The intended future design separates capability access into three layers with different purposes.

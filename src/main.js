@@ -2987,7 +2987,10 @@ const appController = createAppController({
   getLoadedModelId,
   getThinkingTagsForModel,
   detectToolCalls: detectToolCallsForModel,
-  executeToolCall,
+  executeToolCall: (toolCall) =>
+    executeToolCall(toolCall, {
+      conversation: getActiveConversation(),
+    }),
   getSelectedModelId: () => modelSelect?.value || DEFAULT_MODEL,
   addMessageToConversation,
   buildPromptForConversationLeaf: buildPromptForActiveConversation,

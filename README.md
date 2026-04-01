@@ -114,6 +114,7 @@ Student-facing browser chat UI with local model inference.
 - When prompt-driven feature flags are enabled, the effective system prompt adds an `Optional feature flags` section before any tool-calling instructions.
 - When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt and any optional feature-flags section.
 - Tool-calling behavior, transcript presentation, export semantics, the current built-in tool catalog, and the planned function-call/MCP/`SKILL.md` capability model are documented in `docs/tools.md`.
+- The current built-in tool catalog includes date/time lookup, user location lookup, and a conversation-scoped `tasklist` planner for preserving next steps across short-context interactions.
 - The active conversation's sidebar kebab menu includes `Edit conversation system prompt`:
   - Set optional per-conversation instructions.
   - `Append after default prompt` is enabled by default; when enabled, the conversation prompt is appended after the conversation's captured default prompt.

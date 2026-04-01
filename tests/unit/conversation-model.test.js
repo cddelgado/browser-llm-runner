@@ -420,4 +420,20 @@ describe('conversation-model', () => {
 
     expect(conversation.modelId).toBe('');
   });
+
+  test('initializes a normalized task list on the conversation record', () => {
+    const conversation = createConversation({
+      id: 'conversation-1',
+      taskList: [
+        { text: 'Draft answer', status: 1 },
+        { text: '  Review citations  ', status: 0 },
+        { text: '   ', status: 1 },
+      ],
+    });
+
+    expect(conversation.taskList).toEqual([
+      { text: 'Draft answer', status: 1 },
+      { text: 'Review citations', status: 0 },
+    ]);
+  });
 });

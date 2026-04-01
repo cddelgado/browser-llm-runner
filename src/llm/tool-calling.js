@@ -29,6 +29,34 @@ export const TOOL_DEFINITIONS = Object.freeze([
       additionalProperties: false,
     },
   },
+  {
+    name: 'tasklist',
+    displayName: 'Task List Planner',
+    description:
+      'Manages a browser-local task list for multi-step work. Call it with no arguments first to reveal the syntax and why task lists matter when context is short.',
+    enabled: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        command: {
+          type: 'string',
+          enum: ['new', 'list', 'clear', 'update'],
+        },
+        item: {
+          type: 'string',
+        },
+        index: {
+          type: 'integer',
+          minimum: 0,
+        },
+        status: {
+          type: 'integer',
+          enum: [0, 1],
+        },
+      },
+      additionalProperties: false,
+    },
+  },
 ]);
 
 const reverseGeocodeCache = new Map();
@@ -137,6 +165,11 @@ function buildToolSpecificUsageInstructions(enabledToolNames = []) {
   const instructions = [];
   if (normalizedNames.includes('get_user_location')) {
     instructions.push('For get_user_location: use the returned location and coordinate directly in your answer.');
+  }
+  if (normalizedNames.includes('tasklist')) {
+    instructions.push(
+      'For tasklist: when you need help preserving multi-step work, call tasklist with empty arguments first to reveal syntax. Task lists are important because context may be short, so next steps are easy to forget.'
+    );
   }
   return instructions;
 }
@@ -344,6 +377,172 @@ function executeGetCurrentDateTime(argumentsValue = {}) {
   };
 }
 
+function buildTaskListUsageResult() {
+  return {
+    purpose: 'Keep a browser-local task list for multi-step work.',
+    importance:
+      'Task lists are important because context may be short, so next steps are easy to forget.',
+    syntax: [
+      "tasklist\n  'new',\n  'Task item',\n  index",
+      "tasklist\n  'list'",
+      "tasklist\n  'clear'",
+      "tasklist\n  'update',\n  index,\n  status:bool (0=undone, 1=done)",
+    ],
+  };
+}
+
+function buildTaskListSnapshot(entries = []) {
+  return entries.map((entry, index) => ({
+    index,
+    text: entry.text,
+    status: entry.status,
+  }));
+}
+
+function getValidatedTaskListArguments(argumentsValue = {}) {
+  if (argumentsValue === undefined) {
+    return {};
+  }
+  if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
+    throw new Error('tasklist arguments must be an object.');
+  }
+  const supportedKeys = new Set(['command', 'item', 'index', 'status']);
+  const unexpectedKeys = Object.keys(argumentsValue).filter((key) => !supportedKeys.has(key));
+  if (unexpectedKeys.length) {
+    throw new Error(`tasklist does not accept: ${unexpectedKeys.join(', ')}.`);
+  }
+  const taskListArguments = /** @type {{command?: unknown; item?: unknown; index?: unknown; status?: unknown}} */ (
+    argumentsValue
+  );
+  const normalized = {};
+  if (taskListArguments.command !== undefined) {
+    if (typeof taskListArguments.command !== 'string' || !taskListArguments.command.trim()) {
+      throw new Error('tasklist command must be a non-empty string.');
+    }
+    const command = taskListArguments.command.trim().toLowerCase();
+    if (!['new', 'list', 'clear', 'update'].includes(command)) {
+      throw new Error('tasklist command must be one of: new, list, clear, update.');
+    }
+    normalized.command = command;
+  }
+  if (taskListArguments.item !== undefined) {
+    if (typeof taskListArguments.item !== 'string' || !taskListArguments.item.trim()) {
+      throw new Error('tasklist item must be a non-empty string.');
+    }
+    normalized.item = taskListArguments.item.trim();
+  }
+  if (taskListArguments.index !== undefined) {
+    const indexCandidate = taskListArguments.index;
+    if (typeof indexCandidate !== 'number' || !Number.isInteger(indexCandidate) || indexCandidate < 0) {
+      throw new Error('tasklist index must be an integer greater than or equal to 0.');
+    }
+    normalized.index = indexCandidate;
+  }
+  if (taskListArguments.status !== undefined) {
+    const statusCandidate = taskListArguments.status;
+    if (
+      statusCandidate !== 0 &&
+      statusCandidate !== 1 &&
+      statusCandidate !== false &&
+      statusCandidate !== true
+    ) {
+      throw new Error('tasklist status must be 0 or 1.');
+    }
+    normalized.status = statusCandidate === 1 || statusCandidate === true ? 1 : 0;
+  }
+  return normalized;
+}
+
+function getConversationTaskList(runtimeContext = {}) {
+  const conversation =
+    runtimeContext.conversation && typeof runtimeContext.conversation === 'object'
+      ? runtimeContext.conversation
+      : null;
+  if (!conversation) {
+    return null;
+  }
+  if (!Array.isArray(conversation.taskList)) {
+    conversation.taskList = [];
+  }
+  return conversation.taskList;
+}
+
+function executeTaskList(argumentsValue = {}, runtimeContext = {}) {
+  const normalizedArguments = getValidatedTaskListArguments(argumentsValue);
+  if (!normalizedArguments.command) {
+    return buildTaskListUsageResult();
+  }
+  const taskListItems = getConversationTaskList(runtimeContext);
+  if (!taskListItems) {
+    throw new Error('tasklist requires an active conversation.');
+  }
+
+  if (normalizedArguments.command === 'list') {
+    const items = buildTaskListSnapshot(taskListItems);
+    return {
+      items,
+      total: items.length,
+      done: items.filter((entry) => entry.status === 1).length,
+      undone: items.filter((entry) => entry.status === 0).length,
+    };
+  }
+
+  if (normalizedArguments.command === 'clear') {
+    const clearedCount = taskListItems.length;
+    taskListItems.splice(0, taskListItems.length);
+    return {
+      clearedCount,
+      items: [],
+    };
+  }
+
+  if (normalizedArguments.command === 'new') {
+    if (!normalizedArguments.item) {
+      throw new Error('tasklist new requires item.');
+    }
+    const insertIndex = Number.isInteger(normalizedArguments.index)
+      ? Math.max(0, Math.min(taskListItems.length, normalizedArguments.index))
+      : taskListItems.length;
+    const nextEntry = {
+      text: normalizedArguments.item,
+      status: 0,
+    };
+    taskListItems.splice(insertIndex, 0, nextEntry);
+    return {
+      added: {
+        index: insertIndex,
+        text: nextEntry.text,
+        status: nextEntry.status,
+      },
+      items: buildTaskListSnapshot(taskListItems),
+    };
+  }
+
+  if (normalizedArguments.command === 'update') {
+    if (!Number.isInteger(normalizedArguments.index)) {
+      throw new Error('tasklist update requires index.');
+    }
+    if (normalizedArguments.status === undefined) {
+      throw new Error('tasklist update requires status.');
+    }
+    const existingItem = taskListItems[normalizedArguments.index];
+    if (!existingItem) {
+      throw new Error(`tasklist item ${normalizedArguments.index} does not exist.`);
+    }
+    existingItem.status = normalizedArguments.status;
+    return {
+      updated: {
+        index: normalizedArguments.index,
+        text: existingItem.text,
+        status: existingItem.status,
+      },
+      items: buildTaskListSnapshot(taskListItems),
+    };
+  }
+
+  throw new Error('Unsupported tasklist command.');
+}
+
 function getValidatedLocationArguments(argumentsValue = {}) {
   if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
     throw new Error('get_user_location arguments must be an object.');
@@ -353,13 +552,19 @@ function getValidatedLocationArguments(argumentsValue = {}) {
   if (unexpectedKeys.length) {
     throw new Error(`get_user_location does not accept: ${unexpectedKeys.join(', ')}.`);
   }
-  const timeoutCandidate = argumentsValue.timeoutMs;
+  const locationArguments = /** @type {{timeoutMs?: unknown}} */ (argumentsValue);
+  const timeoutCandidate = locationArguments.timeoutMs;
   if (timeoutCandidate === undefined) {
     return {
       timeoutMs: 10000,
     };
   }
-  if (!Number.isInteger(timeoutCandidate) || timeoutCandidate < 1000 || timeoutCandidate > 30000) {
+  if (
+    typeof timeoutCandidate !== 'number' ||
+    !Number.isInteger(timeoutCandidate) ||
+    timeoutCandidate < 1000 ||
+    timeoutCandidate > 30000
+  ) {
     throw new Error('get_user_location timeoutMs must be an integer between 1000 and 30000.');
   }
   return {
@@ -389,13 +594,21 @@ function getReadableLocality(address = {}) {
   if (!address || typeof address !== 'object') {
     return '';
   }
+  const addressRecord = /** @type {{
+   * city?: unknown;
+   * town?: unknown;
+   * village?: unknown;
+   * hamlet?: unknown;
+   * suburb?: unknown;
+   * county?: unknown;
+   * }} */ (address);
   return (
-    address.city ||
-    address.town ||
-    address.village ||
-    address.hamlet ||
-    address.suburb ||
-    address.county ||
+    addressRecord.city ||
+    addressRecord.town ||
+    addressRecord.village ||
+    addressRecord.hamlet ||
+    addressRecord.suburb ||
+    addressRecord.county ||
     ''
   );
 }
@@ -540,6 +753,15 @@ export async function executeToolCall(toolCall, runtimeContext = {}) {
   }
   if (toolName === 'get_user_location') {
     const result = await executeGetUserLocation(argumentsValue, runtimeContext);
+    return {
+      toolName,
+      arguments: argumentsValue,
+      result,
+      resultText: JSON.stringify(result),
+    };
+  }
+  if (toolName === 'tasklist') {
+    const result = executeTaskList(argumentsValue, runtimeContext);
     return {
       toolName,
       arguments: argumentsValue,

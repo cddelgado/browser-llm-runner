@@ -384,6 +384,27 @@ function normalizeToolCalls(rawToolCalls) {
   return Array.isArray(rawToolCalls) ? rawToolCalls.map(normalizeToolCall).filter(Boolean) : [];
 }
 
+function normalizeTaskList(rawTaskList) {
+  if (!Array.isArray(rawTaskList)) {
+    return [];
+  }
+  return rawTaskList
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+      const text = typeof entry.text === 'string' ? entry.text.trim() : '';
+      if (!text) {
+        return null;
+      }
+      return {
+        text,
+        status: entry.status === 1 || entry.status === true ? 1 : 0,
+      };
+    })
+    .filter(Boolean);
+}
+
 function toIsoTimestamp(value) {
   const normalized = normalizeTimestamp(value);
   return normalized ? new Date(normalized).toISOString() : null;
@@ -488,6 +509,7 @@ function buildToolMetadata(toolContext) {
  *   modelId?: string;
  *   systemPrompt?: string;
  *   startedAt?: number;
+ *   taskList?: Array<{text?: string; status?: number | boolean}>;
  * }} [options]
  */
 export function createConversation(options) {
@@ -498,6 +520,7 @@ export function createConversation(options) {
     modelId = '',
     systemPrompt = '',
     startedAt = Date.now(),
+    taskList = [],
   } = options || {};
   if (typeof id !== 'string' || !id.trim()) {
     throw new Error('Conversation id is required.');
@@ -515,6 +538,7 @@ export function createConversation(options) {
     activeLeafMessageId: null,
     lastSpokenLeafMessageId: null,
     hasGeneratedName: false,
+    taskList: normalizeTaskList(taskList),
   };
 }
 

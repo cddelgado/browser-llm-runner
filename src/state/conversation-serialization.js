@@ -13,6 +13,27 @@ import {
 export const CONVERSATION_COLLECTION_FORMAT = 'browser-llm-runner.conversation-collection';
 export const CONVERSATION_SCHEMA_VERSION = 6;
 
+function normalizeTaskList(rawTaskList) {
+  if (!Array.isArray(rawTaskList)) {
+    return [];
+  }
+  return rawTaskList
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+      const text = typeof entry.text === 'string' ? entry.text.trim() : '';
+      if (!text) {
+        return null;
+      }
+      return {
+        text,
+        status: entry.status === 1 || entry.status === true ? 1 : 0,
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeTimestamp(value) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
 }
@@ -454,6 +475,7 @@ export function buildConversationStateSnapshot(appState, { getMessageArtifacts =
           conversation.appendConversationSystemPrompt === false ? false : undefined,
         startedAt: normalizeTimestamp(conversation.startedAt),
         hasGeneratedName: Boolean(conversation.hasGeneratedName),
+        taskList: normalizeTaskList(conversation.taskList),
         artifacts: [],
         activeLeafMessageId:
           typeof conversation.activeLeafMessageId === 'string' ? conversation.activeLeafMessageId : null,
@@ -604,6 +626,7 @@ export function applyStoredConversationState(rawState, appState, { untitledPrefi
         conversationSystemPrompt,
         appendConversationSystemPrompt,
         startedAt,
+        taskList: normalizeTaskList(rawConversation.taskList),
         messageNodes,
         messageNodeCounter,
         activeLeafMessageId,

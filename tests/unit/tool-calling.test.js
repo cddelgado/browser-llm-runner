@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test } from 'vitest';
 import {
   buildToolCallingSystemPrompt,
   executeToolCall,
@@ -6,6 +6,23 @@ import {
   getEnabledToolDefinitions,
   sniffToolCalls,
 } from '../../src/llm/tool-calling.js';
+import { createConversation } from '../../src/state/conversation-model.js';
+
+let taskListConversation;
+
+beforeEach(async () => {
+  taskListConversation = createConversation({
+    id: 'conversation-tasklist',
+  });
+  await executeToolCall({
+    name: 'tasklist',
+    arguments: {
+      command: 'clear',
+    },
+  }, {
+    conversation: taskListConversation,
+  });
+});
 
 describe('tool-calling prompt builder', () => {
   test('builds the Llama json tool-calling prompt', () => {
@@ -71,6 +88,24 @@ describe('tool-calling prompt builder', () => {
     );
   });
 
+  test('adds a tasklist planning instruction', () => {
+    const prompt = buildToolCallingSystemPrompt(
+      {
+        format: 'json',
+        nameKey: 'name',
+        argumentsKey: 'parameters',
+      },
+      ['tasklist']
+    );
+
+    expect(prompt).toContain(
+      'For tasklist: when you need help preserving multi-step work, call tasklist with empty arguments first to reveal syntax.'
+    );
+    expect(prompt).toContain(
+      'Task lists are important because context may be short, so next steps are easy to forget.'
+    );
+  });
+
   test('builds the LFM function-style tool-calling prompt', () => {
     const prompt = buildToolCallingSystemPrompt(
       {
@@ -90,15 +125,20 @@ describe('tool-calling prompt builder', () => {
   test('returns a friendly tool display name', () => {
     expect(getToolDisplayName('get_current_date_time')).toBe('Get Date and Time');
     expect(getToolDisplayName('get_user_location')).toBe('Get User Location');
+    expect(getToolDisplayName('tasklist')).toBe('Task List Planner');
     expect(getToolDisplayName('lookup_fact')).toBe('Lookup Fact');
   });
 
-  test('includes the user location tool definition', () => {
+  test('includes the user location and tasklist tool definitions', () => {
     expect(getEnabledToolDefinitions()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           name: 'get_user_location',
           displayName: 'Get User Location',
+        }),
+        expect.objectContaining({
+          name: 'tasklist',
+          displayName: 'Task List Planner',
         }),
       ])
     );
@@ -353,5 +393,91 @@ describe('tool-calling prompt builder', () => {
         longitude: -87.9149,
       },
     });
+  });
+
+  test('reveals tasklist syntax and why it matters when called without arguments', async () => {
+    const result = await executeToolCall({
+      name: 'tasklist',
+      arguments: {},
+    });
+
+    expect(result.toolName).toBe('tasklist');
+    expect(result.result.importance).toBe(
+      'Task lists are important because context may be short, so next steps are easy to forget.'
+    );
+    expect(result.result.syntax).toEqual([
+      "tasklist\n  'new',\n  'Task item',\n  index",
+      "tasklist\n  'list'",
+      "tasklist\n  'clear'",
+      "tasklist\n  'update',\n  index,\n  status:bool (0=undone, 1=done)",
+    ]);
+  });
+
+  test('creates, lists, updates, and clears tasklist items', async () => {
+    const added = await executeToolCall({
+      name: 'tasklist',
+      arguments: {
+        command: 'new',
+        item: 'Draft release notes',
+      },
+    }, {
+      conversation: taskListConversation,
+    });
+    expect(added.result.added).toEqual({
+      index: 0,
+      text: 'Draft release notes',
+      status: 0,
+    });
+
+    const updated = await executeToolCall({
+      name: 'tasklist',
+      arguments: {
+        command: 'update',
+        index: 0,
+        status: 1,
+      },
+    }, {
+      conversation: taskListConversation,
+    });
+    expect(updated.result.updated).toEqual({
+      index: 0,
+      text: 'Draft release notes',
+      status: 1,
+    });
+
+    const listed = await executeToolCall({
+      name: 'tasklist',
+      arguments: {
+        command: 'list',
+      },
+    }, {
+      conversation: taskListConversation,
+    });
+    expect(listed.result).toEqual({
+      items: [
+        {
+          index: 0,
+          text: 'Draft release notes',
+          status: 1,
+        },
+      ],
+      total: 1,
+      done: 1,
+      undone: 0,
+    });
+
+    const cleared = await executeToolCall({
+      name: 'tasklist',
+      arguments: {
+        command: 'clear',
+      },
+    }, {
+      conversation: taskListConversation,
+    });
+    expect(cleared.result).toEqual({
+      clearedCount: 1,
+      items: [],
+    });
+    expect(taskListConversation.taskList).toEqual([]);
   });
 });

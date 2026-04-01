@@ -17,6 +17,9 @@ describe('conversation-serialization', () => {
       name: 'Images',
       modelId: 'onnx-community/Qwen3.5-2B-ONNX',
       startedAt: 1710000000000,
+      taskList: [
+        { text: 'Inspect attachment', status: 0 },
+      ],
     });
     const userMessage = addMessageToConversation(conversation, 'user', 'Describe this image', {
       createdAt: 1710000001000,
@@ -71,6 +74,9 @@ describe('conversation-serialization', () => {
     });
 
     expect(snapshot.conversations[0]?.modelId).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(snapshot.conversations[0]?.taskList).toEqual([
+      { text: 'Inspect attachment', status: 0 },
+    ]);
     expect(snapshot.artifacts).toEqual([
       expect.objectContaining({
         id: 'artifact-1',
@@ -91,6 +97,10 @@ describe('conversation-serialization', () => {
             name: 'New Conversation 2',
             modelId: 'onnx-community/Qwen3.5-2B-ONNX',
             startedAt: 1710000000000,
+            taskList: [
+              { text: 'Inspect image', status: 0 },
+              { text: 'Write caption', status: 1 },
+            ],
             activeLeafMessageId: 'conversation-1-node-2',
             lastSpokenLeafMessageId: 'conversation-1-node-2',
             messageNodeCounter: 2,
@@ -155,6 +165,10 @@ describe('conversation-serialization', () => {
     expect(appState.activeConversationId).toBeNull();
     expect(appState.conversations[0]?.name).toBe('New Conversation');
     expect(appState.conversations[0]?.modelId).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(appState.conversations[0]?.taskList).toEqual([
+      { text: 'Inspect image', status: 0 },
+      { text: 'Write caption', status: 1 },
+    ]);
     expect(appState.conversations[0]?.messageNodes[0]?.content.parts[1]).toMatchObject({
       type: 'image',
       mimeType: 'image/png',
