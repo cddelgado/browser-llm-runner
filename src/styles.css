@@ -2164,12 +2164,10 @@
     min-width: var(--conversation-panel-open-width);
     max-width: var(--conversation-panel-open-width);
     box-sizing: border-box;
-    clip-path: inset(0 0 0 0);
-    will-change: transform, opacity, clip-path;
+    will-change: transform, opacity;
     transition:
       opacity 160ms ease,
-      transform 220ms ease,
-      clip-path 220ms ease;
+      transform 220ms ease;
   }
 
   .top-bar {

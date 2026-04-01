@@ -65,6 +65,34 @@ test('conversation panel can collapse and expand from the panel border', async (
   await expect(page.locator('body')).not.toHaveClass(/conversation-panel-collapsed/);
 });
 
+test('conversation sidebar menu is not clipped by the panel body', async ({ page }) => {
+  await page.getByRole('button', { name: 'Start a conversation' }).click();
+  await expect(page).toHaveURL(/#\/chat$/);
+  await ensureComposerVisible(page);
+
+  await page.locator('#messageInput').fill('Create a named conversation');
+  await page.locator('#sendButton').click();
+  await expect(page.locator('.message-row.model-message')).toHaveCount(1);
+  await expect(page.locator('.conversation-item .conversation-select').first()).not.toHaveText(
+    'New Conversation',
+  );
+
+  const conversationItem = page.locator('.conversation-item').first();
+  await conversationItem.hover();
+  const menuToggle = page.locator('.conversation-item .conversation-menu-toggle').first();
+  await expect(menuToggle).toBeVisible();
+  await menuToggle.dispatchEvent('click');
+
+  const menu = page.locator('.conversation-item.menu-open .conversation-menu').first();
+  await expect(menu).toBeVisible();
+
+  const toggleBox = await menuToggle.boundingBox();
+  const menuBox = await menu.boundingBox();
+  expect(toggleBox).not.toBeNull();
+  expect(menuBox).not.toBeNull();
+  expect((menuBox?.width ?? 0)).toBeGreaterThan((toggleBox?.width ?? 0) + 40);
+});
+
 test('transcript step buttons stay clear of the scrollbar gutter', async ({ page }) => {
   await page.getByRole('button', { name: 'Start a conversation' }).click();
   await expect(page).toHaveURL(/#\/chat$/);
