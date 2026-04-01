@@ -196,6 +196,26 @@ describe('tool-calling prompt builder', () => {
     ]);
   });
 
+  test('sniffs a leading plain json tool call even with trailing prose', () => {
+    expect(
+      sniffToolCalls(
+        '{"name":"tasklist","parameters":{}}\n\nLet us start by creating a new task.',
+        {
+          format: 'json',
+          nameKey: 'name',
+          argumentsKey: 'parameters',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'tasklist',
+        arguments: {},
+        rawText: '{"name":"tasklist","parameters":{}}',
+        format: 'json',
+      },
+    ]);
+  });
+
   test('sniffs tagged json tool calls', () => {
     expect(
       sniffToolCalls('<tool_call>\n{"name":"lookup_fact","arguments":{"topic":"stars"}}\n</tool_call>', {
@@ -209,7 +229,29 @@ describe('tool-calling prompt builder', () => {
       {
         name: 'lookup_fact',
         arguments: { topic: 'stars' },
-        rawText: '{"name":"lookup_fact","arguments":{"topic":"stars"}}',
+        rawText: '<tool_call>\n{"name":"lookup_fact","arguments":{"topic":"stars"}}\n</tool_call>',
+        format: 'tagged-json',
+      },
+    ]);
+  });
+
+  test('sniffs a tagged json tool call even with trailing prose', () => {
+    expect(
+      sniffToolCalls(
+        '<tool_call>{"name":"lookup_fact","arguments":{"topic":"stars"}}</tool_call>\nI will use that next.',
+        {
+          format: 'tagged-json',
+          nameKey: 'name',
+          argumentsKey: 'arguments',
+          openTag: '<tool_call>',
+          closeTag: '</tool_call>',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'lookup_fact',
+        arguments: { topic: 'stars' },
+        rawText: '<tool_call>{"name":"lookup_fact","arguments":{"topic":"stars"}}</tool_call>',
         format: 'tagged-json',
       },
     ]);
@@ -229,6 +271,52 @@ describe('tool-calling prompt builder', () => {
         rawText:
           '<|tool_call_start|>[get_weather(location="Milwaukee, WI", unit="fahrenheit")]<|tool_call_end|>',
         format: 'special-token-call',
+      },
+    ]);
+  });
+
+  test('sniffs a special-token tool call even with trailing prose', () => {
+    expect(
+      sniffToolCalls(
+        '<|tool_call_start|>[get_weather(location="Milwaukee, WI")]<|tool_call_end|>\nChecking now.',
+        {
+          format: 'special-token-call',
+          callOpen: '<|tool_call_start|>[',
+          callClose: ']<|tool_call_end|>',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'get_weather',
+        arguments: { location: 'Milwaukee, WI' },
+        rawText: '<|tool_call_start|>[get_weather(location="Milwaukee, WI")]<|tool_call_end|>',
+        format: 'special-token-call',
+      },
+    ]);
+  });
+
+  test('sniffs multiple json tool calls separated by prose', () => {
+    expect(
+      sniffToolCalls(
+        '{"name":"tasklist","parameters":{"command":"list"}}\nChecking current items.\n{"name":"get_current_date_time","parameters":{}}',
+        {
+          format: 'json',
+          nameKey: 'name',
+          argumentsKey: 'parameters',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'tasklist',
+        arguments: { command: 'list' },
+        rawText: '{"name":"tasklist","parameters":{"command":"list"}}',
+        format: 'json',
+      },
+      {
+        name: 'get_current_date_time',
+        arguments: {},
+        rawText: '{"name":"get_current_date_time","parameters":{}}',
+        format: 'json',
       },
     ]);
   });

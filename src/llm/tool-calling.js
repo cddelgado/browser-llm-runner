@@ -212,37 +212,107 @@ function normalizeDetectedToolCall(name, argumentsValue, rawText, format) {
   };
 }
 
+function extractLeadingJsonObject(rawText) {
+  const text = String(rawText || '');
+  if (!text.startsWith('{')) {
+    return '';
+  }
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === '\\') {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === '{') {
+      depth += 1;
+      continue;
+    }
+    if (character === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(0, index + 1);
+      }
+    }
+  }
+  return '';
+}
+
 function detectJsonToolCall(rawText, toolCallingConfig) {
-  const trimmed = String(rawText || '').trim();
-  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
-    return [];
+  const text = String(rawText || '');
+  const detectedCalls = [];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== '{') {
+      continue;
+    }
+    const objectText = extractLeadingJsonObject(text.slice(index));
+    if (!objectText) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(objectText);
+      const detected = normalizeDetectedToolCall(
+        parsed?.[toolCallingConfig.nameKey],
+        parsed?.[toolCallingConfig.argumentsKey],
+        objectText,
+        toolCallingConfig.format
+      );
+      if (detected) {
+        detectedCalls.push(detected);
+        index += objectText.length - 1;
+      }
+    } catch {
+      continue;
+    }
   }
-  try {
-    const parsed = JSON.parse(trimmed);
-    const detected = normalizeDetectedToolCall(
-      parsed?.[toolCallingConfig.nameKey],
-      parsed?.[toolCallingConfig.argumentsKey],
-      trimmed,
-      toolCallingConfig.format
-    );
-    return detected ? [detected] : [];
-  } catch {
-    return [];
-  }
+  return detectedCalls;
 }
 
 function detectTaggedJsonToolCall(rawText, toolCallingConfig) {
   const trimmed = String(rawText || '').trim();
-  if (!trimmed.startsWith(toolCallingConfig.openTag) || !trimmed.endsWith(toolCallingConfig.closeTag)) {
-    return [];
+  const detectedCalls = [];
+  let searchIndex = 0;
+  while (searchIndex < trimmed.length) {
+    const openIndex = trimmed.indexOf(toolCallingConfig.openTag, searchIndex);
+    if (openIndex < 0) {
+      break;
+    }
+    const closeIndex = trimmed.indexOf(
+      toolCallingConfig.closeTag,
+      openIndex + toolCallingConfig.openTag.length
+    );
+    if (closeIndex < 0) {
+      break;
+    }
+    const segmentText = trimmed.slice(openIndex, closeIndex + toolCallingConfig.closeTag.length);
+    const innerText = trimmed
+      .slice(openIndex + toolCallingConfig.openTag.length, closeIndex)
+      .trim();
+    const innerDetections = detectJsonToolCall(innerText, {
+      ...toolCallingConfig,
+      format: toolCallingConfig.format,
+    });
+    if (innerDetections.length) {
+      detectedCalls.push({
+        ...innerDetections[0],
+        rawText: segmentText,
+      });
+    }
+    searchIndex = closeIndex + toolCallingConfig.closeTag.length;
   }
-  const innerText = trimmed
-    .slice(toolCallingConfig.openTag.length, trimmed.length - toolCallingConfig.closeTag.length)
-    .trim();
-  return detectJsonToolCall(innerText, {
-    ...toolCallingConfig,
-    format: toolCallingConfig.format,
-  });
+  return detectedCalls;
 }
 
 function parseSpecialTokenArgumentValue(value) {
@@ -304,37 +374,53 @@ function splitSpecialTokenArguments(rawArgumentsText) {
 
 function detectSpecialTokenCall(rawText, toolCallingConfig) {
   const trimmed = String(rawText || '').trim();
-  if (!trimmed.startsWith(toolCallingConfig.callOpen) || !trimmed.endsWith(toolCallingConfig.callClose)) {
-    return [];
+  const detectedCalls = [];
+  let searchIndex = 0;
+  while (searchIndex < trimmed.length) {
+    const openIndex = trimmed.indexOf(toolCallingConfig.callOpen, searchIndex);
+    if (openIndex < 0) {
+      break;
+    }
+    const closeIndex = trimmed.indexOf(
+      toolCallingConfig.callClose,
+      openIndex + toolCallingConfig.callOpen.length
+    );
+    if (closeIndex < 0) {
+      break;
+    }
+    const segmentText = trimmed.slice(openIndex, closeIndex + toolCallingConfig.callClose.length);
+    const innerText = trimmed
+      .slice(openIndex + toolCallingConfig.callOpen.length, closeIndex)
+      .trim();
+    const match = innerText.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(([\s\S]*)\)$/);
+    if (match) {
+      const [, toolName, rawArgumentsText] = match;
+      const argumentsObject = Object.fromEntries(
+        splitSpecialTokenArguments(rawArgumentsText)
+          .map((segment) => {
+            const equalsIndex = segment.indexOf('=');
+            if (equalsIndex <= 0) {
+              return null;
+            }
+            const key = segment.slice(0, equalsIndex).trim();
+            const value = parseSpecialTokenArgumentValue(segment.slice(equalsIndex + 1));
+            return key ? [key, value] : null;
+          })
+          .filter(Boolean)
+      );
+      const detected = normalizeDetectedToolCall(
+        toolName,
+        argumentsObject,
+        segmentText,
+        toolCallingConfig.format
+      );
+      if (detected) {
+        detectedCalls.push(detected);
+      }
+    }
+    searchIndex = closeIndex + toolCallingConfig.callClose.length;
   }
-  const innerText = trimmed
-    .slice(toolCallingConfig.callOpen.length, trimmed.length - toolCallingConfig.callClose.length)
-    .trim();
-  const match = innerText.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(([\s\S]*)\)$/);
-  if (!match) {
-    return [];
-  }
-  const [, toolName, rawArgumentsText] = match;
-  const argumentsObject = Object.fromEntries(
-    splitSpecialTokenArguments(rawArgumentsText)
-      .map((segment) => {
-        const equalsIndex = segment.indexOf('=');
-        if (equalsIndex <= 0) {
-          return null;
-        }
-        const key = segment.slice(0, equalsIndex).trim();
-        const value = parseSpecialTokenArgumentValue(segment.slice(equalsIndex + 1));
-        return key ? [key, value] : null;
-      })
-      .filter(Boolean)
-  );
-  const detected = normalizeDetectedToolCall(
-    toolName,
-    argumentsObject,
-    trimmed,
-    toolCallingConfig.format
-  );
-  return detected ? [detected] : [];
+  return detectedCalls;
 }
 
 export function sniffToolCalls(rawText, toolCallingConfig) {

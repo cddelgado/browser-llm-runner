@@ -311,4 +311,45 @@ describe('app-controller', () => {
     expect(toolMessage?.toolResult).toBe('{"iso":"2026-03-26T06:00:00.000Z"}');
     expect(finalModelMessages.at(-1)?.text).toBe('It is currently 1:00 AM local time.');
   });
+
+  test('preserves visible narration while storing a tool-call-only continuation payload', () => {
+    const harness = createControllerHarness();
+    const conversation = createConversation({ id: 'conversation-1', modelId: 'test-model' });
+    const userMessage = addMessageToConversation(conversation, 'user', 'Test the tools.');
+    harness.conversations.push(conversation);
+    harness.activeConversationId.value = conversation.id;
+    harness.state.modelReady = true;
+    harness.dependencies.detectToolCalls.mockReturnValueOnce([
+      {
+        name: 'tasklist',
+        arguments: {},
+        rawText: '{"name":"tasklist","parameters":{}}',
+        format: 'json',
+      },
+      {
+        name: 'get_current_date_time',
+        arguments: {},
+        rawText: '{"name":"get_current_date_time","parameters":{}}',
+        format: 'json',
+      },
+    ]);
+    harness.dependencies.executeToolCall = undefined;
+
+    harness.engine.generate.mockImplementation((_prompt, handlers) => {
+      handlers.onComplete(
+        '{"name":"tasklist","parameters":{}}\nI checked the list.\n{"name":"get_current_date_time","parameters":{}}\nNow I have the time.'
+      );
+    });
+
+    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
+      parentMessageId: userMessage.id,
+    });
+
+    const modelMessage = conversation.messageNodes.find((message) => message.role === 'model');
+    expect(modelMessage?.response).toContain('I checked the list.');
+    expect(modelMessage?.response).toContain('Now I have the time.');
+    expect(modelMessage?.content?.llmRepresentation).toBe(
+      '{"name":"tasklist","parameters":{}}\n\n{"name":"get_current_date_time","parameters":{}}'
+    );
+  });
 });

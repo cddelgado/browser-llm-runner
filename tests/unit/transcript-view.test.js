@@ -389,6 +389,78 @@ describe('transcript-view', () => {
     );
   });
 
+  test('keeps narration visible around tool calls', () => {
+    const harness = createViewHarness();
+    harness.conversation.messageNodes[1].toolCalls = [
+      {
+        name: 'tasklist',
+        arguments: {},
+        rawText: '{"name":"tasklist","parameters":{}}',
+      },
+      {
+        name: 'get_current_date_time',
+        arguments: {},
+        rawText: '{"name":"get_current_date_time","parameters":{}}',
+      },
+    ];
+    harness.conversation.messageNodes[1].response =
+      '{"name":"tasklist","parameters":{}}\nI checked the current list.\n{"name":"get_current_date_time","parameters":{}}\nNow I have the time as well.';
+    harness.conversation.messageNodes[1].text = harness.conversation.messageNodes[1].response;
+
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => toolName,
+      getShowThinkingByDefault: () => false,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: false,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    expect(harness.container.querySelector('.tool-call-region')?.classList.contains('d-none')).toBe(false);
+    expect(harness.container.querySelector('.response-region')?.classList.contains('d-none')).toBe(false);
+    expect(harness.container.querySelector('.response-content')?.textContent).toContain(
+      'I checked the current list.'
+    );
+    expect(harness.container.querySelector('.response-content')?.textContent).toContain(
+      'Now I have the time as well.'
+    );
+  });
+
   test('toggles model-visible text for a file attachment', () => {
     const harness = createViewHarness();
     const view = createTranscriptView({

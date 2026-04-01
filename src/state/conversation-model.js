@@ -310,10 +310,21 @@ function buildMessagePromptContent(message) {
   if (message.role === 'tool') {
     return String(message.toolResult ?? message.text ?? '').trim();
   }
+  const explicitLlmRepresentation = message?.content?.llmRepresentation;
   if (message.role !== 'user') {
+    if (
+      explicitLlmRepresentation &&
+      typeof explicitLlmRepresentation === 'object' &&
+      explicitLlmRepresentation.type === 'text' &&
+      typeof explicitLlmRepresentation.text === 'string'
+    ) {
+      return explicitLlmRepresentation.text.trim();
+    }
+    if (typeof explicitLlmRepresentation === 'string' && explicitLlmRepresentation.trim()) {
+      return explicitLlmRepresentation.trim();
+    }
     return String(message?.response || message?.text || '').trim();
   }
-  const explicitLlmRepresentation = message?.content?.llmRepresentation;
   if (Array.isArray(explicitLlmRepresentation)) {
     const normalizedExplicitParts = normalizeMessageContentParts(explicitLlmRepresentation);
     if (normalizedExplicitParts.length) {

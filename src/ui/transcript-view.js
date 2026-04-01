@@ -236,6 +236,14 @@ export function createTranscriptView(dependencies) {
     }
     const rawText = typeof toolCall.rawText === 'string' ? toolCall.rawText.trim() : '';
     if (rawText) {
+      const taggedJsonMatch = rawText.match(/^<tool_call>\s*([\s\S]*?)\s*<\/tool_call>$/i);
+      if (taggedJsonMatch) {
+        try {
+          return JSON.stringify(JSON.parse(taggedJsonMatch[1]), null, 2);
+        } catch {
+          return rawText;
+        }
+      }
       if (rawText.startsWith('{') && rawText.endsWith('}')) {
         try {
           return JSON.stringify(JSON.parse(rawText), null, 2);
@@ -285,6 +293,26 @@ export function createTranscriptView(dependencies) {
       .join('\n\n');
   }
 
+  function getToolCallNarrationText(message) {
+    const fullText = String(message?.response || message?.text || '');
+    const toolCalls = Array.isArray(message?.toolCalls) ? message.toolCalls : [];
+    if (!fullText.trim() || !toolCalls.length) {
+      return fullText;
+    }
+    let narration = fullText;
+    toolCalls.forEach((toolCall) => {
+      const rawText = typeof toolCall?.rawText === 'string' ? toolCall.rawText.trim() : '';
+      if (!rawText) {
+        return;
+      }
+      const rawIndex = narration.indexOf(rawText);
+      if (rawIndex >= 0) {
+        narration = `${narration.slice(0, rawIndex)}\n\n${narration.slice(rawIndex + rawText.length)}`;
+      }
+    });
+    return narration.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   function setModelToolCallContent(message, refs) {
     if (!refs) {
       return;
@@ -292,7 +320,8 @@ export function createTranscriptView(dependencies) {
     const toolCalls = Array.isArray(message.toolCalls) ? message.toolCalls : [];
     const hasToolCalls = toolCalls.length > 0;
     refs.toolCallRegion.classList.toggle('d-none', !hasToolCalls);
-    refs.responseRegion.classList.toggle('d-none', hasToolCalls);
+    const narrationText = getToolCallNarrationText(message);
+    refs.responseRegion.classList.toggle('d-none', hasToolCalls && !narrationText);
     if (!hasToolCalls) {
       refs.toolCallRequest.textContent = '';
       refs.toolCallResult.textContent = '';
@@ -326,7 +355,10 @@ export function createTranscriptView(dependencies) {
     if (!refs) {
       return;
     }
-    const responseContent = String(message.response || message.text || '');
+    const responseContent =
+      Array.isArray(message.toolCalls) && message.toolCalls.length > 0
+        ? getToolCallNarrationText(message)
+        : String(message.response || message.text || '');
     const shouldShowPendingResponse = !message.isResponseComplete && !responseContent.trim();
 
     const hasThinking = Boolean(message.hasThinking || message.thoughts?.trim());

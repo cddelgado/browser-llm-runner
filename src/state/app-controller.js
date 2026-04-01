@@ -314,6 +314,21 @@ export function createAppController(dependencies) {
             typeof dependencies.detectToolCalls === 'function'
               ? dependencies.detectToolCalls(modelMessage.response || modelMessage.text || '', selectedModelId)
               : [];
+          if (Array.isArray(modelMessage.toolCalls) && modelMessage.toolCalls.length > 0) {
+            const toolCallPromptText = modelMessage.toolCalls
+              .map((toolCall) =>
+                typeof toolCall?.rawText === 'string' ? toolCall.rawText.trim() : ''
+              )
+              .filter(Boolean)
+              .join('\n\n');
+            if (
+              toolCallPromptText &&
+              modelMessage.content &&
+              typeof modelMessage.content === 'object'
+            ) {
+              modelMessage.content.llmRepresentation = toolCallPromptText;
+            }
+          }
           modelMessage.isResponseComplete = true;
           dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
           dependencies.scrollTranscriptToBottom();
