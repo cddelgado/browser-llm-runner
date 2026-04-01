@@ -424,19 +424,16 @@ describe('tool-calling prompt builder', () => {
     });
 
     expect(result.toolName).toBe('tasklist');
-    expect(result.result.importance).toBe(
-      'Task lists are important because context may be short, so next steps are easy to forget.'
+    expect(result.result.message).toBe(
+      'Task lists are important because context may be short, so next steps are easy to forget. Use the normal tool-call wrapper for this model. For tasklist, use one of these arguments objects:'
     );
-    expect(result.result.wrapperNote).toBe(
-      'Use the normal model-specific tool-call wrapper for this conversation. Only the tasklist arguments below change.'
-    );
-    expect(result.result.argumentsShape).toEqual([
+    expect(result.result.examples).toEqual([
       '{ "command": "new", "item": "Task item", "index": 0 }',
       '{ "command": "list" }',
       '{ "command": "clear" }',
       '{ "command": "update", "index": 0, "status": 1 }',
     ]);
-    expect(result.result.statusNote).toBe('status uses 0 for undone and 1 for done.');
+    expect(result.result.note).toBe('status: 0 = undone, 1 = done.');
   });
 
   test('creates, lists, updates, and clears tasklist items', async () => {
@@ -449,10 +446,14 @@ describe('tool-calling prompt builder', () => {
     }, {
       conversation: taskListConversation,
     });
-    expect(added.result.added).toEqual({
-      index: 0,
-      text: 'Draft release notes',
-      status: 0,
+    expect(added.result).toEqual({
+      items: [
+        {
+          index: 0,
+          text: 'Draft release notes',
+          status: 0,
+        },
+      ],
     });
     appendTaskListToolResult(
       taskListConversation,
@@ -473,10 +474,14 @@ describe('tool-calling prompt builder', () => {
     }, {
       conversation: taskListConversation,
     });
-    expect(updated.result.updated).toEqual({
-      index: 0,
-      text: 'Draft release notes',
-      status: 1,
+    expect(updated.result).toEqual({
+      items: [
+        {
+          index: 0,
+          text: 'Draft release notes',
+          status: 1,
+        },
+      ],
     });
     appendTaskListToolResult(
       taskListConversation,
@@ -504,9 +509,6 @@ describe('tool-calling prompt builder', () => {
           status: 1,
         },
       ],
-      total: 1,
-      done: 1,
-      undone: 0,
     });
 
     const cleared = await executeToolCall({
@@ -518,7 +520,6 @@ describe('tool-calling prompt builder', () => {
       conversation: taskListConversation,
     });
     expect(cleared.result).toEqual({
-      clearedCount: 1,
       items: [],
     });
   });
@@ -534,10 +535,14 @@ describe('tool-calling prompt builder', () => {
       conversation: taskListConversation,
     });
 
-    expect(added.result.added).toEqual({
-      index: 0,
-      text: 'Draft release notes',
-      status: 0,
+    expect(added.result).toEqual({
+      items: [
+        {
+          index: 0,
+          text: 'Draft release notes',
+          status: 0,
+        },
+      ],
     });
   });
 

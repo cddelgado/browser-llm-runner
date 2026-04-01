@@ -379,18 +379,15 @@ function executeGetCurrentDateTime(argumentsValue = {}) {
 
 function buildTaskListUsageResult() {
   return {
-    purpose: 'Keep a branch-native task list for multi-step work.',
-    importance:
-      'Task lists are important because context may be short, so next steps are easy to forget.',
-    wrapperNote:
-      'Use the normal model-specific tool-call wrapper for this conversation. Only the tasklist arguments below change.',
-    argumentsShape: [
+    message:
+      'Task lists are important because context may be short, so next steps are easy to forget. Use the normal tool-call wrapper for this model. For tasklist, use one of these arguments objects:',
+    examples: [
       '{ "command": "new", "item": "Task item", "index": 0 }',
       '{ "command": "list" }',
       '{ "command": "clear" }',
       '{ "command": "update", "index": 0, "status": 1 }',
     ],
-    statusNote: 'status uses 0 for undone and 1 for done.',
+    note: 'status: 0 = undone, 1 = done.',
   };
 }
 
@@ -559,19 +556,13 @@ function executeTaskList(argumentsValue = {}, runtimeContext = {}) {
   const taskListItems = deriveTaskListFromConversation(conversation);
 
   if (normalizedArguments.command === 'list') {
-    const items = buildTaskListSnapshot(taskListItems);
     return {
-      items,
-      total: items.length,
-      done: items.filter((entry) => entry.status === 1).length,
-      undone: items.filter((entry) => entry.status === 0).length,
+      items: buildTaskListSnapshot(taskListItems),
     };
   }
 
   if (normalizedArguments.command === 'clear') {
-    const clearedCount = taskListItems.length;
     return {
-      clearedCount,
       items: [],
     };
   }
@@ -590,11 +581,6 @@ function executeTaskList(argumentsValue = {}, runtimeContext = {}) {
     const nextItems = [...taskListItems];
     nextItems.splice(insertIndex, 0, nextEntry);
     return {
-      added: {
-        index: insertIndex,
-        text: nextEntry.text,
-        status: nextEntry.status,
-      },
       items: buildTaskListSnapshot(nextItems),
     };
   }
@@ -619,11 +605,6 @@ function executeTaskList(argumentsValue = {}, runtimeContext = {}) {
         : entry
     );
     return {
-      updated: {
-        index: normalizedArguments.index,
-        text: existingItem.text,
-        status: normalizedArguments.status,
-      },
       items: buildTaskListSnapshot(nextItems),
     };
   }
