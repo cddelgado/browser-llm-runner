@@ -660,6 +660,18 @@ export function deriveConversationName(conversation) {
   return normalizeConversationName(topTokens.join(' '));
 }
 
+export function deriveConversationMenuCapabilities(conversation) {
+  const pathMessages = getConversationPathMessages(conversation);
+  const hasCompletedGeneration = pathMessages.some(
+    (message) => message?.role === 'model' && Boolean(message.isResponseComplete)
+  );
+  return {
+    canEditName: Boolean(conversation?.hasGeneratedName),
+    canEditPrompt: Boolean(conversation),
+    canDownload: hasCompletedGeneration,
+  };
+}
+
 export function getModelSiblingMessages(conversation, modelMessage) {
   if (!conversation || !modelMessage || modelMessage.role !== 'model' || !modelMessage.parentId) {
     return [];

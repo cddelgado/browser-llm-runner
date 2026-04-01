@@ -5,6 +5,7 @@ import {
   buildConversationDownloadPayload,
   buildPromptForConversationLeaf,
   createConversation,
+  deriveConversationMenuCapabilities,
   findPreferredLeafForVariant,
   getModelVariantState,
   getTaskListForConversationLeaf,
@@ -420,6 +421,27 @@ describe('conversation-model', () => {
     });
 
     expect(conversation.modelId).toBe('');
+  });
+
+  test('derives conversation menu capabilities from conversation state only', () => {
+    const conversation = createConversation({ id: 'conversation-1', name: 'Task List Commands.' });
+    conversation.hasGeneratedName = true;
+    const userMessage = addMessageToConversation(conversation, 'user', 'Show task list commands.');
+    completeModelMessage(
+      addMessageToConversation(conversation, 'model', '', { parentId: userMessage.id }),
+      'Here are the task list commands.',
+    );
+
+    expect(deriveConversationMenuCapabilities(conversation)).toEqual({
+      canEditName: true,
+      canEditPrompt: true,
+      canDownload: true,
+    });
+    expect(deriveConversationMenuCapabilities(null)).toEqual({
+      canEditName: false,
+      canEditPrompt: false,
+      canDownload: false,
+    });
   });
 
   test('derives task list state from the latest tasklist tool result on the active branch', () => {

@@ -66,6 +66,7 @@ import {
   buildConversationMarkdownDownloadFileName,
   buildPromptForConversationLeaf,
   createConversation as createConversationRecord,
+  deriveConversationMenuCapabilities,
   deriveConversationName,
   findPreferredLeafForVariant,
   getConversationCardHeading,
@@ -704,14 +705,9 @@ function toggleConversationDownloadMenu(item, toggleButton) {
 }
 
 function getConversationMenuState(conversation) {
-  const pathMessages = conversation ? getConversationPathMessages(conversation) : [];
-  const hasCompletedGeneration = pathMessages.some(
-    (message) => message?.role === 'model' && Boolean(message.isResponseComplete)
-  );
+  const capabilities = deriveConversationMenuCapabilities(conversation);
   return {
-    canEditName: isEngineReady(appState) && Boolean(conversation?.hasGeneratedName),
-    canEditPrompt: Boolean(conversation),
-    canDownload: isEngineReady(appState) && hasCompletedGeneration,
+    ...capabilities,
     controlsDisabled: isUiBusy(),
   };
 }
