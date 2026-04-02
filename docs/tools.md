@@ -104,6 +104,8 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `stderr`
 - Current supported command subset:
   - `pwd`
+  - `basename`
+  - `dirname`
   - `true`
   - `false`
   - `cd`

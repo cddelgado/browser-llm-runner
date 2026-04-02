@@ -790,6 +790,8 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.supportedCommands).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'pwd', usage: 'pwd' }),
+        expect.objectContaining({ name: 'basename', usage: 'basename <path>' }),
+        expect.objectContaining({ name: 'dirname', usage: 'dirname <path>' }),
         expect.objectContaining({ name: 'true', usage: 'true' }),
         expect.objectContaining({ name: 'false', usage: 'false' }),
         expect.objectContaining({ name: 'cd', usage: 'cd [<directory>]' }),
@@ -898,6 +900,51 @@ describe('tool-calling prompt builder', () => {
       command: 'false',
       exitCode: 1,
       stdout: '',
+      stderr: '',
+    });
+  });
+
+  test('supports basename and dirname as path transforms', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem();
+
+    const basenameResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'basename /workspace/coursework/notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const dirnameResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'dirname /workspace/coursework/notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(basenameResult.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace',
+      command: 'basename /workspace/coursework/notes.txt',
+      exitCode: 0,
+      stdout: 'notes.txt',
+      stderr: '',
+    });
+    expect(dirnameResult.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace',
+      command: 'dirname /workspace/coursework/notes.txt',
+      exitCode: 0,
+      stdout: '/workspace/coursework',
       stderr: '',
     });
   });

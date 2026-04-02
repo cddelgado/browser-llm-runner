@@ -12,6 +12,16 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Print the current working directory.',
   },
   {
+    name: 'basename',
+    usage: 'basename <path>',
+    description: 'Print the final path component.',
+  },
+  {
+    name: 'dirname',
+    usage: 'dirname <path>',
+    description: 'Print the parent directory path.',
+  },
+  {
     name: 'true',
     usage: 'true',
     description: 'Exit successfully without output.',
@@ -170,6 +180,25 @@ function basename(path) {
   }
   const segments = normalized.split('/').filter(Boolean);
   return segments.length ? segments[segments.length - 1] : '';
+}
+
+function dirname(path) {
+  const normalized = toShellText(path).replace(/\\/g, '/');
+  if (!normalized) {
+    return '.';
+  }
+  const trimmed = normalized.replace(/\/+$/, '');
+  if (!trimmed) {
+    return '/';
+  }
+  const lastSlashIndex = trimmed.lastIndexOf('/');
+  if (lastSlashIndex < 0) {
+    return '.';
+  }
+  if (lastSlashIndex === 0) {
+    return '/';
+  }
+  return trimmed.slice(0, lastSlashIndex);
 }
 
 function tokenizeShellCommand(command) {
@@ -522,6 +551,38 @@ async function runPwd(commandText, args, currentWorkingDirectory) {
   }
   return createShellResult(commandText, {
     stdout: currentWorkingDirectory,
+    currentWorkingDirectory,
+  });
+}
+
+async function runBasename(commandText, args, currentWorkingDirectory) {
+  if (args.length !== 1) {
+    return createShellError(
+      commandText,
+      'basename',
+      'expected exactly one path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+  return createShellResult(commandText, {
+    stdout: basename(args[0]),
+    currentWorkingDirectory,
+  });
+}
+
+async function runDirname(commandText, args, currentWorkingDirectory) {
+  if (args.length !== 1) {
+    return createShellError(
+      commandText,
+      'dirname',
+      'expected exactly one path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+  return createShellResult(commandText, {
+    stdout: dirname(args[0]),
     currentWorkingDirectory,
   });
 }
@@ -1540,6 +1601,8 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
     examples: [
       'ls /workspace/<directory>',
       'which ls',
+      'basename /workspace/file.txt',
+      'dirname /workspace/file.txt',
       'cd <directory>',
       'cat /workspace/<file>',
       'NAME=value',
@@ -1663,6 +1726,12 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   const [commandName, ...args] = expandedTokens;
   if (commandName === 'pwd') {
     return runPwd(commandText, args, currentWorkingDirectory);
+  }
+  if (commandName === 'basename') {
+    return runBasename(commandText, args, currentWorkingDirectory);
+  }
+  if (commandName === 'dirname') {
+    return runDirname(commandText, args, currentWorkingDirectory);
   }
   if (commandName === 'true') {
     return runTrue(commandText, args, currentWorkingDirectory);
