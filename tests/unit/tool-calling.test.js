@@ -262,8 +262,8 @@ describe('tool-calling prompt builder', () => {
 
     expect(prompt).toContain('**Tools available in this conversation:**');
     expect(prompt).toContain('- get_current_date_time: Returns the current local date and time.');
-    expect(prompt).toContain('**Tool behavior:**');
-    expect(prompt).toContain('**Tool call format:**');
+    expect(prompt).toContain('\n\n**Tool behavior:**');
+    expect(prompt).toContain('\n\n**Tool call format:**');
     expect(prompt).toContain('After a tool result, continue the work and answer naturally.');
     expect(prompt).toContain('When you call a tool, output exactly one JSON object and nothing else.');
     expect(prompt).toContain('Shape: {"name":"<tool-name>","parameters":{...}}.');

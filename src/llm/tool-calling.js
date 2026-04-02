@@ -221,7 +221,7 @@ export function buildToolCallingSystemPrompt(
     formatLines.length ? '**Tool call format:**' : null,
     ...formatLines.map((line) => `- ${line}`),
   ]
-    .filter(Boolean)
+    .filter((line) => line !== null)
     .join('\n');
 }
 
