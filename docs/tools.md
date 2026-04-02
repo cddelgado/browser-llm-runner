@@ -115,6 +115,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `cp`
   - `mv`
   - `rm`
+  - `find` with `-name`, `-type f`, `-type d`, `-maxdepth`, and `-mindepth`
   - `echo`
 - Current limits:
   - commands are GNU/Linux-like, but only this documented subset is implemented

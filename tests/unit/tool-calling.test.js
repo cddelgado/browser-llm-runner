@@ -796,6 +796,10 @@ describe('tool-calling prompt builder', () => {
           name: 'cat',
           usage: 'cat [-bns] [--number] [--number-nonblank] [--squeeze-blank] <file>...',
         }),
+        expect.objectContaining({
+          name: 'find',
+          usage: 'find [<path>] [-name <pattern>] [-type f|d] [-maxdepth <n>] [-mindepth <n>]',
+        }),
       ])
     );
     expect(result.result.limitations).toContain(
@@ -1084,6 +1088,91 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(result.result.stdout.split('\n')).toEqual(['a.txt', 'b.txt']);
+  });
+
+  test('supports find -name and -type filters', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/coursework/notes.txt': 'chapter one',
+      '/workspace/coursework/todo.md': 'finish reading',
+      '/workspace/coursework/week1/notes.txt': 'week one',
+    });
+
+    const filesResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'find coursework -name "*.txt" -type f',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(filesResult.result.stdout.split('\n')).toEqual([
+      '/workspace/coursework/notes.txt',
+      '/workspace/coursework/week1/notes.txt',
+    ]);
+
+    const directoriesResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'find coursework -type d',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(directoriesResult.result.stdout.split('\n')).toEqual([
+      '/workspace/coursework',
+      '/workspace/coursework/week1',
+    ]);
+  });
+
+  test('supports find maxdepth and mindepth filters', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/coursework/notes.txt': 'chapter one',
+      '/workspace/coursework/week1/todo.txt': 'finish reading',
+      '/workspace/coursework/week1/day1/tasks.txt': 'lab',
+    });
+
+    const shallowResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'find coursework -maxdepth 1',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(shallowResult.result.stdout.split('\n')).toEqual([
+      '/workspace/coursework',
+      '/workspace/coursework/notes.txt',
+      '/workspace/coursework/week1',
+    ]);
+
+    const deepOnlyResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'find coursework -mindepth 2 -type f',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(deepOnlyResult.result.stdout.split('\n')).toEqual([
+      '/workspace/coursework/week1/day1/tasks.txt',
+      '/workspace/coursework/week1/todo.txt',
+    ]);
   });
 
   test('creates, lists, updates, and clears tasklist items', async () => {

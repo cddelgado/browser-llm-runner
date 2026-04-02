@@ -67,6 +67,11 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Delete a file or directory within /workspace.',
   },
   {
+    name: 'find',
+    usage: 'find [<path>] [-name <pattern>] [-type f|d] [-maxdepth <n>] [-mindepth <n>]',
+    description: 'Find files and directories under /workspace.',
+  },
+  {
     name: 'echo',
     usage: 'echo <text>',
     description: 'Print text to stdout.',
@@ -202,6 +207,19 @@ function formatHumanReadableSize(size) {
   return `${roundedValue}${units[unitIndex]}`;
 }
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function compileFindNamePattern(pattern) {
+  const normalizedPattern = String(pattern || '');
+  const expression = `^${normalizedPattern
+    .split('*')
+    .map((segment) => segment.split('?').map(escapeRegExp).join('.'))
+    .join('.*')}$`;
+  return new RegExp(expression);
+}
+
 function formatLsEntry(entry, { longFormat = false, humanReadable = false } = {}) {
   if (!longFormat) {
     return entry.name;
@@ -247,6 +265,23 @@ async function listDirectoryRecursively(
   }
 
   return sections;
+}
+
+async function walkWorkspaceTree(
+  workspaceFileSystem,
+  rootPath,
+  visit,
+  depth = 0
+) {
+  const stat = await workspaceFileSystem.stat(rootPath);
+  await visit(stat, depth);
+  if (stat.kind !== 'directory') {
+    return;
+  }
+  const entries = await workspaceFileSystem.listDirectory(rootPath);
+  for (const entry of entries) {
+    await walkWorkspaceTree(workspaceFileSystem, entry.path, visit, depth + 1);
+  }
 }
 
 async function safeStat(workspaceFileSystem, path) {
@@ -1009,6 +1044,121 @@ async function runRm(commandText, args, workspaceFileSystem, currentWorkingDirec
   return createShellResult(commandText, { currentWorkingDirectory });
 }
 
+async function runFind(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  let searchPath = currentWorkingDirectory;
+  let namePattern = null;
+  let entryType = null;
+  let maxDepth = Number.POSITIVE_INFINITY;
+  let minDepth = 0;
+  let seenExplicitPath = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (!argument) {
+      continue;
+    }
+    if (argument === '-name') {
+      const value = args[index + 1];
+      if (!value) {
+        return createShellError(commandText, 'find', 'missing argument to `-name`.', 1, currentWorkingDirectory);
+      }
+      namePattern = compileFindNamePattern(value);
+      index += 1;
+      continue;
+    }
+    if (argument === '-type') {
+      const value = args[index + 1];
+      if (value !== 'f' && value !== 'd') {
+        return createShellError(commandText, 'find', 'argument to `-type` must be `f` or `d`.', 1, currentWorkingDirectory);
+      }
+      entryType = value;
+      index += 1;
+      continue;
+    }
+    if (argument === '-maxdepth' || argument === '-mindepth') {
+      const value = args[index + 1];
+      const parsedValue = Number.parseInt(String(value || ''), 10);
+      if (!Number.isInteger(parsedValue) || parsedValue < 0) {
+        return createShellError(
+          commandText,
+          'find',
+          `argument to \`${argument}\` must be a non-negative integer.`,
+          1,
+          currentWorkingDirectory
+        );
+      }
+      if (argument === '-maxdepth') {
+        maxDepth = parsedValue;
+      } else {
+        minDepth = parsedValue;
+      }
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('-')) {
+      return createShellError(commandText, 'find', `unknown predicate \`${argument}\`.`, 1, currentWorkingDirectory);
+    }
+    if (seenExplicitPath) {
+      return createShellError(commandText, 'find', `unexpected path \`${argument}\`.`, 1, currentWorkingDirectory);
+    }
+    searchPath = argument;
+    seenExplicitPath = true;
+  }
+
+  if (minDepth > maxDepth) {
+    return createShellError(commandText, 'find', '`-mindepth` cannot be greater than `-maxdepth`.', 1, currentWorkingDirectory);
+  }
+
+  let normalizedSearchPath;
+  try {
+    normalizedSearchPath = resolveWorkspacePath(workspaceFileSystem, searchPath, currentWorkingDirectory);
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'find',
+      error instanceof Error ? error.message : String(error),
+      1,
+      currentWorkingDirectory
+    );
+  }
+
+  const rootStat = await safeStat(workspaceFileSystem, normalizedSearchPath);
+  if (!rootStat) {
+    return createShellError(
+      commandText,
+      'find',
+      `\`${searchPath}\`: No such file or directory.`,
+      1,
+      currentWorkingDirectory
+    );
+  }
+
+  const matches = [];
+  await walkWorkspaceTree(workspaceFileSystem, normalizedSearchPath, async (entry, depth) => {
+    if (depth > maxDepth) {
+      return;
+    }
+    if (depth < minDepth) {
+      return;
+    }
+    if (entryType === 'f' && entry.kind !== 'file') {
+      return;
+    }
+    if (entryType === 'd' && entry.kind !== 'directory') {
+      return;
+    }
+    if (namePattern && !namePattern.test(entry.name)) {
+      return;
+    }
+    matches.push(entry.path);
+  });
+
+  return createShellResult(commandText, {
+    stdout: matches.join('\n'),
+    currentWorkingDirectory,
+  });
+}
+
 function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_PATH) {
   return {
     shellFlavor: SHELL_FLAVOR,
@@ -1019,6 +1169,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'cd <directory>',
       'cat /workspace/<file>',
       'head -n 20 /workspace/<file>',
+      'find /workspace -name "*.txt"',
       'mkdir -p /workspace/<directory>',
       'cp /workspace/<source-file> /workspace/<destination-file>',
     ],
@@ -1147,6 +1298,9 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'rm') {
     return runRm(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'find') {
+    return runFind(commandText, args, workspaceFileSystem, currentWorkingDirectory);
   }
 
   return createShellError(
