@@ -21,6 +21,7 @@ import {
   setSettingsPageOpen,
   setSwitchingVariant,
   setUserMessageEditState,
+  shouldDisableConversationControls,
   shouldShowNewConversationButton,
   shouldDisableComposerForPreChatConversationSelection,
 } from '../../src/state/app-state.js';
@@ -130,6 +131,24 @@ describe('app-state', () => {
 
     state.isPreparingNewConversation = true;
     expect(shouldShowNewConversationButton(state)).toBe(true);
+  });
+
+  test('keeps conversation controls available during background orchestration', () => {
+    const state = createAppState({
+      activeGenerationConfig: {},
+    });
+
+    expect(shouldDisableConversationControls(state)).toBe(false);
+
+    setOrchestrationRunning(state, true);
+    expect(shouldDisableConversationControls(state)).toBe(false);
+
+    setLoadingModel(state, true);
+    expect(shouldDisableConversationControls(state)).toBe(true);
+
+    setLoadingModel(state, false);
+    setGenerating(state, true);
+    expect(shouldDisableConversationControls(state)).toBe(true);
   });
 
   test('tracks engine, interaction, orchestration, and workspace phases through helpers', () => {

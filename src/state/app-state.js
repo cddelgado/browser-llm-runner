@@ -128,6 +128,10 @@ export function isEngineBusy(state) {
   return phase === ENGINE_PHASES.LOADING || phase === ENGINE_PHASES.GENERATING;
 }
 
+export function shouldDisableConversationControls(state) {
+  return isEngineBusy(state);
+}
+
 export function setModelReady(state, value) {
   state.modelReady = Boolean(value);
   return refreshEnginePhase(state);

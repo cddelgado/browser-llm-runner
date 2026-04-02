@@ -98,6 +98,7 @@ Student-facing browser chat UI with local model inference.
 - Automatic conversation renaming now runs through a one-step orchestration loaded from `src/config/orchestrations/rename-chat.json`.
 - Conversation title editing is disabled until that automatic model-generated title is available and is available from the active conversation's sidebar kebab menu.
 - The conversation list reveals a kebab actions menu on hover/focus for each conversation instead of a direct delete icon.
+- Conversation menu actions such as `Edit prompt` and `Delete` remain available while background orchestrations (for example automatic conversation renaming) are running; only active model loading/generation locks those controls.
 - After the first completed model response on the visible branch, that kebab menu includes a nested `Download` submenu.
 - Download submenu options:
   - `JSON (.llm.json) File`: exports only the currently visible branch as `<conversation-name>.llm.json` with top-level `conversation` metadata (`name`, `startedAt`, `exportedAt`), the conversation's `model`, `temperature`, optional `systemPrompt` (when present on that conversation), optional `toolCalling` metadata when tool calling is enabled at export time, and an `exchanges` array containing per-exchange `heading`, entered/generated/tool-result timestamps, model `toolCalls`, and tool-result metadata.

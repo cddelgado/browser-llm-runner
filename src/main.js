@@ -113,6 +113,7 @@ import {
   setSwitchingVariant,
   setUserMessageEditState,
   shouldShowNewConversationButton as selectShouldShowNewConversationButton,
+  shouldDisableConversationControls,
   shouldDisableComposerForPreChatConversationSelection as selectShouldDisableComposerForPreChatConversationSelection,
 } from './state/app-state.js';
 import { loadConversationState, saveConversationState } from './state/conversation-store.js';
@@ -2311,7 +2312,7 @@ function renderActiveTaskListTray() {
 }
 
 function isUiBusy() {
-  return isEngineBusy(appState) || isOrchestrationRunningState(appState);
+  return shouldDisableConversationControls(appState);
 }
 
 function buildActiveConversationExportPayload(activeConversation) {
