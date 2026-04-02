@@ -129,6 +129,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `rm`
   - `find` with `-name`, `-type f`, `-type d`, `-maxdepth`, and `-mindepth`
   - `grep` with `-i`, `-n`, `-v`, `-c`, `-l`, and `-F`
+  - `file` with basic directory, signature, extension, and text-vs-binary classification
   - `diff` with `-u` unified-style emulated output
   - `echo`
   - `set`
@@ -139,6 +140,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - relative paths resolve from the conversation's current working directory
   - new conversations start with the shell pointer at `/workspace`
   - minimal variable support exists for `$VAR`, `${VAR}`, `NAME=value`, `set`, and `unset`
+  - `file` reports a small deterministic set of directory, signature, extension, and text-vs-binary classifications
   - built-in pseudo variables include `PWD` and `WORKSPACE`
   - `diff` is line-based and emits unified-style emulated output rather than full GNU diff compatibility
   - pipes, redirection, globbing, command substitution, and full shell expansion semantics are not implemented yet

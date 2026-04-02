@@ -817,6 +817,10 @@ describe('tool-calling prompt builder', () => {
           usage: 'grep [-i] [-n] [-v] [-c] [-l] [-F] <pattern> <file>...',
         }),
         expect.objectContaining({
+          name: 'file',
+          usage: 'file <path>...',
+        }),
+        expect.objectContaining({
           name: 'diff',
           usage: 'diff [-u] <left-file> <right-file>',
         }),
@@ -842,6 +846,9 @@ describe('tool-calling prompt builder', () => {
     );
     expect(result.result.limitations).toContain(
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.'
+    );
+    expect(result.result.limitations).toContain(
+      'file reports a small deterministic set of directory, signature, extension, and text-vs-binary classifications.'
     );
     expect(result.result.limitations).toContain(
       'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.'
@@ -1790,6 +1797,81 @@ describe('tool-calling prompt builder', () => {
       '/workspace/a.txt:target',
       '/workspace/b.txt:target',
     ]);
+  });
+
+  test('supports file for directories and common text formats', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.md': '# Hello\n',
+      '/workspace/table.csv': 'a,b\n1,2\n',
+      '/workspace/coursework/todo.txt': 'finish reading\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'file coursework notes.md table.csv',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout.split('\n')).toEqual([
+      '/workspace/coursework: directory',
+      '/workspace/notes.md: Markdown text',
+      '/workspace/table.csv: CSV text',
+    ]);
+  });
+
+  test('supports file for binary signatures and generic binary data', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem();
+    await workspaceFileSystem.writeFile(
+      '/workspace/document.pdf',
+      new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37])
+    );
+    await workspaceFileSystem.writeFile(
+      '/workspace/blob.bin',
+      new Uint8Array([0x00, 0xff, 0x10, 0x80])
+    );
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'file document.pdf blob.bin',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout.split('\n')).toEqual([
+      '/workspace/document.pdf: PDF document',
+      '/workspace/blob.bin: data',
+    ]);
+  });
+
+  test('returns a shell-style file error when a path is missing', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem();
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'file missing.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(1);
+    expect(result.result.stderr).toBe("file: cannot open 'missing.txt': No such file or directory.");
   });
 
   test('supports diff with unified-style emulated output', async () => {

@@ -6,6 +6,25 @@ import {
 const SHELL_FLAVOR = 'GNU/Linux-like shell subset';
 const MAX_DIFF_MATRIX_CELLS = 1_000_000;
 const DEFAULT_DIFF_CONTEXT_LINES = 3;
+const FILE_EXTENSION_DESCRIPTIONS = Object.freeze({
+  txt: 'text',
+  md: 'Markdown text',
+  markdown: 'Markdown text',
+  csv: 'CSV text',
+  html: 'HTML document',
+  htm: 'HTML document',
+  css: 'CSS stylesheet',
+  js: 'JavaScript source',
+  json: 'JSON text',
+  xml: 'XML document',
+  yml: 'YAML text',
+  yaml: 'YAML text',
+  pdf: 'PDF document',
+  png: 'PNG image data',
+  jpg: 'JPEG image data',
+  jpeg: 'JPEG image data',
+  gif: 'GIF image data',
+});
 
 const SHELL_COMMANDS = Object.freeze([
   {
@@ -139,6 +158,11 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Search text files under /workspace.',
   },
   {
+    name: 'file',
+    usage: 'file <path>...',
+    description: 'Describe a file or directory under /workspace.',
+  },
+  {
     name: 'diff',
     usage: 'diff [-u] <left-file> <right-file>',
     description: 'Compare two text files with unified-style emulated output.',
@@ -167,6 +191,10 @@ const SHELL_COMMANDS = Object.freeze([
 
 function getTextEncoder() {
   return new globalThis.TextEncoder();
+}
+
+function getUtf8TextDecoder(options = {}) {
+  return new globalThis.TextDecoder('utf-8', options);
 }
 
 function createShellResult(
@@ -227,6 +255,15 @@ function basename(path) {
   }
   const segments = normalized.split('/').filter(Boolean);
   return segments.length ? segments[segments.length - 1] : '';
+}
+
+function getFileExtension(path) {
+  const name = basename(path).toLowerCase();
+  const lastDotIndex = name.lastIndexOf('.');
+  if (lastDotIndex <= 0 || lastDotIndex === name.length - 1) {
+    return '';
+  }
+  return name.slice(lastDotIndex + 1);
 }
 
 function dirname(path) {
@@ -1368,6 +1405,80 @@ function joinShellLines(lines, trailingNewline = false) {
   return trailingNewline ? `${output}\n` : output;
 }
 
+function hasPrefix(bytes, prefix) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < prefix.length) {
+    return false;
+  }
+  return prefix.every((value, index) => bytes[index] === value);
+}
+
+function hasGifHeader(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 6) {
+    return false;
+  }
+  const header = Array.from(bytes.slice(0, 6))
+    .map((value) => String.fromCharCode(value))
+    .join('');
+  return header === 'GIF87a' || header === 'GIF89a';
+}
+
+function decodeUtf8Bytes(bytes) {
+  try {
+    return getUtf8TextDecoder({ fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+function isLikelyReadableText(text) {
+  if (typeof text !== 'string') {
+    return false;
+  }
+  for (const character of text) {
+    const code = character.charCodeAt(0);
+    if (code === 9 || code === 10 || code === 13) {
+      continue;
+    }
+    if (code < 32 || (code >= 127 && code <= 159)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function describeFileBytes(path, bytes) {
+  const normalizedBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(0);
+  if (normalizedBytes.byteLength === 0) {
+    return 'empty';
+  }
+  if (hasPrefix(normalizedBytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) {
+    return 'PDF document';
+  }
+  if (hasPrefix(normalizedBytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+    return 'PNG image data';
+  }
+  if (hasPrefix(normalizedBytes, [0xff, 0xd8, 0xff])) {
+    return 'JPEG image data';
+  }
+  if (hasGifHeader(normalizedBytes)) {
+    return 'GIF image data';
+  }
+
+  const decodedText = decodeUtf8Bytes(normalizedBytes);
+  if (decodedText !== null && isLikelyReadableText(decodedText)) {
+    const extensionDescription = FILE_EXTENSION_DESCRIPTIONS[getFileExtension(path)];
+    if (extensionDescription && !/(pdf|png|jpeg|gif)/i.test(extensionDescription)) {
+      return extensionDescription;
+    }
+    return Array.from(normalizedBytes).every((value) => value <= 0x7f)
+      ? 'ASCII text'
+      : 'UTF-8 Unicode text';
+  }
+
+  const extensionDescription = FILE_EXTENSION_DESCRIPTIONS[getFileExtension(path)];
+  return extensionDescription || 'data';
+}
+
 function buildDiffLineOperations(leftLines, rightLines) {
   const normalizedLeftLines = Array.isArray(leftLines) ? leftLines : [];
   const normalizedRightLines = Array.isArray(rightLines) ? rightLines : [];
@@ -2447,6 +2558,68 @@ async function runGrep(commandText, args, workspaceFileSystem, currentWorkingDir
   });
 }
 
+async function runFile(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(
+      commandText,
+      'file',
+      'expected at least one path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const outputs = [];
+  for (const rawPath of args) {
+    if (rawPath.startsWith('-') && rawPath !== '-') {
+      return createShellError(
+        commandText,
+        'file',
+        `unsupported option ${rawPath}.`,
+        2,
+        currentWorkingDirectory
+      );
+    }
+
+    let normalizedPath;
+    try {
+      normalizedPath = resolveWorkspacePath(workspaceFileSystem, rawPath, currentWorkingDirectory);
+    } catch (error) {
+      return createShellError(
+        commandText,
+        'file',
+        error instanceof Error ? error.message : String(error),
+        1,
+        currentWorkingDirectory
+      );
+    }
+
+    const stat = await safeStat(workspaceFileSystem, normalizedPath);
+    if (!stat) {
+      return createShellError(
+        commandText,
+        'file',
+        `cannot open '${rawPath}': No such file or directory.`,
+        1,
+        currentWorkingDirectory
+      );
+    }
+
+    if (stat.kind === 'directory') {
+      outputs.push(`${normalizedPath}: directory`);
+      continue;
+    }
+
+    const bytes = await workspaceFileSystem.readFile(normalizedPath);
+    outputs.push(`${normalizedPath}: ${describeFileBytes(normalizedPath, bytes)}`);
+  }
+
+  return createShellResult(commandText, {
+    stdout: outputs.join('\n'),
+    currentWorkingDirectory,
+  });
+}
+
 async function runDiff(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
   const filePaths = [];
 
@@ -2559,6 +2732,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'head -n 20 /workspace/<file>',
       'find /workspace -name "*.txt"',
       'grep -n "term" /workspace/<file>',
+      'file /workspace/<file>',
       'diff -u /workspace/<left-file> /workspace/<right-file>',
       'mkdir -p /workspace/<directory>',
       'cp /workspace/<source-file> /workspace/<destination-file>',
@@ -2568,6 +2742,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'Commands are GNU/Linux-like, but only the documented subset is implemented.',
       'Relative paths resolve from the current working directory.',
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.',
+      'file reports a small deterministic set of directory, signature, extension, and text-vs-binary classifications.',
       'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.',
       'Pipes, redirection, globbing, command substitution, and full shell expansion semantics are not supported.',
       'Unsupported commands or syntax return stderr text and a non-zero exit code.',
@@ -2765,6 +2940,9 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'grep') {
     return runGrep(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'file') {
+    return runFile(commandText, args, workspaceFileSystem, currentWorkingDirectory);
   }
   if (commandName === 'diff') {
     return runDiff(commandText, args, workspaceFileSystem, currentWorkingDirectory);
