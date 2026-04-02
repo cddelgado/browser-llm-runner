@@ -63,7 +63,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: 'run_shell_command',
     displayName: 'Shell Command Runner',
     description:
-      'Passes a shell command to an emulated Linux shell starting in /workspace. Call with no arguments for syntax and commands.',
+      'Passes a shell command to an emulated Linux shell starting in /workspace. Call with no arguments for syntax and supported commands.',
     enabled: true,
     parameters: {
       type: 'object',
@@ -205,7 +205,7 @@ export function buildToolCallingSystemPrompt(
     return '';
   }
   const toolLines = [
-    '**Tools available in this conversation:**',
+    '**Tools available in this conversation:**\nThese are the tool names you can call.',
     ...buildEnabledToolInstructions(enabledTools),
     ...(enabledTools.length
       ? []
