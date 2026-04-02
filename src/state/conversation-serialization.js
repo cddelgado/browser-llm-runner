@@ -1,4 +1,5 @@
 import { normalizeModelId } from '../config/model-settings.js';
+import { normalizeWorkspacePath } from '../workspace/workspace-file-system.js';
 import {
   getConversationPathMessages,
   getTextFromMessageContentParts,
@@ -15,6 +16,14 @@ export const CONVERSATION_SCHEMA_VERSION = 6;
 
 function normalizeTimestamp(value) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
+}
+
+function normalizeConversationWorkingDirectory(value) {
+  try {
+    return normalizeWorkspacePath(value);
+  } catch {
+    return '/workspace';
+  }
 }
 
 function parseConversationCounterFromId(conversationId) {
@@ -473,6 +482,9 @@ export function buildConversationStateSnapshot(appState, { getMessageArtifacts =
           conversation.appendConversationSystemPrompt === false ? false : undefined,
         startedAt: normalizeTimestamp(conversation.startedAt),
         hasGeneratedName: Boolean(conversation.hasGeneratedName),
+        currentWorkingDirectory: normalizeConversationWorkingDirectory(
+          conversation.currentWorkingDirectory
+        ),
         artifacts: [],
         activeLeafMessageId:
           typeof conversation.activeLeafMessageId === 'string' ? conversation.activeLeafMessageId : null,
@@ -606,6 +618,9 @@ export function applyStoredConversationState(rawState, appState, { untitledPrefi
         normalizeTimestamp(rawConversation.startedAt ?? rawConversation.createdAt) ||
         earliestMessageTimestamp ||
         Date.now();
+      const currentWorkingDirectory = normalizeConversationWorkingDirectory(
+        rawConversation.currentWorkingDirectory
+      );
 
       if (
         messageNodes.length === 0 &&
@@ -628,6 +643,7 @@ export function applyStoredConversationState(rawState, appState, { untitledPrefi
         activeLeafMessageId,
         lastSpokenLeafMessageId,
         hasGeneratedName: Boolean(rawConversation.hasGeneratedName),
+        currentWorkingDirectory,
       };
     })
     .filter(Boolean);

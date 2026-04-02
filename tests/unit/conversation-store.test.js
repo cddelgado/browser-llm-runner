@@ -133,6 +133,7 @@ describe('conversation-store', () => {
           appendConversationSystemPrompt: true,
           startedAt: 1710000000000,
           hasGeneratedName: true,
+          currentWorkingDirectory: '/workspace/coursework',
           activeLeafMessageId: 'conv-1-node-1',
           lastSpokenLeafMessageId: 'conv-1-node-1',
           messageNodeCounter: 1,
@@ -199,6 +200,7 @@ describe('conversation-store', () => {
           id: 'conv-1',
           name: 'Biology',
           modelId: 'model-1',
+          currentWorkingDirectory: '/workspace/coursework',
           messageNodes: [
             expect.objectContaining({
               id: 'conv-1-node-1',

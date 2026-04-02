@@ -45,6 +45,7 @@ describe('conversation-serialization', () => {
       parentId: userMessage.id,
       createdAt: 1710000002000,
     }).isResponseComplete = true;
+    conversation.currentWorkingDirectory = '/workspace/uploads';
     appState.conversations.push(conversation);
     appState.conversationCount = 1;
     appState.conversationIdCounter = 1;
@@ -73,6 +74,7 @@ describe('conversation-serialization', () => {
     });
 
     expect(snapshot.conversations[0]?.modelId).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(snapshot.conversations[0]?.currentWorkingDirectory).toBe('/workspace/uploads');
     expect(snapshot.artifacts).toEqual([
       expect.objectContaining({
         id: 'artifact-1',
@@ -94,6 +96,7 @@ describe('conversation-serialization', () => {
             name: 'New Conversation 2',
             modelId: 'onnx-community/Qwen3.5-2B-ONNX',
             startedAt: 1710000000000,
+            currentWorkingDirectory: '/workspace/saved',
             activeLeafMessageId: 'conversation-1-node-2',
             lastSpokenLeafMessageId: 'conversation-1-node-2',
             messageNodeCounter: 2,
@@ -166,6 +169,7 @@ describe('conversation-serialization', () => {
     expect(appState.activeConversationId).toBeNull();
     expect(appState.conversations[0]?.name).toBe('New Conversation');
     expect(appState.conversations[0]?.modelId).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(appState.conversations[0]?.currentWorkingDirectory).toBe('/workspace/saved');
     expect(appState.conversations[0]?.messageNodes[0]?.content.parts[1]).toMatchObject({
       type: 'image',
       mimeType: 'image/png',
@@ -263,5 +267,6 @@ describe('conversation-serialization', () => {
     expect(appState.conversations[0]?.messageNodes[0]?.content.llmRepresentation).toBe(
       'Read this file\nAttached file: notes.txt\nMIME type: text/plain\nContents:\nThe mitochondria is the powerhouse of the cell.'
     );
+    expect(appState.conversations[0]?.currentWorkingDirectory).toBe('/workspace');
   });
 });

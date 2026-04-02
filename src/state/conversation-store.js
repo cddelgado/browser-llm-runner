@@ -1,3 +1,5 @@
+import { normalizeWorkspacePath } from '../workspace/workspace-file-system.js';
+
 const CONVERSATION_DB_NAME = 'browser-llm-runner-db';
 const CONVERSATION_DB_VERSION = 2;
 const LEGACY_STORE_NAME = 'appState';
@@ -157,6 +159,14 @@ async function decodeTextValue(value) {
     return gunzipText(value.data);
   }
   return '';
+}
+
+function normalizeStoredConversationWorkingDirectory(value) {
+  try {
+    return normalizeWorkspacePath(value);
+  } catch {
+    return '/workspace';
+  }
 }
 
 function base64ToBytes(base64) {
@@ -697,6 +707,9 @@ async function normalizeStateForStorage(state) {
     appendConversationSystemPrompt: conversation.appendConversationSystemPrompt,
     startedAt: conversation.startedAt,
     hasGeneratedName: Boolean(conversation.hasGeneratedName),
+    currentWorkingDirectory: normalizeStoredConversationWorkingDirectory(
+      conversation.currentWorkingDirectory
+    ),
     activeLeafMessageId:
       typeof conversation.activeLeafMessageId === 'string'
         ? conversation.activeLeafMessageId
@@ -801,6 +814,9 @@ async function rebuildStateFromNormalizedRecords(rootRecord, conversationRecords
       appendConversationSystemPrompt: conversation.appendConversationSystemPrompt,
       startedAt: conversation.startedAt,
       hasGeneratedName: Boolean(conversation.hasGeneratedName),
+      currentWorkingDirectory: normalizeStoredConversationWorkingDirectory(
+        conversation.currentWorkingDirectory
+      ),
       activeLeafMessageId:
         typeof conversation.activeLeafMessageId === 'string'
           ? conversation.activeLeafMessageId

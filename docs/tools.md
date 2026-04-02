@@ -104,6 +104,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `stderr`
 - Current supported command subset:
   - `pwd`
+  - `cd`
   - `ls`
   - `cat`
   - `head`
@@ -117,7 +118,8 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `echo`
 - Current limits:
   - commands are GNU/Linux-like, but only this documented subset is implemented
-  - relative paths resolve from `/workspace`
+  - relative paths resolve from the conversation's current working directory
+  - new conversations start with the shell pointer at `/workspace`
   - pipes, redirection, globbing, environment variables, and command substitution are not implemented yet
   - unsupported commands/syntax return shell-style `stderr` text with a non-zero `exitCode`
 

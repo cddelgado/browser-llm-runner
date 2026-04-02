@@ -535,6 +535,7 @@ export function createConversation(options) {
     activeLeafMessageId: null,
     lastSpokenLeafMessageId: null,
     hasGeneratedName: false,
+    currentWorkingDirectory: '/workspace',
   };
 }
 

@@ -790,12 +790,16 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.supportedCommands).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'pwd', usage: 'pwd' }),
+        expect.objectContaining({ name: 'cd', usage: 'cd [<directory>]' }),
         expect.objectContaining({ name: 'ls', usage: 'ls [-l] [<path>]' }),
         expect.objectContaining({ name: 'cat', usage: 'cat <file>' }),
       ])
     );
     expect(result.result.limitations).toContain(
       'Commands are GNU/Linux-like, but only the documented subset is implemented.'
+    );
+    expect(result.result.limitations).toContain(
+      'Relative paths resolve from the current working directory.'
     );
   });
 
@@ -844,6 +848,60 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.exitCode).toBe(127);
     expect(result.result.stdout).toBe('');
     expect(result.result.stderr).toContain("command 'grep' is not available");
+  });
+
+  test('changes and reuses the conversation working directory for shell commands', async () => {
+    const conversation = createConversation({
+      id: 'conversation-shell',
+    });
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/coursework/notes.txt': 'chapter one',
+    });
+
+    const cdResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'cd coursework',
+        },
+      },
+      {
+        conversation,
+        workspaceFileSystem,
+      }
+    );
+
+    expect(cdResult.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace/coursework',
+      command: 'cd coursework',
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    });
+    expect(conversation.currentWorkingDirectory).toBe('/workspace/coursework');
+
+    const catResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'cat notes.txt',
+        },
+      },
+      {
+        conversation,
+        workspaceFileSystem,
+      }
+    );
+
+    expect(catResult.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace/coursework',
+      command: 'cat notes.txt',
+      exitCode: 0,
+      stdout: 'chapter one',
+      stderr: '',
+    });
   });
 
   test('creates, lists, updates, and clears tasklist items', async () => {
