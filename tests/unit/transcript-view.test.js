@@ -761,7 +761,7 @@ describe('transcript-view', () => {
 
   test('renders PDF attachment metadata in the transcript', () => {
     const harness = createViewHarness();
-    harness.conversation.messageNodes[0].content.parts[2] = {
+    harness.conversation.messageNodes[0].content.parts[2] = /** @type {any} */ ({
       type: 'file',
       filename: 'lesson.pdf',
       mimeType: 'application/pdf',
@@ -770,7 +770,7 @@ describe('transcript-view', () => {
       size: 4096,
       llmText: 'Attached PDF: lesson.pdf\n\n## Page 1\nExtracted text',
       conversionWarnings: ['Page 2 has no extractable text. OCR is not available in this app.'],
-    };
+    });
 
     const view = createTranscriptView({
       container: harness.container,

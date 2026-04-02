@@ -53,8 +53,8 @@ test('pdf attachment is added to the prompt and transcript', async ({ page }) =>
   );
 
   const promptShape = await page.evaluate(() => {
-    const payloads = Array.isArray(window.__mockWorkerGeneratePayloads)
-      ? window.__mockWorkerGeneratePayloads
+    const payloads = Array.isArray(/** @type {any} */ (window).__mockWorkerGeneratePayloads)
+      ? /** @type {any} */ (window).__mockWorkerGeneratePayloads
       : [];
     return payloads[0];
   });

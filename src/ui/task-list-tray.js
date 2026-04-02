@@ -34,6 +34,17 @@ function createTaskListRow(documentRef, item) {
   return listItem;
 }
 
+/**
+ * @typedef {object} TaskListTrayRenderOptions
+ * @property {HTMLElement | null | undefined} [container]
+ * @property {Array<{ text?: string, status?: number }>} [items]
+ * @property {boolean} [isExpanded]
+ * @property {() => void} [onToggle]
+ */
+
+/**
+ * @param {TaskListTrayRenderOptions} [options]
+ */
 export function renderTaskListTray({
   container,
   items = [],
