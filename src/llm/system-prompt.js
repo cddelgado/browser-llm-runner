@@ -9,10 +9,7 @@ export function buildOptionalFeaturePromptSection(instructions = []) {
   if (!normalizedInstructions.length) {
     return '';
   }
-  return [
-    'Optional feature flags:',
-    ...normalizedInstructions.map((instruction) => `- ${instruction}`),
-  ].join('\n');
+  return normalizedInstructions.join('\n');
 }
 
 export function buildMathRenderingFeaturePrompt({ renderMathMl = false } = {}) {

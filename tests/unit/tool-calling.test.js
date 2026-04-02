@@ -68,13 +68,11 @@ describe('tool-calling prompt builder', () => {
       ]
     );
 
-    expect(prompt).toContain('Enabled tools: get_current_date_time.');
-    expect(prompt).toContain('After you receive a tool result, use it to answer the user naturally.');
-    expect(prompt).toContain('Available tool definitions:');
-    expect(prompt).toContain('Parameters schema: {"type":"object","properties":{},"additionalProperties":false}');
-    expect(prompt).toContain(
-      'Use this shape: {"name":"<tool-name>","parameters":{...}}.'
-    );
+    expect(prompt).toContain('Tools available in this conversation:');
+    expect(prompt).toContain('- get_current_date_time: Returns the current local date and time.');
+    expect(prompt).toContain('After a tool result, continue the work and answer naturally.');
+    expect(prompt).toContain('Tool calls use a single JSON object.');
+    expect(prompt).toContain('Shape: {"name":"<tool-name>","parameters":{...}}.');
   });
 
   test('builds the Qwen tagged-json tool-calling prompt', () => {
@@ -90,9 +88,7 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain('Wrap the JSON object in <tool_call> and </tool_call>.');
-    expect(prompt).toContain(
-      'Use this JSON shape inside the tags: {"name":"<tool-name>","arguments":{...}}.'
-    );
+    expect(prompt).toContain('Shape inside the tags: {"name":"<tool-name>","arguments":{...}}.');
   });
 
   test('adds a terminal-use instruction for get_user_location', () => {
@@ -106,7 +102,7 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      'For get_user_location: use the returned location and coordinate directly in your answer.'
+      'Use the returned location and coordinate directly in the answer.'
     );
   });
 
@@ -121,10 +117,7 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      'For tasklist: when you need help preserving multi-step work, call tasklist with empty arguments first to reveal syntax.'
-    );
-    expect(prompt).toContain(
-      'Task lists are important because context may be short, so next steps are easy to forget.'
+      'If tasklist would help with multi-step work, call it with empty arguments first to get its syntax.'
     );
   });
 
@@ -140,7 +133,7 @@ describe('tool-calling prompt builder', () => {
 
     expect(prompt).toContain('Wrap the call in <|tool_call_start|>[ and ]<|tool_call_end|>.');
     expect(prompt).toContain(
-      'Use this shape inside the wrapper: tool_name(arg1="value1", arg2="value2").'
+      'Shape inside the wrapper: tool_name(arg1="value1", arg2="value2").'
     );
   });
 
@@ -166,7 +159,7 @@ describe('tool-calling prompt builder', () => {
     );
   });
 
-  test('lists none when no tools are enabled', () => {
+  test('returns an empty prompt when no tools are enabled', () => {
     const prompt = buildToolCallingSystemPrompt(
       {
         format: 'json',
@@ -176,7 +169,7 @@ describe('tool-calling prompt builder', () => {
       []
     );
 
-    expect(prompt).toContain('Enabled tools: none.');
+    expect(prompt).toBe('');
   });
 
   test('sniffs plain json tool calls', () => {

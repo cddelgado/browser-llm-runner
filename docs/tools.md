@@ -11,8 +11,8 @@ This document covers both:
 
 When tool calling is enabled for a conversation and the selected model supports it, the app:
 
-1. Appends any enabled optional feature-flag prompt section to the effective system prompt.
-2. Appends model-specific tool-call instructions after that optional feature section.
+1. Appends any enabled feature-guidance prompt text to the effective system prompt.
+2. Appends model-specific tool-call instructions after that feature guidance.
 3. Watches the streamed model output for a complete tool call.
 4. Stops generation as soon as the first complete tool call is detected for that turn.
 5. Executes the requested tool locally in the browser app.

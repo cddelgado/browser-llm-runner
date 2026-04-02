@@ -114,22 +114,22 @@ function buildToolCallingFormatInstructions(toolCallingConfig) {
   }
   if (toolCallingConfig.format === 'json') {
     return [
-      'When calling a tool, respond with exactly one JSON object and no extra text.',
-      `Use this shape: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
+      'Tool calls use a single JSON object.',
+      `Shape: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
     ];
   }
   if (toolCallingConfig.format === 'tagged-json') {
     return [
-      'When calling a tool, respond with exactly one tagged tool call block and no extra text.',
+      'Tool calls use a single tagged tool-call block.',
       `Wrap the JSON object in ${toolCallingConfig.openTag} and ${toolCallingConfig.closeTag}.`,
-      `Use this JSON shape inside the tags: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
+      `Shape inside the tags: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
     ];
   }
   if (toolCallingConfig.format === 'special-token-call') {
     return [
-      'When calling a tool, respond with exactly one function-style tool call and no extra text.',
+      'Tool calls use a single function-style call.',
       `Wrap the call in ${toolCallingConfig.callOpen} and ${toolCallingConfig.callClose}.`,
-      'Use this shape inside the wrapper: tool_name(arg1="value1", arg2="value2").',
+      'Shape inside the wrapper: tool_name(arg1="value1", arg2="value2").',
     ];
   }
   return [];
@@ -139,21 +139,14 @@ function buildEnabledToolInstructions(enabledTools = []) {
   if (!Array.isArray(enabledTools) || !enabledTools.length) {
     return [];
   }
-  return [
-    'Available tool definitions:',
-    ...enabledTools.map((tool) => {
-      const name = typeof tool?.name === 'string' ? tool.name.trim() : 'unknown_tool';
-      const description =
-        typeof tool?.description === 'string' && tool.description.trim()
-          ? tool.description.trim()
-          : 'No description provided.';
-      const parameters =
-        tool?.parameters && typeof tool.parameters === 'object'
-          ? JSON.stringify(tool.parameters)
-          : '{}';
-      return `- ${name}: ${description} Parameters schema: ${parameters}`;
-    }),
-  ];
+  return enabledTools.map((tool) => {
+    const name = typeof tool?.name === 'string' ? tool.name.trim() : 'unknown_tool';
+    const description =
+      typeof tool?.description === 'string' && tool.description.trim()
+        ? tool.description.trim()
+        : 'No description provided.';
+    return `- ${name}: ${description}`;
+  });
 }
 
 function buildToolSpecificUsageInstructions(enabledToolNames = []) {
@@ -164,12 +157,10 @@ function buildToolSpecificUsageInstructions(enabledToolNames = []) {
     : [];
   const instructions = [];
   if (normalizedNames.includes('get_user_location')) {
-    instructions.push('For get_user_location: use the returned location and coordinate directly in your answer.');
+    instructions.push('Use the returned location and coordinate directly in the answer.');
   }
   if (normalizedNames.includes('tasklist')) {
-    instructions.push(
-      'For tasklist: when you need help preserving multi-step work, call tasklist with empty arguments first to reveal syntax. Task lists are important because context may be short, so next steps are easy to forget.'
-    );
+    instructions.push('If tasklist would help with multi-step work, call it with empty arguments first to get its syntax.');
   }
   return instructions;
 }
@@ -179,17 +170,17 @@ export function buildToolCallingSystemPrompt(
   enabledToolNames = [],
   enabledTools = []
 ) {
-  const toolList = getNormalizedToolList(enabledToolNames);
+  const toolList = getNormalizedToolList(enabledToolNames).filter((toolName) => toolName !== 'none');
+  if (!toolList.length) {
+    return '';
+  }
   return [
-    'Tool calling is enabled for this conversation.',
-    `Enabled tools: ${toolList.join(', ')}.`,
-    'If no tools are enabled, answer normally and do not attempt any tool calls.',
-    'After you receive a tool result, use it to answer the user naturally.',
-    'Do not call the same tool again unless the tool result is missing required information or the user asks for refreshed data.',
+    'Tools available in this conversation:',
     ...buildEnabledToolInstructions(enabledTools),
+    ...(enabledTools.length ? [] : toolList.map((toolName) => `- ${toolName}`)),
+    'After a tool result, continue the work and answer naturally.',
     ...buildToolSpecificUsageInstructions(enabledToolNames),
     ...buildToolCallingFormatInstructions(toolCallingConfig),
-    'Do not wrap tool calls in Markdown, and never invent tool names that are not enabled.',
   ]
     .filter(Boolean)
     .join('\n');
