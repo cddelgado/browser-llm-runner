@@ -106,6 +106,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `pwd`
   - `basename`
   - `dirname`
+  - `printf`
   - `true`
   - `false`
   - `cd`

@@ -792,6 +792,7 @@ describe('tool-calling prompt builder', () => {
         expect.objectContaining({ name: 'pwd', usage: 'pwd' }),
         expect.objectContaining({ name: 'basename', usage: 'basename <path>' }),
         expect.objectContaining({ name: 'dirname', usage: 'dirname <path>' }),
+        expect.objectContaining({ name: 'printf', usage: 'printf <format> [<argument>...]' }),
         expect.objectContaining({ name: 'true', usage: 'true' }),
         expect.objectContaining({ name: 'false', usage: 'false' }),
         expect.objectContaining({ name: 'cd', usage: 'cd [<directory>]' }),
@@ -947,6 +948,45 @@ describe('tool-calling prompt builder', () => {
       stdout: '/workspace/coursework',
       stderr: '',
     });
+  });
+
+  test('supports printf without an automatic trailing newline', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'printf "Hello %s\\n%d" world 7',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+      }
+    );
+
+    expect(result.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace',
+      command: 'printf "Hello %s\\n%d" world 7',
+      exitCode: 0,
+      stdout: 'Hello world\n7',
+      stderr: '',
+    });
+  });
+
+  test('repeats the printf format when extra arguments remain', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'printf "%s-" a b c',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+      }
+    );
+
+    expect(result.result.stdout).toBe('a-b-c-');
   });
 
   test('supports which for built-in shell commands', async () => {

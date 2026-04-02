@@ -22,6 +22,11 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Print the parent directory path.',
   },
   {
+    name: 'printf',
+    usage: 'printf <format> [<argument>...]',
+    description: 'Print formatted text without an automatic trailing newline.',
+  },
+  {
     name: 'true',
     usage: 'true',
     description: 'Exit successfully without output.',
@@ -201,21 +206,129 @@ function dirname(path) {
   return trimmed.slice(0, lastSlashIndex);
 }
 
+function decodePrintfEscapes(text) {
+  return String(text || '').replace(/\\([\\abfnrtv]|x[0-9A-Fa-f]{2}|0[0-7]{0,2}|.)/g, (match, escape) => {
+    if (escape === 'a') {
+      return '\x07';
+    }
+    if (escape === 'b') {
+      return '\b';
+    }
+    if (escape === 'f') {
+      return '\f';
+    }
+    if (escape === 'n') {
+      return '\n';
+    }
+    if (escape === 'r') {
+      return '\r';
+    }
+    if (escape === 't') {
+      return '\t';
+    }
+    if (escape === 'v') {
+      return '\v';
+    }
+    if (escape === '\\') {
+      return '\\';
+    }
+    if (/^x[0-9A-Fa-f]{2}$/.test(escape)) {
+      return String.fromCharCode(Number.parseInt(escape.slice(1), 16));
+    }
+    if (/^0[0-7]{0,2}$/.test(escape)) {
+      return String.fromCharCode(Number.parseInt(escape, 8));
+    }
+    return match.slice(1);
+  });
+}
+
+function formatPrintfDirective(specifier, value) {
+  if (specifier === 's') {
+    return String(value ?? '');
+  }
+  if (specifier === 'b') {
+    return decodePrintfEscapes(String(value ?? ''));
+  }
+  if (specifier === 'd' || specifier === 'i') {
+    const numericValue = Number.parseInt(String(value ?? ''), 10);
+    return String(Number.isFinite(numericValue) ? numericValue : 0);
+  }
+  if (specifier === 'f') {
+    const numericValue = Number(String(value ?? ''));
+    return String(Number.isFinite(numericValue) ? numericValue : 0);
+  }
+  return null;
+}
+
+function formatPrintfOutput(format, values) {
+  const decodedFormat = decodePrintfEscapes(String(format || ''));
+  const argumentValues = Array.isArray(values) ? values : [];
+  let nextArgumentIndex = 0;
+
+  const getNextValue = () => {
+    if (nextArgumentIndex >= argumentValues.length) {
+      return '';
+    }
+    const value = argumentValues[nextArgumentIndex];
+    nextArgumentIndex += 1;
+    return value;
+  };
+
+  let cycleOutput = '';
+  let expectedArgumentsPerCycle = 0;
+  const formatter = decodedFormat.replace(/%(%|[sbdif])/g, (_match, specifier) => {
+    if (specifier === '%') {
+      return '%';
+    }
+    expectedArgumentsPerCycle += 1;
+    return formatPrintfDirective(specifier, getNextValue());
+  });
+
+  if (/%(?!%|[sbdif])/.test(decodedFormat)) {
+    const invalidSpecifier = decodedFormat.match(/%(?!%|[sbdif])(.)/);
+    throw new Error(`unsupported conversion specification '%${invalidSpecifier?.[1] || ''}'.`);
+  }
+
+  cycleOutput += formatter;
+
+  while (expectedArgumentsPerCycle > 0 && nextArgumentIndex < argumentValues.length) {
+    let cycleArgumentCount = 0;
+    cycleOutput += decodedFormat.replace(/%(%|[sbdif])/g, (_match, specifier) => {
+      if (specifier === '%') {
+        return '%';
+      }
+      cycleArgumentCount += 1;
+      return formatPrintfDirective(specifier, getNextValue());
+    });
+    if (cycleArgumentCount === 0) {
+      break;
+    }
+  }
+
+  return cycleOutput;
+}
+
 function tokenizeShellCommand(command) {
   const text = toShellText(command).trim();
   const tokens = [];
   let current = '';
   let quote = '';
   let escaping = false;
+  let escapingFromDoubleQuotes = false;
 
   for (const character of text) {
     if (escaping) {
+      if (escapingFromDoubleQuotes && !['\\', '"', '$', '`'].includes(character)) {
+        current += '\\';
+      }
       current += character;
       escaping = false;
+      escapingFromDoubleQuotes = false;
       continue;
     }
     if (character === '\\' && quote !== "'") {
       escaping = true;
+      escapingFromDoubleQuotes = quote === '"';
       continue;
     }
     if ((character === '"' || character === "'") && !quote) {
@@ -585,6 +698,32 @@ async function runDirname(commandText, args, currentWorkingDirectory) {
     stdout: dirname(args[0]),
     currentWorkingDirectory,
   });
+}
+
+async function runPrintf(commandText, args, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(
+      commandText,
+      'printf',
+      'expected a format string.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+  try {
+    return createShellResult(commandText, {
+      stdout: formatPrintfOutput(args[0], args.slice(1)),
+      currentWorkingDirectory,
+    });
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'printf',
+      error instanceof Error ? error.message : String(error),
+      2,
+      currentWorkingDirectory
+    );
+  }
 }
 
 async function runTrue(commandText, args, currentWorkingDirectory) {
@@ -1603,6 +1742,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'which ls',
       'basename /workspace/file.txt',
       'dirname /workspace/file.txt',
+      'printf "Hello %s\\n" world',
       'cd <directory>',
       'cat /workspace/<file>',
       'NAME=value',
@@ -1732,6 +1872,9 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'dirname') {
     return runDirname(commandText, args, currentWorkingDirectory);
+  }
+  if (commandName === 'printf') {
+    return runPrintf(commandText, args, currentWorkingDirectory);
   }
   if (commandName === 'true') {
     return runTrue(commandText, args, currentWorkingDirectory);
