@@ -174,13 +174,23 @@ export function buildToolCallingSystemPrompt(
   if (!toolList.length) {
     return '';
   }
-  return [
-    'Tools available in this conversation:',
+  const toolLines = [
+    '**Tools available in this conversation:**',
     ...buildEnabledToolInstructions(enabledTools),
     ...(enabledTools.length ? [] : toolList.map((toolName) => `- ${toolName}`)),
+  ];
+  const specialBehaviorLines = [
     'After a tool result, continue the work and answer naturally.',
     ...buildToolSpecificUsageInstructions(enabledToolNames),
-    ...buildToolCallingFormatInstructions(toolCallingConfig),
+  ].filter(Boolean);
+  const formatLines = buildToolCallingFormatInstructions(toolCallingConfig);
+  return [
+    ...toolLines,
+    specialBehaviorLines.length ? '' : null,
+    specialBehaviorLines.length ? '**Special behavior**' : null,
+    ...specialBehaviorLines.map((line) => `- ${line}`),
+    formatLines.length ? '' : null,
+    ...formatLines.map((line) => `- ${line}`),
   ]
     .filter(Boolean)
     .join('\n');

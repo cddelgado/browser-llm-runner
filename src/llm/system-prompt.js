@@ -17,7 +17,7 @@ export function buildMathRenderingFeaturePrompt({ renderMathMl = false } = {}) {
     return '';
   }
   return (
-    'Math rendering is enabled. Present mathematical notation in LaTeX, use $...$ for inline math and $$...$$ ' +
+    'Present mathematical notation in LaTeX, use $...$ for inline math and $$...$$ ' +
     'for display math, and include matching delimiters so expressions render correctly.'
   );
 }

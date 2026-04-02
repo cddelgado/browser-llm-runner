@@ -15,6 +15,7 @@ describe('system prompt feature sections', () => {
       buildMathRenderingFeaturePrompt({ renderMathMl: true }),
     ]);
 
+    expect(prompt).not.toContain('Math rendering is enabled.');
     expect(prompt).toContain('Present mathematical notation in LaTeX');
     expect(prompt).toContain('use $...$ for inline math');
     expect(prompt).toContain('$$...$$ for display math');
