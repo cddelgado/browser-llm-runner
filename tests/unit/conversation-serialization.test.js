@@ -36,6 +36,7 @@ describe('conversation-serialization', () => {
           kind: 'binary',
           mimeType: 'image/png',
           filename: 'cat.png',
+          workspacePath: '/workspace/cat.png',
           hash: { algorithm: 'sha256', value: 'deadbeef' },
         },
       ],
@@ -65,6 +66,7 @@ describe('conversation-serialization', () => {
             data: 'abc123',
             hash: { algorithm: 'sha256', value: 'deadbeef' },
             filename: 'cat.png',
+            workspacePath: '/workspace/cat.png',
           },
         ];
       },
@@ -77,6 +79,7 @@ describe('conversation-serialization', () => {
         conversationId: 'conversation-1',
         messageId: userMessage.id,
         filename: 'cat.png',
+        workspacePath: '/workspace/cat.png',
       }),
     ]);
   });
@@ -110,10 +113,18 @@ describe('conversation-serialization', () => {
                       artifactId: 'artifact-1',
                       mimeType: 'image/png',
                       filename: 'cat.png',
+                      workspacePath: '/workspace/cat.png',
                     },
                   ],
                 },
-                artifactRefs: [{ id: 'artifact-1', mimeType: 'image/png', filename: 'cat.png' }],
+                artifactRefs: [
+                  {
+                    id: 'artifact-1',
+                    mimeType: 'image/png',
+                    filename: 'cat.png',
+                    workspacePath: '/workspace/cat.png',
+                  },
+                ],
               },
               {
                 id: 'conversation-1-node-2',
@@ -160,6 +171,7 @@ describe('conversation-serialization', () => {
       mimeType: 'image/png',
       base64: 'abc123',
       url: 'data:image/png;base64,abc123',
+      workspacePath: '/workspace/cat.png',
     });
   });
 
@@ -190,6 +202,7 @@ describe('conversation-serialization', () => {
                       artifactId: 'artifact-2',
                       mimeType: 'text/plain',
                       filename: 'notes.txt',
+                      workspacePath: '/workspace/notes.txt',
                       normalizedText: 'The mitochondria is the powerhouse of the cell.',
                       normalizedFormat: 'text',
                       conversionWarnings: ['Formatting may differ from the source document.'],
@@ -203,7 +216,15 @@ describe('conversation-serialization', () => {
                     },
                   ],
                 },
-                artifactRefs: [{ id: 'artifact-2', kind: 'text', mimeType: 'text/plain', filename: 'notes.txt' }],
+                artifactRefs: [
+                  {
+                    id: 'artifact-2',
+                    kind: 'text',
+                    mimeType: 'text/plain',
+                    filename: 'notes.txt',
+                    workspacePath: '/workspace/notes.txt',
+                  },
+                ],
               },
             ],
           },
@@ -227,6 +248,7 @@ describe('conversation-serialization', () => {
       type: 'file',
       mimeType: 'text/plain',
       text: 'The mitochondria is the powerhouse of the cell.',
+      workspacePath: '/workspace/notes.txt',
       normalizedText: 'The mitochondria is the powerhouse of the cell.',
       normalizedFormat: 'text',
       conversionWarnings: ['Formatting may differ from the source document.'],

@@ -86,6 +86,11 @@ function coerceStoredMessageContentParts(rawMessage, artifactLookup) {
         ...(mimeType ? { mimeType } : {}),
         ...(text ? { text } : {}),
         ...(normalizedText ? { normalizedText } : {}),
+        ...(typeof part.workspacePath === 'string' && part.workspacePath.trim()
+          ? { workspacePath: part.workspacePath.trim() }
+          : typeof artifact?.workspacePath === 'string' && artifact.workspacePath.trim()
+            ? { workspacePath: artifact.workspacePath.trim() }
+            : {}),
       };
     }
     const artifact =
@@ -115,6 +120,11 @@ function coerceStoredMessageContentParts(rawMessage, artifactLookup) {
       ...(mimeType ? { mimeType } : {}),
       ...(base64 ? { base64 } : {}),
       ...(url ? { url } : {}),
+      ...(typeof part.workspacePath === 'string' && part.workspacePath.trim()
+        ? { workspacePath: part.workspacePath.trim() }
+        : typeof artifact?.workspacePath === 'string' && artifact.workspacePath.trim()
+          ? { workspacePath: artifact.workspacePath.trim() }
+          : {}),
     };
   });
 }
@@ -169,6 +179,8 @@ function coerceStoredMessage(rawMessage, fallbackMessageId, artifactLookup = new
               kind: typeof ref.kind === 'string' ? ref.kind : 'binary',
               mimeType: typeof ref.mimeType === 'string' ? ref.mimeType : undefined,
               filename: typeof ref.filename === 'string' ? ref.filename : undefined,
+              workspacePath:
+                typeof ref.workspacePath === 'string' ? ref.workspacePath : undefined,
               hash:
                 ref.hash && typeof ref.hash === 'object'
                   ? {
@@ -271,6 +283,8 @@ function serializeMessageArtifactRefs(message) {
             kind: typeof ref.kind === 'string' ? ref.kind : undefined,
             mimeType: typeof ref.mimeType === 'string' ? ref.mimeType : undefined,
             filename: typeof ref.filename === 'string' ? ref.filename : undefined,
+            workspacePath:
+              typeof ref.workspacePath === 'string' ? ref.workspacePath : undefined,
             hash:
               ref.hash && typeof ref.hash === 'object'
                 ? {
@@ -292,6 +306,8 @@ function serializeMessageContent(message) {
           artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
           mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
           filename: typeof part.filename === 'string' ? part.filename : undefined,
+          workspacePath:
+            typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
           width: Number.isFinite(part.width) ? part.width : undefined,
           height: Number.isFinite(part.height) ? part.height : undefined,
           alt: typeof part.alt === 'string' ? part.alt : undefined,
@@ -304,6 +320,8 @@ function serializeMessageContent(message) {
             artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
             mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
             filename: typeof part.filename === 'string' ? part.filename : undefined,
+            workspacePath:
+              typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
             extension: typeof part.extension === 'string' ? part.extension : undefined,
             size: Number.isFinite(part.size) ? part.size : undefined,
             pageCount: Number.isFinite(part.pageCount) ? part.pageCount : undefined,
@@ -418,6 +436,7 @@ export function buildConversationStateSnapshot(appState, { getMessageArtifacts =
         data: 'string',
         hash: { algorithm: 'sha256', value: 'hex' },
         filename: 'string|null',
+        workspacePath: 'string|null',
       },
     },
     artifacts: [],

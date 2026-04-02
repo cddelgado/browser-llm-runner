@@ -124,6 +124,7 @@ import { loadConversationState, saveConversationState } from './state/conversati
 import { renderConversationListView } from './ui/conversation-list-view.js';
 import { createTranscriptView } from './ui/transcript-view.js';
 import { renderTaskListTray } from './ui/task-list-tray.js';
+import { createWorkspaceFileSystem } from './workspace/workspace-file-system.js';
 
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const SHOW_THINKING_STORAGE_KEY = 'ui-show-thinking';
@@ -280,6 +281,7 @@ const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 const engine = new LLMEngineClient();
+const workspaceFileSystem = createWorkspaceFileSystem();
 const markdown = new MarkdownIt({
   html: false,
   breaks: true,
@@ -1299,21 +1301,22 @@ function buildUserMessageAttachmentPayload(attachments) {
   const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
   const contentParts = normalizedAttachments.map((attachment) => ({
     ...(attachment.type === 'image'
-      ? {
-          type: 'image',
-          artifactId: attachment.id,
-          mimeType: attachment.mimeType,
-          base64: attachment.data,
-          url: attachment.url,
-          filename: attachment.filename,
-          width: attachment.width,
-          height: attachment.height,
-          alt: attachment.alt,
-        }
-      : {
-          type: 'file',
-          artifactId: attachment.id,
-          mimeType: attachment.mimeType,
+        ? {
+            type: 'image',
+            artifactId: attachment.id,
+            mimeType: attachment.mimeType,
+            base64: attachment.data,
+            url: attachment.url,
+            filename: attachment.filename,
+            width: attachment.width,
+            height: attachment.height,
+            alt: attachment.alt,
+            workspacePath: attachment.workspacePath,
+          }
+        : {
+            type: 'file',
+            artifactId: attachment.id,
+            mimeType: attachment.mimeType,
           filename: attachment.filename,
           extension: attachment.extension,
           size: attachment.size,
@@ -1324,18 +1327,20 @@ function buildUserMessageAttachmentPayload(attachments) {
           conversionWarnings: Array.isArray(attachment.conversionWarnings)
             ? attachment.conversionWarnings
             : [],
-          memoryHint:
-            attachment.memoryHint && typeof attachment.memoryHint === 'object'
-              ? attachment.memoryHint
-              : undefined,
-          llmText: attachment.llmText,
-        }),
+            memoryHint:
+              attachment.memoryHint && typeof attachment.memoryHint === 'object'
+                ? attachment.memoryHint
+                : undefined,
+            llmText: attachment.llmText,
+            workspacePath: attachment.workspacePath,
+          }),
   }));
   const artifactRefs = normalizedAttachments.map((attachment) => ({
     id: attachment.id,
     kind: attachment.kind,
     mimeType: attachment.mimeType,
     filename: attachment.filename,
+    workspacePath: attachment.workspacePath,
     hash: attachment.hash,
   }));
   return { contentParts, artifactRefs };
@@ -1386,6 +1391,12 @@ function getMessageArtifacts(message, conversationId) {
               : typeof ref?.filename === 'string' && ref.filename.trim()
                 ? ref.filename.trim()
                 : null,
+          workspacePath:
+            typeof part.workspacePath === 'string' && part.workspacePath.trim()
+              ? part.workspacePath.trim()
+              : typeof ref?.workspacePath === 'string' && ref.workspacePath.trim()
+                ? ref.workspacePath.trim()
+                : null,
         };
       }
       const data = typeof part.base64 === 'string' && part.base64.trim() ? part.base64.trim() : '';
@@ -1412,6 +1423,12 @@ function getMessageArtifacts(message, conversationId) {
             ? part.filename.trim()
             : typeof ref?.filename === 'string' && ref.filename.trim()
               ? ref.filename.trim()
+              : null,
+        workspacePath:
+          typeof part.workspacePath === 'string' && part.workspacePath.trim()
+            ? part.workspacePath.trim()
+            : typeof ref?.workspacePath === 'string' && ref.workspacePath.trim()
+              ? ref.workspacePath.trim()
               : null,
       };
     })
@@ -2881,6 +2898,7 @@ const appController = createAppController({
     executeToolCall(toolCall, {
       conversation: getActiveConversation(),
       requestToolConsent,
+      workspaceFileSystem,
     }),
   getSelectedModelId: () => modelSelect?.value || DEFAULT_MODEL,
   addMessageToConversation,
@@ -3140,7 +3158,8 @@ bindComposerEvents({
   updateWelcomePanelVisibility,
   getPendingComposerAttachments,
   selectedModelSupportsImageInput,
-  createComposerAttachmentFromFile,
+  createComposerAttachmentFromFile: (file) =>
+    createComposerAttachmentFromFile(file, { workspaceFileSystem }),
   renderComposerAttachments,
   setStatus,
   clearPendingComposerAttachments,

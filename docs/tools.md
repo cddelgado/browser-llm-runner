@@ -92,6 +92,12 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 
 The intended future design separates capability access into three layers with different purposes.
 
+User-uploaded files are already staged for that future work through a browser-local workspace filesystem abstraction:
+
+- uploads are written into OPFS
+- the exposed path format is linux-style under `/workspace`
+- future tool commands should interact with the injected workspace filesystem abstraction, not OPFS handles directly
+
 ### 1. Function calls
 
 Function calls are for small, discrete, relatively simple input-output actions.
@@ -122,6 +128,12 @@ In practice, this means the model-facing prompt should prefer discovery-first be
 - list commands/resources offered by one selected MCP server
 
 The tool call becomes the mechanism for progressive disclosure. The model sees only enough context to decide whether it should ask for an MCP listing, then can inspect a specific server's offerings as needed.
+
+Future file-oriented tool calls should follow the same boundary rule:
+
+- tool code receives a workspace filesystem object
+- that object resolves `/workspace/...` paths and performs reads/writes/listing
+- OPFS remains an implementation detail behind that abstraction
 
 ### 3. `SKILL.md` support
 

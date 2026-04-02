@@ -53,6 +53,9 @@ function normalizeArtifactRef(rawRef) {
   if (typeof rawRef.filename === 'string' && rawRef.filename.trim()) {
     normalizedRef.filename = rawRef.filename.trim();
   }
+  if (typeof rawRef.workspacePath === 'string' && rawRef.workspacePath.trim()) {
+    normalizedRef.workspacePath = rawRef.workspacePath.trim();
+  }
   if (rawRef.hash && typeof rawRef.hash === 'object') {
     const algorithm =
       typeof rawRef.hash.algorithm === 'string' && rawRef.hash.algorithm.trim()
@@ -110,6 +113,9 @@ function normalizeImageContentPart(rawPart) {
   }
   if (typeof rawPart.alt === 'string') {
     normalizedPart.alt = rawPart.alt;
+  }
+  if (typeof rawPart.workspacePath === 'string' && rawPart.workspacePath.trim()) {
+    normalizedPart.workspacePath = rawPart.workspacePath.trim();
   }
   return normalizedPart;
 }
@@ -182,6 +188,9 @@ function normalizeFileContentPart(rawPart) {
   }
   if (Number.isFinite(rawPart.pageCount) && rawPart.pageCount > 0) {
     normalizedPart.pageCount = Math.round(rawPart.pageCount);
+  }
+  if (typeof rawPart.workspacePath === 'string' && rawPart.workspacePath.trim()) {
+    normalizedPart.workspacePath = rawPart.workspacePath.trim();
   }
   return normalizedPart;
 }

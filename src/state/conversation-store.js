@@ -223,6 +223,7 @@ async function encodeArtifactRecord(artifact) {
     kind: artifact.kind === 'binary' ? 'binary' : 'text',
     mimeType: typeof artifact.mimeType === 'string' ? artifact.mimeType : '',
     filename: typeof artifact.filename === 'string' ? artifact.filename : null,
+    workspacePath: typeof artifact.workspacePath === 'string' ? artifact.workspacePath : null,
     hash:
       artifact.hash && typeof artifact.hash === 'object'
         ? {
@@ -278,6 +279,8 @@ async function decodeArtifactRecord(record) {
             }
           : undefined,
       filename: typeof record.filename === 'string' ? record.filename : undefined,
+      workspacePath:
+        typeof record.workspacePath === 'string' ? record.workspacePath : undefined,
     };
   }
 
@@ -297,6 +300,8 @@ async function decodeArtifactRecord(record) {
           }
         : undefined,
     filename: typeof record.filename === 'string' ? record.filename : undefined,
+    workspacePath:
+      typeof record.workspacePath === 'string' ? record.workspacePath : undefined,
   };
 }
 
@@ -354,6 +359,8 @@ async function encodeContentPart(part) {
       artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
       mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
       filename: typeof part.filename === 'string' ? part.filename : undefined,
+      workspacePath:
+        typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
       width: Number.isFinite(part.width) ? part.width : undefined,
       height: Number.isFinite(part.height) ? part.height : undefined,
       alt: typeof part.alt === 'string' ? part.alt : undefined,
@@ -377,6 +384,8 @@ async function encodeContentPart(part) {
       artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
       mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
       filename: typeof part.filename === 'string' ? part.filename : undefined,
+      workspacePath:
+        typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
       extension: typeof part.extension === 'string' ? part.extension : undefined,
       size: Number.isFinite(part.size) ? part.size : undefined,
       pageCount: Number.isFinite(part.pageCount) ? part.pageCount : undefined,
@@ -430,6 +439,8 @@ async function decodeContentPart(part) {
       artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
       mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
       filename: typeof part.filename === 'string' ? part.filename : undefined,
+      workspacePath:
+        typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
       width: Number.isFinite(part.width) ? part.width : undefined,
       height: Number.isFinite(part.height) ? part.height : undefined,
       alt: typeof part.alt === 'string' ? part.alt : undefined,
@@ -454,6 +465,8 @@ async function decodeContentPart(part) {
       artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
       mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
       filename: typeof part.filename === 'string' ? part.filename : undefined,
+      workspacePath:
+        typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
       extension: typeof part.extension === 'string' ? part.extension : undefined,
       size: Number.isFinite(part.size) ? part.size : undefined,
       pageCount: Number.isFinite(part.pageCount) ? part.pageCount : undefined,
@@ -576,6 +589,8 @@ async function encodeMessageRecord(message, conversationId, sortOrder) {
               kind: typeof ref.kind === 'string' ? ref.kind : undefined,
               mimeType: typeof ref.mimeType === 'string' ? ref.mimeType : undefined,
               filename: typeof ref.filename === 'string' ? ref.filename : undefined,
+              workspacePath:
+                typeof ref.workspacePath === 'string' ? ref.workspacePath : undefined,
               hash:
                 ref.hash && typeof ref.hash === 'object'
                   ? {
@@ -620,6 +635,8 @@ async function decodeMessageRecord(record) {
               kind: typeof ref.kind === 'string' ? ref.kind : undefined,
               mimeType: typeof ref.mimeType === 'string' ? ref.mimeType : undefined,
               filename: typeof ref.filename === 'string' ? ref.filename : undefined,
+              workspacePath:
+                typeof ref.workspacePath === 'string' ? ref.workspacePath : undefined,
               hash:
                 ref.hash && typeof ref.hash === 'object'
                   ? {

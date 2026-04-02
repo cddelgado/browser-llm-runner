@@ -1,5 +1,6 @@
 import { convertHtmlToMarkdown } from './html-to-markdown.js';
 import { extractPdfText } from './pdf-extractor.js';
+import { WORKSPACE_ROOT_PATH } from '../workspace/workspace-file-system.js';
 
 export const SUPPORTED_TEXT_ATTACHMENT_TYPES = Object.freeze({
   txt: { mimeType: 'text/plain', label: 'Text file' },
@@ -293,7 +294,8 @@ export function buildPdfAttachmentConversion({ filename, mimeType, pages, warnin
   };
 }
 
-export async function createComposerAttachmentFromFile(file) {
+export async function createComposerAttachmentFromFile(file, options = {}) {
+  const workspaceFileSystem = options?.workspaceFileSystem;
   const attachmentMetadata = getSupportedAttachmentMetadata(file);
   if (!attachmentMetadata) {
     throw new Error('Unsupported attachment type.');
@@ -310,6 +312,12 @@ export async function createComposerAttachmentFromFile(file) {
     );
   }
   const buffer = await file.arrayBuffer();
+  const storedWorkspaceFile = workspaceFileSystem
+    ? await workspaceFileSystem.storeUploadedFile(file, {
+        directoryPath: WORKSPACE_ROOT_PATH,
+        data: buffer,
+      })
+    : null;
   const hashValue = await computeSha256Hex(buffer);
   const id = crypto.randomUUID();
   if (attachmentMetadata.category === 'image') {
@@ -339,6 +347,7 @@ export async function createComposerAttachmentFromFile(file) {
       width: dimensions.width,
       height: dimensions.height,
       alt: file.name ? `Selected image: ${file.name}` : 'Selected image',
+      workspacePath: storedWorkspaceFile?.path,
       hash: {
         algorithm: 'sha256',
         value: hashValue,
@@ -389,6 +398,7 @@ export async function createComposerAttachmentFromFile(file) {
     memoryHint: conversion.memoryHint,
     llmText: conversion.llmText,
     pageCount: conversion.pageCount,
+    workspacePath: storedWorkspaceFile?.path,
     hash: {
       algorithm: 'sha256',
       value: hashValue,

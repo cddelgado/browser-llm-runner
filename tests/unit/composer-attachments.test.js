@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import {
   FILE_ATTACHMENT_ACCEPT,
@@ -19,7 +19,10 @@ import {
 describe('composer-attachments', () => {
   beforeEach(() => {
     const dom = new JSDOM('');
+    globalThis.window = dom.window;
+    globalThis.document = dom.window.document;
     globalThis.DOMParser = dom.window.DOMParser;
+    dom.window.TextDecoder = globalThis.TextDecoder;
   });
 
   test('returns the expected attachment accept filters', () => {
@@ -158,5 +161,34 @@ describe('composer-attachments', () => {
         },
       })
     ).rejects.toThrow('Image files larger than 15 MB are not supported yet.');
+  });
+
+  test('stores uploaded files in the workspace and records the linux-style path', async () => {
+    const workspaceFileSystem = {
+      storeUploadedFile: vi.fn(async (_file, options) => {
+        expect(options?.directoryPath).toBe('/workspace');
+        expect(options?.data).toBeInstanceOf(ArrayBuffer);
+        return {
+          path: '/workspace/notes.txt',
+        };
+      }),
+    };
+
+    const attachment = await createComposerAttachmentFromFile(
+      {
+        name: 'notes.txt',
+        type: 'text/plain',
+        size: 11,
+        arrayBuffer: async () => new globalThis.TextEncoder().encode('hello world').buffer,
+      },
+      { workspaceFileSystem },
+    );
+
+    expect(workspaceFileSystem.storeUploadedFile).toHaveBeenCalledTimes(1);
+    expect(attachment).toMatchObject({
+      type: 'file',
+      filename: 'notes.txt',
+      workspacePath: '/workspace/notes.txt',
+    });
   });
 });
