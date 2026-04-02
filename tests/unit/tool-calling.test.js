@@ -801,6 +801,15 @@ describe('tool-calling prompt builder', () => {
         expect.objectContaining({ name: 'sort', usage: 'sort [-r] [-n] <file>...' }),
         expect.objectContaining({ name: 'uniq', usage: 'uniq [-c] <file>' }),
         expect.objectContaining({ name: 'cut', usage: 'cut -f <fields> [-d <delimiter>] <file>' }),
+        expect.objectContaining({ name: 'paste', usage: 'paste [-d <delimiters>] <file>...' }),
+        expect.objectContaining({
+          name: 'join',
+          usage: 'join [-1 <field>] [-2 <field>] [-t <delimiter>] <left-file> <right-file>',
+        }),
+        expect.objectContaining({
+          name: 'column',
+          usage: 'column [-t] [-s <separator>] <file>',
+        }),
         expect.objectContaining({ name: 'tr', usage: 'tr [-d] <set1> [<set2>] <file>' }),
         expect.objectContaining({ name: 'nl', usage: 'nl <file>' }),
         expect.objectContaining({ name: 'ls', usage: 'ls [-1] [-R] [-d] [-h] [-l] [<path>...]' }),
@@ -850,6 +859,15 @@ describe('tool-calling prompt builder', () => {
     );
     expect(result.result.limitations).toContain(
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.'
+    );
+    expect(result.result.limitations).toContain(
+      'paste merges text files line-by-line, with optional -d delimiters.'
+    );
+    expect(result.result.limitations).toContain(
+      'join supports two-file joins with optional -1, -2, and -t field-selection flags.'
+    );
+    expect(result.result.limitations).toContain(
+      'column focuses on table alignment, especially with -t and optional -s separators.'
     );
     expect(result.result.limitations).toContain(
       'sed supports a single sed-like script with addresses N, N,M, /regex/, and $, plus commands p, d, and s///g, with optional -n and -i.'
@@ -1209,6 +1227,113 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(result.result.stdout).toBe('alpha,gamma\none,three\n');
+  });
+
+  test('supports paste for line-wise file merging', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/left.txt': 'alpha\nbeta\n',
+      '/workspace/right.txt': '1\n2\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'paste left.txt right.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe('alpha\t1\nbeta\t2\n');
+  });
+
+  test('supports paste -d with custom delimiters', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/a.txt': 'x\ny\n',
+      '/workspace/b.txt': '1\n2\n',
+      '/workspace/c.txt': 'p\nq\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'paste -d ",;" a.txt b.txt c.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe('x,1;p\ny,2;q\n');
+  });
+
+  test('supports join with delimiter-aware field matching', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/left.csv': 'a,alpha,one\nb,beta,two\n',
+      '/workspace/right.csv': 'a,apple\nc,cherry\nb,banana\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'join -t , left.csv right.csv',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe('a,alpha,one,apple\nb,beta,two,banana\n');
+  });
+
+  test('supports join with explicit field selection', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/left.txt': 'alpha 1 red\nbeta 2 blue\n',
+      '/workspace/right.txt': 'red circle\nblue square\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'join -1 3 -2 1 left.txt right.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe('red alpha 1 circle\nblue beta 2 square\n');
+  });
+
+  test('supports column -t for linux-like table alignment', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/table.csv': 'name,score,grade\nAna,9,A\nBeatrice,10,A+\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'column -t -s , table.csv',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe(
+      'name      score  grade\nAna       9      A\nBeatrice  10     A+\n'
+    );
   });
 
   test('supports tr for translation and deletion', async () => {

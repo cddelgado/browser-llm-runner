@@ -103,6 +103,21 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Select delimited fields from each line of a text file.',
   },
   {
+    name: 'paste',
+    usage: 'paste [-d <delimiters>] <file>...',
+    description: 'Merge lines from text files side by side.',
+  },
+  {
+    name: 'join',
+    usage: 'join [-1 <field>] [-2 <field>] [-t <delimiter>] <left-file> <right-file>',
+    description: 'Join two text files on a selected field.',
+  },
+  {
+    name: 'column',
+    usage: 'column [-t] [-s <separator>] <file>',
+    description: 'Align delimited or whitespace-separated text into columns.',
+  },
+  {
     name: 'tr',
     usage: 'tr [-d] <set1> [<set2>] <file>',
     description: 'Translate or delete characters from a text file.',
@@ -465,7 +480,46 @@ function tokenizeShellCommand(command) {
 
 function hasUnsupportedShellSyntax(command) {
   const text = toShellText(command);
-  return /(^|[^\\])(?:\||&&|\|\||;|`|>|<)|[\r\n]/.test(text) || text.includes('$(');
+  let quote = '';
+  let escaping = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (escaping) {
+      escaping = false;
+      continue;
+    }
+    if (character === '\r' || character === '\n') {
+      return true;
+    }
+    if (character === '\\' && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+    if ((character === '"' || character === "'") && !quote) {
+      quote = character;
+      continue;
+    }
+    if (character === quote) {
+      quote = '';
+      continue;
+    }
+    if (quote) {
+      continue;
+    }
+    if (character === '|' || character === ';' || character === '`' || character === '>' || character === '<') {
+      return true;
+    }
+    if (character === '&' && text[index + 1] === '&') {
+      return true;
+    }
+    if (character === '$' && text[index + 1] === '(') {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function formatHumanReadableSize(size) {
@@ -1410,6 +1464,28 @@ function joinShellLines(lines, trailingNewline = false) {
   return trailingNewline ? `${output}\n` : output;
 }
 
+function splitFieldsForShellTable(line, delimiter = null) {
+  const normalizedLine = String(line || '');
+  if (delimiter === null) {
+    const trimmed = normalizedLine.trim();
+    return trimmed ? trimmed.split(/\s+/) : [];
+  }
+  return normalizedLine.split(delimiter);
+}
+
+function padRight(text, width) {
+  const normalizedText = String(text ?? '');
+  return normalizedText.padEnd(Math.max(0, width), ' ');
+}
+
+function getPasteDelimiterAt(delimiters, index) {
+  const normalizedDelimiters = String(delimiters || '\t');
+  if (!normalizedDelimiters) {
+    return '';
+  }
+  return normalizedDelimiters[index % normalizedDelimiters.length];
+}
+
 function hasPrefix(bytes, prefix) {
   if (!(bytes instanceof Uint8Array) || bytes.length < prefix.length) {
     return false;
@@ -1960,6 +2036,14 @@ function parseCutFieldSpec(specification) {
   return [...indexes].sort((left, right) => left - right);
 }
 
+function parsePositiveFieldIndex(value, label) {
+  const parsedValue = Number.parseInt(String(value || ''), 10);
+  if (!Number.isInteger(parsedValue) || parsedValue < 1) {
+    throw new Error(`${label} must be a positive integer.`);
+  }
+  return parsedValue;
+}
+
 function translateCharacters(text, sourceSet, targetSet) {
   const sourceCharacters = Array.from(String(sourceSet || ''));
   const targetCharacters = Array.from(String(targetSet || ''));
@@ -2187,6 +2271,322 @@ async function runCut(commandText, args, workspaceFileSystem, currentWorkingDire
       .map((fieldIndex) => parts[fieldIndex - 1])
       .filter((value) => value !== undefined)
       .join(delimiter);
+  });
+
+  return createShellResult(commandText, {
+    stdout: joinShellLines(outputLines, trailingNewline),
+    currentWorkingDirectory,
+  });
+}
+
+async function runPaste(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(
+      commandText,
+      'paste',
+      'expected at least one file path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  let delimiters = '\t';
+  const filePaths = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '-d') {
+      delimiters = args[index + 1] ?? '';
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      return createShellError(
+        commandText,
+        'paste',
+        `unsupported option ${argument}.`,
+        2,
+        currentWorkingDirectory
+      );
+    }
+    filePaths.push(argument);
+  }
+
+  if (!filePaths.length) {
+    return createShellError(
+      commandText,
+      'paste',
+      'expected at least one file path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const fileLines = [];
+  let trailingNewline = false;
+  for (const rawPath of filePaths) {
+    const fileResult = await readWorkspaceTextFile(
+      'paste',
+      commandText,
+      rawPath,
+      workspaceFileSystem,
+      currentWorkingDirectory
+    );
+    if (fileResult.error) {
+      return fileResult.error;
+    }
+    const lineResult = splitShellTextIntoLines(fileResult.text);
+    fileLines.push(lineResult.lines);
+    trailingNewline = trailingNewline || lineResult.trailingNewline;
+  }
+
+  const rowCount = fileLines.reduce(
+    (maximum, lines) => Math.max(maximum, lines.length),
+    0
+  );
+  const outputLines = [];
+
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    let outputLine = '';
+    for (let fileIndex = 0; fileIndex < fileLines.length; fileIndex += 1) {
+      if (fileIndex > 0) {
+        outputLine += getPasteDelimiterAt(delimiters, fileIndex - 1);
+      }
+      outputLine += fileLines[fileIndex][rowIndex] ?? '';
+    }
+    outputLines.push(outputLine);
+  }
+
+  return createShellResult(commandText, {
+    stdout: joinShellLines(outputLines, trailingNewline),
+    currentWorkingDirectory,
+  });
+}
+
+async function runJoin(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(
+      commandText,
+      'join',
+      'expected two file paths.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  let leftFieldIndex = 1;
+  let rightFieldIndex = 1;
+  let delimiter = null;
+  const filePaths = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '-1') {
+      try {
+        leftFieldIndex = parsePositiveFieldIndex(args[index + 1], 'join field 1');
+      } catch (error) {
+        return createShellError(
+          commandText,
+          'join',
+          error instanceof Error ? error.message : String(error),
+          2,
+          currentWorkingDirectory
+        );
+      }
+      index += 1;
+      continue;
+    }
+    if (argument === '-2') {
+      try {
+        rightFieldIndex = parsePositiveFieldIndex(args[index + 1], 'join field 2');
+      } catch (error) {
+        return createShellError(
+          commandText,
+          'join',
+          error instanceof Error ? error.message : String(error),
+          2,
+          currentWorkingDirectory
+        );
+      }
+      index += 1;
+      continue;
+    }
+    if (argument === '-t') {
+      delimiter = args[index + 1] ?? '';
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      return createShellError(
+        commandText,
+        'join',
+        `unsupported option ${argument}.`,
+        2,
+        currentWorkingDirectory
+      );
+    }
+    filePaths.push(argument);
+  }
+
+  if (filePaths.length !== 2) {
+    return createShellError(
+      commandText,
+      'join',
+      'expected exactly two file paths.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const leftFile = await readWorkspaceTextFile(
+    'join',
+    commandText,
+    filePaths[0],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (leftFile.error) {
+    return leftFile.error;
+  }
+
+  const rightFile = await readWorkspaceTextFile(
+    'join',
+    commandText,
+    filePaths[1],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (rightFile.error) {
+    return rightFile.error;
+  }
+
+  const leftLines = splitShellTextIntoLines(leftFile.text);
+  const rightLines = splitShellTextIntoLines(rightFile.text);
+  const separator = delimiter ?? ' ';
+
+  const rightEntriesByKey = new Map();
+  for (const line of rightLines.lines) {
+    const fields = splitFieldsForShellTable(line, delimiter);
+    const joinKey = fields[rightFieldIndex - 1];
+    if (joinKey === undefined) {
+      continue;
+    }
+    if (!rightEntriesByKey.has(joinKey)) {
+      rightEntriesByKey.set(joinKey, []);
+    }
+    rightEntriesByKey.get(joinKey).push(fields);
+  }
+
+  const outputLines = [];
+  for (const line of leftLines.lines) {
+    const leftFields = splitFieldsForShellTable(line, delimiter);
+    const joinKey = leftFields[leftFieldIndex - 1];
+    if (joinKey === undefined) {
+      continue;
+    }
+    const rightMatches = rightEntriesByKey.get(joinKey) || [];
+    for (const rightFields of rightMatches) {
+      const leftRemainder = leftFields.filter(
+        (_field, index) => index !== leftFieldIndex - 1
+      );
+      const rightRemainder = rightFields.filter(
+        (_field, index) => index !== rightFieldIndex - 1
+      );
+      outputLines.push([joinKey, ...leftRemainder, ...rightRemainder].join(separator));
+    }
+  }
+
+  return createShellResult(commandText, {
+    stdout: joinShellLines(
+      outputLines,
+      leftLines.trailingNewline || rightLines.trailingNewline
+    ),
+    currentWorkingDirectory,
+  });
+}
+
+async function runColumn(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(
+      commandText,
+      'column',
+      'expected one file path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  let tableMode = false;
+  let separator = null;
+  const filePaths = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '-t') {
+      tableMode = true;
+      continue;
+    }
+    if (argument === '-s') {
+      separator = args[index + 1] ?? '';
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      return createShellError(
+        commandText,
+        'column',
+        `unsupported option ${argument}.`,
+        2,
+        currentWorkingDirectory
+      );
+    }
+    filePaths.push(argument);
+  }
+
+  if (filePaths.length !== 1) {
+    return createShellError(
+      commandText,
+      'column',
+      'expected exactly one file path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const fileResult = await readWorkspaceTextFile(
+    'column',
+    commandText,
+    filePaths[0],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (fileResult.error) {
+    return fileResult.error;
+  }
+
+  const { lines, trailingNewline } = splitShellTextIntoLines(fileResult.text);
+  const rows = lines.map((line) => splitFieldsForShellTable(line, separator));
+  const columnCount = rows.reduce((maximum, row) => Math.max(maximum, row.length), 0);
+  const widths = Array.from({ length: columnCount }, (_, columnIndex) =>
+    rows.reduce(
+      (maximum, row) => Math.max(maximum, String(row[columnIndex] ?? '').length),
+      0
+    )
+  );
+
+  const outputLines = rows.map((row) => {
+    if (!tableMode && separator !== null) {
+      return row.join(separator);
+    }
+    return row
+      .map((cell, columnIndex) => {
+        const text = String(cell ?? '');
+        if (columnIndex === row.length - 1) {
+          return text;
+        }
+        return `${padRight(text, widths[columnIndex])}  `;
+      })
+      .join('');
   });
 
   return createShellResult(commandText, {
@@ -3116,6 +3516,9 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'sort /workspace/<file>',
       'uniq /workspace/<file>',
       'cut -d , -f 1,3 /workspace/<file>',
+      'paste /workspace/<left-file> /workspace/<right-file>',
+      'join -t , /workspace/<left-file> /workspace/<right-file>',
+      'column -t -s , /workspace/<file>',
       'tr abc xyz /workspace/<file>',
       'nl /workspace/<file>',
       'cd <directory>',
@@ -3137,6 +3540,9 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'Commands are GNU/Linux-like, but only the documented subset is implemented.',
       'Relative paths resolve from the current working directory.',
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.',
+      'paste merges text files line-by-line, with optional -d delimiters.',
+      'join supports two-file joins with optional -1, -2, and -t field-selection flags.',
+      'column focuses on table alignment, especially with -t and optional -s separators.',
       'sed supports a single sed-like script with addresses N, N,M, /regex/, and $, plus commands p, d, and s///g, with optional -n and -i.',
       'file reports a small deterministic set of directory, signature, extension, and text-vs-binary classifications.',
       'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.',
@@ -3303,6 +3709,15 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'cut') {
     return runCut(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'paste') {
+    return runPaste(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'join') {
+    return runJoin(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'column') {
+    return runColumn(commandText, args, workspaceFileSystem, currentWorkingDirectory);
   }
   if (commandName === 'tr') {
     return runTr(commandText, args, workspaceFileSystem, currentWorkingDirectory);

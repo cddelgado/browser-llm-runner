@@ -118,6 +118,9 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `sort`
   - `uniq`
   - `cut`
+  - `paste` with `-d`
+  - `join` with `-1`, `-2`, and `-t`
+  - `column` with `-t` and `-s`
   - `tr`
   - `nl`
   - `rmdir`
@@ -141,6 +144,9 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - relative paths resolve from the conversation's current working directory
   - new conversations start with the shell pointer at `/workspace`
   - minimal variable support exists for `$VAR`, `${VAR}`, `NAME=value`, `set`, and `unset`
+  - `paste` merges text files line-by-line, with optional `-d` delimiters
+  - `join` supports two-file joins with optional `-1`, `-2`, and `-t` field-selection flags
+  - `column` focuses on table alignment, especially with `-t` and optional `-s` separators
   - `sed` supports a single sed-like script with addresses `N`, `N,M`, `/regex/`, and `$`, plus commands `p`, `d`, and `s///g`, with optional `-n` and `-i`
   - `file` reports a small deterministic set of directory, signature, extension, and text-vs-binary classifications
   - built-in pseudo variables include `PWD` and `WORKSPACE`
