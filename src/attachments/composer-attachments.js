@@ -138,7 +138,25 @@ export function getNormalizedTextAttachmentFormat({ mimeType, extension }) {
   return 'text';
 }
 
-export function buildTextFileLlmText({ filename, mimeType, text, conversionNote = '' }) {
+function buildAttachmentWorkspaceLines(workspacePath) {
+  const normalizedWorkspacePath =
+    typeof workspacePath === 'string' && workspacePath.trim() ? workspacePath.trim() : '';
+  if (!normalizedWorkspacePath) {
+    return [];
+  }
+  return [
+    `Workspace path: ${normalizedWorkspacePath}`,
+    'This file is available to inspect or modify with run_shell_command.',
+  ];
+}
+
+export function buildTextFileLlmText({
+  filename,
+  mimeType,
+  text,
+  conversionNote = '',
+  workspacePath = '',
+}) {
   const normalizedFilename =
     typeof filename === 'string' && filename.trim() ? filename.trim() : 'file';
   const normalizedMimeType =
@@ -147,6 +165,7 @@ export function buildTextFileLlmText({ filename, mimeType, text, conversionNote 
   return [
     `Attached file: ${normalizedFilename}`,
     `MIME type: ${normalizedMimeType}`,
+    ...buildAttachmentWorkspaceLines(workspacePath),
     conversionNote,
     'Contents:',
     body,
@@ -155,7 +174,13 @@ export function buildTextFileLlmText({ filename, mimeType, text, conversionNote 
     .join('\n');
 }
 
-export function buildTextAttachmentConversion({ filename, mimeType, extension, text }) {
+export function buildTextAttachmentConversion({
+  filename,
+  mimeType,
+  extension,
+  text,
+  workspacePath = '',
+}) {
   const normalizedFormat = getNormalizedTextAttachmentFormat({ mimeType, extension });
   const normalizedMimeType = typeof mimeType === 'string' ? mimeType.trim().toLowerCase() : '';
   const normalizedExtension = typeof extension === 'string' ? extension.trim().toLowerCase() : '';
@@ -191,6 +216,7 @@ export function buildTextAttachmentConversion({ filename, mimeType, extension, t
       filename,
       mimeType,
       text: normalizedText,
+      workspacePath,
       conversionNote: isHtmlSource
         ? 'Converted from HTML to Markdown before prompt insertion.'
         : '',
@@ -234,7 +260,14 @@ export function buildPdfPageText(pages) {
     .join('\n\n');
 }
 
-export function buildPdfFileLlmText({ filename, mimeType, pageCount, body, conversionWarnings }) {
+export function buildPdfFileLlmText({
+  filename,
+  mimeType,
+  pageCount,
+  body,
+  conversionWarnings,
+  workspacePath = '',
+}) {
   const headerLines = [
     `Attached PDF: ${typeof filename === 'string' && filename.trim() ? filename.trim() : 'document.pdf'}`,
     `MIME type: ${typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'application/pdf'}`,
@@ -242,6 +275,7 @@ export function buildPdfFileLlmText({ filename, mimeType, pageCount, body, conve
   if (Number.isFinite(pageCount) && pageCount > 0) {
     headerLines.push(`Page count: ${pageCount}`);
   }
+  headerLines.push(...buildAttachmentWorkspaceLines(workspacePath));
   headerLines.push('Extraction mode: parser-derived text only. OCR is not available.');
 
   const sections = [headerLines.join('\n')];
@@ -255,7 +289,13 @@ export function buildPdfFileLlmText({ filename, mimeType, pageCount, body, conve
   return sections.join('\n\n').trim();
 }
 
-export function buildPdfAttachmentConversion({ filename, mimeType, pages, warnings }) {
+export function buildPdfAttachmentConversion({
+  filename,
+  mimeType,
+  pages,
+  warnings,
+  workspacePath = '',
+}) {
   const normalizedWarnings = Array.isArray(warnings)
     ? warnings
         .filter((warning) => typeof warning === 'string')
@@ -279,6 +319,7 @@ export function buildPdfAttachmentConversion({ filename, mimeType, pages, warnin
     pageCount,
     body: normalizedText,
     conversionWarnings: normalizedWarnings,
+    workspacePath,
   });
   return {
     normalizedText,
@@ -371,6 +412,7 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
       mimeType,
       pages: pdfExtraction.pages,
       warnings: pdfExtraction.warnings,
+      workspacePath: storedWorkspaceFile?.path,
     });
     text = conversion.normalizedText;
   } else {
@@ -380,6 +422,7 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
       mimeType,
       extension,
       text,
+      workspacePath: storedWorkspaceFile?.path,
     });
   }
   return {

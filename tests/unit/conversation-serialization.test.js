@@ -228,7 +228,7 @@ describe('conversation-serialization', () => {
                         documentRole: 'attachment',
                       },
                       llmText:
-                        'Attached file: notes.txt\nMIME type: text/plain\nContents:\nThe mitochondria is the powerhouse of the cell.',
+                        'Attached file: notes.txt\nMIME type: text/plain\nWorkspace path: /workspace/notes.txt\nThis file is available to inspect or modify with run_shell_command.\nContents:\nThe mitochondria is the powerhouse of the cell.',
                     },
                   ],
                 },
@@ -274,10 +274,10 @@ describe('conversation-serialization', () => {
         documentRole: 'attachment',
       },
       llmText:
-        'Attached file: notes.txt\nMIME type: text/plain\nContents:\nThe mitochondria is the powerhouse of the cell.',
+        'Attached file: notes.txt\nMIME type: text/plain\nWorkspace path: /workspace/notes.txt\nThis file is available to inspect or modify with run_shell_command.\nContents:\nThe mitochondria is the powerhouse of the cell.',
     });
     expect(appState.conversations[0]?.messageNodes[0]?.content.llmRepresentation).toBe(
-      'Read this file\nAttached file: notes.txt\nMIME type: text/plain\nContents:\nThe mitochondria is the powerhouse of the cell.'
+      'Read this file\nAttached file: notes.txt\nMIME type: text/plain\nWorkspace path: /workspace/notes.txt\nThis file is available to inspect or modify with run_shell_command.\nContents:\nThe mitochondria is the powerhouse of the cell.'
     );
     expect(appState.conversations[0]?.currentWorkingDirectory).toBe('/workspace');
     expect(appState.conversations[0]?.shellVariables).toEqual({});

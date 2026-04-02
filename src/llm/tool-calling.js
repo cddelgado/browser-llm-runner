@@ -186,6 +186,9 @@ function buildToolInstructionLines(name, description = '') {
     lines.push(
       '  Commands are GNU/Linux-like but only a subset is implemented. Call it first with an empty arguments object to see the supported commands and placeholder paths.'
     );
+    lines.push(
+      '  Uploaded attachments may already be available under /workspace, and user messages can include their exact workspace paths.'
+    );
   }
   return lines;
 }

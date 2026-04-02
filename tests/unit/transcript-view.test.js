@@ -30,7 +30,8 @@ function createViewHarness() {
               filename: 'hello.md',
               mimeType: 'text/markdown',
               conversionWarnings: ['Embedded spreadsheet object omitted.'],
-              llmText: 'Attached file: hello.md\nMIME type: text/markdown\nContents:\n# Hello',
+              llmText:
+                'Attached file: hello.md\nMIME type: text/markdown\nWorkspace path: /workspace/hello.md\nThis file is available to inspect or modify with run_shell_command.\nContents:\n# Hello',
             },
           ],
         },
@@ -828,7 +829,8 @@ describe('transcript-view', () => {
       extension: 'pdf',
       pageCount: 3,
       size: 4096,
-      llmText: 'Attached PDF: lesson.pdf\n\n## Page 1\nExtracted text',
+      llmText:
+        'Attached PDF: lesson.pdf\nMIME type: application/pdf\nPage count: 3\nWorkspace path: /workspace/lesson.pdf\nThis file is available to inspect or modify with run_shell_command.\nExtraction mode: parser-derived text only. OCR is not available.\n\nExtracted contents:\n\n## Page 1\nExtracted text',
       conversionWarnings: ['Page 2 has no extractable text. OCR is not available in this app.'],
     });
 

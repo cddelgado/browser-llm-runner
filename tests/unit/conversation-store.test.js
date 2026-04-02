@@ -159,12 +159,13 @@ describe('conversation-store', () => {
                     filename: 'notes.txt',
                     text: 'Plants make sugar from light.',
                     normalizedText: 'Plants make sugar from light.',
+                    workspacePath: '/workspace/notes.txt',
                     llmText:
-                      'Attached file: notes.txt\nMIME type: text/plain\nContents:\nPlants make sugar from light.',
+                      'Attached file: notes.txt\nMIME type: text/plain\nWorkspace path: /workspace/notes.txt\nThis file is available to inspect or modify with run_shell_command.\nContents:\nPlants make sugar from light.',
                   },
                 ],
                 llmRepresentation:
-                  'Explain photosynthesis\nAttached file: notes.txt\nMIME type: text/plain\nContents:\nPlants make sugar from light.',
+                  'Explain photosynthesis\nAttached file: notes.txt\nMIME type: text/plain\nWorkspace path: /workspace/notes.txt\nThis file is available to inspect or modify with run_shell_command.\nContents:\nPlants make sugar from light.',
               },
               artifactRefs: [
                 {
@@ -172,6 +173,7 @@ describe('conversation-store', () => {
                   kind: 'text',
                   mimeType: 'text/plain',
                   filename: 'notes.txt',
+                  workspacePath: '/workspace/notes.txt',
                 },
               ],
             },
@@ -221,8 +223,9 @@ describe('conversation-store', () => {
                     artifactId: 'artifact-1',
                     filename: 'notes.txt',
                     normalizedText: 'Plants make sugar from light.',
+                    workspacePath: '/workspace/notes.txt',
                     llmText:
-                      'Attached file: notes.txt\nMIME type: text/plain\nContents:\nPlants make sugar from light.',
+                      'Attached file: notes.txt\nMIME type: text/plain\nWorkspace path: /workspace/notes.txt\nThis file is available to inspect or modify with run_shell_command.\nContents:\nPlants make sugar from light.',
                   }),
                 ],
               },

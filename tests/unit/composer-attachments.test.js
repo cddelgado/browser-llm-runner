@@ -69,10 +69,15 @@ describe('composer-attachments', () => {
       mimeType: 'text/html',
       extension: 'html',
       text: '<h1>Lesson</h1><p>Line one.</p>',
+      workspacePath: '/workspace/lesson.html',
     });
 
     expect(result.normalizedFormat).toBe('markdown');
     expect(result.normalizedText).toContain('# Lesson');
+    expect(result.llmText).toContain('Workspace path: /workspace/lesson.html');
+    expect(result.llmText).toContain(
+      'This file is available to inspect or modify with run_shell_command.'
+    );
     expect(result.llmText).toContain('Converted from HTML to Markdown before prompt insertion.');
     expect(result.llmText).toContain('Contents:\n# Lesson');
     expect(result.memoryHint).toEqual({
@@ -114,6 +119,7 @@ describe('composer-attachments', () => {
         { pageNumber: 2, text: 'Details' },
       ],
       warnings: ['Scanned figures were skipped.'],
+      workspacePath: '/workspace/lesson.pdf',
     });
 
     expect(result.pageCount).toBe(2);
@@ -122,6 +128,10 @@ describe('composer-attachments', () => {
     expect(result.conversionWarnings).toContain('Scanned figures were skipped.');
     expect(result.llmText).toContain('Attached PDF: lesson.pdf');
     expect(result.llmText).toContain('Page count: 2');
+    expect(result.llmText).toContain('Workspace path: /workspace/lesson.pdf');
+    expect(result.llmText).toContain(
+      'This file is available to inspect or modify with run_shell_command.'
+    );
     expect(result.llmText).toContain('Extraction warnings:');
     expect(result.memoryHint).toEqual({
       ingestible: true,

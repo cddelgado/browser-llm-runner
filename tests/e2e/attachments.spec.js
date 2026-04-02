@@ -49,6 +49,9 @@ test('pdf attachment is added to the prompt and transcript', async ({ page }) =>
     'Attached PDF: lesson.pdf'
   );
   await expect(page.locator('.message-row.user-message .message-file-preview-text')).toContainText(
+    'Workspace path: /workspace/lesson.pdf'
+  );
+  await expect(page.locator('.message-row.user-message .message-file-preview-text')).toContainText(
     'Mock extracted PDF text.'
   );
 
@@ -67,5 +70,6 @@ test('pdf attachment is added to the prompt and transcript', async ({ page }) =>
       }),
     ]),
   );
+  expect(userPrompt?.content).toContain('Workspace path: /workspace/lesson.pdf');
   expect(userPrompt?.content).toContain('Mock extracted PDF text.');
 });

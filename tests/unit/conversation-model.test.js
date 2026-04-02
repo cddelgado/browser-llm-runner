@@ -132,7 +132,8 @@ describe('conversation-model', () => {
             documentRole: 'attachment',
           },
           llmText:
-            'Attached file: notes.md\nMIME type: text/markdown\nContents:\n# Notes\n- Gravity pulls objects together.',
+            'Attached file: notes.md\nMIME type: text/markdown\nWorkspace path: /workspace/notes.md\nThis file is available to inspect or modify with run_shell_command.\nContents:\n# Notes\n- Gravity pulls objects together.',
+          workspacePath: '/workspace/notes.md',
         },
       ],
       artifactRefs: [
@@ -141,6 +142,7 @@ describe('conversation-model', () => {
           kind: 'text',
           mimeType: 'text/markdown',
           filename: 'notes.md',
+          workspacePath: '/workspace/notes.md',
           hash: { algorithm: 'sha256', value: 'feedface' },
         },
       ],
@@ -150,7 +152,7 @@ describe('conversation-model', () => {
       {
         role: 'user',
         content:
-          'Summarize these notes.\nAttached file: notes.md\nMIME type: text/markdown\nContents:\n# Notes\n- Gravity pulls objects together.',
+          'Summarize these notes.\nAttached file: notes.md\nMIME type: text/markdown\nWorkspace path: /workspace/notes.md\nThis file is available to inspect or modify with run_shell_command.\nContents:\n# Notes\n- Gravity pulls objects together.',
       },
     ]);
     expect(conversation.messageNodes[0]?.content.parts[1]).toMatchObject({
