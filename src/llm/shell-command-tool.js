@@ -6,6 +6,10 @@ import {
 const SHELL_FLAVOR = 'GNU/Linux-like shell subset';
 const MAX_DIFF_MATRIX_CELLS = 1_000_000;
 const DEFAULT_DIFF_CONTEXT_LINES = 3;
+const MAX_SHELL_COMMAND_LENGTH = 2_000;
+const MAX_SHELL_TOKENS = 128;
+const MAX_SHELL_VARIABLE_VALUE_LENGTH = 512;
+const SHELL_LITERAL_DOLLAR_PLACEHOLDER = String.fromCharCode(0x1d);
 const FILE_EXTENSION_DESCRIPTIONS = Object.freeze({
   txt: 'text',
   md: 'Markdown text',
@@ -441,7 +445,7 @@ function tokenizeShellCommand(command) {
       if (escapingFromDoubleQuotes && !['\\', '"', '$', '`'].includes(character)) {
         current += '\\';
       }
-      current += character;
+      current += character === '$' ? SHELL_LITERAL_DOLLAR_PLACEHOLDER : character;
       escaping = false;
       escapingFromDoubleQuotes = false;
       continue;
@@ -457,6 +461,10 @@ function tokenizeShellCommand(command) {
     }
     if (character === quote) {
       quote = '';
+      continue;
+    }
+    if (quote === "'" && character === '$') {
+      current += SHELL_LITERAL_DOLLAR_PLACEHOLDER;
       continue;
     }
     if (!quote && /\s/.test(character)) {
@@ -508,10 +516,14 @@ function hasUnsupportedShellSyntax(command) {
     if (quote) {
       continue;
     }
-    if (character === '|' || character === ';' || character === '`' || character === '>' || character === '<') {
-      return true;
-    }
-    if (character === '&' && text[index + 1] === '&') {
+    if (
+      character === '|' ||
+      character === ';' ||
+      character === '&' ||
+      character === '`' ||
+      character === '>' ||
+      character === '<'
+    ) {
       return true;
     }
     if (character === '$' && text[index + 1] === '(') {
@@ -660,6 +672,26 @@ function isReadonlyShellVariable(name) {
   return name === 'PWD' || name === 'WORKSPACE';
 }
 
+function containsUnsupportedShellControlCharacters(value) {
+  return Array.from(String(value || '')).some((character) => {
+    const code = character.charCodeAt(0);
+    return code !== 9 && (code < 32 || code === 127);
+  });
+}
+
+function sanitizeShellVariableValue(value) {
+  const normalizedValue = String(value ?? '');
+  if (containsUnsupportedShellControlCharacters(normalizedValue)) {
+    throw new Error('shell variable values cannot contain control characters.');
+  }
+  if (normalizedValue.length > MAX_SHELL_VARIABLE_VALUE_LENGTH) {
+    throw new Error(
+      `shell variable values must be ${MAX_SHELL_VARIABLE_VALUE_LENGTH} characters or fewer.`
+    );
+  }
+  return normalizedValue;
+}
+
 function getShellVariables(runtimeContext = {}) {
   if (!runtimeContext?.conversation || typeof runtimeContext.conversation !== 'object') {
     return {};
@@ -684,12 +716,19 @@ function getShellVariableValue(name, runtimeContext = {}, currentWorkingDirector
     return WORKSPACE_ROOT_PATH;
   }
   const variables = getShellVariables(runtimeContext);
-  return typeof variables[name] === 'string' ? variables[name] : '';
+  if (typeof variables[name] !== 'string') {
+    return '';
+  }
+  try {
+    return sanitizeShellVariableValue(variables[name]);
+  } catch {
+    return '';
+  }
 }
 
 function setShellVariable(runtimeContext = {}, name, value) {
   const variables = getShellVariables(runtimeContext);
-  variables[name] = String(value ?? '');
+  variables[name] = sanitizeShellVariableValue(value);
   return variables[name];
 }
 
@@ -699,16 +738,21 @@ function unsetShellVariable(runtimeContext = {}, name) {
 }
 
 function expandShellToken(token, runtimeContext = {}, currentWorkingDirectory = WORKSPACE_ROOT_PATH) {
-  return String(token || '').replace(
-    /\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})/g,
-    (_match, shortName, bracedName) =>
-      getShellVariableValue(shortName || bracedName, runtimeContext, currentWorkingDirectory),
-  );
+  return String(token || '')
+    .replace(
+      /\$(?:([A-Za-z_][A-Za-z0-9_]*)|\{([A-Za-z_][A-Za-z0-9_]*)\})/g,
+      (_match, shortName, bracedName) =>
+        getShellVariableValue(shortName || bracedName, runtimeContext, currentWorkingDirectory),
+    )
+    .split(SHELL_LITERAL_DOLLAR_PLACEHOLDER)
+    .join('$');
 }
 
 function expandShellTokens(tokens, runtimeContext = {}, currentWorkingDirectory = WORKSPACE_ROOT_PATH) {
   return Array.isArray(tokens)
-    ? tokens.map((token) => expandShellToken(token, runtimeContext, currentWorkingDirectory))
+    ? tokens
+        .map((token) => expandShellToken(token, runtimeContext, currentWorkingDirectory))
+        .filter((token) => token !== '')
     : [];
 }
 
@@ -1021,7 +1065,17 @@ async function runSet(commandText, args, runtimeContext, currentWorkingDirectory
     );
   }
 
-  setShellVariable(runtimeContext, variableName, variableValue);
+  try {
+    setShellVariable(runtimeContext, variableName, variableValue);
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'set',
+      error instanceof Error ? error.message : String(error),
+      1,
+      currentWorkingDirectory
+    );
+  }
   return createShellResult(commandText, {
     currentWorkingDirectory,
   });
@@ -2800,10 +2854,20 @@ async function runMktemp(commandText, args, workspaceFileSystem, currentWorkingD
     if (await safeStat(workspaceFileSystem, normalizedPath)) {
       continue;
     }
-    if (createDirectory) {
-      await workspaceFileSystem.ensureDirectory(normalizedPath);
-    } else {
-      await workspaceFileSystem.writeTextFile(normalizedPath, '');
+    try {
+      if (createDirectory) {
+        await workspaceFileSystem.ensureDirectory(normalizedPath);
+      } else {
+        await workspaceFileSystem.writeTextFile(normalizedPath, '');
+      }
+    } catch (error) {
+      return createShellError(
+        commandText,
+        'mktemp',
+        error instanceof Error ? error.message : String(error),
+        1,
+        currentWorkingDirectory
+      );
     }
     return createShellResult(commandText, {
       stdout: normalizedPath,
@@ -2871,14 +2935,44 @@ async function runCp(commandText, args, workspaceFileSystem, currentWorkingDirec
   if (sourceStat.kind !== 'file') {
     return createShellError(commandText, 'cp', 'only file copies are supported in this subset.', 1, currentWorkingDirectory);
   }
-  const destinationPath = await resolveOutputPath(
-    workspaceFileSystem,
-    args[1],
-    sourcePath,
-    currentWorkingDirectory
-  );
-  const data = await workspaceFileSystem.readFile(sourcePath);
-  await workspaceFileSystem.writeFile(destinationPath, data);
+  let destinationPath;
+  try {
+    destinationPath = await resolveOutputPath(
+      workspaceFileSystem,
+      args[1],
+      sourcePath,
+      currentWorkingDirectory
+    );
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'cp',
+      error instanceof Error ? error.message : String(error),
+      1,
+      currentWorkingDirectory
+    );
+  }
+  if (destinationPath === sourcePath) {
+    return createShellError(
+      commandText,
+      'cp',
+      `'${args[0]}' and '${args[1]}' resolve to the same file.`,
+      1,
+      currentWorkingDirectory
+    );
+  }
+  try {
+    const data = await workspaceFileSystem.readFile(sourcePath);
+    await workspaceFileSystem.writeFile(destinationPath, data);
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'cp',
+      error instanceof Error ? error.message : String(error),
+      1,
+      currentWorkingDirectory
+    );
+  }
   return createShellResult(commandText, {
     stdout: destinationPath,
     currentWorkingDirectory,
@@ -2908,15 +3002,45 @@ async function runMv(commandText, args, workspaceFileSystem, currentWorkingDirec
   if (sourceStat.kind !== 'file') {
     return createShellError(commandText, 'mv', 'only file moves are supported in this subset.', 1, currentWorkingDirectory);
   }
-  const destinationPath = await resolveOutputPath(
-    workspaceFileSystem,
-    args[1],
-    sourcePath,
-    currentWorkingDirectory
-  );
-  const data = await workspaceFileSystem.readFile(sourcePath);
-  await workspaceFileSystem.writeFile(destinationPath, data);
-  await workspaceFileSystem.deletePath(sourcePath);
+  let destinationPath;
+  try {
+    destinationPath = await resolveOutputPath(
+      workspaceFileSystem,
+      args[1],
+      sourcePath,
+      currentWorkingDirectory
+    );
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'mv',
+      error instanceof Error ? error.message : String(error),
+      1,
+      currentWorkingDirectory
+    );
+  }
+  if (destinationPath === sourcePath) {
+    return createShellError(
+      commandText,
+      'mv',
+      `'${args[0]}' and '${args[1]}' resolve to the same file.`,
+      1,
+      currentWorkingDirectory
+    );
+  }
+  try {
+    const data = await workspaceFileSystem.readFile(sourcePath);
+    await workspaceFileSystem.writeFile(destinationPath, data);
+    await workspaceFileSystem.deletePath(sourcePath);
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'mv',
+      error instanceof Error ? error.message : String(error),
+      1,
+      currentWorkingDirectory
+    );
+  }
   return createShellResult(commandText, {
     stdout: destinationPath,
     currentWorkingDirectory,
@@ -2973,7 +3097,17 @@ async function runRm(commandText, args, workspaceFileSystem, currentWorkingDirec
     if (stat.kind === 'directory' && !recursive) {
       return createShellError(commandText, 'rm', `cannot remove '${rawPath}': Is a directory.`, 1, currentWorkingDirectory);
     }
-    await workspaceFileSystem.deletePath(normalizedPath, { recursive });
+    try {
+      await workspaceFileSystem.deletePath(normalizedPath, { recursive });
+    } catch (error) {
+      return createShellError(
+        commandText,
+        'rm',
+        `cannot remove '${rawPath}': ${error instanceof Error ? error.message : String(error)}`,
+        1,
+        currentWorkingDirectory
+      );
+    }
   }
   return createShellResult(commandText, { currentWorkingDirectory });
 }
@@ -3538,6 +3672,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
     limitations: [
       'Only one command runs per tool call.',
       'Commands are GNU/Linux-like, but only the documented subset is implemented.',
+      `Command text must be plain shell input, ${MAX_SHELL_COMMAND_LENGTH} characters or fewer, and free of control characters.`,
       'Relative paths resolve from the current working directory.',
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.',
       'paste merges text files line-by-line, with optional -d delimiters.',
@@ -3558,6 +3693,37 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
   };
 }
 
+function sanitizeShellCommandText(command) {
+  const normalizedCommand = typeof command === 'string' ? command.trim() : '';
+  if (!normalizedCommand) {
+    throw new Error('run_shell_command command must be a non-empty string.');
+  }
+  if (containsUnsupportedShellControlCharacters(normalizedCommand)) {
+    throw new Error('run_shell_command command cannot contain control characters.');
+  }
+  if (normalizedCommand.length > MAX_SHELL_COMMAND_LENGTH) {
+    throw new Error(
+      `run_shell_command command must be ${MAX_SHELL_COMMAND_LENGTH} characters or fewer.`
+    );
+  }
+  if (normalizedCommand.includes('```')) {
+    throw new Error('run_shell_command command must be plain shell text, not a fenced code block.');
+  }
+  if (
+    /^<tool_call>[\s\S]*<\/tool_call>$/i.test(normalizedCommand) ||
+    /^<\|tool_call_start\|>[\s\S]*<\|tool_call_end\|>$/i.test(normalizedCommand)
+  ) {
+    throw new Error('run_shell_command command must be plain shell text, not a nested tool call.');
+  }
+  if (
+    /^\{[\s\S]*\}$/.test(normalizedCommand) &&
+    /"(name|arguments|parameters)"\s*:/.test(normalizedCommand)
+  ) {
+    throw new Error('run_shell_command command must be plain shell text, not a JSON tool call.');
+  }
+  return normalizedCommand;
+}
+
 function getValidatedShellToolArguments(argumentsValue = {}) {
   if (argumentsValue === undefined) {
     return {};
@@ -3574,11 +3740,11 @@ function getValidatedShellToolArguments(argumentsValue = {}) {
   if (shellArguments.command === undefined) {
     return {};
   }
-  if (typeof shellArguments.command !== 'string' || !shellArguments.command.trim()) {
+  if (typeof shellArguments.command !== 'string') {
     throw new Error('run_shell_command command must be a non-empty string.');
   }
   return {
-    command: shellArguments.command.trim(),
+    command: sanitizeShellCommandText(shellArguments.command),
   };
 }
 
@@ -3641,17 +3807,45 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
         currentWorkingDirectory
       );
     }
-    setShellVariable(
-      runtimeContext,
-      assignmentMatch[1],
-      expandShellToken(assignmentMatch[2], runtimeContext, currentWorkingDirectory)
-    );
+    try {
+      setShellVariable(
+        runtimeContext,
+        assignmentMatch[1],
+        expandShellToken(assignmentMatch[2], runtimeContext, currentWorkingDirectory)
+      );
+    } catch (error) {
+      return createShellError(
+        commandText,
+        'shell',
+        error instanceof Error ? error.message : String(error),
+        1,
+        currentWorkingDirectory
+      );
+    }
     return createShellResult(commandText, {
       currentWorkingDirectory,
     });
   }
 
   const expandedTokens = expandShellTokens(tokens, runtimeContext, currentWorkingDirectory);
+  if (expandedTokens.length > MAX_SHELL_TOKENS) {
+    return createShellError(
+      commandText,
+      'shell',
+      `command expands to too many tokens; limit is ${MAX_SHELL_TOKENS}.`,
+      2,
+      currentWorkingDirectory
+    );
+  }
+  if (!expandedTokens.length) {
+    return createShellError(
+      commandText,
+      'shell',
+      'command is empty after expansion.',
+      2,
+      currentWorkingDirectory
+    );
+  }
   const [commandName, ...args] = expandedTokens;
   if (commandName === 'pwd') {
     return runPwd(commandText, args, currentWorkingDirectory);

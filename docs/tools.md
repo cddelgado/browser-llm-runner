@@ -141,6 +141,8 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `which`
 - Current limits:
   - commands are GNU/Linux-like, but only this documented subset is implemented
+  - command text must be plain shell input, 2000 characters or fewer, and free of control characters
+  - fenced code blocks and nested tool-call payloads are rejected before execution
   - relative paths resolve from the conversation's current working directory
   - new conversations start with the shell pointer at `/workspace`
   - minimal variable support exists for `$VAR`, `${VAR}`, `NAME=value`, `set`, and `unset`

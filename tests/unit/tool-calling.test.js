@@ -159,11 +159,14 @@ function createMockWorkspaceFileSystem(initialFiles = {}) {
             : String(data || '');
       return this.writeTextFile(path, text);
     },
-    async deletePath(path, { recursive = false } = {}) {
-      const normalizedPath = normalizePath(path);
-      if (files.delete(normalizedPath)) {
-        return true;
-      }
+      async deletePath(path, { recursive = false } = {}) {
+        const normalizedPath = normalizePath(path);
+        if (normalizedPath === '/workspace') {
+          throw new Error('Deleting /workspace is not allowed.');
+        }
+        if (files.delete(normalizedPath)) {
+          return true;
+        }
       if (!directories.has(normalizedPath)) {
         const error = new Error(`No such file or directory: ${normalizedPath}`);
         error.name = 'NotFoundError';
@@ -855,6 +858,9 @@ describe('tool-calling prompt builder', () => {
       'Commands are GNU/Linux-like, but only the documented subset is implemented.'
     );
     expect(result.result.limitations).toContain(
+      'Command text must be plain shell input, 2000 characters or fewer, and free of control characters.'
+    );
+    expect(result.result.limitations).toContain(
       'Relative paths resolve from the current working directory.'
     );
     expect(result.result.limitations).toContain(
@@ -878,6 +884,39 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.limitations).toContain(
       'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.'
     );
+  });
+
+  test('rejects fenced code blocks in shell commands', async () => {
+    await expect(
+      executeToolCall({
+        name: 'run_shell_command',
+        arguments: {
+          command: '```sh ls```',
+        },
+      })
+    ).rejects.toThrow('run_shell_command command must be plain shell text, not a fenced code block.');
+  });
+
+  test('rejects nested json tool calls in shell commands', async () => {
+    await expect(
+      executeToolCall({
+        name: 'run_shell_command',
+        arguments: {
+          command: '{"name":"get_current_date_time","parameters":{}}',
+        },
+      })
+    ).rejects.toThrow('run_shell_command command must be plain shell text, not a JSON tool call.');
+  });
+
+  test('rejects control characters in shell commands', async () => {
+    await expect(
+      executeToolCall({
+        name: 'run_shell_command',
+        arguments: {
+          command: `cat notes.txt${String.fromCharCode(7)}`,
+        },
+      })
+    ).rejects.toThrow('run_shell_command command cannot contain control characters.');
   });
 
   test('executes a shell command against the workspace and returns stdout', async () => {
@@ -1140,6 +1179,76 @@ describe('tool-calling prompt builder', () => {
       kind: 'directory',
       path: directoryResult.result.stdout,
     });
+  });
+
+  test('rejects cp when source and destination resolve to the same file', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.txt': 'alpha\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'cp notes.txt ./notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(1);
+    expect(result.result.stderr).toBe("cp: 'notes.txt' and './notes.txt' resolve to the same file.");
+    await expect(workspaceFileSystem.readTextFile('/workspace/notes.txt')).resolves.toBe('alpha\n');
+  });
+
+  test('rejects mv when source and destination resolve to the same file', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.txt': 'alpha\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'mv notes.txt /workspace/notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(1);
+    expect(result.result.stderr).toBe(
+      "mv: 'notes.txt' and '/workspace/notes.txt' resolve to the same file."
+    );
+    await expect(workspaceFileSystem.readTextFile('/workspace/notes.txt')).resolves.toBe('alpha\n');
+  });
+
+  test('returns a shell-style rm error when deleting /workspace is blocked', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.txt': 'alpha\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'rm -rf /workspace',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(1);
+    expect(result.result.stderr).toBe(
+      "rm: cannot remove '/workspace': Deleting /workspace is not allowed."
+    );
+    await expect(workspaceFileSystem.readTextFile('/workspace/notes.txt')).resolves.toBe('alpha\n');
   });
 
   test('supports sort for lexical and numeric ordering', async () => {
@@ -1573,6 +1682,41 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.stdout).toBe('biology biology');
   });
 
+  test('keeps escaped and single-quoted shell variables literal', async () => {
+    const conversation = createConversation({
+      id: 'conversation-shell-literals',
+    });
+    const workspaceFileSystem = createMockWorkspaceFileSystem();
+
+    await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'COURSE=biology',
+        },
+      },
+      {
+        conversation,
+        workspaceFileSystem,
+      }
+    );
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'echo $COURSE "$COURSE" \'$COURSE\' \\$COURSE',
+        },
+      },
+      {
+        conversation,
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe('biology biology $COURSE $COURSE');
+  });
+
   test('supports PWD expansion and unset for shell variables', async () => {
     const conversation = createConversation({
       id: 'conversation-shell-pwd',
@@ -1649,6 +1793,32 @@ describe('tool-calling prompt builder', () => {
     expect(pwdResult.result.stdout).toBe('/workspace/coursework');
     expect(unsetResult.result.stdout).toBe('');
     expect(conversation.shellVariables).toEqual({});
+  });
+
+  test('does not treat empty variable expansion as a workspace path operand', async () => {
+    const conversation = createConversation({
+      id: 'conversation-shell-empty-expansion',
+    });
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.txt': 'alpha\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'rm -rf $MISSING_TARGET',
+        },
+      },
+      {
+        conversation,
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(2);
+    expect(result.result.stderr).toBe('rm: expected at least one path.');
+    await expect(workspaceFileSystem.readTextFile('/workspace/notes.txt')).resolves.toBe('alpha\n');
   });
 
   test('supports ls -l and ls -h for long listings', async () => {
