@@ -77,6 +77,21 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Filter or count adjacent duplicate lines from a text file.',
   },
   {
+    name: 'cut',
+    usage: 'cut -f <fields> [-d <delimiter>] <file>',
+    description: 'Select delimited fields from each line of a text file.',
+  },
+  {
+    name: 'tr',
+    usage: 'tr [-d] <set1> [<set2>] <file>',
+    description: 'Translate or delete characters from a text file.',
+  },
+  {
+    name: 'nl',
+    usage: 'nl <file>',
+    description: 'Number the lines of a text file.',
+  },
+  {
     name: 'rmdir',
     usage: 'rmdir <directory>...',
     description: 'Remove empty directories under /workspace.',
@@ -1346,6 +1361,54 @@ function joinShellLines(lines, trailingNewline = false) {
   return trailingNewline ? `${output}\n` : output;
 }
 
+function parseCutFieldSpec(specification) {
+  const rawSpec = String(specification || '').trim();
+  if (!rawSpec) {
+    throw new Error('missing field list.');
+  }
+  const indexes = new Set();
+  for (const part of rawSpec.split(',')) {
+    const trimmedPart = part.trim();
+    if (!trimmedPart) {
+      throw new Error('invalid field list.');
+    }
+    const rangeMatch = trimmedPart.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const start = Number.parseInt(rangeMatch[1], 10);
+      const end = Number.parseInt(rangeMatch[2], 10);
+      if (start < 1 || end < start) {
+        throw new Error('invalid field range.');
+      }
+      for (let index = start; index <= end; index += 1) {
+        indexes.add(index);
+      }
+      continue;
+    }
+    const singleIndex = Number.parseInt(trimmedPart, 10);
+    if (!Number.isInteger(singleIndex) || singleIndex < 1) {
+      throw new Error('field numbers must be positive integers.');
+    }
+    indexes.add(singleIndex);
+  }
+  return [...indexes].sort((left, right) => left - right);
+}
+
+function translateCharacters(text, sourceSet, targetSet) {
+  const sourceCharacters = Array.from(String(sourceSet || ''));
+  const targetCharacters = Array.from(String(targetSet || ''));
+  if (!sourceCharacters.length) {
+    return String(text || '');
+  }
+  const lastTargetCharacter = targetCharacters[targetCharacters.length - 1] || '';
+  return Array.from(String(text || ''), (character) => {
+    const index = sourceCharacters.indexOf(character);
+    if (index < 0) {
+      return character;
+    }
+    return targetCharacters[index] ?? lastTargetCharacter;
+  }).join('');
+}
+
 async function runSort(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
   if (!args.length) {
     return createShellError(commandText, 'sort', 'expected at least one file path.', 2, currentWorkingDirectory);
@@ -1486,6 +1549,158 @@ async function runUniq(commandText, args, workspaceFileSystem, currentWorkingDir
   }
   flush();
 
+  return createShellResult(commandText, {
+    stdout: joinShellLines(outputLines, trailingNewline),
+    currentWorkingDirectory,
+  });
+}
+
+async function runCut(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(commandText, 'cut', 'expected options and one file path.', 2, currentWorkingDirectory);
+  }
+
+  let delimiter = '\t';
+  let fieldSpec = '';
+  const filePaths = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '-d') {
+      delimiter = args[index + 1] ?? '';
+      index += 1;
+      continue;
+    }
+    if (argument === '-f') {
+      fieldSpec = args[index + 1] ?? '';
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      return createShellError(commandText, 'cut', `unsupported option ${argument}.`, 2, currentWorkingDirectory);
+    }
+    filePaths.push(argument);
+  }
+
+  if (!fieldSpec) {
+    return createShellError(commandText, 'cut', 'option -f requires a field list.', 2, currentWorkingDirectory);
+  }
+  if (filePaths.length !== 1) {
+    return createShellError(commandText, 'cut', 'expected exactly one file path.', 2, currentWorkingDirectory);
+  }
+
+  let fields;
+  try {
+    fields = parseCutFieldSpec(fieldSpec);
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'cut',
+      error instanceof Error ? error.message : String(error),
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const fileResult = await readWorkspaceTextFile(
+    'cut',
+    commandText,
+    filePaths[0],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (fileResult.error) {
+    return fileResult.error;
+  }
+
+  const { lines, trailingNewline } = splitShellTextIntoLines(fileResult.text);
+  const outputLines = lines.map((line) => {
+    const parts = String(line).split(delimiter);
+    return fields
+      .map((fieldIndex) => parts[fieldIndex - 1])
+      .filter((value) => value !== undefined)
+      .join(delimiter);
+  });
+
+  return createShellResult(commandText, {
+    stdout: joinShellLines(outputLines, trailingNewline),
+    currentWorkingDirectory,
+  });
+}
+
+async function runTr(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(commandText, 'tr', 'expected character sets and one file path.', 2, currentWorkingDirectory);
+  }
+
+  let deleteMode = false;
+  const positional = [];
+
+  for (const argument of args) {
+    if (argument === '-d') {
+      deleteMode = true;
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      return createShellError(commandText, 'tr', `unsupported option ${argument}.`, 2, currentWorkingDirectory);
+    }
+    positional.push(argument);
+  }
+
+  if (deleteMode ? positional.length !== 2 : positional.length !== 3) {
+    return createShellError(
+      commandText,
+      'tr',
+      deleteMode
+        ? 'expected a character set and one file path.'
+        : 'expected source set, target set, and one file path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const [set1, set2OrPath, maybePath] = positional;
+  const filePath = deleteMode ? set2OrPath : maybePath;
+  const fileResult = await readWorkspaceTextFile(
+    'tr',
+    commandText,
+    filePath,
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (fileResult.error) {
+    return fileResult.error;
+  }
+
+  const stdout = deleteMode
+    ? Array.from(String(fileResult.text))
+        .filter((character) => !String(set1).includes(character))
+        .join('')
+    : translateCharacters(fileResult.text, set1, set2OrPath);
+
+  return createShellResult(commandText, {
+    stdout,
+    currentWorkingDirectory,
+  });
+}
+
+async function runNl(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (args.length !== 1) {
+    return createShellError(commandText, 'nl', 'expected exactly one file path.', 2, currentWorkingDirectory);
+  }
+  const fileResult = await readWorkspaceTextFile(
+    'nl',
+    commandText,
+    args[0],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (fileResult.error) {
+    return fileResult.error;
+  }
+
+  const { lines, trailingNewline } = splitShellTextIntoLines(fileResult.text);
+  const outputLines = lines.map((line, index) => `${String(index + 1).padStart(6, ' ')}\t${line}`);
   return createShellResult(commandText, {
     stdout: joinShellLines(outputLines, trailingNewline),
     currentWorkingDirectory,
@@ -2063,6 +2278,9 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'mktemp -d /workspace/tmpdir.XXXXXX',
       'sort /workspace/<file>',
       'uniq /workspace/<file>',
+      'cut -d , -f 1,3 /workspace/<file>',
+      'tr abc xyz /workspace/<file>',
+      'nl /workspace/<file>',
       'cd <directory>',
       'cat /workspace/<file>',
       'NAME=value',
@@ -2237,6 +2455,15 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'uniq') {
     return runUniq(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'cut') {
+    return runCut(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'tr') {
+    return runTr(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'nl') {
+    return runNl(commandText, args, workspaceFileSystem, currentWorkingDirectory);
   }
   if (commandName === 'rmdir') {
     return runRmdir(commandText, args, workspaceFileSystem, currentWorkingDirectory);

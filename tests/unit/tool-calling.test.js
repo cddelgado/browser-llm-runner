@@ -800,6 +800,9 @@ describe('tool-calling prompt builder', () => {
         expect.objectContaining({ name: 'mktemp', usage: 'mktemp [-d] [<template>]' }),
         expect.objectContaining({ name: 'sort', usage: 'sort [-r] [-n] <file>...' }),
         expect.objectContaining({ name: 'uniq', usage: 'uniq [-c] <file>' }),
+        expect.objectContaining({ name: 'cut', usage: 'cut -f <fields> [-d <delimiter>] <file>' }),
+        expect.objectContaining({ name: 'tr', usage: 'tr [-d] <set1> [<set2>] <file>' }),
+        expect.objectContaining({ name: 'nl', usage: 'nl <file>' }),
         expect.objectContaining({ name: 'ls', usage: 'ls [-1] [-R] [-d] [-h] [-l] [<path>...]' }),
         expect.objectContaining({
           name: 'cat',
@@ -1165,6 +1168,79 @@ describe('tool-calling prompt builder', () => {
 
     expect(uniqResult.result.stdout).toBe('apple\nbanana\npear\n');
     expect(uniqCountResult.result.stdout).toBe('      2 apple\n      3 banana\n      1 pear\n');
+  });
+
+  test('supports cut for delimited field selection', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/table.csv': 'alpha,beta,gamma\none,two,three\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'cut -d , -f 1,3 table.csv',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe('alpha,gamma\none,three\n');
+  });
+
+  test('supports tr for translation and deletion', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/text.txt': 'banana\n',
+    });
+
+    const translateResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'tr an oz text.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const deleteResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'tr -d an text.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(translateResult.result.stdout).toBe('bozozo\n');
+    expect(deleteResult.result.stdout).toBe('b\n');
+  });
+
+  test('supports nl for line numbering', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.txt': 'alpha\nbeta\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'nl notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.stdout).toBe('     1\talpha\n     2\tbeta\n');
   });
 
   test('supports cat -n for numbering all output lines', async () => {

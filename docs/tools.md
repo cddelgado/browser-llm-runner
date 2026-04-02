@@ -117,6 +117,9 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `wc`
   - `sort`
   - `uniq`
+  - `cut`
+  - `tr`
+  - `nl`
   - `rmdir`
   - `mkdir`
   - `mktemp`
