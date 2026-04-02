@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import {
+  CONVERSATION_WORKSPACE_DIRECTORY_NAME,
   WORKSPACE_ROOT_PATH,
+  createConversationWorkspaceFileSystem,
   createOpfsWorkspaceDriver,
   createWorkspaceFileSystem,
   normalizeWorkspacePath,
@@ -167,5 +169,38 @@ describe('workspace-file-system', () => {
     await expect(workspaceFileSystem.stat('/workspace/projects')).resolves.toEqual(
       expect.objectContaining({ path: '/workspace/projects', kind: 'directory' }),
     );
+  });
+
+  test('isolates conversation workspace storage behind the shared /workspace path', async () => {
+    const baseWorkspaceFileSystem = createWorkspaceFileSystemHarness();
+    const conversationAWorkspace = createConversationWorkspaceFileSystem(
+      baseWorkspaceFileSystem,
+      'conversation-a',
+    );
+    const conversationBWorkspace = createConversationWorkspaceFileSystem(
+      baseWorkspaceFileSystem,
+      'conversation-b',
+    );
+
+    const firstUpload = await conversationAWorkspace.storeUploadedFile(
+      createUpload('notes.txt', 'alpha'),
+    );
+    const secondUpload = await conversationBWorkspace.storeUploadedFile(
+      createUpload('notes.txt', 'beta'),
+    );
+
+    expect(firstUpload.path).toBe('/workspace/notes.txt');
+    expect(secondUpload.path).toBe('/workspace/notes.txt');
+    await expect(conversationAWorkspace.readTextFile('/workspace/notes.txt')).resolves.toBe('alpha');
+    await expect(conversationBWorkspace.readTextFile('/workspace/notes.txt')).resolves.toBe('beta');
+    await expect(conversationAWorkspace.listDirectory('/workspace')).resolves.toEqual([
+      expect.objectContaining({ path: '/workspace/notes.txt', kind: 'file' }),
+    ]);
+    await expect(baseWorkspaceFileSystem.readTextFile(
+      `/workspace/${CONVERSATION_WORKSPACE_DIRECTORY_NAME}/conversation-a/notes.txt`,
+    )).resolves.toBe('alpha');
+    await expect(baseWorkspaceFileSystem.readTextFile(
+      `/workspace/${CONVERSATION_WORKSPACE_DIRECTORY_NAME}/conversation-b/notes.txt`,
+    )).resolves.toBe('beta');
   });
 });

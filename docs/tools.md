@@ -130,7 +130,7 @@ The intended future design separates capability access into three layers with di
 User-uploaded files are already staged for that future work through a browser-local workspace filesystem abstraction:
 
 - uploads are written into OPFS
-- the exposed path format is linux-style under `/workspace`
+- each conversation gets its own isolated OPFS-backed `/workspace`
 - future tool commands should interact with the injected workspace filesystem abstraction, not OPFS handles directly
 
 ### 1. Function calls

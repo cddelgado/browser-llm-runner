@@ -1,5 +1,6 @@
 export const WORKSPACE_ROOT_NAME = 'workspace';
 export const WORKSPACE_ROOT_PATH = `/${WORKSPACE_ROOT_NAME}`;
+export const CONVERSATION_WORKSPACE_DIRECTORY_NAME = '.conversations';
 
 function getTextEncoder() {
   if (typeof globalThis.TextEncoder !== 'function') {
@@ -380,6 +381,139 @@ export function createWorkspaceFileSystem({ driver = createOpfsWorkspaceDriver()
           typeof file.type === 'string' && file.type.trim()
             ? file.type.trim()
             : 'application/octet-stream',
+      };
+    },
+  };
+}
+
+function mapVisiblePathToBackingPath(visiblePath, backingRootPath) {
+  const normalizedVisiblePath = normalizeWorkspacePath(visiblePath);
+  if (normalizedVisiblePath === WORKSPACE_ROOT_PATH) {
+    return backingRootPath;
+  }
+  const relativePath = normalizedVisiblePath.slice(WORKSPACE_ROOT_PATH.length + 1);
+  return `${backingRootPath}/${relativePath}`;
+}
+
+function mapBackingPathToVisiblePath(backingPath, backingRootPath) {
+  const normalizedBackingPath = normalizeWorkspacePath(backingPath);
+  if (normalizedBackingPath === backingRootPath) {
+    return WORKSPACE_ROOT_PATH;
+  }
+  const relativePath = normalizedBackingPath.slice(backingRootPath.length + 1);
+  return `${WORKSPACE_ROOT_PATH}/${relativePath}`;
+}
+
+function mapBackingStatToVisibleStat(stat, backingRootPath) {
+  if (!stat || typeof stat !== 'object') {
+    return stat;
+  }
+  return {
+    ...stat,
+    path: mapBackingPathToVisiblePath(stat.path, backingRootPath),
+    name:
+      stat.path === backingRootPath && stat.kind === 'directory'
+        ? WORKSPACE_ROOT_NAME
+        : stat.name,
+  };
+}
+
+export function createConversationWorkspaceFileSystem(workspaceFileSystem, conversationId) {
+  if (!workspaceFileSystem || typeof workspaceFileSystem !== 'object') {
+    throw new Error('A workspace filesystem is required.');
+  }
+  const normalizedConversationId = sanitizeWorkspaceEntryName(conversationId, 'conversation');
+  const backingRootPath = `${WORKSPACE_ROOT_PATH}/${CONVERSATION_WORKSPACE_DIRECTORY_NAME}/${normalizedConversationId}`;
+
+  return {
+    backendKind:
+      typeof workspaceFileSystem.backendKind === 'string'
+        ? workspaceFileSystem.backendKind
+        : 'unknown',
+    rootPath: WORKSPACE_ROOT_PATH,
+    conversationId: normalizedConversationId,
+    backingRootPath,
+    normalizePath(path) {
+      return normalizeWorkspacePath(path);
+    },
+    async ensureDirectory(path = WORKSPACE_ROOT_PATH) {
+      const normalizedVisiblePath = normalizeWorkspacePath(path);
+      await workspaceFileSystem.ensureDirectory(
+        mapVisiblePathToBackingPath(normalizedVisiblePath, backingRootPath),
+      );
+      return {
+        path: normalizedVisiblePath,
+        kind: 'directory',
+      };
+    },
+    async writeFile(path, data) {
+      const normalizedVisiblePath = normalizeWorkspacePath(path);
+      const stat = await workspaceFileSystem.writeFile(
+        mapVisiblePathToBackingPath(normalizedVisiblePath, backingRootPath),
+        data,
+      );
+      return mapBackingStatToVisibleStat(stat, backingRootPath);
+    },
+    async writeTextFile(path, text) {
+      return this.writeFile(path, getTextEncoder().encode(String(text || '')));
+    },
+    async readFile(path) {
+      return workspaceFileSystem.readFile(mapVisiblePathToBackingPath(path, backingRootPath));
+    },
+    async readTextFile(path, options) {
+      return workspaceFileSystem.readTextFile(
+        mapVisiblePathToBackingPath(path, backingRootPath),
+        options,
+      );
+    },
+    async listDirectory(path = WORKSPACE_ROOT_PATH) {
+      const normalizedVisiblePath = normalizeWorkspacePath(path);
+      const backingPath = mapVisiblePathToBackingPath(normalizedVisiblePath, backingRootPath);
+      if (!(await workspaceFileSystem.exists(backingPath))) {
+        return [];
+      }
+      const entries = await workspaceFileSystem.listDirectory(backingPath);
+      return entries.map((entry) => mapBackingStatToVisibleStat(entry, backingRootPath));
+    },
+    async stat(path) {
+      const normalizedVisiblePath = normalizeWorkspacePath(path);
+      if (normalizedVisiblePath === WORKSPACE_ROOT_PATH) {
+        return {
+          path: WORKSPACE_ROOT_PATH,
+          name: WORKSPACE_ROOT_NAME,
+          kind: 'directory',
+        };
+      }
+      const stat = await workspaceFileSystem.stat(
+        mapVisiblePathToBackingPath(normalizedVisiblePath, backingRootPath),
+      );
+      return mapBackingStatToVisibleStat(stat, backingRootPath);
+    },
+    async exists(path) {
+      return workspaceFileSystem.exists(mapVisiblePathToBackingPath(path, backingRootPath));
+    },
+    async deletePath(path, options) {
+      const normalizedVisiblePath = normalizeWorkspacePath(path);
+      if (normalizedVisiblePath === WORKSPACE_ROOT_PATH) {
+        throw new Error('Deleting /workspace is not allowed.');
+      }
+      return workspaceFileSystem.deletePath(
+        mapVisiblePathToBackingPath(normalizedVisiblePath, backingRootPath),
+        options,
+      );
+    },
+    async storeUploadedFile(file, options = {}) {
+      const {
+        directoryPath = WORKSPACE_ROOT_PATH,
+        ...remainingOptions
+      } = options;
+      const storedFile = await workspaceFileSystem.storeUploadedFile(file, {
+        ...remainingOptions,
+        directoryPath: mapVisiblePathToBackingPath(directoryPath, backingRootPath),
+      });
+      return {
+        ...storedFile,
+        path: mapBackingPathToVisiblePath(storedFile.path, backingRootPath),
       };
     },
   };

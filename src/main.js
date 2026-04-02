@@ -124,7 +124,10 @@ import { loadConversationState, saveConversationState } from './state/conversati
 import { renderConversationListView } from './ui/conversation-list-view.js';
 import { createTranscriptView } from './ui/transcript-view.js';
 import { renderTaskListTray } from './ui/task-list-tray.js';
-import { createWorkspaceFileSystem } from './workspace/workspace-file-system.js';
+import {
+  createConversationWorkspaceFileSystem,
+  createWorkspaceFileSystem,
+} from './workspace/workspace-file-system.js';
 
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const SHOW_THINKING_STORAGE_KEY = 'ui-show-thinking';
@@ -282,6 +285,7 @@ const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
 
 const engine = new LLMEngineClient();
 const workspaceFileSystem = createWorkspaceFileSystem();
+const conversationWorkspaceFileSystems = new Map();
 const markdown = new MarkdownIt({
   html: false,
   breaks: true,
@@ -1483,6 +1487,37 @@ function getActiveConversation() {
   return selectActiveConversation(appState);
 }
 
+function reservePendingConversationId() {
+  if (
+    typeof appState.pendingConversationDraftId === 'string' &&
+    appState.pendingConversationDraftId.trim()
+  ) {
+    return appState.pendingConversationDraftId.trim();
+  }
+  const pendingConversationId = `conversation-${appState.conversationIdCounter + 1}`;
+  appState.pendingConversationDraftId = pendingConversationId;
+  return pendingConversationId;
+}
+
+function getConversationWorkspaceFileSystem(conversationOrId = getActiveConversation()) {
+  const conversationId =
+    typeof conversationOrId === 'string'
+      ? conversationOrId.trim()
+      : typeof conversationOrId?.id === 'string'
+        ? conversationOrId.id.trim()
+        : '';
+  if (!conversationId) {
+    return null;
+  }
+  if (!conversationWorkspaceFileSystems.has(conversationId)) {
+    conversationWorkspaceFileSystems.set(
+      conversationId,
+      createConversationWorkspaceFileSystem(workspaceFileSystem, conversationId),
+    );
+  }
+  return conversationWorkspaceFileSystems.get(conversationId) || null;
+}
+
 function isModelTurnComplete(conversation, rootModelMessage) {
   if (!conversation || rootModelMessage?.role !== 'model') {
     return false;
@@ -1513,8 +1548,15 @@ function findConversationById(conversationId) {
 
 function createConversation(name) {
   appState.conversationCount += 1;
+  const conversationId =
+    typeof appState.pendingConversationDraftId === 'string' &&
+    appState.pendingConversationDraftId.trim()
+      ? appState.pendingConversationDraftId.trim()
+      : `conversation-${appState.conversationIdCounter + 1}`;
+  appState.pendingConversationDraftId = '';
+  appState.conversationIdCounter += 1;
   const conversation = createConversationRecord({
-    id: `conversation-${++appState.conversationIdCounter}`,
+    id: conversationId,
     name,
     modelId: getAvailableModelId(
       modelSelect?.value || DEFAULT_MODEL,
@@ -2898,7 +2940,7 @@ const appController = createAppController({
     executeToolCall(toolCall, {
       conversation: getActiveConversation(),
       requestToolConsent,
-      workspaceFileSystem,
+      workspaceFileSystem: getConversationWorkspaceFileSystem(),
     }),
   getSelectedModelId: () => modelSelect?.value || DEFAULT_MODEL,
   addMessageToConversation,
@@ -3159,7 +3201,11 @@ bindComposerEvents({
   getPendingComposerAttachments,
   selectedModelSupportsImageInput,
   createComposerAttachmentFromFile: (file) =>
-    createComposerAttachmentFromFile(file, { workspaceFileSystem }),
+    createComposerAttachmentFromFile(file, {
+      workspaceFileSystem:
+        getConversationWorkspaceFileSystem() ||
+        getConversationWorkspaceFileSystem(reservePendingConversationId()),
+    }),
   renderComposerAttachments,
   setStatus,
   clearPendingComposerAttachments,

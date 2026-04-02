@@ -90,7 +90,7 @@ Student-facing browser chat UI with local model inference.
   - Text-backed attachments preserve a normalized representation in conversation state so future features can reuse the same conversion output for search/memory ingestion without re-parsing the source file.
   - Selected attachments appear as removable cards above the composer before send.
   - Sent attachments are restored with the conversation transcript on reload.
-  - Every uploaded attachment is also written into the browser's Origin Private File System (OPFS) under a linux-style `/workspace/...` path for future workspace tools.
+- Every uploaded attachment is also written into the browser's Origin Private File System (OPFS) behind a conversation-scoped linux-style `/workspace/...` path for future workspace tools.
   - Attachment records preserve that `/workspace/...` path metadata so future local commands can address uploaded files without reaching into UI-only state.
   - Text-file and PDF attachments include a collapsible `Model sees` preview in the transcript so users can inspect the exact prompt text derived from the file.
 - Document-prep orchestration support is now built into the orchestration runtime for future attachment pipelines.
