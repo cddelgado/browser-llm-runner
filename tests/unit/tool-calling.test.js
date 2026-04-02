@@ -790,6 +790,8 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.supportedCommands).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'pwd', usage: 'pwd' }),
+        expect.objectContaining({ name: 'true', usage: 'true' }),
+        expect.objectContaining({ name: 'false', usage: 'false' }),
         expect.objectContaining({ name: 'cd', usage: 'cd [<directory>]' }),
         expect.objectContaining({ name: 'ls', usage: 'ls [-1] [-R] [-d] [-h] [-l] [<path>...]' }),
         expect.objectContaining({
@@ -811,6 +813,10 @@ describe('tool-calling prompt builder', () => {
         expect.objectContaining({
           name: 'unset',
           usage: 'unset <name>...',
+        }),
+        expect.objectContaining({
+          name: 'which',
+          usage: 'which <command>...',
         }),
       ])
     );
@@ -847,6 +853,74 @@ describe('tool-calling prompt builder', () => {
       command: 'cat notes.txt',
       exitCode: 0,
       stdout: 'alpha\nbeta\n',
+      stderr: '',
+    });
+  });
+
+  test('supports true and false as fixed exit-code commands', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem();
+
+    const trueResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'true',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const falseResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'false',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(trueResult.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace',
+      command: 'true',
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+    });
+    expect(falseResult.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace',
+      command: 'false',
+      exitCode: 1,
+      stdout: '',
+      stderr: '',
+    });
+  });
+
+  test('supports which for built-in shell commands', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'which ls fakecmd echo',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+      }
+    );
+
+    expect(result.result).toEqual({
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace',
+      command: 'which ls fakecmd echo',
+      exitCode: 1,
+      stdout: 'ls\necho',
       stderr: '',
     });
   });

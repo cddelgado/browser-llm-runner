@@ -12,6 +12,16 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Print the current working directory.',
   },
   {
+    name: 'true',
+    usage: 'true',
+    description: 'Exit successfully without output.',
+  },
+  {
+    name: 'false',
+    usage: 'false',
+    description: 'Exit unsuccessfully without output.',
+  },
+  {
     name: 'cd',
     usage: 'cd [<directory>]',
     description: 'Change the current working directory.',
@@ -90,6 +100,11 @@ const SHELL_COMMANDS = Object.freeze([
     name: 'unset',
     usage: 'unset <name>...',
     description: 'Unset one or more conversation-scoped shell variables.',
+  },
+  {
+    name: 'which',
+    usage: 'which <command>...',
+    description: 'Report whether a command exists in this shell subset.',
   },
 ]);
 
@@ -511,6 +526,37 @@ async function runPwd(commandText, args, currentWorkingDirectory) {
   });
 }
 
+async function runTrue(commandText, args, currentWorkingDirectory) {
+  if (args.length) {
+    return createShellError(
+      commandText,
+      'true',
+      'this subset does not accept arguments.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+  return createShellResult(commandText, {
+    currentWorkingDirectory,
+  });
+}
+
+async function runFalse(commandText, args, currentWorkingDirectory) {
+  if (args.length) {
+    return createShellError(
+      commandText,
+      'false',
+      'this subset does not accept arguments.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+  return createShellResult(commandText, {
+    exitCode: 1,
+    currentWorkingDirectory,
+  });
+}
+
 async function runCd(commandText, args, workspaceFileSystem, runtimeContext, currentWorkingDirectory) {
   if (args.length > 1) {
     return createShellError(
@@ -648,6 +694,25 @@ async function runUnset(commandText, args, runtimeContext, currentWorkingDirecto
     unsetShellVariable(runtimeContext, variableName);
   }
   return createShellResult(commandText, {
+    currentWorkingDirectory,
+  });
+}
+
+async function runWhich(commandText, args, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(
+      commandText,
+      'which',
+      'expected at least one command name.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+  const supportedCommandNames = new Set(SHELL_COMMANDS.map((command) => command.name));
+  const matches = args.filter((name) => supportedCommandNames.has(name));
+  return createShellResult(commandText, {
+    exitCode: matches.length === args.length ? 0 : 1,
+    stdout: matches.join('\n'),
     currentWorkingDirectory,
   });
 }
@@ -1474,6 +1539,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
     supportedCommands: SHELL_COMMANDS,
     examples: [
       'ls /workspace/<directory>',
+      'which ls',
       'cd <directory>',
       'cat /workspace/<file>',
       'NAME=value',
@@ -1598,6 +1664,12 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   if (commandName === 'pwd') {
     return runPwd(commandText, args, currentWorkingDirectory);
   }
+  if (commandName === 'true') {
+    return runTrue(commandText, args, currentWorkingDirectory);
+  }
+  if (commandName === 'false') {
+    return runFalse(commandText, args, currentWorkingDirectory);
+  }
   if (commandName === 'cd') {
     return runCd(commandText, args, workspaceFileSystem, runtimeContext, currentWorkingDirectory);
   }
@@ -1609,6 +1681,9 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'unset') {
     return runUnset(commandText, args, runtimeContext, currentWorkingDirectory);
+  }
+  if (commandName === 'which') {
+    return runWhich(commandText, args, currentWorkingDirectory);
   }
   if (commandName === 'ls') {
     return runLs(commandText, args, workspaceFileSystem, currentWorkingDirectory);

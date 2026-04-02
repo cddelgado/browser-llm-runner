@@ -104,6 +104,8 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `stderr`
 - Current supported command subset:
   - `pwd`
+  - `true`
+  - `false`
   - `cd`
   - `ls` with `-l`, `-R`, `-1`, `-d`, and `-h`
   - `cat` with `-n`, `-b`, `-s`, `--number`, `--number-nonblank`, and `--squeeze-blank`
@@ -120,6 +122,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `echo`
   - `set`
   - `unset`
+  - `which`
 - Current limits:
   - commands are GNU/Linux-like, but only this documented subset is implemented
   - relative paths resolve from the conversation's current working directory
