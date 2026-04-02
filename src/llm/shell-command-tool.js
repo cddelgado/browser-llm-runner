@@ -246,108 +246,31 @@ function createShellResult(
 }
 
 function formatShellCommandUsageBody(currentWorkingDirectory = WORKSPACE_ROOT_PATH) {
-  const lines = [
-    `Shell flavor: ${SHELL_FLAVOR}`,
+  return [
     `Current working directory: ${currentWorkingDirectory}`,
-    '',
-    'Supported commands:',
-    ...SHELL_COMMANDS.flatMap((command) => [
-      `- ${command.name}: ${command.description}`,
-      `  Usage: ${command.usage}`,
-    ]),
-    '',
-    'Examples:',
-    ...[
-      'ls /workspace/<directory>',
-      'which ls',
-      'basename /workspace/file.txt',
-      'dirname /workspace/file.txt',
-      'printf "Hello %s\\n" world',
-      'mktemp',
-      'mktemp -d /workspace/tmpdir.XXXXXX',
-      'sort /workspace/<file>',
-      'uniq /workspace/<file>',
-      'cut -d , -f 1,3 /workspace/<file>',
-      'paste /workspace/<left-file> /workspace/<right-file>',
-      'join -t , /workspace/<left-file> /workspace/<right-file>',
-      'column -t -s , /workspace/<file>',
-      'tr abc xyz /workspace/<file>',
-      'nl /workspace/<file>',
-      'cd <directory>',
-      'cat /workspace/<file>',
-      'NAME=value',
-      'echo $PWD',
-      'head -n 20 /workspace/<file>',
-      'find /workspace -name "*.txt"',
-      'grep -n "term" /workspace/<file>',
-      "sed -n '2,4p' /workspace/<file>",
-      "sed -i 's/old/new/g' /workspace/<file>",
-      'file /workspace/<file>',
-      'diff -u /workspace/<left-file> /workspace/<right-file>',
-      'curl https://example.com/data.txt',
-      'curl -I https://example.com/data.txt',
-      'curl -X POST -H "Content-Type: application/json" -d \'{"topic":"planets"}\' https://example.com/api',
-      'curl -o /workspace/download.bin https://example.com/file.bin',
-      'mkdir -p /workspace/<directory>',
-      'cp /workspace/<source-file> /workspace/<destination-file>',
-    ].map((example) => `- ${example}`),
-    '',
-    'Limitations:',
-    ...[
-      'Only one command runs per tool call.',
-      'Commands are GNU/Linux-like, but only the documented subset is implemented.',
-      `Command text must be plain shell input, ${MAX_SHELL_COMMAND_LENGTH} characters or fewer, and free of control characters.`,
-      'Relative paths resolve from the current working directory.',
-      'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.',
-      'paste merges text files line-by-line, with optional -d delimiters.',
-      'join supports two-file joins with optional -1, -2, and -t field-selection flags.',
-      'column focuses on table alignment, especially with -t and optional -s separators.',
-      'sed supports a single sed-like script with addresses N, N,M, /regex/, and $, plus commands p, d, and s///g, with optional -n and -i.',
-      'file reports a small deterministic set of directory, signature, extension, and text-vs-binary classifications.',
-      'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.',
-      'curl uses the browser fetch API, so CORS, browser-managed redirects, and forbidden request headers still apply.',
-      'curl supports URL, -I, -X, repeated -H, -d, and -o only; -o writes the response bytes to a file under /workspace.',
-      'Pipes, redirection, globbing, command substitution, and full shell expansion semantics are not supported.',
-      'Unsupported commands or syntax return stderr text and a non-zero exit code.',
-    ].map((limitation) => `- ${limitation}`),
-    '',
-    'Placeholders:',
-    ...[
-      '<directory> means a directory path under /workspace.',
-      '<file> means a file path under /workspace.',
-      '<source-file> and <destination-file> are placeholder file paths under /workspace.',
-      '<left-file> and <right-file> are placeholder text file paths under /workspace.',
-    ].map((placeholder) => `- ${placeholder}`),
-  ];
-  return lines.join('\n');
+    `Supported commands: ${SHELL_COMMANDS.map((command) => command.name).join(', ')}`,
+    'Call again with {"command":"..."}',
+  ].join('\n');
 }
 
 function formatShellExecutionBody(result = {}) {
+  const command = typeof result.command === 'string' ? result.command.trim() : '';
+  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
+  const stderr = typeof result.stderr === 'string' ? result.stderr : '';
   const currentWorkingDirectory =
     typeof result.currentWorkingDirectory === 'string' && result.currentWorkingDirectory.trim()
       ? result.currentWorkingDirectory.trim()
       : WORKSPACE_ROOT_PATH;
-  const command = typeof result.command === 'string' ? result.command.trim() : '';
-  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
-  const stderr = typeof result.stderr === 'string' ? result.stderr : '';
-  const lines = [];
-  if (command) {
-    lines.push(`Command: ${command}`);
-  }
-  lines.push(`Current working directory: ${currentWorkingDirectory}`);
-  if (Number.isFinite(result.exitCode)) {
-    lines.push(`Exit code: ${Number(result.exitCode)}`);
+  if (stderr) {
+    return stderr;
   }
   if (stdout) {
-    lines.push('', stdout);
+    return stdout;
   }
-  if (stderr) {
-    lines.push('', stderr);
+  if (command === 'cd' || command.startsWith('cd ')) {
+    return currentWorkingDirectory;
   }
-  if (!stdout && !stderr) {
-    lines.push('', '(no output)');
-  }
-  return lines.join('\n');
+  return '';
 }
 
 export function buildShellToolResponseEnvelope(
@@ -357,13 +280,13 @@ export function buildShellToolResponseEnvelope(
   const hasCommand = typeof result?.command === 'string' && result.command.trim();
   if (!hasCommand) {
     return {
-      status: true,
+      status: 'success',
       body: formatShellCommandUsageBody(currentWorkingDirectory),
     };
   }
   const exitCode = Number.isFinite(result?.exitCode) ? Number(result.exitCode) : 1;
   return {
-    status: exitCode === 0,
+    status: exitCode === 0 ? 'success' : 'failed',
     body: formatShellExecutionBody(result),
   };
 }

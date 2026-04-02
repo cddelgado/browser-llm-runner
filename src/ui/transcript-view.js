@@ -281,7 +281,7 @@ export function createTranscriptView(dependencies) {
           typeof parsed === 'object' &&
           !Array.isArray(parsed) &&
           typeof parsed.body === 'string' &&
-          typeof parsed.status === 'boolean'
+          (parsed.status === 'success' || parsed.status === 'failed')
         ) {
           return parsed.body.trim();
         }
