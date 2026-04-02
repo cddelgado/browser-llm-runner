@@ -67,6 +67,16 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Count lines, words, or bytes in a text file.',
   },
   {
+    name: 'sort',
+    usage: 'sort [-r] [-n] <file>...',
+    description: 'Sort lines from text files.',
+  },
+  {
+    name: 'uniq',
+    usage: 'uniq [-c] <file>',
+    description: 'Filter or count adjacent duplicate lines from a text file.',
+  },
+  {
     name: 'rmdir',
     usage: 'rmdir <directory>...',
     description: 'Remove empty directories under /workspace.',
@@ -1318,6 +1328,170 @@ async function runWc(commandText, args, workspaceFileSystem, currentWorkingDirec
   return createShellResult(commandText, { stdout, currentWorkingDirectory });
 }
 
+function splitShellTextIntoLines(text) {
+  const normalizedText = String(text || '');
+  const trailingNewline = /\r?\n$/.test(normalizedText);
+  const lines = normalizedText.split(/\r?\n/);
+  if (trailingNewline) {
+    lines.pop();
+  }
+  return {
+    lines,
+    trailingNewline,
+  };
+}
+
+function joinShellLines(lines, trailingNewline = false) {
+  const output = (Array.isArray(lines) ? lines : []).join('\n');
+  return trailingNewline ? `${output}\n` : output;
+}
+
+async function runSort(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(commandText, 'sort', 'expected at least one file path.', 2, currentWorkingDirectory);
+  }
+
+  let reverse = false;
+  let numeric = false;
+  const filePaths = [];
+
+  for (const argument of args) {
+    if (argument === '--') {
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      for (const flag of argument.slice(1)) {
+        if (flag === 'r') {
+          reverse = true;
+          continue;
+        }
+        if (flag === 'n') {
+          numeric = true;
+          continue;
+        }
+        return createShellError(commandText, 'sort', `unsupported option -${flag}.`, 2, currentWorkingDirectory);
+      }
+      continue;
+    }
+    filePaths.push(argument);
+  }
+
+  if (!filePaths.length) {
+    return createShellError(commandText, 'sort', 'expected at least one file path.', 2, currentWorkingDirectory);
+  }
+
+  const allLines = [];
+  let trailingNewline = false;
+  for (const rawPath of filePaths) {
+    const fileResult = await readWorkspaceTextFile(
+      'sort',
+      commandText,
+      rawPath,
+      workspaceFileSystem,
+      currentWorkingDirectory
+    );
+    if (fileResult.error) {
+      return fileResult.error;
+    }
+    const lineResult = splitShellTextIntoLines(fileResult.text);
+    allLines.push(...lineResult.lines);
+    trailingNewline = lineResult.trailingNewline;
+  }
+
+  const sortedLines = [...allLines].sort((left, right) => {
+    if (numeric) {
+      const leftValue = Number(left);
+      const rightValue = Number(right);
+      const leftNumber = Number.isFinite(leftValue) ? leftValue : 0;
+      const rightNumber = Number.isFinite(rightValue) ? rightValue : 0;
+      return leftNumber - rightNumber;
+    }
+    return left.localeCompare(right);
+  });
+  if (reverse) {
+    sortedLines.reverse();
+  }
+
+  return createShellResult(commandText, {
+    stdout: joinShellLines(sortedLines, trailingNewline),
+    currentWorkingDirectory,
+  });
+}
+
+async function runUniq(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  if (!args.length) {
+    return createShellError(commandText, 'uniq', 'expected one file path.', 2, currentWorkingDirectory);
+  }
+
+  let countMode = false;
+  const filePaths = [];
+
+  for (const argument of args) {
+    if (argument === '--') {
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      for (const flag of argument.slice(1)) {
+        if (flag === 'c') {
+          countMode = true;
+          continue;
+        }
+        return createShellError(commandText, 'uniq', `unsupported option -${flag}.`, 2, currentWorkingDirectory);
+      }
+      continue;
+    }
+    filePaths.push(argument);
+  }
+
+  if (filePaths.length !== 1) {
+    return createShellError(commandText, 'uniq', 'expected exactly one file path.', 2, currentWorkingDirectory);
+  }
+
+  const fileResult = await readWorkspaceTextFile(
+    'uniq',
+    commandText,
+    filePaths[0],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (fileResult.error) {
+    return fileResult.error;
+  }
+
+  const { lines, trailingNewline } = splitShellTextIntoLines(fileResult.text);
+  const outputLines = [];
+  let previousLine = null;
+  let count = 0;
+
+  const flush = () => {
+    if (previousLine === null) {
+      return;
+    }
+    outputLines.push(countMode ? `${String(count).padStart(7, ' ')} ${previousLine}` : previousLine);
+  };
+
+  for (const line of lines) {
+    if (previousLine === null) {
+      previousLine = line;
+      count = 1;
+      continue;
+    }
+    if (line === previousLine) {
+      count += 1;
+      continue;
+    }
+    flush();
+    previousLine = line;
+    count = 1;
+  }
+  flush();
+
+  return createShellResult(commandText, {
+    stdout: joinShellLines(outputLines, trailingNewline),
+    currentWorkingDirectory,
+  });
+}
+
 async function runMkdir(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
   if (!args.length) {
     return createShellError(commandText, 'mkdir', 'expected at least one directory path.', 2, currentWorkingDirectory);
@@ -1887,6 +2061,8 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'printf "Hello %s\\n" world',
       'mktemp',
       'mktemp -d /workspace/tmpdir.XXXXXX',
+      'sort /workspace/<file>',
+      'uniq /workspace/<file>',
       'cd <directory>',
       'cat /workspace/<file>',
       'NAME=value',
@@ -2055,6 +2231,12 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'wc') {
     return runWc(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'sort') {
+    return runSort(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'uniq') {
+    return runUniq(commandText, args, workspaceFileSystem, currentWorkingDirectory);
   }
   if (commandName === 'rmdir') {
     return runRmdir(commandText, args, workspaceFileSystem, currentWorkingDirectory);

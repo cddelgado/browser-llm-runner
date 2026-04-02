@@ -798,6 +798,8 @@ describe('tool-calling prompt builder', () => {
         expect.objectContaining({ name: 'cd', usage: 'cd [<directory>]' }),
         expect.objectContaining({ name: 'rmdir', usage: 'rmdir <directory>...' }),
         expect.objectContaining({ name: 'mktemp', usage: 'mktemp [-d] [<template>]' }),
+        expect.objectContaining({ name: 'sort', usage: 'sort [-r] [-n] <file>...' }),
+        expect.objectContaining({ name: 'uniq', usage: 'uniq [-c] <file>' }),
         expect.objectContaining({ name: 'ls', usage: 'ls [-1] [-R] [-d] [-h] [-l] [<path>...]' }),
         expect.objectContaining({
           name: 'cat',
@@ -1096,6 +1098,73 @@ describe('tool-calling prompt builder', () => {
       kind: 'directory',
       path: directoryResult.result.stdout,
     });
+  });
+
+  test('supports sort for lexical and numeric ordering', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/words.txt': 'pear\napple\nbanana\n',
+      '/workspace/numbers.txt': '10\n2\n1\n',
+    });
+
+    const lexicalResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'sort words.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const numericReverseResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'sort -nr numbers.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(lexicalResult.result.stdout).toBe('apple\nbanana\npear\n');
+    expect(numericReverseResult.result.stdout).toBe('10\n2\n1\n');
+  });
+
+  test('supports uniq and uniq -c for adjacent duplicates', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/dupes.txt': 'apple\napple\nbanana\nbanana\nbanana\npear\n',
+    });
+
+    const uniqResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'uniq dupes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const uniqCountResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'uniq -c dupes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(uniqResult.result.stdout).toBe('apple\nbanana\npear\n');
+    expect(uniqCountResult.result.stdout).toBe('      2 apple\n      3 banana\n      1 pear\n');
   });
 
   test('supports cat -n for numbering all output lines', async () => {
