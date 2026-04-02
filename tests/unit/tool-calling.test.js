@@ -79,8 +79,9 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toContain('**Tool behavior:**');
     expect(prompt).toContain('**Tool call format:**');
     expect(prompt).toContain('After a tool result, continue the work and answer naturally.');
-    expect(prompt).toContain('Tool calls use a single JSON object.');
+    expect(prompt).toContain('When you call a tool, output exactly one JSON object and nothing else.');
     expect(prompt).toContain('Shape: {"name":"<tool-name>","parameters":{...}}.');
+    expect(prompt).toContain('Use {} when the tool takes no arguments.');
   });
 
   test('builds the Qwen tagged-json tool-calling prompt', () => {
@@ -95,8 +96,12 @@ describe('tool-calling prompt builder', () => {
       ['lookup_fact']
     );
 
+    expect(prompt).toContain(
+      'When you call a tool, output exactly one tagged tool-call block and nothing else.'
+    );
     expect(prompt).toContain('Wrap the JSON object in <tool_call> and </tool_call>.');
     expect(prompt).toContain('Shape inside the tags: {"name":"<tool-name>","arguments":{...}}.');
+    expect(prompt).toContain('Use {} when the tool takes no arguments.');
   });
 
   test('adds a terminal-use instruction for get_user_location', () => {
@@ -126,10 +131,10 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      'If tasklist would help with multi-step work, call it with no arguments first to get its syntax.'
+      'If tasklist would help and you need its command syntax, call it first with an empty arguments object.'
     );
     expect(prompt).not.toContain(
-      '**Tool behavior:**\n- If tasklist would help with multi-step work, call it with no arguments first to get its syntax.'
+      '**Tool behavior:**\n- If tasklist would help and you need its command syntax, call it first with an empty arguments object.'
     );
   });
 
@@ -143,6 +148,9 @@ describe('tool-calling prompt builder', () => {
       ['get_weather']
     );
 
+    expect(prompt).toContain(
+      'When you call a tool, output exactly one wrapped function-style call and nothing else.'
+    );
     expect(prompt).toContain('Wrap the call in <|tool_call_start|>[ and ]<|tool_call_end|>.');
     expect(prompt).toContain('Shape inside the wrapper: tool_name(arg1="value1", arg2="value2").');
   });
@@ -556,7 +564,7 @@ describe('tool-calling prompt builder', () => {
 
     expect(result.toolName).toBe('tasklist');
     expect(result.result.message).toBe(
-      'Task lists are important because context may be short, so next steps are easy to forget. Use the normal tool-call wrapper for this model. For tasklist, use one of these arguments objects:'
+      'Tasklist syntax reference. Use the normal tool-call wrapper for this model, then pass one of these arguments objects:'
     );
     expect(result.result.examples).toEqual([
       '{ "command": "new", "item": "Task item", "index": 0 }',

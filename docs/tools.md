@@ -26,7 +26,7 @@ The prompt is organized into separate sections so models do not confuse tool des
 
 - `Tools available in this conversation` lists the enabled tools and any tool-specific usage notes.
 - `Tool behavior` covers only generic behavior after a tool result is returned.
-- `Tool call format` describes the exact wrapper or JSON shape the selected model must emit.
+- `Tool call format` describes the exact wrapper or JSON shape the selected model must emit, including that a tool call should be the only output in that turn.
 
 ## Current scope
 
@@ -69,7 +69,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 
 - Display name: `Task List Planner`
 - Purpose: manages a task list for multi-step work
-- Discovery behavior: when called with no arguments, it returns only the minimal syntax reminder needed to use it
+- Discovery behavior: when called with an empty arguments object, it returns only the minimal syntax reminder needed to use it
 - Commands:
   - `new` to add an undone task, optionally at a specific index
   - `list` to return the current task list with indexes and done/undone state

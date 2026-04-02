@@ -33,7 +33,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: 'tasklist',
     displayName: 'Task List Planner',
     description:
-      'Manages a browser-local task list for multi-step work. Call it with no arguments first to reveal the syntax and why task lists matter when context is short.',
+      'Manages a browser-local task list for multi-step work. If you need its command syntax, call it once with an empty arguments object.',
     enabled: true,
     parameters: {
       type: 'object',
@@ -114,20 +114,22 @@ function buildToolCallingFormatInstructions(toolCallingConfig) {
   }
   if (toolCallingConfig.format === 'json') {
     return [
-      'Tool calls use a single JSON object.',
+      'When you call a tool, output exactly one JSON object and nothing else.',
       `Shape: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
+      'Use {} when the tool takes no arguments.',
     ];
   }
   if (toolCallingConfig.format === 'tagged-json') {
     return [
-      'Tool calls use a single tagged tool-call block.',
+      'When you call a tool, output exactly one tagged tool-call block and nothing else.',
       `Wrap the JSON object in ${toolCallingConfig.openTag} and ${toolCallingConfig.closeTag}.`,
       `Shape inside the tags: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
+      'Use {} when the tool takes no arguments.',
     ];
   }
   if (toolCallingConfig.format === 'special-token-call') {
     return [
-      'Tool calls use a single function-style call.',
+      'When you call a tool, output exactly one wrapped function-style call and nothing else.',
       `Wrap the call in ${toolCallingConfig.callOpen} and ${toolCallingConfig.callClose}.`,
       'Shape inside the wrapper: tool_name(arg1="value1", arg2="value2").',
     ];
@@ -159,7 +161,7 @@ function buildToolInstructionLines(name, description = '') {
   }
   if (normalizedName === 'tasklist') {
     lines.push(
-      '  If tasklist would help with multi-step work, call it with no arguments first to get its syntax.'
+      '  If tasklist would help and you need its command syntax, call it first with an empty arguments object.'
     );
   }
   return lines;
@@ -475,7 +477,7 @@ function executeGetCurrentDateTime(argumentsValue = {}) {
 function buildTaskListUsageResult() {
   return {
     message:
-      'Task lists are important because context may be short, so next steps are easy to forget. Use the normal tool-call wrapper for this model. For tasklist, use one of these arguments objects:',
+      'Tasklist syntax reference. Use the normal tool-call wrapper for this model, then pass one of these arguments objects:',
     examples: [
       '{ "command": "new", "item": "Task item", "index": 0 }',
       '{ "command": "list" }',
