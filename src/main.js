@@ -1688,7 +1688,7 @@ function findConversationById(conversationId) {
 
 function createConversation(name) {
   appState.conversationCount += 1;
-  return createConversationRecord({
+  const conversation = createConversationRecord({
     id: `conversation-${++appState.conversationIdCounter}`,
     name,
     modelId: getAvailableModelId(
@@ -1699,6 +1699,13 @@ function createConversation(name) {
     systemPrompt: appState.defaultSystemPrompt,
     startedAt: Date.now(),
   });
+  conversation.conversationSystemPrompt = normalizeSystemPrompt(
+    appState.pendingConversationSystemPrompt,
+  );
+  conversation.appendConversationSystemPrompt = normalizeConversationPromptMode(
+    appState.pendingAppendConversationSystemPrompt,
+  );
+  return conversation;
 }
 
 function getConversationModelId(conversation) {
@@ -2315,10 +2322,10 @@ function setRegionVisibility(region, visible) {
 function updatePreChatActionButtons() {
   const activeConversation = getActiveConversation();
   const hasExistingConversation = hasConversationHistory(activeConversation);
+  const isPreChatAvailable = selectHasStartedWorkspace(appState) && !isSettingsView(appState);
   const canShowPreChatActions =
-    selectHasStartedWorkspace(appState) &&
+    isPreChatAvailable &&
     !isEngineReady(appState) &&
-    !isSettingsView(appState) &&
     Boolean(activeConversation);
   const isBusy = isUiBusy();
 
@@ -2330,7 +2337,7 @@ function updatePreChatActionButtons() {
     preChatLoadModelBtn.disabled = !canShowPreChatActions || !hasExistingConversation || isBusy;
   }
   if (preChatEditConversationSystemPromptBtn instanceof HTMLButtonElement) {
-    preChatEditConversationSystemPromptBtn.disabled = !canShowPreChatActions || isBusy;
+    preChatEditConversationSystemPromptBtn.disabled = !isPreChatAvailable || isBusy;
   }
 }
 

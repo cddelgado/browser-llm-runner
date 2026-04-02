@@ -98,6 +98,8 @@ export function bindShellEvents({
       setChatWorkspaceStarted(appState, true);
       setPreparingNewConversation(appState, true);
       appState.activeConversationId = null;
+      appState.pendingConversationSystemPrompt = '';
+      appState.pendingAppendConversationSystemPrompt = true;
       clearUserMessageEditSession();
       setChatTitleEditing(appState, false);
       clearPendingComposerAttachments();

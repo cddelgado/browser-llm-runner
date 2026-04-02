@@ -61,17 +61,18 @@ export function createConversationEditors({
       return;
     }
     const activeConversation = getActiveConversation();
-    if (!activeConversation) {
-      return;
-    }
     if (trigger instanceof HTMLElement) {
       appState.lastConversationSystemPromptTrigger = trigger;
     }
     conversationSystemPromptInput.value = normalizeSystemPrompt(
-      activeConversation.conversationSystemPrompt,
+      activeConversation
+        ? activeConversation.conversationSystemPrompt
+        : appState.pendingConversationSystemPrompt,
     );
     conversationSystemPromptAppendToggle.checked = normalizeConversationPromptMode(
-      activeConversation.appendConversationSystemPrompt,
+      activeConversation
+        ? activeConversation.appendConversationSystemPrompt
+        : appState.pendingAppendConversationSystemPrompt,
     );
     const modalInstance = getConversationSystemPromptModalInstance();
     if (modalInstance) {
@@ -87,16 +88,16 @@ export function createConversationEditors({
       return;
     }
     const activeConversation = getActiveConversation();
-    if (!activeConversation) {
-      return;
+    const normalizedPrompt = normalizeSystemPrompt(conversationSystemPromptInput.value);
+    const appendPrompt = Boolean(conversationSystemPromptAppendToggle.checked);
+    if (activeConversation) {
+      activeConversation.conversationSystemPrompt = normalizedPrompt;
+      activeConversation.appendConversationSystemPrompt = appendPrompt;
+      queueConversationStateSave();
+    } else {
+      appState.pendingConversationSystemPrompt = normalizedPrompt;
+      appState.pendingAppendConversationSystemPrompt = appendPrompt;
     }
-    activeConversation.conversationSystemPrompt = normalizeSystemPrompt(
-      conversationSystemPromptInput.value,
-    );
-    activeConversation.appendConversationSystemPrompt = Boolean(
-      conversationSystemPromptAppendToggle.checked,
-    );
-    queueConversationStateSave();
     setStatus('Conversation system prompt saved.');
     const modalInstance = getConversationSystemPromptModalInstance();
     if (modalInstance) {

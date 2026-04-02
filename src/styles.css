@@ -537,6 +537,14 @@
   margin-top: 1rem;
 }
 
+.pre-chat-header {
+  min-width: 0;
+}
+
+.pre-chat-context-button {
+  flex: 0 0 auto;
+}
+
 .pre-chat-model-picker .form-select {
   background: color-mix(in srgb, var(--control-bg) 82%, var(--surface));
 }

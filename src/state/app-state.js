@@ -64,6 +64,8 @@ export function createAppState({
     enableSingleKeyShortcuts: true,
     transcriptView: 'standard',
     defaultSystemPrompt,
+    pendingConversationSystemPrompt: '',
+    pendingAppendConversationSystemPrompt: true,
     isSwitchingVariant: false,
     interactionMode: INTERACTION_MODES.NONE,
     activeUserEditMessageId: null,

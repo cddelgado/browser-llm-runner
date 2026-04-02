@@ -36,6 +36,8 @@ function createHarness() {
     isChatTitleEditing: false,
     lastConversationTitleTrigger: null,
     lastConversationSystemPromptTrigger: null,
+    pendingConversationSystemPrompt: '  Draft prompt.  ',
+    pendingAppendConversationSystemPrompt: false,
     conversationSystemPromptModalInstance: {
       show: vi.fn(),
       hide: vi.fn(),
@@ -115,5 +117,24 @@ describe('conversation-editors', () => {
     expect(harness.deps.queueConversationStateSave).toHaveBeenCalledTimes(1);
     expect(harness.deps.setStatus).toHaveBeenCalledWith('Conversation system prompt saved.');
     expect(harness.appState.conversationSystemPromptModalInstance.hide).toHaveBeenCalledTimes(1);
+  });
+
+  test('edits the pre-chat draft system prompt when no conversation exists yet', () => {
+    const harness = createHarness();
+    harness.deps.getActiveConversation.mockReturnValue(null);
+    const editors = createConversationEditors(harness.deps);
+
+    editors.beginConversationSystemPromptEdit();
+    expect(harness.elements.conversationSystemPromptInput.value).toBe('Draft prompt.');
+    expect(harness.elements.conversationSystemPromptAppendToggle.checked).toBe(false);
+
+    harness.elements.conversationSystemPromptInput.value = '  Fresh chat context  ';
+    harness.elements.conversationSystemPromptAppendToggle.checked = true;
+    editors.saveConversationSystemPromptEdit();
+
+    expect(harness.appState.pendingConversationSystemPrompt).toBe('Fresh chat context');
+    expect(harness.appState.pendingAppendConversationSystemPrompt).toBe(true);
+    expect(harness.deps.queueConversationStateSave).not.toHaveBeenCalled();
+    expect(harness.deps.setStatus).toHaveBeenCalledWith('Conversation system prompt saved.');
   });
 });

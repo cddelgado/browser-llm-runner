@@ -189,7 +189,21 @@
               aria-labelledby="preChatHeading"
             >
               <div class="pre-chat-inner">
-                <h2 id="preChatHeading" class="h3 mb-3">Start a New Chat</h2>
+                <div class="pre-chat-header d-flex align-items-start justify-content-between gap-3 mb-3">
+                  <h2 id="preChatHeading" class="h3 mb-0">Start a New Chat</h2>
+                  <button
+                    id="preChatEditConversationSystemPromptBtn"
+                    type="button"
+                    class="btn icon-button pre-chat-context-button"
+                    aria-label="Edit custom context for this chat"
+                    aria-keyshortcuts="Alt+P"
+                    data-icon-tooltip="true"
+                    data-bs-title="Edit custom context for this chat (Alt+P)"
+                  >
+                    <i class="bi bi-card-checklist" aria-hidden="true"></i>
+                    <span class="visually-hidden">Edit custom context for this chat</span>
+                  </button>
+                </div>
                 <div class="pre-chat-model-picker">
                   <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
                     <div>
@@ -218,18 +232,6 @@
                     aria-keyshortcuts="Alt+L"
                   >
                     Load model
-                  </button>
-                  <button
-                    id="preChatEditConversationSystemPromptBtn"
-                    type="button"
-                    class="btn icon-button"
-                    aria-label="Edit conversation system prompt"
-                    aria-keyshortcuts="Alt+P"
-                    data-icon-tooltip="true"
-                    data-bs-title="Edit conversation system prompt (Alt+P)"
-                  >
-                    <i class="bi bi-card-checklist" aria-hidden="true"></i>
-                    <span class="visually-hidden">Edit conversation system prompt</span>
                   </button>
                 </div>
                 <div id="modelLoadFeedback" class="pre-chat-progress">

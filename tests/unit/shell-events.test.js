@@ -38,6 +38,8 @@ function createHarness() {
     conversations: [],
     activeConversationId: null,
     isPreparingNewConversation: false,
+    pendingConversationSystemPrompt: 'Existing draft',
+    pendingAppendConversationSystemPrompt: false,
     lastKeyboardShortcutsTrigger: null,
     lastConversationSystemPromptTrigger: null,
   };
@@ -158,6 +160,8 @@ describe('shell-events', () => {
     expect(harness.deps.setChatWorkspaceStarted).toHaveBeenCalledWith(harness.appState, true);
     expect(harness.deps.setPreparingNewConversation).toHaveBeenCalledWith(harness.appState, true);
     expect(harness.appState.activeConversationId).toBeNull();
+    expect(harness.appState.pendingConversationSystemPrompt).toBe('');
+    expect(harness.appState.pendingAppendConversationSystemPrompt).toBe(true);
     expect(harness.deps.clearPendingComposerAttachments).toHaveBeenCalledTimes(1);
     expect(harness.deps.updateWelcomePanelVisibility).toHaveBeenCalledWith({ replaceRoute: false });
     expect(harness.deps.renderConversationList).toHaveBeenCalledTimes(1);
