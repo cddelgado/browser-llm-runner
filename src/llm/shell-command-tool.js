@@ -192,6 +192,11 @@ const SHELL_COMMANDS = Object.freeze([
     description: 'Compare two text files with unified-style emulated output.',
   },
   {
+    name: 'curl',
+    usage: 'curl [-I] [-X <method>] [-H "Header: value"]... [-d <body>] [-o <file>] <url>',
+    description: 'Fetch a URL with the browser network stack and optional workspace output.',
+  },
+  {
     name: 'echo',
     usage: 'echo <text>',
     description: 'Print text to stdout.',
@@ -552,6 +557,151 @@ function formatHumanReadableSize(size) {
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeCurlHeaderName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function isForbiddenBrowserRequestHeader(name) {
+  const normalizedName = normalizeCurlHeaderName(name);
+  return (
+    normalizedName.startsWith('proxy-') ||
+    normalizedName.startsWith('sec-') ||
+    [
+      'accept-charset',
+      'accept-encoding',
+      'access-control-request-headers',
+      'access-control-request-method',
+      'connection',
+      'content-length',
+      'cookie',
+      'date',
+      'dnt',
+      'expect',
+      'host',
+      'keep-alive',
+      'origin',
+      'permissions-policy',
+      'referer',
+      'te',
+      'trailer',
+      'transfer-encoding',
+      'upgrade',
+      'via',
+    ].includes(normalizedName)
+  );
+}
+
+function getFetchRef(runtimeContext = {}) {
+  return runtimeContext.fetchRef || (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
+}
+
+function formatCurlStatusLine(response) {
+  const status = Number.isFinite(response?.status) ? response.status : 0;
+  const statusText =
+    typeof response?.statusText === 'string' && response.statusText.trim()
+      ? ` ${response.statusText.trim()}`
+      : '';
+  return `HTTP ${status}${statusText}`;
+}
+
+function formatCurlHeaderLines(headers) {
+  if (!headers || typeof headers.forEach !== 'function') {
+    return [];
+  }
+  const entries = [];
+  headers.forEach((value, name) => {
+    entries.push([String(name || '').toLowerCase(), String(value ?? '')]);
+  });
+  entries.sort((left, right) => left[0].localeCompare(right[0]));
+  return entries.map(([name, value]) => `${name}: ${value}`);
+}
+
+function parseCurlArguments(args) {
+  const options = {
+    includeHeadersOnly: false,
+    method: '',
+    headers: [],
+    body: null,
+    outputPath: '',
+    url: '',
+  };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '--') {
+      continue;
+    }
+    if (argument === '-I') {
+      options.includeHeadersOnly = true;
+      continue;
+    }
+    if (argument === '-X') {
+      index += 1;
+      if (index >= args.length) {
+        throw new Error('-X requires an HTTP method.');
+      }
+      options.method = String(args[index] || '').trim().toUpperCase();
+      if (!options.method) {
+        throw new Error('-X requires a non-empty HTTP method.');
+      }
+      continue;
+    }
+    if (argument === '-H') {
+      index += 1;
+      if (index >= args.length) {
+        throw new Error('-H requires a header value.');
+      }
+      const headerText = String(args[index] || '');
+      const separatorIndex = headerText.indexOf(':');
+      if (separatorIndex <= 0) {
+        throw new Error(`invalid header '${headerText}'; expected 'Name: value'.`);
+      }
+      const name = headerText.slice(0, separatorIndex).trim();
+      const value = headerText.slice(separatorIndex + 1).trim();
+      if (!name) {
+        throw new Error(`invalid header '${headerText}'; expected 'Name: value'.`);
+      }
+      if (isForbiddenBrowserRequestHeader(name)) {
+        throw new Error(`header '${name}' is not allowed by the browser fetch API.`);
+      }
+      options.headers.push([name, value]);
+      continue;
+    }
+    if (argument === '-d') {
+      index += 1;
+      if (index >= args.length) {
+        throw new Error('-d requires a request body.');
+      }
+      options.body = String(args[index] ?? '');
+      continue;
+    }
+    if (argument === '-o') {
+      index += 1;
+      if (index >= args.length) {
+        throw new Error('-o requires a destination file path.');
+      }
+      options.outputPath = String(args[index] || '').trim();
+      if (!options.outputPath) {
+        throw new Error('-o requires a destination file path.');
+      }
+      continue;
+    }
+    if (argument.startsWith('-')) {
+      throw new Error(`unsupported option ${argument}.`);
+    }
+    if (options.url) {
+      throw new Error('expected exactly one URL.');
+    }
+    options.url = String(argument || '').trim();
+  }
+
+  if (!options.url) {
+    throw new Error('expected exactly one URL.');
+  }
+
+  return options;
 }
 
 function compileFindNamePattern(pattern) {
@@ -3634,6 +3784,133 @@ async function runDiff(commandText, args, workspaceFileSystem, currentWorkingDir
   });
 }
 
+async function runCurl(
+  commandText,
+  args,
+  workspaceFileSystem,
+  runtimeContext,
+  currentWorkingDirectory
+) {
+  let options;
+  try {
+    options = parseCurlArguments(args);
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'curl',
+      error instanceof Error ? error.message : String(error),
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const fetchRef = getFetchRef(runtimeContext);
+  if (typeof fetchRef !== 'function') {
+    return createShellError(
+      commandText,
+      'curl',
+      'fetch is unavailable in this browser session.',
+      1,
+      currentWorkingDirectory
+    );
+  }
+
+  const method = options.method || (options.includeHeadersOnly ? 'HEAD' : options.body !== null ? 'POST' : 'GET');
+  if ((method === 'GET' || method === 'HEAD') && options.body !== null) {
+    return createShellError(
+      commandText,
+      'curl',
+      `${method} requests cannot include -d in the browser fetch API.`,
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const requestHeaders = new globalThis.Headers();
+  for (const [name, value] of options.headers) {
+    requestHeaders.append(name, value);
+  }
+
+  let response;
+  try {
+    response = await fetchRef(options.url, {
+      method,
+      headers: requestHeaders,
+      body: options.body,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return createShellError(
+      commandText,
+      'curl',
+      `request failed: ${message}`,
+      1,
+      currentWorkingDirectory
+    );
+  }
+
+  const headerOutput = [formatCurlStatusLine(response), ...formatCurlHeaderLines(response.headers)].join('\n');
+  if (options.includeHeadersOnly) {
+    return createShellResult(commandText, {
+      stdout: headerOutput,
+      currentWorkingDirectory,
+    });
+  }
+
+  let responseBytes;
+  try {
+    responseBytes = new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    return createShellError(
+      commandText,
+      'curl',
+      `failed to read response body: ${error instanceof Error ? error.message : String(error)}`,
+      1,
+      currentWorkingDirectory
+    );
+  }
+
+  if (options.outputPath) {
+    let normalizedOutputPath;
+    try {
+      normalizedOutputPath = resolveWorkspacePath(
+        workspaceFileSystem,
+        options.outputPath,
+        currentWorkingDirectory
+      );
+    } catch (error) {
+      return createShellError(
+        commandText,
+        'curl',
+        error instanceof Error ? error.message : String(error),
+        1,
+        currentWorkingDirectory
+      );
+    }
+
+    try {
+      await workspaceFileSystem.writeFile(normalizedOutputPath, responseBytes);
+    } catch (error) {
+      return createShellError(
+        commandText,
+        'curl',
+        `failed to write '${options.outputPath}': ${error instanceof Error ? error.message : String(error)}`,
+        1,
+        currentWorkingDirectory
+      );
+    }
+
+    return createShellResult(commandText, {
+      currentWorkingDirectory,
+    });
+  }
+
+  return createShellResult(commandText, {
+    stdout: getUtf8TextDecoder().decode(responseBytes),
+    currentWorkingDirectory,
+  });
+}
+
 function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_PATH) {
   return {
     shellFlavor: SHELL_FLAVOR,
@@ -3666,6 +3943,10 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       "sed -i 's/old/new/g' /workspace/<file>",
       'file /workspace/<file>',
       'diff -u /workspace/<left-file> /workspace/<right-file>',
+      'curl https://example.com/data.txt',
+      'curl -I https://example.com/data.txt',
+      'curl -X POST -H "Content-Type: application/json" -d \'{"topic":"planets"}\' https://example.com/api',
+      'curl -o /workspace/download.bin https://example.com/file.bin',
       'mkdir -p /workspace/<directory>',
       'cp /workspace/<source-file> /workspace/<destination-file>',
     ],
@@ -3681,6 +3962,8 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'sed supports a single sed-like script with addresses N, N,M, /regex/, and $, plus commands p, d, and s///g, with optional -n and -i.',
       'file reports a small deterministic set of directory, signature, extension, and text-vs-binary classifications.',
       'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.',
+      'curl uses the browser fetch API, so CORS, browser-managed redirects, and forbidden request headers still apply.',
+      'curl supports URL, -I, -X, repeated -H, -d, and -o only; -o writes the response bytes to a file under /workspace.',
       'Pipes, redirection, globbing, command substitution, and full shell expansion semantics are not supported.',
       'Unsupported commands or syntax return stderr text and a non-zero exit code.',
     ],
@@ -3954,6 +4237,15 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'diff') {
     return runDiff(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'curl') {
+    return runCurl(
+      commandText,
+      args,
+      workspaceFileSystem,
+      runtimeContext,
+      currentWorkingDirectory
+    );
   }
 
   return createShellError(

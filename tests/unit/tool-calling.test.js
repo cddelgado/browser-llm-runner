@@ -841,6 +841,10 @@ describe('tool-calling prompt builder', () => {
           usage: 'diff [-u] <left-file> <right-file>',
         }),
         expect.objectContaining({
+          name: 'curl',
+          usage: 'curl [-I] [-X <method>] [-H "Header: value"]... [-d <body>] [-o <file>] <url>',
+        }),
+        expect.objectContaining({
           name: 'set',
           usage: 'set <name> <value...>',
         }),
@@ -883,6 +887,9 @@ describe('tool-calling prompt builder', () => {
     );
     expect(result.result.limitations).toContain(
       'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.'
+    );
+    expect(result.result.limitations).toContain(
+      'curl uses the browser fetch API, so CORS, browser-managed redirects, and forbidden request headers still apply.'
     );
   });
 
@@ -2362,6 +2369,178 @@ describe('tool-calling prompt builder', () => {
 
     expect(result.result.exitCode).toBe(1);
     expect(result.result.stderr).toBe("diff: cannot open 'missing.txt': No such file or directory.");
+  });
+
+  test('supports curl URL with the default GET method', async () => {
+    const fetchRef = vi.fn(async (url, init = {}) => {
+      expect(url).toBe('https://example.com/data.txt');
+      expect(init).toMatchObject({
+        method: 'GET',
+        body: null,
+      });
+      return new globalThis.Response('alpha\nbeta\n', {
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+        },
+      });
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'curl https://example.com/data.txt',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+        fetchRef,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe('alpha\nbeta\n');
+  });
+
+  test('supports curl -I for response headers', async () => {
+    const fetchRef = vi.fn(async (_url, init = {}) => {
+      expect(init).toMatchObject({
+        method: 'HEAD',
+        body: null,
+      });
+      return new globalThis.Response(null, {
+        status: 204,
+        statusText: 'No Content',
+        headers: {
+          'X-Test': 'yes',
+          'Content-Type': 'text/plain',
+        },
+      });
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'curl -I https://example.com/data.txt',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+        fetchRef,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe(
+      'HTTP 204 No Content\ncontent-type: text/plain\nx-test: yes'
+    );
+  });
+
+  test('supports curl -X, repeated -H, and -d', async () => {
+    const fetchRef = vi.fn(async (_url, init = {}) => {
+      expect(init).toMatchObject({
+        method: 'PATCH',
+        body: '{"title":"Europa"}',
+      });
+      const headers =
+        init.headers instanceof globalThis.Headers
+          ? init.headers
+          : new globalThis.Headers(init.headers);
+      expect(headers.get('Content-Type')).toBe('application/json');
+      expect(headers.get('X-Mode')).toBe('test');
+      return new globalThis.Response('updated', {
+        status: 200,
+      });
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command:
+            'curl -X PATCH -H "Content-Type: application/json" -H "X-Mode: test" -d \'{"title":"Europa"}\' https://example.com/items/1',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+        fetchRef,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe('updated');
+  });
+
+  test('supports curl -o for writing response bytes into /workspace', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem();
+    const fetchRef = vi.fn(async () => {
+      return new globalThis.Response(new Uint8Array([0x50, 0x44, 0x46]), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+        },
+      });
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'curl -o downloads/report.pdf https://example.com/report.pdf',
+        },
+      },
+      {
+        workspaceFileSystem,
+        fetchRef,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe('');
+    await expect(workspaceFileSystem.readFile('/workspace/downloads/report.pdf')).resolves.toEqual(
+      new Uint8Array([0x50, 0x44, 0x46])
+    );
+  });
+
+  test('returns a shell-style curl error for forbidden browser headers', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'curl -H "Cookie: session=1" https://example.com/data.txt',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+      }
+    );
+
+    expect(result.result.exitCode).toBe(2);
+    expect(result.result.stderr).toBe(
+      "curl: header 'Cookie' is not allowed by the browser fetch API."
+    );
+  });
+
+  test('returns a shell-style curl error when GET is combined with -d', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'curl -X GET -d hello https://example.com/data.txt',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+      }
+    );
+
+    expect(result.result.exitCode).toBe(2);
+    expect(result.result.stderr).toBe(
+      'curl: GET requests cannot include -d in the browser fetch API.'
+    );
   });
 
   test('creates, lists, updates, and clears tasklist items', async () => {

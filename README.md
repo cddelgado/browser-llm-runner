@@ -126,6 +126,7 @@ Student-facing browser chat UI with local model inference.
   - The shell subset includes a single-command `sed` MVP for common line printing, deletion, substitution, and in-place text edits under `/workspace`.
   - The shell subset includes a basic `file` command that classifies directories plus common text and binary file types under `/workspace`.
   - The shell subset includes a line-based `diff` command with unified-style emulated output for comparing two text files under `/workspace`.
+  - The shell subset includes a browser-backed `curl` subset for `URL`, `-I`, `-X`, repeated `-H`, `-d`, and `/workspace`-bounded `-o`.
 - When a model emits a complete tool call during streaming, generation is interrupted immediately, the tool executes before the turn continues, and the visible transcript folds that tool request/result plus any resumed narration back into the same model response card in the order they occurred instead of rendering separate transcript nodes.
 - The active conversation's sidebar kebab menu includes `Edit conversation system prompt`:
   - Set optional per-conversation instructions.
