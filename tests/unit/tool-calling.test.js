@@ -817,6 +817,10 @@ describe('tool-calling prompt builder', () => {
           usage: 'grep [-i] [-n] [-v] [-c] [-l] [-F] <pattern> <file>...',
         }),
         expect.objectContaining({
+          name: 'diff',
+          usage: 'diff [-u] <left-file> <right-file>',
+        }),
+        expect.objectContaining({
           name: 'set',
           usage: 'set <name> <value...>',
         }),
@@ -838,6 +842,9 @@ describe('tool-calling prompt builder', () => {
     );
     expect(result.result.limitations).toContain(
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.'
+    );
+    expect(result.result.limitations).toContain(
+      'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.'
     );
   });
 
@@ -1783,6 +1790,80 @@ describe('tool-calling prompt builder', () => {
       '/workspace/a.txt:target',
       '/workspace/b.txt:target',
     ]);
+  });
+
+  test('supports diff with unified-style emulated output', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/before.txt': 'alpha\nbeta\ndelta\n',
+      '/workspace/after.txt': 'alpha\ngamma\ndelta\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'diff -u before.txt after.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(1);
+    expect(result.result.stdout).toBe(
+      '--- /workspace/before.txt\n' +
+        '+++ /workspace/after.txt\n' +
+        '@@ -1,3 +1,3 @@\n' +
+        ' alpha\n' +
+        '-beta\n' +
+        '+gamma\n' +
+        ' delta'
+    );
+  });
+
+  test('returns an empty diff for identical files', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/a.txt': 'same\ntext\n',
+      '/workspace/b.txt': 'same\ntext\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'diff a.txt b.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe('');
+    expect(result.result.stderr).toBe('');
+  });
+
+  test('returns a shell-style diff error when a file is missing', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/a.txt': 'same\ntext\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'diff a.txt missing.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(1);
+    expect(result.result.stderr).toBe("diff: cannot open 'missing.txt': No such file or directory.");
   });
 
   test('creates, lists, updates, and clears tasklist items', async () => {

@@ -4,6 +4,8 @@ import {
 } from '../workspace/workspace-file-system.js';
 
 const SHELL_FLAVOR = 'GNU/Linux-like shell subset';
+const MAX_DIFF_MATRIX_CELLS = 1_000_000;
+const DEFAULT_DIFF_CONTEXT_LINES = 3;
 
 const SHELL_COMMANDS = Object.freeze([
   {
@@ -135,6 +137,11 @@ const SHELL_COMMANDS = Object.freeze([
     name: 'grep',
     usage: 'grep [-i] [-n] [-v] [-c] [-l] [-F] <pattern> <file>...',
     description: 'Search text files under /workspace.',
+  },
+  {
+    name: 'diff',
+    usage: 'diff [-u] <left-file> <right-file>',
+    description: 'Compare two text files with unified-style emulated output.',
   },
   {
     name: 'echo',
@@ -1361,6 +1368,183 @@ function joinShellLines(lines, trailingNewline = false) {
   return trailingNewline ? `${output}\n` : output;
 }
 
+function buildDiffLineOperations(leftLines, rightLines) {
+  const normalizedLeftLines = Array.isArray(leftLines) ? leftLines : [];
+  const normalizedRightLines = Array.isArray(rightLines) ? rightLines : [];
+  const matrixCellCount =
+    (normalizedLeftLines.length + 1) * (normalizedRightLines.length + 1);
+  if (matrixCellCount > MAX_DIFF_MATRIX_CELLS) {
+    return null;
+  }
+
+  const lcsLengths = Array.from(
+    { length: normalizedLeftLines.length + 1 },
+    () => new Uint32Array(normalizedRightLines.length + 1)
+  );
+
+  for (let leftIndex = normalizedLeftLines.length - 1; leftIndex >= 0; leftIndex -= 1) {
+    for (
+      let rightIndex = normalizedRightLines.length - 1;
+      rightIndex >= 0;
+      rightIndex -= 1
+    ) {
+      lcsLengths[leftIndex][rightIndex] =
+        normalizedLeftLines[leftIndex] === normalizedRightLines[rightIndex]
+          ? lcsLengths[leftIndex + 1][rightIndex + 1] + 1
+          : Math.max(lcsLengths[leftIndex + 1][rightIndex], lcsLengths[leftIndex][rightIndex + 1]);
+    }
+  }
+
+  const operations = [];
+  let leftIndex = 0;
+  let rightIndex = 0;
+
+  while (leftIndex < normalizedLeftLines.length && rightIndex < normalizedRightLines.length) {
+    if (normalizedLeftLines[leftIndex] === normalizedRightLines[rightIndex]) {
+      operations.push({
+        type: 'equal',
+        line: normalizedLeftLines[leftIndex],
+        leftIndexBefore: leftIndex,
+        rightIndexBefore: rightIndex,
+      });
+      leftIndex += 1;
+      rightIndex += 1;
+      continue;
+    }
+
+    if (lcsLengths[leftIndex + 1][rightIndex] >= lcsLengths[leftIndex][rightIndex + 1]) {
+      operations.push({
+        type: 'delete',
+        line: normalizedLeftLines[leftIndex],
+        leftIndexBefore: leftIndex,
+        rightIndexBefore: rightIndex,
+      });
+      leftIndex += 1;
+      continue;
+    }
+
+    operations.push({
+      type: 'insert',
+      line: normalizedRightLines[rightIndex],
+      leftIndexBefore: leftIndex,
+      rightIndexBefore: rightIndex,
+    });
+    rightIndex += 1;
+  }
+
+  while (leftIndex < normalizedLeftLines.length) {
+    operations.push({
+      type: 'delete',
+      line: normalizedLeftLines[leftIndex],
+      leftIndexBefore: leftIndex,
+      rightIndexBefore: rightIndex,
+    });
+    leftIndex += 1;
+  }
+
+  while (rightIndex < normalizedRightLines.length) {
+    operations.push({
+      type: 'insert',
+      line: normalizedRightLines[rightIndex],
+      leftIndexBefore: leftIndex,
+      rightIndexBefore: rightIndex,
+    });
+    rightIndex += 1;
+  }
+
+  return operations;
+}
+
+function getUnifiedDiffStartLine(indexBefore, lineCount) {
+  return lineCount === 0 ? indexBefore : indexBefore + 1;
+}
+
+function formatUnifiedDiffRange(startLine, lineCount) {
+  if (lineCount === 1) {
+    return String(startLine);
+  }
+  return `${startLine},${lineCount}`;
+}
+
+function buildUnifiedDiffHunks(operations, contextLineCount = DEFAULT_DIFF_CONTEXT_LINES) {
+  const normalizedOperations = Array.isArray(operations) ? operations : [];
+  const changeIndexes = normalizedOperations.reduce((indexes, operation, index) => {
+    if (operation?.type !== 'equal') {
+      indexes.push(index);
+    }
+    return indexes;
+  }, []);
+  if (!changeIndexes.length) {
+    return [];
+  }
+
+  const hunks = [];
+  let hunkStart = Math.max(0, changeIndexes[0] - contextLineCount);
+  let hunkEnd = Math.min(
+    normalizedOperations.length,
+    changeIndexes[0] + contextLineCount + 1
+  );
+
+  for (let index = 1; index < changeIndexes.length; index += 1) {
+    const nextChangeIndex = changeIndexes[index];
+    const nextStart = Math.max(0, nextChangeIndex - contextLineCount);
+    const nextEnd = Math.min(
+      normalizedOperations.length,
+      nextChangeIndex + contextLineCount + 1
+    );
+    if (nextStart <= hunkEnd) {
+      hunkEnd = Math.max(hunkEnd, nextEnd);
+      continue;
+    }
+    hunks.push({ start: hunkStart, end: hunkEnd });
+    hunkStart = nextStart;
+    hunkEnd = nextEnd;
+  }
+  hunks.push({ start: hunkStart, end: hunkEnd });
+
+  return hunks.map(({ start, end }) => {
+    const slice = normalizedOperations.slice(start, end);
+    const leftLineCount = slice.filter((operation) => operation.type !== 'insert').length;
+    const rightLineCount = slice.filter((operation) => operation.type !== 'delete').length;
+    const firstOperation = slice[0] || {
+      leftIndexBefore: 0,
+      rightIndexBefore: 0,
+    };
+    return {
+      leftStartLine: getUnifiedDiffStartLine(
+        firstOperation.leftIndexBefore,
+        leftLineCount
+      ),
+      leftLineCount,
+      rightStartLine: getUnifiedDiffStartLine(
+        firstOperation.rightIndexBefore,
+        rightLineCount
+      ),
+      rightLineCount,
+      lines: slice.map((operation) => {
+        if (operation.type === 'delete') {
+          return `-${operation.line}`;
+        }
+        if (operation.type === 'insert') {
+          return `+${operation.line}`;
+        }
+        return ` ${operation.line}`;
+      }),
+    };
+  });
+}
+
+function formatUnifiedDiffOutput(leftPath, rightPath, hunks) {
+  const outputLines = [`--- ${leftPath}`, `+++ ${rightPath}`];
+  for (const hunk of Array.isArray(hunks) ? hunks : []) {
+    outputLines.push(
+      `@@ -${formatUnifiedDiffRange(hunk.leftStartLine, hunk.leftLineCount)} +${formatUnifiedDiffRange(hunk.rightStartLine, hunk.rightLineCount)} @@`
+    );
+    outputLines.push(...hunk.lines);
+  }
+  return outputLines.join('\n');
+}
+
 function parseCutFieldSpec(specification) {
   const rawSpec = String(specification || '').trim();
   if (!rawSpec) {
@@ -2263,6 +2447,93 @@ async function runGrep(commandText, args, workspaceFileSystem, currentWorkingDir
   });
 }
 
+async function runDiff(commandText, args, workspaceFileSystem, currentWorkingDirectory) {
+  const filePaths = [];
+
+  for (const argument of args) {
+    if (argument === '--' || argument === '-u' || argument === '--unified') {
+      continue;
+    }
+    if (argument.startsWith('-') && argument !== '-') {
+      return createShellError(
+        commandText,
+        'diff',
+        `unsupported option ${argument}.`,
+        2,
+        currentWorkingDirectory
+      );
+    }
+    filePaths.push(argument);
+  }
+
+  if (filePaths.length !== 2) {
+    return createShellError(
+      commandText,
+      'diff',
+      'expected exactly two file paths.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+
+  const leftFile = await readWorkspaceTextFile(
+    'diff',
+    commandText,
+    filePaths[0],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (leftFile.error) {
+    return leftFile.error;
+  }
+
+  const rightFile = await readWorkspaceTextFile(
+    'diff',
+    commandText,
+    filePaths[1],
+    workspaceFileSystem,
+    currentWorkingDirectory
+  );
+  if (rightFile.error) {
+    return rightFile.error;
+  }
+
+  if (leftFile.text === rightFile.text) {
+    return createShellResult(commandText, {
+      currentWorkingDirectory,
+    });
+  }
+
+  const leftLines = splitShellTextIntoLines(leftFile.text);
+  const rightLines = splitShellTextIntoLines(rightFile.text);
+  const operations = buildDiffLineOperations(leftLines.lines, rightLines.lines);
+
+  let stdout = '';
+  if (operations) {
+    const hunks = buildUnifiedDiffHunks(operations);
+    if (hunks.length) {
+      stdout = formatUnifiedDiffOutput(leftFile.path, rightFile.path, hunks);
+    }
+  }
+
+  if (!stdout) {
+    const differsOnlyByTrailingNewline =
+      leftLines.lines.length === rightLines.lines.length &&
+      leftLines.lines.every((line, index) => line === rightLines.lines[index]) &&
+      leftLines.trailingNewline !== rightLines.trailingNewline;
+
+    stdout = differsOnlyByTrailingNewline
+      ? `Files ${leftFile.path} and ${rightFile.path} differ in trailing newline at end of file.`
+      : `Files ${leftFile.path} and ${rightFile.path} differ (emulated line diff omitted for this comparison).`;
+  }
+
+  return createShellResult(commandText, {
+    exitCode: 1,
+    stdout,
+    currentWorkingDirectory,
+  });
+}
+
 function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_PATH) {
   return {
     shellFlavor: SHELL_FLAVOR,
@@ -2288,6 +2559,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'head -n 20 /workspace/<file>',
       'find /workspace -name "*.txt"',
       'grep -n "term" /workspace/<file>',
+      'diff -u /workspace/<left-file> /workspace/<right-file>',
       'mkdir -p /workspace/<directory>',
       'cp /workspace/<source-file> /workspace/<destination-file>',
     ],
@@ -2296,6 +2568,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'Commands are GNU/Linux-like, but only the documented subset is implemented.',
       'Relative paths resolve from the current working directory.',
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.',
+      'diff is line-based and emits unified-style emulated output rather than full GNU diff compatibility.',
       'Pipes, redirection, globbing, command substitution, and full shell expansion semantics are not supported.',
       'Unsupported commands or syntax return stderr text and a non-zero exit code.',
     ],
@@ -2303,6 +2576,7 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       '<directory> means a directory path under /workspace.',
       '<file> means a file path under /workspace.',
       '<source-file> and <destination-file> are placeholder file paths under /workspace.',
+      '<left-file> and <right-file> are placeholder text file paths under /workspace.',
     ],
   };
 }
@@ -2491,6 +2765,9 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
   }
   if (commandName === 'grep') {
     return runGrep(commandText, args, workspaceFileSystem, currentWorkingDirectory);
+  }
+  if (commandName === 'diff') {
+    return runDiff(commandText, args, workspaceFileSystem, currentWorkingDirectory);
   }
 
   return createShellError(
