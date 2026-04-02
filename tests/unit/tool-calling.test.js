@@ -70,7 +70,8 @@ describe('tool-calling prompt builder', () => {
 
     expect(prompt).toContain('**Tools available in this conversation:**');
     expect(prompt).toContain('- get_current_date_time: Returns the current local date and time.');
-    expect(prompt).toContain('**Tool behavior**');
+    expect(prompt).toContain('**Tool behavior:**');
+    expect(prompt).toContain('**Tool call format:**');
     expect(prompt).toContain('After a tool result, continue the work and answer naturally.');
     expect(prompt).toContain('Tool calls use a single JSON object.');
     expect(prompt).toContain('Shape: {"name":"<tool-name>","parameters":{...}}.');
@@ -105,6 +106,9 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toContain(
       'Use the returned location and coordinate directly in the answer.'
     );
+    expect(prompt).not.toContain(
+      '**Tool behavior:**\n- Use the returned location and coordinate directly in the answer.'
+    );
   });
 
   test('adds a tasklist planning instruction', () => {
@@ -118,7 +122,10 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      'If tasklist would help with multi-step work, call it with empty arguments first to get its syntax.'
+      'If tasklist would help with multi-step work, call it with no arguments first to get its syntax.'
+    );
+    expect(prompt).not.toContain(
+      '**Tool behavior:**\n- If tasklist would help with multi-step work, call it with no arguments first to get its syntax.'
     );
   });
 

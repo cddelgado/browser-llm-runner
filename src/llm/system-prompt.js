@@ -9,7 +9,7 @@ export function buildOptionalFeaturePromptSection(instructions = []) {
   if (!normalizedInstructions.length) {
     return '';
   }
-  return ['**Special behaviors**', ...normalizedInstructions.map((instruction) => `- ${instruction}`)].join(
+  return ['**Special behaviors:**', ...normalizedInstructions.map((instruction) => `- ${instruction}`)].join(
     '\n'
   );
 }

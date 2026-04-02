@@ -139,30 +139,28 @@ function buildEnabledToolInstructions(enabledTools = []) {
   if (!Array.isArray(enabledTools) || !enabledTools.length) {
     return [];
   }
-  return enabledTools.map((tool) => {
-    const name = typeof tool?.name === 'string' ? tool.name.trim() : 'unknown_tool';
-    const description =
+  return enabledTools.flatMap((tool) =>
+    buildToolInstructionLines(
+      typeof tool?.name === 'string' ? tool.name.trim() : 'unknown_tool',
       typeof tool?.description === 'string' && tool.description.trim()
         ? tool.description.trim()
-        : 'No description provided.';
-    return `- ${name}: ${description}`;
-  });
+        : 'No description provided.'
+    )
+  );
 }
 
-function buildToolSpecificUsageInstructions(enabledToolNames = []) {
-  const normalizedNames = Array.isArray(enabledToolNames)
-    ? enabledToolNames
-        .map((toolName) => (typeof toolName === 'string' ? toolName.trim() : ''))
-        .filter(Boolean)
-    : [];
-  const instructions = [];
-  if (normalizedNames.includes('get_user_location')) {
-    instructions.push('Use the returned location and coordinate directly in the answer.');
+function buildToolInstructionLines(name, description = '') {
+  const normalizedName = typeof name === 'string' && name.trim() ? name.trim() : 'unknown_tool';
+  const normalizedDescription =
+    typeof description === 'string' && description.trim() ? `: ${description.trim()}` : '';
+  const lines = [`- ${normalizedName}${normalizedDescription}`];
+  if (normalizedName === 'get_user_location') {
+    lines.push('  Use the returned location and coordinate directly in the answer.');
   }
-  if (normalizedNames.includes('tasklist')) {
-    instructions.push('If tasklist would help with multi-step work, call it with empty arguments first to get its syntax.');
+  if (normalizedName === 'tasklist') {
+    lines.push('  If tasklist would help with multi-step work, call it with no arguments first to get its syntax.');
   }
-  return instructions;
+  return lines;
 }
 
 export function buildToolCallingSystemPrompt(
@@ -177,19 +175,19 @@ export function buildToolCallingSystemPrompt(
   const toolLines = [
     '**Tools available in this conversation:**',
     ...buildEnabledToolInstructions(enabledTools),
-    ...(enabledTools.length ? [] : toolList.map((toolName) => `- ${toolName}`)),
+    ...(enabledTools.length ? [] : toolList.flatMap((toolName) => buildToolInstructionLines(toolName))),
   ];
   const toolBehaviorLines = [
     'After a tool result, continue the work and answer naturally.',
-    ...buildToolSpecificUsageInstructions(enabledToolNames),
   ].filter(Boolean);
   const formatLines = buildToolCallingFormatInstructions(toolCallingConfig);
   return [
     ...toolLines,
     toolBehaviorLines.length ? '' : null,
-    toolBehaviorLines.length ? '**Tool behavior**' : null,
+    toolBehaviorLines.length ? '**Tool behavior:**' : null,
     ...toolBehaviorLines.map((line) => `- ${line}`),
     formatLines.length ? '' : null,
+    formatLines.length ? '**Tool call format:**' : null,
     ...formatLines.map((line) => `- ${line}`),
   ]
     .filter(Boolean)

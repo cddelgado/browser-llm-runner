@@ -22,6 +22,12 @@ When tool calling is enabled for a conversation and the selected model supports 
 Tool calling is model-aware. The app does not use one universal tool-call format for every model family.
 If the selected model does not support tool calling, the tool-instruction section is omitted entirely from the computed system prompt even when the conversation-level tool-calling toggle is enabled.
 
+The prompt is organized into separate sections so models do not confuse tool descriptions, post-tool behavior, and call syntax:
+
+- `Tools available in this conversation` lists the enabled tools and any tool-specific usage notes.
+- `Tool behavior` covers only generic behavior after a tool result is returned.
+- `Tool call format` describes the exact wrapper or JSON shape the selected model must emit.
+
 ## Current scope
 
 Today, the app implements a small built-in tool registry and a local tool execution loop. MCP integration and `SKILL.md` ingestion are not implemented yet.
