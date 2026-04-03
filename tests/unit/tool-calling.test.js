@@ -6,7 +6,10 @@ import {
   getEnabledToolDefinitions,
   sniffToolCalls,
 } from '../../src/llm/tool-calling.js';
-import { buildShellToolResponseEnvelope } from '../../src/llm/shell-command-tool.js';
+import {
+  buildShellToolResponseEnvelope,
+  MAX_SHELL_TOOL_OUTPUT_LENGTH,
+} from '../../src/llm/shell-command-tool.js';
 import {
   addMessageToConversation,
   createConversation,
@@ -1254,6 +1257,24 @@ describe('tool-calling prompt builder', () => {
     });
   });
 
+  test('marks oversized shell output as incomplete for the model response envelope', () => {
+    const oversizedOutput = 'a'.repeat(MAX_SHELL_TOOL_OUTPUT_LENGTH + 50);
+
+    expect(
+      buildShellToolResponseEnvelope({
+        command: 'cat notes.txt',
+        exitCode: 0,
+        stdout: oversizedOutput,
+        stderr: '',
+        currentWorkingDirectory: '/workspace',
+      })
+    ).toEqual({
+      status: 'incomplete',
+      body: oversizedOutput.slice(0, MAX_SHELL_TOOL_OUTPUT_LENGTH),
+      message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results.`,
+    });
+  });
+
   test('rejects run_shell_command calls that send both cmd and command', async () => {
     await expect(
       executeToolCall({
@@ -1315,6 +1336,33 @@ describe('tool-calling prompt builder', () => {
       stdout: 'alpha\nbeta\n',
       stderr: '',
     });
+  });
+
+  test('caps oversized shell output and returns an incomplete tool result envelope', async () => {
+    const oversizedOutput = 'a'.repeat(MAX_SHELL_TOOL_OUTPUT_LENGTH + 50);
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'cat notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem({
+          '/workspace/notes.txt': oversizedOutput,
+        }),
+      }
+    );
+
+    expect(result.result.stdout).toBe(oversizedOutput);
+    expect(result.result.stderr).toBe('');
+    expect(result.resultText).toBe(
+      JSON.stringify({
+        status: 'incomplete',
+        body: oversizedOutput.slice(0, MAX_SHELL_TOOL_OUTPUT_LENGTH),
+        message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results.`,
+      })
+    );
   });
 
   test('preserves escaped quotes and spaces in echoed shell text', async () => {

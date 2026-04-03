@@ -4,6 +4,7 @@ const SHELL_FLAVOR = 'GNU/Linux-like shell subset';
 const MAX_DIFF_MATRIX_CELLS = 1_000_000;
 const DEFAULT_DIFF_CONTEXT_LINES = 3;
 const MAX_SHELL_COMMAND_LENGTH = 2_000;
+export const MAX_SHELL_TOOL_OUTPUT_LENGTH = 8_192;
 const MAX_SHELL_TOKENS = 128;
 const MAX_SHELL_VARIABLE_VALUE_LENGTH = 512;
 const SHELL_LITERAL_DOLLAR_PLACEHOLDER = String.fromCharCode(0x1d);
@@ -265,7 +266,7 @@ function formatShellCommandUsageBody(currentWorkingDirectory = WORKSPACE_ROOT_PA
   ].join('\n');
 }
 
-function formatShellExecutionBody(result = {}) {
+function getShellExecutionBody(result = {}) {
   const command = typeof result.command === 'string' ? result.command.trim() : '';
   const stdout = typeof result.stdout === 'string' ? result.stdout : '';
   const stderr = typeof result.stderr === 'string' ? result.stderr : '';
@@ -285,6 +286,28 @@ function formatShellExecutionBody(result = {}) {
   return '';
 }
 
+function buildShellOutputTruncationMessage(returnedLength, totalLength) {
+  return `Output was truncated to ${returnedLength} of ${totalLength} characters. Retry with a command which returns targeted results.`;
+}
+
+function getShellPreviewText(text = '', maxLength = MAX_SHELL_TOOL_OUTPUT_LENGTH) {
+  const normalizedText = typeof text === 'string' ? text : '';
+  if (normalizedText.length <= maxLength) {
+    return {
+      text: normalizedText,
+      truncated: false,
+      returnedLength: normalizedText.length,
+      totalLength: normalizedText.length,
+    };
+  }
+  return {
+    text: normalizedText.slice(0, maxLength),
+    truncated: true,
+    returnedLength: maxLength,
+    totalLength: normalizedText.length,
+  };
+}
+
 export function buildShellToolResponseEnvelope(
   result = {},
   currentWorkingDirectory = WORKSPACE_ROOT_PATH
@@ -297,9 +320,17 @@ export function buildShellToolResponseEnvelope(
     };
   }
   const exitCode = Number.isFinite(result?.exitCode) ? Number(result.exitCode) : 1;
+  const bodyInfo = getShellPreviewText(getShellExecutionBody(result));
+  if (bodyInfo.truncated) {
+    return {
+      status: 'incomplete',
+      body: bodyInfo.text,
+      message: buildShellOutputTruncationMessage(bodyInfo.returnedLength, bodyInfo.totalLength),
+    };
+  }
   return {
     status: exitCode === 0 ? 'success' : 'failed',
-    body: formatShellExecutionBody(result),
+    body: bodyInfo.text,
   };
 }
 
@@ -4924,6 +4955,12 @@ export async function executeShellCommandTool(argumentsValue = {}, runtimeContex
         runtimeContext,
         currentWorkingDirectory
       );
+  Object.defineProperty(resolvedResult, 'responseEnvelope', {
+    value: buildShellToolResponseEnvelope(resolvedResult),
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
   if (typeof runtimeContext?.onShellCommandComplete === 'function') {
     runtimeContext.onShellCommandComplete(resolvedResult);
   }

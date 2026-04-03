@@ -135,6 +135,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Tool-call payload returned to the model:
   - `status`
   - `body`
+  - optional `message` when output is truncated and `status` becomes `incomplete`
 - Internal app metadata preserved for the terminal/session UI:
   - `shellFlavor`
   - `currentWorkingDirectory`
@@ -203,6 +204,8 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `|` is supported for `printf`, `echo`, `cat`, `head`, `tail`, `wc`, `sort`, `uniq`, `cut`, `tr`, `nl`, `grep`, and `sed`
   - `;`, `&&`, redirection, substitution, and globbing are not implemented
   - unsupported commands/syntax return shell-style `stderr` text with a non-zero `exitCode`
+  - oversized shell output is truncated only in the model-facing tool response; the terminal/session history keeps the natural shell output
+  - when that model-facing truncation happens, the model receives `{"status":"incomplete","body":"...","message":"..."}` so it can retry with a narrower command
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js), [src/llm/shell-command-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/shell-command-tool.js), [src/llm/python-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/python-tool.js), [src/llm/python-runtime-client.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/python-runtime-client.js), and [src/workers/python.worker.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/workers/python.worker.js).
 
