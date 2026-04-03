@@ -3,6 +3,7 @@ export function bindConversationListEvents({
   documentRef = document,
   conversationList,
   isGeneratingResponse,
+  deleteConversationStorage = async () => {},
   clearUserMessageEditSession,
   setChatTitleEditing,
   getActiveConversation,
@@ -29,7 +30,7 @@ export function bindConversationListEvents({
   };
 
   if (conversationList) {
-    conversationList.addEventListener('click', (event) => {
+    conversationList.addEventListener('click', async (event) => {
       const target = event.target;
       if (!(target instanceof Element)) {
         return;
@@ -67,6 +68,8 @@ export function bindConversationListEvents({
         if (index < 0) {
           return;
         }
+
+        await deleteConversationStorage(conversationId);
 
         const wasActive = appState.activeConversationId === conversationId;
         appState.conversations.splice(index, 1);

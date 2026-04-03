@@ -52,6 +52,7 @@ function createHarness() {
       documentRef: document,
       conversationList: document.getElementById('conversationList'),
       isGeneratingResponse: () => false,
+      deleteConversationStorage: vi.fn(() => Promise.resolve()),
       clearUserMessageEditSession: vi.fn(),
       setChatTitleEditing: vi.fn(),
       getActiveConversation: vi.fn(() => ({ id: 'conversation-2' })),
@@ -76,16 +77,18 @@ function createHarness() {
 }
 
 describe('conversation-list-events', () => {
-  test('deletes the active conversation and refreshes the sidebar state', () => {
+  test('deletes the active conversation, clears storage, and refreshes the sidebar state', async () => {
     const harness = createHarness();
     bindConversationListEvents(harness.deps);
 
     harness.document.querySelector('.conversation-delete')?.dispatchEvent(
       new harness.dom.window.MouseEvent('click', { bubbles: true }),
     );
+    await new Promise((resolve) => harness.dom.window.setTimeout(resolve, 0));
 
     expect(harness.appState.conversations).toEqual([{ id: 'conversation-2' }]);
     expect(harness.appState.activeConversationId).toBe('conversation-2');
+    expect(harness.deps.deleteConversationStorage).toHaveBeenCalledWith('conversation-1');
     expect(harness.deps.clearUserMessageEditSession).toHaveBeenCalled();
     expect(harness.deps.setChatTitleEditing).toHaveBeenCalledWith(harness.appState, false);
     expect(harness.deps.renderConversationList).toHaveBeenCalled();

@@ -1720,6 +1720,30 @@ function getConversationWorkspaceFileSystem(conversationOrId = getActiveConversa
   return conversationWorkspaceFileSystems.get(conversationId) || null;
 }
 
+async function deleteConversationStorage(conversationId) {
+  const normalizedConversationId =
+    typeof conversationId === 'string' ? conversationId.trim() : '';
+  if (!normalizedConversationId) {
+    return;
+  }
+  const conversationWorkspaceFileSystem = getConversationWorkspaceFileSystem(
+    normalizedConversationId,
+  );
+  if (!conversationWorkspaceFileSystem?.backingRootPath) {
+    conversationWorkspaceFileSystems.delete(normalizedConversationId);
+    return;
+  }
+  try {
+    if (await workspaceFileSystem.exists(conversationWorkspaceFileSystem.backingRootPath)) {
+      await workspaceFileSystem.deletePath(conversationWorkspaceFileSystem.backingRootPath, {
+        recursive: true,
+      });
+    }
+  } finally {
+    conversationWorkspaceFileSystems.delete(normalizedConversationId);
+  }
+}
+
 function parseShellToolResult(message) {
   if (message?.toolResultData && typeof message.toolResultData === 'object') {
     return message.toolResultData;
@@ -3764,6 +3788,7 @@ bindConversationListEvents({
   documentRef: document,
   conversationList,
   isGeneratingResponse,
+  deleteConversationStorage,
   clearUserMessageEditSession,
   setChatTitleEditing,
   getActiveConversation,
