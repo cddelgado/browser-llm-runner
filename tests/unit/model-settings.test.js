@@ -190,16 +190,16 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.runtime).toMatchObject({
       dtype: 'q4f16',
-      requiresWebGpu: true,
       multimodalGeneration: true,
       useExternalDataFormat: true,
     });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.runtime?.requiresWebGpu).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
       dtype: 'q4f16',
-      requiresWebGpu: true,
       multimodalGeneration: true,
       useExternalDataFormat: true,
     });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime?.requiresWebGpu).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.inputLimits).toEqual({
       maxImageInputs: 1,
     });

@@ -110,7 +110,6 @@
       "repositoryUrl": "https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX",
       "runtime": {
         "dtype": "q4f16",
-        "requiresWebGpu": true,
         "multimodalGeneration": true,
         "useExternalDataFormat": true
       },
@@ -169,7 +168,6 @@
       "repositoryUrl": "https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX",
       "runtime": {
         "dtype": "q4f16",
-        "requiresWebGpu": true,
         "multimodalGeneration": true,
         "useExternalDataFormat": true
       },

@@ -170,12 +170,12 @@ Student-facing browser chat UI with local model inference.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
   - Uses the published `q4f16` web export.
 - `onnx-community/Qwen3.5-2B-ONNX`
-  - Requires WebGPU and uses the published `q4f16` ONNX export with external data loading.
+  - Uses the published `q4f16` ONNX export with external data loading.
   - Uses Qwen's thinking-control profile: `enable_thinking` at generation time plus `/think` and `/no_think` system-prompt switches.
   - Exposes text plus uploaded image input in this app.
   - Uses the XML tool-call format supported by this app.
 - `onnx-community/gemma-4-E2B-it-ONNX`
-  - Requires WebGPU and uses the published `q4f16` ONNX export with external data loading.
+  - Uses the published `q4f16` ONNX export with external data loading.
   - Exposes text plus uploaded image and audio input in this app.
   - Audio input is upload-only; live recording is intentionally not exposed.
   - Video input is not exposed because the current browser runtime path is not viable enough yet.
