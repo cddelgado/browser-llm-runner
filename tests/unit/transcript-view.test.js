@@ -820,6 +820,87 @@ describe('transcript-view', () => {
     expect(toggle?.getAttribute('aria-label')).toBe('Running shell command: Shell Command Runner');
   });
 
+  test('renders shell tool requests and results inline on the model card', () => {
+    const harness = createViewHarness();
+    harness.conversation.messageNodes[1].response = 'I will inspect the workspace.';
+    harness.conversation.messageNodes[1].text = 'I will inspect the workspace.';
+    harness.conversation.messageNodes[1].toolCalls = [
+      {
+        name: 'run_shell_command',
+        arguments: { cmd: 'ls /workspace' },
+        rawText: '{"name":"run_shell_command","parameters":{"cmd":"ls /workspace"}}',
+      },
+    ];
+    harness.conversation.messageNodes[1].childIds = ['tool-1'];
+    const toolMessage = /** @type {any} */ ({
+      id: 'tool-1',
+      role: 'tool',
+      speaker: 'Tool',
+      text: '{"status":"success","body":"notes.txt\\nreadme.md"}',
+      toolName: 'run_shell_command',
+      toolResult: '{"status":"success","body":"notes.txt\\nreadme.md"}',
+      parentId: 'model-1',
+    });
+    harness.conversation.messageNodes.push(toolMessage);
+    harness.conversation.activeLeafMessageId = toolMessage.id;
+
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) =>
+        toolName === 'run_shell_command' ? 'Shell Command Runner' : toolName,
+      getShowThinkingByDefault: () => false,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: false,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    expect(harness.container.querySelectorAll('.message-row.model-message')).toHaveLength(1);
+    expect(harness.container.querySelector('.tool-call-request')?.textContent).toContain(
+      '"cmd": "ls /workspace"'
+    );
+    expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain(
+      'notes.txt'
+    );
+    expect(harness.container.querySelector('.tool-call-result')?.textContent).toContain(
+      'readme.md'
+    );
+  });
+
   test('renders PDF attachment metadata in the transcript', () => {
     const harness = createViewHarness();
     harness.conversation.messageNodes[0].content.parts[2] = /** @type {any} */ ({

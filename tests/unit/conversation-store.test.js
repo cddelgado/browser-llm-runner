@@ -244,6 +244,132 @@ describe('conversation-store', () => {
     });
   });
 
+  test('persists shell tool-call arguments and terminal metadata through normalized stores', async () => {
+    globalThis.indexedDB = /** @type {any} */ (createFakeIndexedDb());
+
+    const state = {
+      activeConversationId: 'conv-shell',
+      conversationCount: 1,
+      conversationIdCounter: 1,
+      conversations: [
+        {
+          id: 'conv-shell',
+          name: 'Shell session',
+          modelId: 'model-1',
+          startedAt: 1710000000000,
+          activeLeafMessageId: 'conv-shell-node-3',
+          lastSpokenLeafMessageId: 'conv-shell-node-3',
+          messageNodeCounter: 3,
+          messageNodes: [
+            {
+              id: 'conv-shell-node-1',
+              role: 'user',
+              speaker: 'User',
+              text: 'List files',
+              createdAt: 1710000001000,
+              parentId: null,
+              childIds: ['conv-shell-node-2'],
+              content: {
+                parts: [{ type: 'text', text: 'List files' }],
+                llmRepresentation: 'List files',
+              },
+              artifactRefs: [],
+            },
+            {
+              id: 'conv-shell-node-2',
+              role: 'model',
+              speaker: 'Model',
+              text: '{"name":"run_shell_command","parameters":{"cmd":"ls"}}',
+              response: '{"name":"run_shell_command","parameters":{"cmd":"ls"}}',
+              createdAt: 1710000002000,
+              parentId: 'conv-shell-node-1',
+              childIds: ['conv-shell-node-3'],
+              isResponseComplete: true,
+              toolCalls: [
+                {
+                  name: 'run_shell_command',
+                  arguments: { cmd: 'ls' },
+                  rawText: '{"name":"run_shell_command","parameters":{"cmd":"ls"}}',
+                  format: 'json',
+                },
+              ],
+              content: {
+                parts: [{ type: 'text', text: '{"name":"run_shell_command","parameters":{"cmd":"ls"}}' }],
+                llmRepresentation: '{"name":"run_shell_command","parameters":{"cmd":"ls"}}',
+              },
+              artifactRefs: [],
+            },
+            {
+              id: 'conv-shell-node-3',
+              role: 'tool',
+              speaker: 'Tool',
+              text: '{"status":"success","body":"notes.txt"}',
+              toolResult: '{"status":"success","body":"notes.txt"}',
+              createdAt: 1710000003000,
+              parentId: 'conv-shell-node-2',
+              childIds: [],
+              toolName: 'run_shell_command',
+              toolArguments: { cmd: 'ls' },
+              toolResultData: {
+                shellFlavor: 'GNU/Linux-like shell subset',
+                currentWorkingDirectory: '/workspace',
+                command: 'ls',
+                exitCode: 0,
+                stdout: 'notes.txt',
+                stderr: '',
+              },
+              isToolResultComplete: true,
+              content: {
+                parts: [{ type: 'text', text: '{"status":"success","body":"notes.txt"}' }],
+                llmRepresentation: '{"status":"success","body":"notes.txt"}',
+              },
+              artifactRefs: [],
+            },
+          ],
+        },
+      ],
+      artifacts: [],
+    };
+
+    await expect(saveConversationState(state)).resolves.toBe(true);
+    await expect(loadConversationState()).resolves.toMatchObject({
+      conversations: [
+        expect.objectContaining({
+          id: 'conv-shell',
+          messageNodes: [
+            expect.objectContaining({
+              id: 'conv-shell-node-1',
+            }),
+            expect.objectContaining({
+              id: 'conv-shell-node-2',
+              toolCalls: [
+                expect.objectContaining({
+                  name: 'run_shell_command',
+                  arguments: { cmd: 'ls' },
+                  rawText: '{"name":"run_shell_command","parameters":{"cmd":"ls"}}',
+                  format: 'json',
+                }),
+              ],
+            }),
+            expect.objectContaining({
+              id: 'conv-shell-node-3',
+              toolName: 'run_shell_command',
+              toolArguments: { cmd: 'ls' },
+              toolResultData: {
+                shellFlavor: 'GNU/Linux-like shell subset',
+                currentWorkingDirectory: '/workspace',
+                command: 'ls',
+                exitCode: 0,
+                stdout: 'notes.txt',
+                stderr: '',
+              },
+            }),
+          ],
+        }),
+      ],
+    });
+  });
+
   test('loads legacy snapshot data and migrates it to normalized stores', async () => {
     const fakeIndexedDb = createFakeIndexedDb();
     fakeIndexedDb.seedLegacyState({

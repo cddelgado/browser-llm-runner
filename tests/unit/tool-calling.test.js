@@ -1585,6 +1585,92 @@ describe('tool-calling prompt builder', () => {
     });
   });
 
+  test('supports mkdir, touch, cp, mv, and rm for workspace files', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/source.txt': 'alpha\nbeta\n',
+    });
+
+    const mkdirResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'mkdir -p coursework/drafts',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const touchResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'touch coursework/drafts/notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const copyResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'cp source.txt coursework/drafts/copy.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const moveResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'mv coursework/drafts/copy.txt coursework/final.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(mkdirResult.result.exitCode).toBe(0);
+    await expect(workspaceFileSystem.stat('/workspace/coursework/drafts')).resolves.toMatchObject({
+      kind: 'directory',
+      path: '/workspace/coursework/drafts',
+    });
+    expect(touchResult.result.exitCode).toBe(0);
+    await expect(
+      workspaceFileSystem.readTextFile('/workspace/coursework/drafts/notes.txt')
+    ).resolves.toBe('');
+    expect(copyResult.result.exitCode).toBe(0);
+    expect(moveResult.result.exitCode).toBe(0);
+    await expect(workspaceFileSystem.readTextFile('/workspace/coursework/final.txt')).resolves.toBe(
+      'alpha\nbeta\n'
+    );
+
+    const removeResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'rm coursework/final.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(removeResult.result.exitCode).toBe(0);
+    await expect(workspaceFileSystem.stat('/workspace/coursework/final.txt')).rejects.toMatchObject({
+      name: 'NotFoundError',
+    });
+  });
+
   test('rejects cp when source and destination resolve to the same file', async () => {
     const workspaceFileSystem = createMockWorkspaceFileSystem({
       '/workspace/notes.txt': 'alpha\n',
@@ -1974,6 +2060,78 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(result.result.stdout).toBe('     1\talpha\n\n     2\tbeta\n');
+  });
+
+  test('supports head, tail, and wc over workspace text files', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.txt': 'alpha beta\ngamma\nlast line\n',
+    });
+
+    const headResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'head -n 2 notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const tailResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'tail -n 1 notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const lineCountResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'wc -l notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const wordCountResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'wc -w notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    const byteCountResult = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'wc -c notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(headResult.result.stdout).toBe('alpha beta\ngamma\n');
+    expect(tailResult.result.stdout).toBe('last line\n');
+    expect(lineCountResult.result.stdout).toBe('3 /workspace/notes.txt');
+    expect(wordCountResult.result.stdout).toBe('5 /workspace/notes.txt');
+    expect(byteCountResult.result.stdout).toBe('27 /workspace/notes.txt');
   });
 
   test('returns shell-style stderr for unsupported shell commands', async () => {

@@ -1073,6 +1073,10 @@ export function buildConversationDownloadPayload(
           text: String(message.toolResult || message.text || ''),
           toolName: typeof message.toolName === 'string' ? message.toolName : '',
           toolArguments: message.toolArguments && typeof message.toolArguments === 'object' ? message.toolArguments : {},
+          toolResultData:
+            message.toolResultData && typeof message.toolResultData === 'object'
+              ? message.toolResultData
+              : undefined,
         };
       }
       return {
@@ -1163,6 +1167,9 @@ export function buildConversationDownloadMarkdown(payload) {
       lines.push(`Tool: ${exchange.toolName}`);
       if (exchange.toolArguments && typeof exchange.toolArguments === 'object') {
         lines.push(`Arguments: ${JSON.stringify(exchange.toolArguments)}`);
+      }
+      if (exchange.toolResultData && typeof exchange.toolResultData === 'object') {
+        lines.push(`Tool Result Data: ${JSON.stringify(exchange.toolResultData)}`);
       }
     }
     if (exchange?.role === 'model' && Array.isArray(exchange.toolCalls) && exchange.toolCalls.length) {

@@ -1795,9 +1795,15 @@ async function runHead(
   if (sourceText?.error) {
     return sourceText.error;
   }
-  const lines = String(parsedArguments.path === null ? sourceText : sourceText.text).split(/\r?\n/);
+  const { lines, trailingNewline } = splitShellTextIntoLines(
+    parsedArguments.path === null ? sourceText : sourceText.text
+  );
+  const selectedLines = lines.slice(0, parsedArguments.count);
   return createShellResult(commandText, {
-    stdout: lines.slice(0, parsedArguments.count).join('\n'),
+    stdout: joinShellLines(
+      selectedLines,
+      selectedLines.length > 0 && (trailingNewline || selectedLines.length < lines.length)
+    ),
     currentWorkingDirectory,
   });
 }
@@ -1836,9 +1842,12 @@ async function runTail(
   if (sourceText?.error) {
     return sourceText.error;
   }
-  const lines = String(parsedArguments.path === null ? sourceText : sourceText.text).split(/\r?\n/);
+  const { lines, trailingNewline } = splitShellTextIntoLines(
+    parsedArguments.path === null ? sourceText : sourceText.text
+  );
+  const selectedLines = lines.slice(Math.max(0, lines.length - parsedArguments.count));
   return createShellResult(commandText, {
-    stdout: lines.slice(Math.max(0, lines.length - parsedArguments.count)).join('\n'),
+    stdout: joinShellLines(selectedLines, selectedLines.length > 0 && trailingNewline),
     currentWorkingDirectory,
   });
 }

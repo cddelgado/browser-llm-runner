@@ -416,6 +416,93 @@ describe('conversation-model', () => {
     expect(markdown).toContain('> 72 F and sunny.');
   });
 
+  test('preserves shell tool-call metadata and shell execution details in exports', () => {
+    const conversation = createConversation({
+      id: 'conversation-shell-export',
+      modelId: 'tool-model',
+    });
+    const userMessage = addMessageToConversation(conversation, 'user', 'Count the files.');
+    const modelMessage = completeModelMessage(
+      addMessageToConversation(conversation, 'model', '', {
+        parentId: userMessage.id,
+        toolCalls: [
+          {
+            name: 'run_shell_command',
+            arguments: { cmd: 'find . -type f' },
+            rawText: '{"name":"run_shell_command","parameters":{"cmd":"find . -type f"}}',
+            format: 'json',
+          },
+        ],
+      }),
+      '{"name":"run_shell_command","parameters":{"cmd":"find . -type f"}}',
+    );
+    const shellResultData = {
+      shellFlavor: 'GNU/Linux-like shell subset',
+      currentWorkingDirectory: '/workspace',
+      command: 'find . -type f',
+      exitCode: 0,
+      stdout: '/workspace/notes.txt',
+      stderr: '',
+    };
+    const toolMessage = addMessageToConversation(
+      conversation,
+      'tool',
+      '{"status":"success","body":"/workspace/notes.txt"}',
+      {
+        parentId: modelMessage.id,
+        toolName: 'run_shell_command',
+        toolArguments: { cmd: 'find . -type f' },
+        toolResultData: shellResultData,
+      },
+    );
+    const finalModel = completeModelMessage(
+      addMessageToConversation(conversation, 'model', 'I found one file.', {
+        parentId: toolMessage.id,
+      }),
+      'I found one file.',
+    );
+
+    conversation.activeLeafMessageId = finalModel.id;
+
+    const payload = buildConversationDownloadPayload(conversation);
+    expect(payload.exchanges).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        text: 'Count the files.',
+      }),
+      expect.objectContaining({
+        role: 'model',
+        toolCalls: [
+          {
+            name: 'run_shell_command',
+            arguments: { cmd: 'find . -type f' },
+            rawText: '{"name":"run_shell_command","parameters":{"cmd":"find . -type f"}}',
+            format: 'json',
+          },
+        ],
+      }),
+      expect.objectContaining({
+        role: 'tool',
+        text: '{"status":"success","body":"/workspace/notes.txt"}',
+        toolName: 'run_shell_command',
+        toolArguments: { cmd: 'find . -type f' },
+        toolResultData: shellResultData,
+      }),
+      expect.objectContaining({
+        role: 'model',
+        text: 'I found one file.',
+      }),
+    ]);
+
+    const markdown = buildConversationDownloadMarkdown(payload);
+    expect(markdown).toContain('Tool: run_shell_command');
+    expect(markdown).toContain('Arguments: {"cmd":"find . -type f"}');
+    expect(markdown).toContain(
+      'Tool Result Data: {"shellFlavor":"GNU/Linux-like shell subset","currentWorkingDirectory":"/workspace","command":"find . -type f","exitCode":0,"stdout":"/workspace/notes.txt","stderr":""}'
+    );
+    expect(markdown).toContain('> {"status":"success","body":"/workspace/notes.txt"}');
+  });
+
   test('preserves conversations without a stored model id', () => {
     const conversation = createConversation({
       id: 'conversation-1',

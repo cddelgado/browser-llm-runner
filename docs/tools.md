@@ -361,12 +361,12 @@ Conversation exports include tool-calling data when tool calling is enabled at e
 - JSON exports include:
   - top-level `toolCalling` metadata
   - model-message `toolCalls`
-  - `tool` role exchanges with `toolName`, `toolArguments`, and result text
+  - `tool` role exchanges with `toolName`, `toolArguments`, result text, and `toolResultData` when the tool stored structured execution metadata
 - Markdown exports include:
   - tool-calling support metadata
   - enabled tool names
   - model tool-call metadata
-  - tool result details
+  - tool result details, including structured `toolResultData` when present
 
 If tool calling is enabled but no tools are enabled, exports list enabled tools as `none`.
 

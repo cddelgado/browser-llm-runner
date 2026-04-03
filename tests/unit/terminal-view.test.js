@@ -115,4 +115,53 @@ describe('terminal-view', () => {
 
     expect(terminalState.resetCalls).toBe(1);
   });
+
+  test('renders command history, stderr, pending entries, and the live prompt', async () => {
+    const dom = new JSDOM('<div id="panel"><div id="host"></div></div>');
+    globalThis.HTMLElement = dom.window.HTMLElement;
+    const { createTerminalView } = await import('../../src/ui/terminal-view.js');
+    const view = createTerminalView({
+      panel: dom.window.document.getElementById('panel'),
+      host: dom.window.document.getElementById('host'),
+      windowRef: createWindowRef(dom.window),
+    });
+
+    view.renderSession({
+      sessionKey: 'conversation-1:leaf-2:2',
+      currentWorkingDirectory: '/workspace/coursework',
+      entries: [
+        {
+          command: 'pwd',
+          currentWorkingDirectory: '/workspace',
+          stdout: '/workspace',
+          stderr: '',
+          exitCode: 0,
+        },
+        {
+          command: 'ls missing',
+          currentWorkingDirectory: '/workspace/coursework',
+          stdout: '',
+          stderr: "ls: cannot access 'missing': No such file or directory.",
+          exitCode: 1,
+        },
+      ],
+      pendingEntry: {
+        command: 'cat notes.txt',
+        currentWorkingDirectory: '/workspace/coursework',
+      },
+    });
+
+    expect(terminalState.resetCalls).toBe(1);
+    expect(terminalState.writes).toEqual([
+      ['write', '/workspace $ '],
+      ['writeln', 'pwd'],
+      ['write', '/workspace\n'],
+      ['write', '/workspace/coursework $ '],
+      ['writeln', 'ls missing'],
+      ['write', "\u001b[31mls: cannot access 'missing': No such file or directory.\n\u001b[39m"],
+      ['write', '/workspace/coursework $ '],
+      ['writeln', 'cat notes.txt'],
+      ['write', '/workspace/coursework $ '],
+    ]);
+  });
 });

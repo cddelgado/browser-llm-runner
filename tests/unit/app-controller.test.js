@@ -336,6 +336,68 @@ describe('app-controller', () => {
     expect(finalModelMessages.at(-1)?.text).toBe('It is currently 1:00 AM local time.');
   });
 
+  test('stores validated shell tool results with terminal metadata on the raw conversation object', async () => {
+    const harness = createControllerHarness();
+    const conversation = createConversation({ id: 'conversation-shell', modelId: 'test-model' });
+    const userMessage = addMessageToConversation(conversation, 'user', 'List the workspace.');
+    harness.conversations.push(conversation);
+    harness.activeConversationId.value = conversation.id;
+    harness.state.modelReady = true;
+    harness.dependencies.detectToolCalls
+      .mockReturnValueOnce([
+        {
+          name: 'run_shell_command',
+          arguments: { cmd: 'ls' },
+          rawText: '{"name":"run_shell_command","parameters":{"cmd":"ls"}}',
+          format: 'json',
+        },
+      ])
+      .mockReturnValueOnce([]);
+    harness.dependencies.executeToolCall.mockResolvedValue({
+      toolName: 'run_shell_command',
+      arguments: { cmd: 'ls' },
+      result: {
+        shellFlavor: 'GNU/Linux-like shell subset',
+        currentWorkingDirectory: '/workspace',
+        command: 'ls',
+        exitCode: 0,
+        stdout: 'notes.txt',
+        stderr: '',
+      },
+      resultText: '{"status":"success","body":"notes.txt"}',
+    });
+
+    harness.engine.generate
+      .mockImplementationOnce((_prompt, handlers) => {
+        handlers.onComplete('{"name":"run_shell_command","parameters":{"cmd":"ls"}}');
+      })
+      .mockImplementationOnce((_prompt, handlers) => {
+        handlers.onComplete('I found notes.txt.');
+      });
+
+    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
+      parentMessageId: userMessage.id,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const toolMessage = conversation.messageNodes.find((message) => message.role === 'tool');
+    expect(toolMessage).toMatchObject({
+      toolName: 'run_shell_command',
+      toolArguments: { cmd: 'ls' },
+      toolResult: '{"status":"success","body":"notes.txt"}',
+      toolResultData: {
+        shellFlavor: 'GNU/Linux-like shell subset',
+        currentWorkingDirectory: '/workspace',
+        command: 'ls',
+        exitCode: 0,
+        stdout: 'notes.txt',
+        stderr: '',
+      },
+    });
+  });
+
   test('keeps only pre-tool narration visible while storing a tool-call-only continuation payload', () => {
     const harness = createControllerHarness();
     const conversation = createConversation({ id: 'conversation-1', modelId: 'test-model' });
