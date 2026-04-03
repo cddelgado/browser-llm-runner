@@ -494,6 +494,50 @@ function formatUtcTimestamp(value) {
   }).format(candidateDate);
 }
 
+function formatExportDate(value) {
+  const dateFromString = typeof value === 'string' && value ? new Date(value) : null;
+  const normalizedTimestamp = normalizeTimestamp(value);
+  const dateFromTimestamp = normalizedTimestamp ? new Date(normalizedTimestamp) : null;
+  const candidateDate =
+    dateFromString instanceof Date && Number.isFinite(dateFromString.valueOf())
+      ? dateFromString
+      : dateFromTimestamp instanceof Date && Number.isFinite(dateFromTimestamp.valueOf())
+        ? dateFromTimestamp
+        : null;
+  if (!candidateDate) {
+    return null;
+  }
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: 'UTC',
+  }).format(candidateDate);
+}
+
+function formatExportTime(value) {
+  const dateFromString = typeof value === 'string' && value ? new Date(value) : null;
+  const normalizedTimestamp = normalizeTimestamp(value);
+  const dateFromTimestamp = normalizedTimestamp ? new Date(normalizedTimestamp) : null;
+  const candidateDate =
+    dateFromString instanceof Date && Number.isFinite(dateFromString.valueOf())
+      ? dateFromString
+      : dateFromTimestamp instanceof Date && Number.isFinite(dateFromTimestamp.valueOf())
+        ? dateFromTimestamp
+        : null;
+  if (!candidateDate) {
+    return null;
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  }).format(candidateDate);
+}
+
 function toMarkdownBlockquote(text) {
   const normalizedText = String(text || '');
   if (!normalizedText) {
@@ -1113,22 +1157,34 @@ export function buildConversationDownloadPayload(
     .map((message, index) => {
       const exchangeNumber = index + 1;
       if (message.role === 'user') {
+        const timestamp = toIsoTimestamp(message.createdAt);
+        const timestampMs = normalizeTimestamp(message.createdAt);
         return {
           heading: `User prompt ${exchangeNumber}`,
           role: message.role,
           event: 'entered',
-          timestamp: toIsoTimestamp(message.createdAt),
-          timestampMs: normalizeTimestamp(message.createdAt),
+          timestamp,
+          timestampMs,
+          createdAt: timestamp,
+          createdAtMs: timestampMs,
+          date: formatExportDate(timestamp),
+          time: formatExportTime(timestamp),
           text: String(message.text || ''),
         };
       }
       if (message.role === 'tool') {
+        const timestamp = toIsoTimestamp(message.createdAt);
+        const timestampMs = normalizeTimestamp(message.createdAt);
         return {
           heading: `Tool result ${exchangeNumber}`,
           role: message.role,
           event: 'tool_result',
-          timestamp: toIsoTimestamp(message.createdAt),
-          timestampMs: normalizeTimestamp(message.createdAt),
+          timestamp,
+          timestampMs,
+          createdAt: timestamp,
+          createdAtMs: timestampMs,
+          date: formatExportDate(timestamp),
+          time: formatExportTime(timestamp),
           text: String(message.toolResult || message.text || ''),
           toolName: typeof message.toolName === 'string' ? message.toolName : '',
           toolArguments: message.toolArguments && typeof message.toolArguments === 'object' ? message.toolArguments : {},
@@ -1138,12 +1194,18 @@ export function buildConversationDownloadPayload(
               : undefined,
         };
       }
+      const timestamp = toIsoTimestamp(message.createdAt);
+      const timestampMs = normalizeTimestamp(message.createdAt);
       return {
         heading: `Model response ${exchangeNumber}`,
         role: message.role,
         event: 'generated',
-        timestamp: toIsoTimestamp(message.createdAt),
-        timestampMs: normalizeTimestamp(message.createdAt),
+        timestamp,
+        timestampMs,
+        createdAt: timestamp,
+        createdAtMs: timestampMs,
+        date: formatExportDate(timestamp),
+        time: formatExportTime(timestamp),
         text: String(message.response || message.text || ''),
         toolCalls: normalizeToolCalls(message.toolCalls),
       };
@@ -1220,7 +1282,14 @@ export function buildConversationDownloadMarkdown(payload) {
   const exchanges = Array.isArray(payload?.exchanges) ? payload.exchanges : [];
   exchanges.forEach((exchange) => {
     lines.push(`## ${String(exchange?.heading || 'Exchange')}`);
-    lines.push(formatUtcTimestamp(exchange?.timestamp));
+    const exchangeDate = typeof exchange?.date === 'string' ? exchange.date : null;
+    const exchangeTime = typeof exchange?.time === 'string' ? exchange.time : null;
+    if (exchangeDate && exchangeTime) {
+      lines.push(`Date: ${exchangeDate}`);
+      lines.push(`Time: ${exchangeTime}`);
+    } else {
+      lines.push(formatUtcTimestamp(exchange?.timestamp));
+    }
     if (exchange?.role === 'tool' && exchange?.toolName) {
       lines.push('');
       lines.push(`Tool: ${exchange.toolName}`);

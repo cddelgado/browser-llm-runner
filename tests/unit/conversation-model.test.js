@@ -354,6 +354,10 @@ describe('conversation-model', () => {
           event: 'entered',
           timestamp: expect.any(String),
           timestampMs: expect.any(Number),
+          createdAt: expect.any(String),
+          createdAtMs: expect.any(Number),
+          date: expect.any(String),
+          time: expect.any(String),
           text: 'Explain momentum.',
         },
         {
@@ -362,6 +366,10 @@ describe('conversation-model', () => {
           event: 'generated',
           timestamp: expect.any(String),
           timestampMs: expect.any(Number),
+          createdAt: expect.any(String),
+          createdAtMs: expect.any(Number),
+          date: expect.any(String),
+          time: expect.any(String),
           text: 'Momentum is mass times velocity.',
           toolCalls: [],
         },
@@ -371,6 +379,10 @@ describe('conversation-model', () => {
           event: 'entered',
           timestamp: expect.any(String),
           timestampMs: expect.any(Number),
+          createdAt: expect.any(String),
+          createdAtMs: expect.any(Number),
+          date: expect.any(String),
+          time: expect.any(String),
           text: 'Use a soccer example.',
         },
         {
@@ -379,6 +391,10 @@ describe('conversation-model', () => {
           event: 'generated',
           timestamp: expect.any(String),
           timestampMs: expect.any(Number),
+          createdAt: expect.any(String),
+          createdAtMs: expect.any(Number),
+          date: expect.any(String),
+          time: expect.any(String),
           text: 'A fast soccer ball has more momentum than a slow one.',
           toolCalls: [],
         },
@@ -394,6 +410,8 @@ describe('conversation-model', () => {
     expect(markdown).toContain('Tool Calling Supported: Yes');
     expect(markdown).toContain('Enabled Tools: none');
     expect(markdown).toContain('## User prompt 3');
+    expect(markdown).toContain('Date: ');
+    expect(markdown).toContain('Time: ');
     expect(markdown).toContain('> Use a soccer example.');
     expect(markdown).not.toContain('bowling');
   });

@@ -1013,6 +1013,20 @@
   color: var(--ink-muted);
 }
 
+.message-meta {
+  margin: 0 0 0.25rem;
+}
+
+.message-timestamp {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+
+.message-meta .message-speaker {
+  margin-bottom: 0;
+}
+
 .message-bubble {
   margin: 0;
   max-width: min(75ch, 82%);

@@ -16,6 +16,7 @@ function createViewHarness() {
         role: 'user',
         speaker: 'User',
         text: 'Hello there',
+        createdAt: Date.UTC(2026, 0, 2, 3, 4, 5),
         content: {
           parts: [
             { type: 'text', text: 'Hello there' },
@@ -41,6 +42,7 @@ function createViewHarness() {
         role: 'model',
         speaker: 'Model',
         text: 'Hi back',
+        createdAt: Date.UTC(2026, 0, 2, 3, 5, 6),
         response: 'Hi back',
         thoughts: '',
         hasThinking: false,
@@ -117,6 +119,8 @@ describe('transcript-view', () => {
     expect(harness.container.querySelector('.user-message .message-file-card')?.textContent).toContain(
       'Embedded spreadsheet object omitted.'
     );
+    expect(harness.container.querySelector('.user-message .message-timestamp')?.textContent).toBeTruthy();
+    expect(harness.container.querySelector('.model-message .message-timestamp')?.textContent).toBeTruthy();
     expect(
       harness.container.querySelector('.model-message .response-content')?.innerHTML
     ).toContain('Hi back');

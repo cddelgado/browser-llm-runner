@@ -74,6 +74,7 @@ Student-facing browser chat UI with local model inference.
 - Chat and setup status notices use Bootstrap alert patterns with headings so updates are announced in context.
 - The transcript includes helper links at both the start and end to jump to the transcript start, transcript end, or message input.
 - The transcript includes a note that each exchange has a heading so assistive technologies can index the conversation structure.
+- The transcript shows a simple local date/time stamp above each visible user and model exchange.
 - Conversations are persisted locally in browser IndexedDB and restored on reload.
 - Legacy conversation snapshots are migrated automatically into the current normalized IndexedDB layout on load.
 - Saved conversation state includes stable IDs and forward-compatible metadata for future export/import:
@@ -113,8 +114,8 @@ Student-facing browser chat UI with local model inference.
 - Conversation menu actions such as `Edit prompt` and `Delete` remain available while background orchestrations (for example automatic conversation renaming) are running; only active model loading/generation locks those controls.
 - After the first completed model response on the visible branch, that kebab menu includes a nested `Download` submenu.
 - Download submenu options:
-  - `JSON (.llm.json) File`: exports only the currently visible branch as `<conversation-name>.llm.json` with top-level `conversation` metadata (`name`, `startedAt`, `exportedAt`), the conversation's `model`, `temperature`, optional `systemPrompt` (when present on that conversation), optional `toolCalling` metadata when tool calling is enabled at export time, and an `exchanges` array containing per-exchange `heading`, entered/generated/tool-result timestamps, model `toolCalls`, and tool-result metadata including structured `toolResultData` when present.
-  - `Markdown (.md) File`: exports the visible branch as `<conversation-name>.md` with conversation metadata (started/exported UTC times, the conversation's model, temperature), optional tool-calling metadata when enabled at export time, optional `## System prompt` section (when present), and one section per exchange including model tool-call metadata and tool-result details, including structured `toolResultData` when present.
+  - `JSON (.llm.json) File`: exports only the currently visible branch as `<conversation-name>.llm.json` with top-level `conversation` metadata (`name`, `startedAt`, `exportedAt`), the conversation's `model`, `temperature`, optional `systemPrompt` (when present on that conversation), optional `toolCalling` metadata when tool calling is enabled at export time, and an `exchanges` array containing per-exchange `heading`, explicit created-at ISO/ms fields plus UTC date/time fields, model `toolCalls`, and tool-result metadata including structured `toolResultData` when present.
+  - `Markdown (.md) File`: exports the visible branch as `<conversation-name>.md` with conversation metadata (started/exported UTC times, the conversation's model, temperature), optional tool-calling metadata when enabled at export time, optional `## System prompt` section (when present), and one section per exchange including UTC date/time lines, model tool-call metadata, and tool-result details, including structured `toolResultData` when present.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in collapsible "Thinking" sections at the point they occurred within the model turn during streaming.
 - Model responses are rendered as Markdown (via `markdown-it`) in the transcript.

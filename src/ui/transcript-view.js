@@ -31,6 +31,37 @@ export function createTranscriptView(dependencies) {
     typeof getToolDisplayName === 'function'
       ? getToolDisplayName
       : (toolName) => String(toolName || 'Unknown Tool');
+  const transcriptTimestampFormatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  function formatTranscriptTimestamp(timestamp) {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) {
+      return '';
+    }
+    try {
+      return transcriptTimestampFormatter.format(new Date(timestamp));
+    } catch {
+      return '';
+    }
+  }
+
+  function buildMessageMetaMarkup(message) {
+    const timestamp = formatTranscriptTimestamp(message?.createdAt);
+    if (!timestamp) {
+      return `<p class="message-speaker">${message.speaker}</p>`;
+    }
+    return `
+      <div class="message-meta">
+        <p class="message-timestamp">${timestamp}</p>
+        <p class="message-speaker">${message.speaker}</p>
+      </div>
+    `;
+  }
 
   function getUserImageParts(message) {
     const rawParts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
@@ -682,7 +713,7 @@ export function createTranscriptView(dependencies) {
       const variantLabel = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
-        <p class="message-speaker">${message.speaker}</p>
+        ${buildMessageMetaMarkup(message)}
         <div class="message-bubble">
           <div class="model-turn-timeline"></div>
         </div>
@@ -820,7 +851,7 @@ export function createTranscriptView(dependencies) {
       const isEditing = getActiveUserEditMessageId() === message.id;
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
-        <p class="message-speaker">${message.speaker}</p>
+        ${buildMessageMetaMarkup(message)}
         <div class="message-bubble mb-0"></div>
         <textarea
           class="form-control user-message-editor${isEditing ? '' : ' d-none'}"
@@ -978,7 +1009,7 @@ export function createTranscriptView(dependencies) {
     } else {
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
-        <p class="message-speaker">${message.speaker}</p>
+        ${buildMessageMetaMarkup(message)}
         <div class="message-bubble">
           <section class="response-region">
             <h3 class="visually-hidden">Tool result</h3>
