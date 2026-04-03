@@ -500,6 +500,61 @@ describe('app-controller', () => {
     expect(regeneratedModelMessages.at(-1)?.text).toBe('Here is a regenerated answer.');
   });
 
+  test('reuses the originating model card when continuing after a tool call', async () => {
+    const harness = createControllerHarness();
+    const conversation = createConversation({ id: 'conversation-1', modelId: 'test-model' });
+    const userMessage = addMessageToConversation(conversation, 'user', 'Where am I?');
+    harness.conversations.push(conversation);
+    harness.activeConversationId.value = conversation.id;
+    harness.state.modelReady = true;
+
+    const originatingModelElement = { nodeName: 'LI', dataset: { messageId: 'originating-model' } };
+    harness.dependencies.findMessageElement = vi
+      .fn()
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce(originatingModelElement);
+    harness.dependencies.detectToolCalls
+      .mockReturnValueOnce([
+        {
+          name: 'get_user_location',
+          arguments: {},
+          rawText: '{"name":"get_user_location","parameters":{}}',
+          format: 'json',
+        },
+      ])
+      .mockReturnValueOnce([]);
+    harness.dependencies.executeToolCall.mockResolvedValue({
+      toolName: 'get_user_location',
+      arguments: {},
+      resultText: '{"location":"Milwaukee, Wisconsin, United States"}',
+    });
+
+    harness.engine.generate
+      .mockImplementationOnce((_prompt, handlers) => {
+        handlers.onComplete('{"name":"get_user_location","parameters":{}}');
+      })
+      .mockImplementationOnce((_prompt, handlers) => {
+        handlers.onComplete('You are currently located in Milwaukee, Wisconsin, United States.');
+      });
+
+    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
+      parentMessageId: userMessage.id,
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const modelMessages = conversation.messageNodes.filter((message) => message.role === 'model');
+    expect(modelMessages).toHaveLength(2);
+    expect(harness.dependencies.addMessageElement).toHaveBeenCalledTimes(1);
+    expect(harness.dependencies.addMessageElement.mock.calls[0][0].id).toBe(modelMessages[0]?.id);
+    expect(harness.dependencies.findMessageElement).toHaveBeenNthCalledWith(2, modelMessages[0]?.id);
+    expect(harness.dependencies.updateModelMessageElement).toHaveBeenLastCalledWith(
+      modelMessages[0],
+      originatingModelElement,
+    );
+  });
+
   test('fixes a continuation model message after a tool call', async () => {
     const harness = createControllerHarness();
     const conversation = createConversation({ id: 'conversation-1', modelId: 'test-model' });

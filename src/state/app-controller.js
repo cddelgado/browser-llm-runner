@@ -263,6 +263,31 @@ export function createAppController(dependencies) {
     return null;
   }
 
+  function findVisibleModelTurnMessage(conversation, modelMessage) {
+    if (!conversation || modelMessage?.role !== 'model') {
+      return modelMessage || null;
+    }
+    let cursor = modelMessage;
+    while (cursor?.parentId) {
+      const parentMessage = dependencies.getMessageNodeById(conversation, cursor.parentId);
+      if (!parentMessage) {
+        break;
+      }
+      if (parentMessage.role === 'tool') {
+        const originatingModelMessage =
+          typeof parentMessage.parentId === 'string' && parentMessage.parentId
+            ? dependencies.getMessageNodeById(conversation, parentMessage.parentId)
+            : null;
+        if (originatingModelMessage?.role === 'model') {
+          cursor = originatingModelMessage;
+          continue;
+        }
+      }
+      break;
+    }
+    return cursor;
+  }
+
   function startModelGeneration(activeConversation, prompt, options = {}) {
     const selectedModelId = dependencies.normalizeModelId(dependencies.getSelectedModelId());
     const thinkingTags = dependencies.getThinkingTagsForModel(selectedModelId);
@@ -320,10 +345,12 @@ export function createAppController(dependencies) {
     modelMessage.isResponseComplete = false;
     modelMessage.toolCalls = Array.isArray(modelMessage.toolCalls) ? modelMessage.toolCalls : [];
     activeConversation.activeLeafMessageId = modelMessage.id;
+    const visibleModelTurnMessage = findVisibleModelTurnMessage(activeConversation, modelMessage);
     const modelBubbleItem =
-      dependencies.findMessageElement(modelMessage.id) || dependencies.addMessageElement(modelMessage);
+      dependencies.findMessageElement(visibleModelTurnMessage?.id || '') ||
+      dependencies.addMessageElement(visibleModelTurnMessage || modelMessage);
     if (modelBubbleItem) {
-      dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
+      dependencies.updateModelMessageElement(visibleModelTurnMessage || modelMessage, modelBubbleItem);
     }
     let streamedText = '';
     let isInterceptingToolCall = false;
@@ -383,7 +410,10 @@ export function createAppController(dependencies) {
           if (modelMessage.content && typeof modelMessage.content === 'object') {
             modelMessage.content.llmRepresentation = interceptedToolCall.toolCallPromptText;
           }
-          dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
+          dependencies.updateModelMessageElement(
+            visibleModelTurnMessage || modelMessage,
+            modelBubbleItem,
+          );
           dependencies.scrollTranscriptToBottom();
           dependencies.appendDebug('Detected emitted tool call during streaming.');
           dependencies.setStatus('Running tool call...');
@@ -408,7 +438,10 @@ export function createAppController(dependencies) {
                 modelMessage.isThinkingComplete = false;
                 modelMessage.isResponseComplete = true;
                 setGenerating(dependencies.state, false);
-                dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
+                dependencies.updateModelMessageElement(
+                  visibleModelTurnMessage || modelMessage,
+                  modelBubbleItem,
+                );
                 dependencies.updateActionButtons();
                 dependencies.applyPendingGenerationSettingsIfReady();
                 dependencies.setStatus('Generation failed');
@@ -421,7 +454,10 @@ export function createAppController(dependencies) {
         }
       }
       lastStreamUpdateAt = getStreamUpdateTimestamp();
-      dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
+      dependencies.updateModelMessageElement(
+        visibleModelTurnMessage || modelMessage,
+        modelBubbleItem,
+      );
       dependencies.scrollTranscriptToBottom();
       return false;
     }
@@ -494,7 +530,10 @@ export function createAppController(dependencies) {
             }
           }
           modelMessage.isResponseComplete = true;
-          dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
+          dependencies.updateModelMessageElement(
+            visibleModelTurnMessage || modelMessage,
+            modelBubbleItem,
+          );
           dependencies.scrollTranscriptToBottom();
           const hasDetectedToolCalls =
             Array.isArray(modelMessage.toolCalls) && modelMessage.toolCalls.length > 0;
@@ -546,7 +585,10 @@ export function createAppController(dependencies) {
           modelMessage.hasThinking = false;
           modelMessage.isThinkingComplete = false;
           modelMessage.isResponseComplete = true;
-          dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
+          dependencies.updateModelMessageElement(
+            visibleModelTurnMessage || modelMessage,
+            modelBubbleItem,
+          );
           dependencies.scrollTranscriptToBottom();
           if (updateLastSpokenOnComplete) {
             activeConversation.lastSpokenLeafMessageId = modelMessage.id;
@@ -568,7 +610,10 @@ export function createAppController(dependencies) {
       modelMessage.hasThinking = false;
       modelMessage.isThinkingComplete = false;
       modelMessage.isResponseComplete = true;
-      dependencies.updateModelMessageElement(modelMessage, modelBubbleItem);
+      dependencies.updateModelMessageElement(
+        visibleModelTurnMessage || modelMessage,
+        modelBubbleItem,
+      );
       dependencies.scrollTranscriptToBottom();
       if (updateLastSpokenOnComplete) {
         activeConversation.lastSpokenLeafMessageId = modelMessage.id;
