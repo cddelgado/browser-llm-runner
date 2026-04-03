@@ -35,7 +35,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: 'tasklist',
     displayName: 'Task List Planner',
     description:
-      'Manage a task list for multi-step work. Call with no arguments for tool syntax',
+      'Manage a task list for multi-step work. Call with an empty arguments object to get tool syntax.',
     enabled: true,
     parameters: {
       type: 'object',
@@ -63,7 +63,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: 'run_shell_command',
     displayName: 'Shell Command Runner',
     description:
-      'Passes a shell command to an emulated Linux shell starting in /workspace. Call with no arguments for syntax and supported commands.',
+      'Passes a shell command to an emulated Linux shell starting in /workspace. Call with an empty arguments object to get syntax and supported commands.',
     enabled: true,
     parameters: {
       type: 'object',
@@ -130,19 +130,26 @@ function buildToolCallingFormatInstructions(toolCallingConfig) {
   if (!toolCallingConfig || typeof toolCallingConfig !== 'object') {
     return [];
   }
+  const nameKey = typeof toolCallingConfig.nameKey === 'string' ? toolCallingConfig.nameKey : 'name';
+  const argumentsKey =
+    typeof toolCallingConfig.argumentsKey === 'string'
+      ? toolCallingConfig.argumentsKey
+      : 'arguments';
   if (toolCallingConfig.format === 'json') {
     return [
       'When you call a tool, output exactly one JSON object and nothing else.',
-      `Shape: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
-      'Use {} when the tool takes no arguments.',
+      `Shape: {"${nameKey}":"<tool-name>","${argumentsKey}":{...}}.`,
+      `The "${argumentsKey}" value must always be a JSON object.`,
+      `Use an empty "${argumentsKey}" object (${JSON.stringify({ [argumentsKey]: {} })}) only when the tool takes no inputs or when the tool description explicitly says that an empty "${argumentsKey}" object returns usage help.`,
     ];
   }
   if (toolCallingConfig.format === 'tagged-json') {
     return [
       'When you call a tool, output exactly one tagged tool-call block and nothing else.',
       `Wrap the JSON object in ${toolCallingConfig.openTag} and ${toolCallingConfig.closeTag}.`,
-      `Shape inside the tags: {"${toolCallingConfig.nameKey}":"<tool-name>","${toolCallingConfig.argumentsKey}":{...}}.`,
-      'Use {} when the tool takes no arguments.',
+      `Shape inside the tags: {"${nameKey}":"<tool-name>","${argumentsKey}":{...}}.`,
+      `The "${argumentsKey}" value must always be a JSON object.`,
+      `Use an empty "${argumentsKey}" object (${JSON.stringify({ [argumentsKey]: {} })}) only when the tool takes no inputs or when the tool description explicitly says that an empty "${argumentsKey}" object returns usage help.`,
     ];
   }
   if (toolCallingConfig.format === 'special-token-call') {
@@ -179,12 +186,12 @@ function buildToolInstructionLines(name, description = '') {
   }
   if (normalizedName === 'tasklist') {
     lines.push(
-      '  If tasklist would help and you need its command syntax, call it first with an empty arguments object.'
+      '  If tasklist would help and you need its command syntax, call it first with an empty arguments object for this model\'s tool-call format.'
     );
   }
   if (normalizedName === 'run_shell_command') {
     lines.push(
-      '  Commands are GNU/Linux-like but only a subset is implemented. Call it first with an empty arguments object to see the supported commands and placeholder paths.'
+      '  Commands are GNU/Linux-like but only a subset is implemented. Call it first with an empty arguments object for this model\'s tool-call format to see the supported commands and placeholder paths.'
     );
     lines.push(
       '  Uploaded attachments may already be available under /workspace, and user messages can include their exact workspace paths.'
@@ -205,7 +212,7 @@ export function buildToolCallingSystemPrompt(
     return '';
   }
   const toolLines = [
-    '**Tools available in this conversation:**\nThese are the tool names you can call.',
+    '**Tools available in this conversation:**\nThese are the tools you can call.',
     ...buildEnabledToolInstructions(enabledTools),
     ...(enabledTools.length
       ? []

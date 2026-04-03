@@ -28,6 +28,16 @@ The prompt is organized into separate sections so models do not confuse tool des
 - `Tool behavior` covers only generic behavior after a tool result is returned.
 - `Tool call format` describes the exact wrapper or JSON shape the selected model must emit, including that a tool call should be the only output in that turn.
 
+For JSON-based formats, the model-specific call shape may use either an `arguments` key or a `parameters` key. In this document, "empty arguments object" means "the empty object assigned to that model's tool-input key." Examples:
+
+- `{"name":"tool_name","arguments":{}}`
+- `{"name":"tool_name","parameters":{}}`
+
+That empty object is not a universal synonym for "this tool has no inputs." It only means one of these two things:
+
+- the tool truly accepts no inputs
+- the tool description explicitly defines `{}` on the tool-input key as a discovery/help call
+
 ## Current scope
 
 Today, the app implements a small built-in tool registry and a local tool execution loop. MCP integration and `SKILL.md` ingestion are not implemented yet.
@@ -69,7 +79,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 
 - Display name: `Task List Planner`
 - Purpose: manages a task list for multi-step work
-- Discovery behavior: when called with an empty arguments object, it returns only the minimal syntax reminder needed to use it
+- Discovery behavior: when called with the model's tool-input key set to `{}`, it returns only the minimal syntax reminder needed to use it
 - Commands:
   - `new` to add an undone task, optionally at a specific index
   - `list` to return the current task list with indexes and done/undone state
@@ -92,7 +102,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 
 - Display name: `Shell Command Runner`
 - Purpose: runs a browser-local GNU/Linux-like shell subset against the app's `/workspace` filesystem abstraction
-- Discovery behavior: when called with an empty arguments object, it returns a compact response envelope whose `body` is a short human-readable list of the supported command names
+- Discovery behavior: when called with the model's tool-input key set to `{}`, it returns a compact response envelope whose `body` is a short human-readable list of the supported command names
 - Uploaded-file awareness: text-backed attachment prompt text can include the exact `/workspace/...` path for uploaded files so the model can reuse that path directly with this tool
 - Arguments:
   - optional `command`
