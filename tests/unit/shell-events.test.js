@@ -107,6 +107,8 @@ function createHarness() {
       updateConversationSystemPromptPreview: vi.fn(),
       chatTitleInput: document.getElementById('chatTitleInput'),
       updateChatTitleEditorVisibility: vi.fn(),
+      resetPendingConversationModelPreferences: vi.fn(),
+      syncConversationLanguageAndThinkingControls: vi.fn(),
     },
   };
 }
