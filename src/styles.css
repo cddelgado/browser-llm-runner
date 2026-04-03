@@ -1639,23 +1639,23 @@
 .composer-attachment-card {
   position: relative;
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 0.55rem;
-  width: min(10.5rem, 100%);
-  min-height: 11.25rem;
+  grid-template-columns: minmax(3.25rem, 28%) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.8rem;
+  width: min(16rem, 100%);
+  min-height: 5.5rem;
   border-radius: 1.15rem;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface) 82%, transparent));
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
-  padding: 0.7rem;
-  padding-top: 0.9rem;
+  padding: 0.7rem 2.6rem 0.7rem 0.7rem;
   box-shadow: 0 10px 24px rgba(5, 10, 20, 0.18);
   overflow: hidden;
 }
 
 .composer-attachment-thumb {
   width: 100%;
-  aspect-ratio: 1;
+  height: 4rem;
   object-fit: cover;
   display: block;
   border-radius: 0.8rem;
@@ -1664,11 +1664,11 @@
 
 .composer-attachment-icon {
   width: 100%;
-  aspect-ratio: 1;
+  height: 4rem;
   display: grid;
   place-items: center;
   border-radius: 0.95rem;
-  padding: 1rem;
+  padding: 0.8rem;
   background:
     radial-gradient(circle at top, color-mix(in srgb, var(--accent) 24%, transparent), transparent 58%),
     color-mix(in srgb, var(--surface) 78%, transparent);
@@ -1677,14 +1677,14 @@
 }
 
 .composer-attachment-icon .bi {
-  font-size: 2.4rem;
+  font-size: 2rem;
   line-height: 1;
 }
 
 .composer-attachment-meta {
   display: grid;
-  gap: 0.25rem;
-  align-content: start;
+  gap: 0.18rem;
+  align-content: center;
   min-width: 0;
 }
 
@@ -1692,12 +1692,12 @@
   margin: 0;
   font-size: 0.88rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.25;
   letter-spacing: -0.01em;
   color: var(--ink-strong);
   overflow: hidden;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
@@ -1713,8 +1713,9 @@
 
 .composer-attachment-remove {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 50%;
+  right: 0.55rem;
+  transform: translateY(-50%);
   width: 2rem;
   height: 2rem;
   padding: 0;
