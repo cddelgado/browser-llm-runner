@@ -26,6 +26,7 @@ test('chat flow: start, send message, load model, stream response', async ({ pag
   await page.locator('#sendButton').click();
 
   await expect(page.locator('#chatTranscriptWrap')).toBeVisible();
+  await expect(page).toHaveURL(/#\/chat\/[0-9a-f-]+$/);
   await expect(page.locator('.message-row.user-message')).toHaveCount(1);
   await expect(page.locator('.message-row.model-message .response-content')).toContainText(
     'Mock streamed response.'
@@ -147,7 +148,7 @@ test('keyboard shortcuts open shortcut help, send, and open settings', async ({ 
       })
     );
   });
-  await expect(page).toHaveURL(/#\/settings$/);
+  await expect(page).toHaveURL(/#\/chat\/settings$/);
 });
 
 test('composer uses Enter to send and Shift+Enter for a new line', async ({ page }) => {

@@ -43,6 +43,8 @@ export function bindShellEvents({
   updateConversationSystemPromptPreview,
   chatTitleInput,
   updateChatTitleEditorVisibility,
+  onConversationSystemPromptModalShown = () => {},
+  onConversationSystemPromptModalHidden = () => {},
 }) {
   if (openKeyboardShortcutsButton instanceof HTMLButtonElement) {
     openKeyboardShortcutsButton.addEventListener('click', (event) => {
@@ -102,6 +104,7 @@ export function bindShellEvents({
       setChatWorkspaceStarted(appState, true);
       setPreparingNewConversation(appState, true);
       appState.activeConversationId = null;
+      appState.pendingConversationDraftId = '';
       appState.pendingConversationSystemPrompt = '';
       appState.pendingAppendConversationSystemPrompt = true;
       if (typeof resetPendingConversationModelPreferences === 'function') {
@@ -159,6 +162,7 @@ export function bindShellEvents({
 
   if (conversationSystemPromptModal instanceof HTMLElement) {
     conversationSystemPromptModal.addEventListener('shown.bs.modal', () => {
+      onConversationSystemPromptModalShown();
       updateConversationSystemPromptPreview();
       if (conversationSystemPromptInput instanceof HTMLTextAreaElement) {
         conversationSystemPromptInput.focus();
@@ -169,6 +173,7 @@ export function bindShellEvents({
       }
     });
     conversationSystemPromptModal.addEventListener('hidden.bs.modal', () => {
+      onConversationSystemPromptModalHidden();
       if (appState.lastConversationSystemPromptTrigger instanceof HTMLButtonElement) {
         appState.lastConversationSystemPromptTrigger.focus();
         appState.lastConversationSystemPromptTrigger = null;

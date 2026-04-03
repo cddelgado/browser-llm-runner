@@ -14,6 +14,7 @@ export function createRoutingShell({
   routeChat = 'chat',
   routeSettings = 'settings',
   windowRef = window,
+  buildHash,
   selectCurrentViewRoute,
   setRegionVisibility,
   settingsPage,
@@ -38,14 +39,20 @@ export function createRoutingShell({
   playEntranceAnimation,
 }) {
   function getRouteFromHash(hashValue = windowRef.location.hash) {
-    const normalized = String(hashValue || '')
-      .replace(/^#\/?/, '')
-      .trim()
-      .toLowerCase();
-    if (normalized === routeSettings) {
+    const normalized = String(hashValue || '').replace(/^#\/?/, '').trim();
+    const segments = normalized
+      .split('/')
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    const firstSegment = segments[0]?.toLowerCase() || '';
+    const secondSegment = segments[1]?.toLowerCase() || '';
+    if (firstSegment === routeSettings) {
       return routeSettings;
     }
-    if (normalized === routeChat) {
+    if (firstSegment === routeChat && secondSegment === routeSettings) {
+      return routeSettings;
+    }
+    if (firstSegment === routeChat) {
       return routeChat;
     }
     return routeHome;
@@ -61,7 +68,17 @@ export function createRoutingShell({
 
   function setRouteHash(targetRoute, { replace = true } = {}) {
     const route = targetRoute === routeSettings || targetRoute === routeChat ? targetRoute : routeHome;
-    const targetHash = route === routeHome ? '#/' : `#/${route}`;
+    const targetHash =
+      typeof buildHash === 'function'
+        ? buildHash(route, {
+            appState,
+            routeHome,
+            routeChat,
+            routeSettings,
+          })
+        : route === routeHome
+          ? '#/'
+          : `#/${route}`;
     if (windowRef.location.hash === targetHash) {
       return;
     }

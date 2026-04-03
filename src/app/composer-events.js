@@ -34,7 +34,7 @@ export function bindComposerEvents({
   getLoadedModelId,
   persistInferencePreferences,
   initializeEngine,
-  appendDebug,
+  syncRouteToState = () => {},
   buildUserMessageAttachmentPayload,
   addMessageToConversation,
   addMessageElement,
@@ -255,21 +255,6 @@ export function bindComposerEvents({
 
     let activeConversation = getActiveConversation();
     let createdConversationForSend = false;
-    if (!activeConversation) {
-      const conversation = createConversation();
-      appState.conversations.unshift(conversation);
-      appState.activeConversationId = conversation.id;
-      setPreparingNewConversation(appState, false);
-      activeConversation = conversation;
-      createdConversationForSend = true;
-      clearUserMessageEditSession();
-      setChatTitleEditing(appState, false);
-      renderConversationList();
-      renderTranscript();
-      updateChatTitle();
-      queueConversationStateSave();
-    }
-
     const { selectedModelId: activeConversationModelId } = syncConversationModelSelection(
       activeConversation,
       {
@@ -278,10 +263,6 @@ export function bindComposerEvents({
     );
     const shouldInitializeEngine =
       !isEngineReady(appState) || getLoadedModelId() !== activeConversationModelId;
-
-    if (createdConversationForSend && !shouldInitializeEngine) {
-      updateWelcomePanelVisibility({ replaceRoute: false });
-    }
 
     if (shouldInitializeEngine) {
       persistInferencePreferences(appState.activeGenerationConfig);
@@ -296,11 +277,26 @@ export function bindComposerEvents({
         return;
       }
       activeConversation = getActiveConversation();
-      if (!activeConversation) {
-        setStatus('Select a conversation or start a new conversation before sending a message.');
-        appendDebug('Send blocked: no active conversation selected after model load.');
-        return;
-      }
+    }
+
+    if (!activeConversation) {
+      const conversation = createConversation();
+      appState.conversations.unshift(conversation);
+      appState.activeConversationId = conversation.id;
+      setPreparingNewConversation(appState, false);
+      activeConversation = conversation;
+      createdConversationForSend = true;
+      clearUserMessageEditSession();
+      setChatTitleEditing(appState, false);
+      renderConversationList();
+      renderTranscript();
+      updateChatTitle();
+      queueConversationStateSave();
+      syncRouteToState({ replace: false });
+    }
+
+    if (createdConversationForSend) {
+      updateWelcomePanelVisibility({ replaceRoute: false });
     }
 
     const attachmentPayload = buildUserMessageAttachmentPayload(attachments);

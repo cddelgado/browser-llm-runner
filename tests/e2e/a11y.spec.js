@@ -87,7 +87,7 @@ test('@a11y settings screen keyboard open/close and no wcag2a/2aa violations', a
   const settingsButton = page.getByRole('button', { name: 'Open settings' });
   await settingsButton.focus();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/#\/settings$/);
+  await expect(page).toHaveURL(/#\/chat\/settings$/);
 
   await expect(page.getByRole('tabpanel', { name: 'System' })).toBeVisible();
   await expect(page.locator('#backendSelect')).toBeVisible();

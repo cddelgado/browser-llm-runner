@@ -196,6 +196,26 @@ describe('composer-events', () => {
     expect(harness.deps.startModelGeneration).toHaveBeenCalledTimes(1);
   });
 
+  test('creates the first conversation after model initialization when loading is required', async () => {
+    const harness = createHarness();
+    harness.appState.isPreparingNewConversation = true;
+    harness.deps.hasStartedWorkspace.mockReturnValue(true);
+    harness.messageInput.value = 'Hello';
+    bindComposerEvents(harness.deps);
+
+    harness.deps.chatForm.dispatchEvent(
+      new harness.dom.window.Event('submit', { bubbles: true, cancelable: true }),
+    );
+
+    await Promise.resolve();
+
+    expect(harness.deps.initializeEngine).toHaveBeenCalledTimes(1);
+    expect(harness.deps.createConversation).toHaveBeenCalledTimes(1);
+    expect(harness.deps.initializeEngine.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.deps.createConversation.mock.invocationCallOrder[0],
+    );
+  });
+
   test('accepts reference attachments for html files and images when the model supports image input', async () => {
     const harness = createHarness();
     harness.appState.pendingComposerAttachments = [];

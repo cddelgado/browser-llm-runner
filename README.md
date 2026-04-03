@@ -7,7 +7,7 @@ Student-facing browser chat UI with local model inference.
 - Inference runs in-browser via Transformers.js inside a Web Worker.
 - Conversation turns are sent to the model as structured chat messages (`system`/`user`/`assistant`) rather than a flattened transcript string.
 - On initial load, the app shows a home screen with a `Start a conversation` action.
-- Clicking `Start a conversation` opens the chat workspace with model selection, an empty composer, and no model load yet.
+- Clicking `Start a conversation` opens the chat workspace at `#/chat` with model selection, an empty composer, and no model load yet.
 - The selected model starts loading only after the first message is sent.
 - Each conversation stores its own selected model.
 - Changing the model for the active conversation updates that conversation only.
@@ -17,10 +17,12 @@ Student-facing browser chat UI with local model inference.
 - From that pre-chat state, users can keep the currently loaded model or choose a different model card before sending the first message.
 - If a different model is selected for the next chat, the currently loaded model worker is unloaded before the replacement model is loaded.
 - During model load, the workspace shows one progress bar.
-- The URL hash reflects the visible screen:
+- The URL hash reflects the visible screen and active conversation:
   - `#/` for setup/home
-  - `#/chat` for the chat workspace
-  - `#/settings` when Settings is open
+  - `#/chat` for the pre-chat workspace with no selected conversation
+  - `#/chat/<uuid>` for a selected conversation
+  - `#/chat/settings` when Settings is open
+  - `#/chat/<uuid>/system-prompt` while editing that conversation's custom prompt
   - Browser back/forward navigation follows those screen transitions.
 - Header actions include a `Help` button that opens `help.html` in the current tab with student-focused guidance and a back button to return to the last chat.
 - Header actions include a `Keyboard shortcuts` button (`Ctrl+/`) so users can discover available keyboard actions.
@@ -36,6 +38,7 @@ Student-facing browser chat UI with local model inference.
 - If saved conversations exist, no conversation is auto-opened after load; users choose one from the conversation list.
 - The pre-chat panel is shown when no active conversation exists or when `New Conversation` is preparing a fresh chat; the bottom message composer keeps the same size before and after model load.
 - If no active conversation exists, a new untitled conversation is created when the first message is sent.
+- New conversations get a UUID-backed route only after the first prompt is sent and the selected model has loaded.
 - Backend selection supports:
   - `Auto (WebGPU then WASM then CPU)`
   - `WebGPU only`

@@ -323,6 +323,7 @@ const MAX_DEBUG_ENTRIES = 120;
 const ROUTE_HOME = 'home';
 const ROUTE_CHAT = 'chat';
 const ROUTE_SETTINGS = 'settings';
+const ROUTE_SYSTEM_PROMPT = 'system-prompt';
 const SHORTCUT_KEY = {
   branch: 'b',
   copy: 'c',
@@ -1681,6 +1682,7 @@ async function restoreConversationStateFromStorage() {
   renderTranscript();
   updateChatTitle();
   syncConversationLanguageAndThinkingControls();
+  applyAppRouteFromHash();
 }
 
 function getActiveConversation() {
@@ -1694,7 +1696,7 @@ function reservePendingConversationId() {
   ) {
     return appState.pendingConversationDraftId.trim();
   }
-  const pendingConversationId = `conversation-${appState.conversationIdCounter + 1}`;
+  const pendingConversationId = createConversationId();
   appState.pendingConversationDraftId = pendingConversationId;
   return pendingConversationId;
 }
@@ -1863,13 +1865,82 @@ function findConversationById(conversationId) {
   return selectConversationById(appState, conversationId);
 }
 
+function createConversationId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return `conversation-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function isConversationSystemPromptModalVisible() {
+  return Boolean(
+    conversationSystemPromptModal instanceof HTMLElement &&
+      conversationSystemPromptModal.classList.contains('show')
+  );
+}
+
+function buildRouteHash(targetRoute) {
+  const activeConversation = getActiveConversation();
+  if (targetRoute === ROUTE_SETTINGS) {
+    return '#/chat/settings';
+  }
+  if (targetRoute === ROUTE_CHAT) {
+    if (appState.isConversationSystemPromptModalOpen && activeConversation?.id) {
+      return `#/chat/${encodeURIComponent(activeConversation.id)}/${ROUTE_SYSTEM_PROMPT}`;
+    }
+    if (activeConversation?.id && !appState.isPreparingNewConversation) {
+      return `#/chat/${encodeURIComponent(activeConversation.id)}`;
+    }
+    return '#/chat';
+  }
+  return '#/';
+}
+
+function parseAppRouteFromHash(hashValue = window.location.hash) {
+  const normalized = String(hashValue || '').replace(/^#\/?/, '').trim();
+  const segments = normalized
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const firstSegment = segments[0]?.toLowerCase() || '';
+  const secondSegment = segments[1]?.toLowerCase() || '';
+  const thirdSegment = segments[2]?.toLowerCase() || '';
+
+  if (!segments.length) {
+    return { route: ROUTE_HOME, conversationId: null, showSystemPrompt: false };
+  }
+  if (firstSegment === ROUTE_SETTINGS) {
+    return { route: ROUTE_SETTINGS, conversationId: null, showSystemPrompt: false };
+  }
+  if (firstSegment !== ROUTE_CHAT) {
+    return { route: ROUTE_HOME, conversationId: null, showSystemPrompt: false };
+  }
+  if (secondSegment === ROUTE_SETTINGS) {
+    return { route: ROUTE_SETTINGS, conversationId: null, showSystemPrompt: false };
+  }
+
+  let conversationId = null;
+  if (segments[1] && secondSegment !== ROUTE_SETTINGS) {
+    try {
+      conversationId = decodeURIComponent(segments[1]);
+    } catch {
+      conversationId = segments[1];
+    }
+  }
+  return {
+    route: ROUTE_CHAT,
+    conversationId,
+    showSystemPrompt: Boolean(conversationId) && thirdSegment === ROUTE_SYSTEM_PROMPT,
+  };
+}
+
 function createConversation(name) {
   appState.conversationCount += 1;
   const conversationId =
     typeof appState.pendingConversationDraftId === 'string' &&
     appState.pendingConversationDraftId.trim()
       ? appState.pendingConversationDraftId.trim()
-      : `conversation-${appState.conversationIdCounter + 1}`;
+      : createConversationId();
   appState.pendingConversationDraftId = '';
   appState.conversationIdCounter += 1;
   const conversation = createConversationRecord({
@@ -2729,8 +2800,62 @@ function updateChatTitle() {
   updateChatTitleEditorVisibility();
 }
 
-function setActiveConversationById(conversationId) {
+function syncRouteToCurrentState({ replace = true } = {}) {
+  routingShell.syncRouteToCurrentView({ replace });
+}
+
+function closeConversationSystemPromptModal() {
+  if (!isConversationSystemPromptModalVisible()) {
+    return;
+  }
+  const modalInstance =
+    appState.conversationSystemPromptModalInstance ||
+    (conversationSystemPromptModal instanceof HTMLElement
+      ? Modal.getOrCreateInstance(conversationSystemPromptModal)
+      : null);
+  modalInstance?.hide();
+}
+
+function applyAppRouteFromHash() {
+  const routeState = parseAppRouteFromHash();
+  if (routeState.route === ROUTE_CHAT) {
+    setChatWorkspaceStarted(appState, true);
+    if (routeState.conversationId) {
+      setPreparingNewConversation(appState, false);
+      if (findConversationById(routeState.conversationId)) {
+        setActiveConversationById(routeState.conversationId, { syncRoute: false });
+      }
+    } else {
+      setPreparingNewConversation(appState, true);
+      if (appState.activeConversationId !== null) {
+        appState.activeConversationId = null;
+        clearUserMessageEditSession();
+        setChatTitleEditing(appState, false);
+        renderConversationList();
+        renderTranscript();
+        updateChatTitle();
+        syncConversationLanguageAndThinkingControls(null);
+      }
+    }
+  }
+
+  routingShell.applyRouteFromHash();
+
+  if (routeState.showSystemPrompt && routeState.conversationId && findConversationById(routeState.conversationId)) {
+    if (!isConversationSystemPromptModalVisible()) {
+      beginConversationSystemPromptEdit();
+    }
+    return;
+  }
+
+  closeConversationSystemPromptModal();
+}
+
+function setActiveConversationById(conversationId, { syncRoute = true, replaceRoute = false } = {}) {
   if (appState.activeConversationId === conversationId) {
+    if (syncRoute) {
+      syncRouteToCurrentState({ replace: replaceRoute });
+    }
     return;
   }
   if (isChatTitleEditingState(appState)) {
@@ -2756,6 +2881,9 @@ function setActiveConversationById(conversationId) {
   renderTranscript();
   updateChatTitle();
   queueConversationStateSave();
+  if (syncRoute) {
+    syncRouteToCurrentState({ replace: replaceRoute });
+  }
   if (shouldLoadConversationModel) {
     void appController.loadModelForSelectedConversation();
   }
@@ -3202,6 +3330,7 @@ const routingShell = createRoutingShell({
   routeChat: ROUTE_CHAT,
   routeSettings: ROUTE_SETTINGS,
   windowRef: window,
+  buildHash: buildRouteHash,
   selectCurrentViewRoute,
   setRegionVisibility,
   settingsPage,
@@ -3227,7 +3356,6 @@ const routingShell = createRoutingShell({
 });
 
 const {
-  applyRouteFromHash,
   setActiveSettingsTab,
   setSettingsPageVisibility,
   updateWelcomePanelVisibility,
@@ -3564,7 +3692,7 @@ skipLinkElements.forEach((link) => {
   });
 });
 updateSkipLinkVisibility();
-applyRouteFromHash();
+applyAppRouteFromHash();
 void restoreConversationStateFromStorage();
 
 bindSettingsEvents({
@@ -3700,6 +3828,7 @@ bindComposerEvents({
   persistInferencePreferences,
   initializeEngine: () => appController.initializeEngine(),
   appendDebug,
+  syncRouteToState: syncRouteToCurrentState,
   buildUserMessageAttachmentPayload,
   addMessageToConversation,
   addMessageElement,
@@ -3760,7 +3889,7 @@ bindShellEvents({
   closeKeyboardShortcuts,
   handleGlobalShortcut,
   handleFocusedMessageShortcut,
-  applyRouteFromHash,
+  applyRouteFromHash: applyAppRouteFromHash,
   persistConversationStateNow,
   disposeEngine: () => engine.dispose(),
   preChatEditConversationSystemPromptBtn,
@@ -3778,4 +3907,12 @@ bindShellEvents({
   updateConversationSystemPromptPreview,
   chatTitleInput,
   updateChatTitleEditorVisibility,
+  onConversationSystemPromptModalShown: () => {
+    appState.isConversationSystemPromptModalOpen = true;
+    syncRouteToCurrentState({ replace: false });
+  },
+  onConversationSystemPromptModalHidden: () => {
+    appState.isConversationSystemPromptModalOpen = false;
+    syncRouteToCurrentState({ replace: false });
+  },
 });

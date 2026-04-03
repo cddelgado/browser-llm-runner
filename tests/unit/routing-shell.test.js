@@ -40,6 +40,18 @@ function createRoutingHarness() {
       routeChat: 'chat',
       routeSettings: 'settings',
       windowRef: dom.window,
+      buildHash: vi.fn((route, { appState }) => {
+        if (route === 'settings') {
+          return '#/chat/settings';
+        }
+        if (route === 'chat' && appState.isConversationSystemPromptModalOpen) {
+          return '#/chat/conversation-2/system-prompt';
+        }
+        if (route === 'chat' && appState.activeConversationId) {
+          return `#/chat/${appState.activeConversationId}`;
+        }
+        return route === 'chat' ? '#/chat' : '#/';
+      }),
       selectCurrentViewRoute: getCurrentViewRoute,
       setRegionVisibility(region, visible) {
         region.classList.toggle('d-none', !visible);
@@ -82,6 +94,15 @@ describe('routing-shell', () => {
     ).toBe('true');
   });
 
+  test('treats nested chat settings hashes as the settings route', () => {
+    const harness = createRoutingHarness();
+
+    harness.window.location.hash = '#/chat/settings';
+    harness.shell.applyRouteFromHash();
+
+    expect(harness.appState.isSettingsPageOpen).toBe(true);
+  });
+
   test('activates settings tabs and updates panel visibility', () => {
     const harness = createRoutingHarness();
 
@@ -101,5 +122,18 @@ describe('routing-shell', () => {
         .querySelector('[data-settings-tab-panel="system"]')
         ?.classList.contains('d-none'),
     ).toBe(true);
+  });
+
+  test('builds nested chat hashes from current state when syncing routes', () => {
+    const harness = createRoutingHarness();
+
+    harness.appState.hasStartedChatWorkspace = true;
+    harness.appState.activeConversationId = 'conversation-2';
+    harness.shell.syncRouteToCurrentView({ replace: true });
+    expect(harness.window.location.hash).toBe('#/chat/conversation-2');
+
+    harness.appState.isConversationSystemPromptModalOpen = true;
+    harness.shell.syncRouteToCurrentView({ replace: true });
+    expect(harness.window.location.hash).toBe('#/chat/conversation-2/system-prompt');
   });
 });
