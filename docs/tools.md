@@ -276,6 +276,32 @@ System-prompt additions should:
 
 This keeps prompt context smaller, reduces distraction, and encourages the model to pull in only the capability descriptions it actually needs for the current task.
 
+## Model-facing writing standard
+
+When writing tool instructions or other LLM-facing prompt text in this repo, assume the model already knows the general concepts and ordinary behavior of familiar tools.
+
+Write for deltas and edges:
+
+- name the surface
+- state the boundary
+- state only the non-obvious constraints
+
+Do not spend prompt budget on tutorial language:
+
+- do not re-explain common commands, flags, or shell concepts the model already knows
+- do not narrate implementation details like toggles, switches, or feature plumbing unless that detail changes what the model should do
+- do not describe normal behavior as if it were special behavior
+- do not restate generic capability just to be explicit
+
+Prefer short constraint-first wording such as:
+
+- `|` is supported for `...`
+- unsupported syntax: `;`, `&&`, redirection, substitution, globbing
+- commands are GNU/Linux-like, but partial
+- if a command hits an unsupported corner, adapt and try a simpler form
+
+The goal is not to teach the model the domain. The goal is to bound its assumptions with the minimum language needed to keep it effective inside this specific tool surface.
+
 ## Transcript behavior
 
 When a model emits a tool call, the transcript keeps that tool activity inline on the originating model response card.
