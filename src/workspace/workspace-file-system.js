@@ -64,8 +64,42 @@ function toUint8Array(value) {
   throw new Error('Workspace file data must be a string, ArrayBuffer, or Uint8Array.');
 }
 
+function splitRawFileName(filename) {
+  const normalizedName = typeof filename === 'string' ? filename.trim() : '';
+  const lastDotIndex = normalizedName.lastIndexOf('.');
+  if (lastDotIndex <= 0 || lastDotIndex === normalizedName.length - 1) {
+    return {
+      stem: normalizedName,
+      extension: '',
+    };
+  }
+  return {
+    stem: normalizedName.slice(0, lastDotIndex),
+    extension: normalizedName.slice(lastDotIndex + 1),
+  };
+}
+
+function slugifyUploadedFileSegment(value, fallback = 'upload') {
+  const normalizedValue = typeof value === 'string' ? value : '';
+  const withoutDiacritics = normalizedValue.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  const slug = withoutDiacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return slug || fallback;
+}
+
+export function sanitizeUploadedFilename(value, fallback = 'upload') {
+  const { stem, extension } = splitRawFileName(value);
+  const fallbackStem = slugifyUploadedFileSegment(fallback, 'upload');
+  const sanitizedStem = slugifyUploadedFileSegment(stem, fallbackStem);
+  const sanitizedExtension = slugifyUploadedFileSegment(extension, '');
+  return sanitizedExtension ? `${sanitizedStem}.${sanitizedExtension}` : sanitizedStem;
+}
+
 function splitFileNameParts(filename) {
-  const normalizedName = sanitizeWorkspaceEntryName(filename);
+  const normalizedName = sanitizeUploadedFilename(filename);
   const lastDotIndex = normalizedName.lastIndexOf('.');
   if (lastDotIndex <= 0 || lastDotIndex === normalizedName.length - 1) {
     return {
@@ -364,10 +398,11 @@ export function createWorkspaceFileSystem({ driver = createOpfsWorkspaceDriver()
       } = options;
       const normalizedDirectoryPath = normalizeWorkspacePath(directoryPath);
       await driver.ensureDirectory(normalizedDirectoryPath);
+      const canonicalFilename = sanitizeUploadedFilename(preferredName || file.name || 'upload');
       const workspacePath = await findAvailableWorkspacePath(
         exists,
         normalizedDirectoryPath,
-        preferredName || file.name || 'upload',
+        canonicalFilename,
       );
       const bytes = toUint8Array(
         data === undefined ? new Uint8Array(await file.arrayBuffer()) : data,

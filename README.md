@@ -85,6 +85,7 @@ Student-facing browser chat UI with local model inference.
   - The `+` composer control opens an attachment menu with `Attach for Reference` and `Attach to Work With`.
   - `Attach for Reference` targets the current curated document formats, including images plus `.txt`, `.csv`, `.md`, `.html`, `.htm`, `.css`, `.js`, and `.pdf`.
   - `Attach to Work With` opens an unfiltered picker, while the current ingestion pipeline still accepts the same supported attachment formats underneath.
+  - Attached filenames are normalized immediately into lowercase shell-safe names before they enter the workspace or prompt pipeline, and that canonical name is what the user sees afterward.
   - `Attach to Work With` stages supported text-backed files into `/workspace` and tells the model the workspace path, but does not include the extracted file body in the prompt by default.
   - Images can be attached from either menu path when the selected model supports image input.
   - Text attachments currently support `.txt`, `.csv`, `.md`, `.html`, `.htm`, `.css`, and `.js` files.
@@ -96,6 +97,7 @@ Student-facing browser chat UI with local model inference.
   - Sent attachments are restored with the conversation transcript on reload.
 - Every uploaded attachment is also written into the browser's Origin Private File System (OPFS) behind a conversation-scoped linux-style `/workspace/...` path for future workspace tools.
   - Attachment records preserve that `/workspace/...` path metadata so future local commands can address uploaded files without reaching into UI-only state.
+  - The visible attachment filename and `/workspace/...` basename now match the same canonical shell-safe upload name.
   - Text-file and PDF attachments include a collapsible `Model sees` preview in the transcript so users can inspect the exact prompt text derived from the file, including the file's `/workspace/...` path when available.
 - Document-prep orchestration support is now built into the orchestration runtime for future attachment pipelines.
   - Orchestrations are no longer limited to linear prompt-only flows.

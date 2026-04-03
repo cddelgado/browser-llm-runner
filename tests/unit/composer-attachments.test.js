@@ -217,14 +217,15 @@ describe('composer-attachments', () => {
         expect(options?.directoryPath).toBe('/workspace');
         expect(options?.data).toBeInstanceOf(ArrayBuffer);
         return {
-          path: '/workspace/notes.txt',
+          path: '/workspace/my_report_final.txt',
+          filename: 'my_report_final.txt',
         };
       }),
     };
 
     const attachment = await createComposerAttachmentFromFile(
       {
-        name: 'notes.txt',
+        name: 'My report (final).txt',
         type: 'text/plain',
         size: 11,
         arrayBuffer: async () => new globalThis.TextEncoder().encode('hello world').buffer,
@@ -235,8 +236,8 @@ describe('composer-attachments', () => {
     expect(workspaceFileSystem.storeUploadedFile).toHaveBeenCalledTimes(1);
     expect(attachment).toMatchObject({
       type: 'file',
-      filename: 'notes.txt',
-      workspacePath: '/workspace/notes.txt',
+      filename: 'my_report_final.txt',
+      workspacePath: '/workspace/my_report_final.txt',
     });
   });
 });

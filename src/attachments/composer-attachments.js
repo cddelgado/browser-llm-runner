@@ -1,6 +1,9 @@
 import { convertHtmlToMarkdown } from './html-to-markdown.js';
 import { extractPdfText } from './pdf-extractor.js';
-import { WORKSPACE_ROOT_PATH } from '../workspace/workspace-file-system.js';
+import {
+  WORKSPACE_ROOT_PATH,
+  sanitizeUploadedFilename,
+} from '../workspace/workspace-file-system.js';
 
 export const SUPPORTED_TEXT_ATTACHMENT_TYPES = Object.freeze({
   txt: { mimeType: 'text/plain', label: 'Text file' },
@@ -399,12 +402,17 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
     );
   }
   const buffer = await file.arrayBuffer();
+  const canonicalFilename = sanitizeUploadedFilename(file?.name || 'upload');
   const storedWorkspaceFile = workspaceFileSystem
     ? await workspaceFileSystem.storeUploadedFile(file, {
         directoryPath: WORKSPACE_ROOT_PATH,
         data: buffer,
       })
     : null;
+  const visibleFilename =
+    typeof storedWorkspaceFile?.filename === 'string' && storedWorkspaceFile.filename.trim()
+      ? storedWorkspaceFile.filename.trim()
+      : canonicalFilename;
   const hashValue = await computeSha256Hex(buffer);
   const id = crypto.randomUUID();
   if (attachmentMetadata.category === 'image') {
@@ -429,11 +437,11 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
       encoding: 'base64',
       data: base64,
       url,
-      filename: file.name || 'image',
+      filename: visibleFilename,
       size: Number.isFinite(file.size) ? file.size : buffer.byteLength,
       width: dimensions.width,
       height: dimensions.height,
-      alt: file.name ? `Selected image: ${file.name}` : 'Selected image',
+      alt: visibleFilename ? `Selected image: ${visibleFilename}` : 'Selected image',
       workspacePath: storedWorkspaceFile?.path,
       hash: {
         algorithm: 'sha256',
@@ -442,7 +450,7 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
     };
   }
   const mimeType = attachmentMetadata.mimeType || 'text/plain';
-  const extension = attachmentMetadata.extension || getFileExtension(file.name || '');
+  const extension = attachmentMetadata.extension || getFileExtension(visibleFilename);
   let text = '';
   let conversion;
   if (attachmentMetadata.category === 'pdf') {
@@ -454,7 +462,7 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
     }
     const pdfExtraction = await extractPdfText(buffer.slice(0));
     conversion = buildPdfAttachmentConversion({
-      filename: file.name || 'file.pdf',
+      filename: visibleFilename || 'file.pdf',
       mimeType,
       pages: pdfExtraction.pages,
       warnings: pdfExtraction.warnings,
@@ -465,7 +473,7 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
   } else {
     text = new window.TextDecoder('utf-8').decode(buffer);
     conversion = buildTextAttachmentConversion({
-      filename: file.name || 'file',
+      filename: visibleFilename || 'file',
       mimeType,
       extension,
       text,
@@ -480,7 +488,7 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
     mimeType,
     encoding: 'utf-8',
     data: text,
-    filename: file.name || 'file',
+    filename: visibleFilename || 'file',
     size: Number.isFinite(file.size) ? file.size : buffer.byteLength,
     extension,
     normalizedText: conversion.normalizedText,

@@ -6,6 +6,7 @@ import {
   createOpfsWorkspaceDriver,
   createWorkspaceFileSystem,
   normalizeWorkspacePath,
+  sanitizeUploadedFilename,
 } from '../../src/workspace/workspace-file-system.js';
 
 function createNamedError(name, message = name) {
@@ -136,23 +137,29 @@ describe('workspace-file-system', () => {
     );
   });
 
+  test('canonicalizes uploaded filenames to shell-safe visible names', () => {
+    expect(sanitizeUploadedFilename('Canvas - Canvas-2.html')).toBe('canvas_canvas_2.html');
+    expect(sanitizeUploadedFilename('My report (final).PDF')).toBe('my_report_final.pdf');
+    expect(sanitizeUploadedFilename('résumé.txt')).toBe('resume.txt');
+  });
+
   test('stores uploads in OPFS under /workspace and resolves unique file names', async () => {
     const workspaceFileSystem = createWorkspaceFileSystemHarness();
 
     const firstUpload = await workspaceFileSystem.storeUploadedFile(
-      createUpload('notes.txt', 'alpha'),
+      createUpload('My report (final).txt', 'alpha'),
     );
     const secondUpload = await workspaceFileSystem.storeUploadedFile(
-      createUpload('notes.txt', 'beta'),
+      createUpload('My report (final).txt', 'beta'),
     );
 
-    expect(firstUpload.path).toBe('/workspace/notes.txt');
-    expect(secondUpload.path).toBe('/workspace/notes-2.txt');
+    expect(firstUpload.path).toBe('/workspace/my_report_final.txt');
+    expect(secondUpload.path).toBe('/workspace/my_report_final-2.txt');
     await expect(workspaceFileSystem.readTextFile(firstUpload.path)).resolves.toBe('alpha');
     await expect(workspaceFileSystem.readTextFile(secondUpload.path)).resolves.toBe('beta');
     await expect(workspaceFileSystem.listDirectory('/workspace')).resolves.toEqual([
-      expect.objectContaining({ path: '/workspace/notes-2.txt', kind: 'file' }),
-      expect.objectContaining({ path: '/workspace/notes.txt', kind: 'file' }),
+      expect.objectContaining({ path: '/workspace/my_report_final-2.txt', kind: 'file' }),
+      expect.objectContaining({ path: '/workspace/my_report_final.txt', kind: 'file' }),
     ]);
   });
 
