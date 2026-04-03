@@ -696,12 +696,42 @@ function parseGemmaValue(text, index) {
   return parseGemmaBareToken(text, cursor);
 }
 
+function parseGemmaCallSegment(segmentText, toolCallingConfig) {
+  const innerText = String(segmentText || '').trim();
+  if (!innerText.startsWith('call:')) {
+    return null;
+  }
+  const braceIndex = innerText.indexOf('{', 5);
+  if (braceIndex <= 5) {
+    return null;
+  }
+  const toolName = innerText.slice(5, braceIndex).trim();
+  try {
+    const parsedArguments = parseGemmaObject(innerText, braceIndex);
+    const consumedText = innerText.slice(0, parsedArguments.index);
+    return normalizeDetectedToolCall(
+      toolName,
+      parsedArguments.value,
+      consumedText,
+      toolCallingConfig.format
+    );
+  } catch {
+    return null;
+  }
+}
+
 function detectGemmaSpecialTokenCall(rawText, toolCallingConfig) {
   const trimmed = String(rawText || '').trim();
   const detectedCalls = [];
   let searchIndex = 0;
   const openTag = '<|tool_call>';
   const closeTag = '<tool_call|>';
+
+  const leadingBareCall = parseGemmaCallSegment(trimmed, toolCallingConfig);
+  if (leadingBareCall) {
+    detectedCalls.push(leadingBareCall);
+  }
+
   while (searchIndex < trimmed.length) {
     const openIndex = trimmed.indexOf(openTag, searchIndex);
     if (openIndex < 0) {
@@ -713,28 +743,10 @@ function detectGemmaSpecialTokenCall(rawText, toolCallingConfig) {
     }
     const segmentText = trimmed.slice(openIndex, closeIndex + closeTag.length);
     const innerText = trimmed.slice(openIndex + openTag.length, closeIndex).trim();
-    if (innerText.startsWith('call:')) {
-      const braceIndex = innerText.indexOf('{', 5);
-      if (braceIndex > 5) {
-        const toolName = innerText.slice(5, braceIndex).trim();
-        try {
-          const parsedArguments = parseGemmaObject(innerText, braceIndex);
-          const trailing = innerText.slice(parsedArguments.index).trim();
-          if (!trailing) {
-            const detected = normalizeDetectedToolCall(
-              toolName,
-              parsedArguments.value,
-              segmentText,
-              toolCallingConfig.format
-            );
-            if (detected) {
-              detectedCalls.push(detected);
-            }
-          }
-        } catch {
-          // Ignore malformed Gemma tool-call blocks and keep scanning.
-        }
-      }
+    const detected = parseGemmaCallSegment(innerText, toolCallingConfig);
+    if (detected) {
+      detected.rawText = segmentText;
+      detectedCalls.push(detected);
     }
     searchIndex = closeIndex + closeTag.length;
   }

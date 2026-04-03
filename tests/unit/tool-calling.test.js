@@ -689,6 +689,42 @@ describe('tool-calling prompt builder', () => {
     ]);
   });
 
+  test('sniffs bare Gemma special-token tool calls without wrappers', () => {
+    expect(
+      sniffToolCalls(
+        'call:get_user_location{}',
+        {
+          format: 'gemma-special-token-call',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'get_user_location',
+        arguments: {},
+        rawText: 'call:get_user_location{}',
+        format: 'gemma-special-token-call',
+      },
+    ]);
+  });
+
+  test('sniffs a leading bare Gemma tool call even with trailing prose', () => {
+    expect(
+      sniffToolCalls(
+        'call:get_user_location{}\nI will answer after the tool result.',
+        {
+          format: 'gemma-special-token-call',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'get_user_location',
+        arguments: {},
+        rawText: 'call:get_user_location{}',
+        format: 'gemma-special-token-call',
+      },
+    ]);
+  });
+
   test('sniffs multiple json tool calls separated by prose', () => {
     expect(
       sniffToolCalls(

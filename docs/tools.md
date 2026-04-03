@@ -380,6 +380,11 @@ At the moment, included models use different call formats, including:
 - tagged JSON tool-call blocks
 - special-token wrapped function-style calls
 
+Gemma compatibility note:
+
+- the primary Gemma format in this app is `<|tool_call>call:tool_name{...}<tool_call|>`
+- the detector also accepts a leading bare `call:tool_name{...}` block because some Gemma outputs omit the wrapper in practice
+
 ## Current limits
 
 This is still an early implementation.
