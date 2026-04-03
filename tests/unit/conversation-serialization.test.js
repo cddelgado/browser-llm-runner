@@ -78,7 +78,7 @@ describe('conversation-serialization', () => {
       },
     });
 
-    expect(snapshot.conversations[0]?.modelId).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(snapshot.conversations[0]?.modelId).toBe('onnx-community/Qwen3.5-2B-ONNX');
     expect(snapshot.conversations[0]?.languagePreference).toBe('es');
     expect(snapshot.conversations[0]?.thinkingEnabled).toBe(false);
     expect(snapshot.conversations[0]?.currentWorkingDirectory).toBe('/workspace/uploads');
@@ -104,7 +104,7 @@ describe('conversation-serialization', () => {
           {
             id: 'conversation-1',
             name: 'New Conversation 2',
-            modelId: 'onnx-community/Qwen3.5-2B-ONNX',
+            modelId: 'onnx-community/Qwen3-0.6B-ONNX',
             languagePreference: 'fr',
             thinkingEnabled: false,
             startedAt: 1710000000000,
@@ -183,7 +183,7 @@ describe('conversation-serialization', () => {
     expect(appState.conversationIdCounter).toBe(2);
     expect(appState.activeConversationId).toBeNull();
     expect(appState.conversations[0]?.name).toBe('New Conversation');
-    expect(appState.conversations[0]?.modelId).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(appState.conversations[0]?.modelId).toBe('onnx-community/Qwen3.5-2B-ONNX');
     expect(appState.conversations[0]?.languagePreference).toBe('fr');
     expect(appState.conversations[0]?.thinkingEnabled).toBe(false);
     expect(appState.conversations[0]?.currentWorkingDirectory).toBe('/workspace/saved');
@@ -289,5 +289,90 @@ describe('conversation-serialization', () => {
     );
     expect(appState.conversations[0]?.currentWorkingDirectory).toBe('/workspace');
     expect(appState.conversations[0]?.shellVariables).toEqual({});
+  });
+
+  test('restores audio attachments with waveform data intact', () => {
+    const appState = createAppState();
+    const restored = applyStoredConversationState(
+      {
+        conversations: [
+          {
+            id: 'conversation-audio',
+            name: 'Audio',
+            activeLeafMessageId: 'conversation-audio-node-1',
+            lastSpokenLeafMessageId: 'conversation-audio-node-1',
+            messageNodeCounter: 1,
+            messageNodes: [
+              {
+                id: 'conversation-audio-node-1',
+                role: 'user',
+                text: 'Transcribe this',
+                createdAt: 1710000001000,
+                parentId: null,
+                childIds: [],
+                content: {
+                  parts: [
+                    { type: 'text', text: 'Transcribe this' },
+                    {
+                      type: 'audio',
+                      artifactId: 'artifact-audio-1',
+                      mimeType: 'audio/mpeg',
+                      filename: 'lecture.mp3',
+                      workspacePath: '/workspace/lecture.mp3',
+                      durationSeconds: 5.2,
+                      sampleRate: 16000,
+                      sampleCount: 83200,
+                      samplesBase64: 'def456',
+                    },
+                  ],
+                },
+                artifactRefs: [
+                  {
+                    id: 'artifact-audio-1',
+                    kind: 'binary',
+                    mimeType: 'audio/mpeg',
+                    filename: 'lecture.mp3',
+                    workspacePath: '/workspace/lecture.mp3',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        artifacts: [
+          {
+            id: 'artifact-audio-1',
+            mimeType: 'audio/mpeg',
+            encoding: 'base64',
+            data: 'abc123',
+          },
+        ],
+        conversationCount: 1,
+        conversationIdCounter: 1,
+      },
+      appState,
+    );
+
+    expect(restored).toBe(true);
+    expect(appState.conversations[0]?.messageNodes[0]?.content.parts[1]).toMatchObject({
+      type: 'audio',
+      mimeType: 'audio/mpeg',
+      base64: 'abc123',
+      url: 'data:audio/mpeg;base64,abc123',
+      filename: 'lecture.mp3',
+      workspacePath: '/workspace/lecture.mp3',
+      durationSeconds: 5.2,
+      sampleRate: 16000,
+      sampleCount: 83200,
+      samplesBase64: 'def456',
+    });
+    expect(appState.conversations[0]?.messageNodes[0]?.content.llmRepresentation).toEqual([
+      { type: 'text', text: 'Transcribe this' },
+      expect.objectContaining({
+        type: 'audio',
+        filename: 'lecture.mp3',
+        sampleRate: 16000,
+      }),
+    ]);
   });
 });

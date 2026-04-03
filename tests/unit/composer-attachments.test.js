@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import {
+  AUDIO_ATTACHMENT_ACCEPT,
   FILE_ATTACHMENT_ACCEPT,
   IMAGE_AND_FILE_ATTACHMENT_ACCEPT,
+  MAX_AUDIO_ATTACHMENT_FILE_SIZE_BYTES,
   MAX_IMAGE_ATTACHMENT_FILE_SIZE_BYTES,
   MAX_PDF_ATTACHMENT_TEXT_CHARS,
   MAX_TEXT_ATTACHMENT_FILE_SIZE_BYTES,
@@ -28,8 +30,13 @@ describe('composer-attachments', () => {
   test('returns the expected attachment accept filters', () => {
     expect(FILE_ATTACHMENT_ACCEPT).toBe('.txt,.csv,.md,.html,.htm,.css,.js,.pdf');
     expect(IMAGE_AND_FILE_ATTACHMENT_ACCEPT).toBe(`image/*,${FILE_ATTACHMENT_ACCEPT}`);
-    expect(getAttachmentButtonAcceptValue(false)).toBe(FILE_ATTACHMENT_ACCEPT);
-    expect(getAttachmentButtonAcceptValue(true)).toBe(IMAGE_AND_FILE_ATTACHMENT_ACCEPT);
+    expect(getAttachmentButtonAcceptValue()).toBe(FILE_ATTACHMENT_ACCEPT);
+    expect(getAttachmentButtonAcceptValue({ imageInputSupported: true })).toBe(
+      IMAGE_AND_FILE_ATTACHMENT_ACCEPT
+    );
+    expect(getAttachmentButtonAcceptValue({ audioInputSupported: true })).toBe(
+      `${AUDIO_ATTACHMENT_ACCEPT},${FILE_ATTACHMENT_ACCEPT}`
+    );
   });
 
   test('derives attachment metadata and icon classes by file type', () => {
@@ -52,11 +59,17 @@ describe('composer-attachments', () => {
       mimeType: 'image/png',
       extension: 'png',
     });
+    expect(getSupportedAttachmentMetadata({ name: 'clip.mp3', type: 'audio/mpeg' })).toEqual({
+      category: 'audio',
+      mimeType: 'audio/mpeg',
+      extension: 'mp3',
+    });
     expect(
       getSupportedAttachmentMetadata({ name: 'archive.zip', type: 'application/zip' })
     ).toBeNull();
 
     expect(getAttachmentIconClass({ type: 'image' })).toBe('bi-image');
+    expect(getAttachmentIconClass({ type: 'audio' })).toBe('bi-file-earmark-music');
     expect(getAttachmentIconClass({ extension: 'csv' })).toBe('bi-file-earmark-spreadsheet');
     expect(getAttachmentIconClass({ extension: 'pdf' })).toBe('bi-file-earmark-pdf');
     expect(getAttachmentIconClass({ mimeType: 'text/markdown' })).toBe('bi-file-earmark-richtext');
@@ -211,6 +224,19 @@ describe('composer-attachments', () => {
     ).rejects.toThrow('Image files larger than 15 MB are not supported yet.');
   });
 
+  test('rejects oversized audio attachments before reading them into memory', async () => {
+    await expect(
+      createComposerAttachmentFromFile({
+        name: 'lecture.mp3',
+        type: 'audio/mpeg',
+        size: MAX_AUDIO_ATTACHMENT_FILE_SIZE_BYTES + 1,
+        arrayBuffer: () => {
+          throw new Error('arrayBuffer should not be called');
+        },
+      })
+    ).rejects.toThrow('Audio files larger than 25 MB are not supported yet.');
+  });
+
   test('stores uploaded files in the workspace and records the linux-style path', async () => {
     const workspaceFileSystem = {
       storeUploadedFile: vi.fn(async (_file, options) => {
@@ -239,5 +265,53 @@ describe('composer-attachments', () => {
       filename: 'my_report_final.txt',
       workspacePath: '/workspace/my_report_final.txt',
     });
+  });
+
+  test('creates audio attachments with normalized waveform data', async () => {
+    const left = new Float32Array([0.2, -0.2, 0.1]);
+    const right = new Float32Array([0.4, 0.0, -0.1]);
+    const decodeAudioData = vi.fn(async (_buffer) => ({
+      sampleRate: 16000,
+      duration: 0.75,
+      numberOfChannels: 2,
+      length: 3,
+      getChannelData: (index) => (index === 0 ? left : right),
+    }));
+    const close = vi.fn(async () => {});
+    globalThis.window.AudioContext = /** @type {any} */ (class FakeAudioContext {
+      constructor(options) {
+        this.options = options;
+      }
+
+      decodeAudioData(buffer) {
+        return decodeAudioData(buffer);
+      }
+
+      close() {
+        return close();
+      }
+    });
+
+    const attachment = await createComposerAttachmentFromFile({
+      name: 'lecture.mp3',
+      type: 'audio/mpeg',
+      size: 12,
+      arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
+    });
+
+    expect(decodeAudioData).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(attachment).toMatchObject({
+      type: 'audio',
+      mimeType: 'audio/mpeg',
+      filename: 'lecture.mp3',
+      size: 12,
+      durationSeconds: 0.75,
+      sampleRate: 16000,
+      sampleCount: 3,
+    });
+    expect(attachment.samplesBase64).toEqual(expect.any(String));
+    expect(attachment.samplesBase64.length).toBeGreaterThan(0);
+    expect(attachment.url).toContain('data:audio/mpeg;base64,');
   });
 });

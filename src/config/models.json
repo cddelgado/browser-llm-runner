@@ -92,9 +92,9 @@
       }
     },
     {
-      "id": "onnx-community/Qwen3-0.6B-ONNX",
-      "label": "onnx-community/Qwen3-0.6B-ONNX",
-      "displayName": "Qwen3 0.6B",
+      "id": "onnx-community/Qwen3.5-2B-ONNX",
+      "label": "onnx-community/Qwen3.5-2B-ONNX",
+      "displayName": "Qwen3.5 2B",
       "languageSupport": {
         "tags": [
           { "code": "en", "name": "English" },
@@ -105,18 +105,17 @@
           { "code": "ja", "name": "Japanese" }
         ],
         "hasMore": true,
-        "sourceUrl": "https://huggingface.co/Qwen/Qwen3-0.6B"
+        "sourceUrl": "https://huggingface.co/Qwen/Qwen3.5-2B"
       },
-      "repositoryUrl": "https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX",
+      "repositoryUrl": "https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX",
       "runtime": {
-        "dtype": "q4f16"
+        "dtype": "q4f16",
+        "requiresWebGpu": true,
+        "multimodalGeneration": true,
+        "useExternalDataFormat": true
       },
       "toolCalling": {
-        "format": "tagged-json",
-        "nameKey": "name",
-        "argumentsKey": "arguments",
-        "openTag": "<tool_call>",
-        "closeTag": "</tool_call>"
+        "format": "xml-tool-call"
       },
       "thinkingControl": {
         "defaultEnabled": true,
@@ -130,21 +129,73 @@
       },
       "generation": {
         "defaultMaxOutputTokens": 1024,
-        "maxOutputTokens": 40960,
+        "maxOutputTokens": 262144,
         "defaultMaxContextTokens": 8192,
-        "maxContextTokens": 40960,
+        "maxContextTokens": 262144,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
         "defaultTemperature": 0.6,
         "defaultTopK": 20,
         "defaultTopP": 0.95
       },
+      "inputLimits": {
+        "maxImageInputs": 1
+      },
       "features": {
         "streaming": true,
         "thinking": true,
         "toolCalling": true,
-        "imageInput": false,
+        "imageInput": true,
         "audioInput": false,
+        "videoInput": false
+      }
+    },
+    {
+      "id": "onnx-community/gemma-4-E2B-it-ONNX",
+      "label": "onnx-community/gemma-4-E2B-it-ONNX",
+      "displayName": "Gemma 4 E2B",
+      "languageSupport": {
+        "tags": [
+          { "code": "en", "name": "English" },
+          { "code": "es", "name": "Spanish" },
+          { "code": "fr", "name": "French" },
+          { "code": "zh", "name": "Chinese" },
+          { "code": "hi", "name": "Hindi" },
+          { "code": "ja", "name": "Japanese" }
+        ],
+        "hasMore": true,
+        "sourceUrl": "https://ai.google.dev/gemma"
+      },
+      "repositoryUrl": "https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX",
+      "runtime": {
+        "dtype": "q4f16",
+        "requiresWebGpu": true,
+        "multimodalGeneration": true,
+        "useExternalDataFormat": true
+      },
+      "toolCalling": {
+        "format": "gemma-special-token-call"
+      },
+      "generation": {
+        "defaultMaxOutputTokens": 1024,
+        "maxOutputTokens": 131072,
+        "defaultMaxContextTokens": 8192,
+        "maxContextTokens": 131072,
+        "minTemperature": 0.1,
+        "maxTemperature": 2.0,
+        "defaultTemperature": 1.0,
+        "defaultTopK": 65,
+        "defaultTopP": 0.95
+      },
+      "inputLimits": {
+        "maxAudioInputs": 1
+      },
+      "features": {
+        "streaming": true,
+        "thinking": false,
+        "toolCalling": true,
+        "imageInput": true,
+        "audioInput": true,
         "videoInput": false
       }
     },
@@ -251,13 +302,13 @@
         "toolCalling": true,
         "imageInput": true,
         "audioInput": true,
-        "videoInput": true
+        "videoInput": false
       }
     }
   ],
   "legacyAliases": {
     "onnx-community/Llama-3.2-3B-Instruct-ONNX": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
-    "onnx-community/Qwen3.5-2B-ONNX": "onnx-community/Qwen3-0.6B-ONNX",
+    "onnx-community/Qwen3-0.6B-ONNX": "onnx-community/Qwen3.5-2B-ONNX",
     "huggingworld/gemma-3-1b-it-ONNX-GQA": "onnx-community/gemma-3n-E2B-it-ONNX",
     "onnx-community/gemma-3-1b-it-ONNX-GQA": "onnx-community/gemma-3n-E2B-it-ONNX",
     "onnx-community/gemma-3-1b-ONNX-GQA": "onnx-community/gemma-3n-E2B-it-ONNX",

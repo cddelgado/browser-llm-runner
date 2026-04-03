@@ -298,6 +298,42 @@ describe('tool-calling prompt builder', () => {
     );
   });
 
+  test('builds the XML tool-calling prompt', () => {
+    const prompt = buildToolCallingSystemPrompt(
+      {
+        format: 'xml-tool-call',
+      },
+      ['lookup_fact']
+    );
+
+    expect(prompt).toContain(
+      'When you call a tool, output exactly one XML tool-call block and nothing else.'
+    );
+    expect(prompt).toContain('Wrap the call in <tool_call>...</tool_call>.');
+    expect(prompt).toContain('Inside it, use one nested <function=tool_name>...</function> block.');
+    expect(prompt).toContain(
+      'Represent each argument as its own <parameter=argument_name>value</parameter> block.'
+    );
+  });
+
+  test('builds the Gemma special-token tool-calling prompt', () => {
+    const prompt = buildToolCallingSystemPrompt(
+      {
+        format: 'gemma-special-token-call',
+      },
+      ['lookup_fact']
+    );
+
+    expect(prompt).toContain(
+      'When you call a tool, output exactly one Gemma-style tool-call block and nothing else.'
+    );
+    expect(prompt).toContain('Wrap the call in <|tool_call> and <tool_call|>.');
+    expect(prompt).toContain(
+      'Shape inside the wrapper: call:tool_name{arg1:<|"|>value1<|"|>, arg2:2}.'
+    );
+    expect(prompt).toContain('Use <|"|>...<|"|> around string values.');
+  });
+
   test('adds a terminal-use instruction for get_user_location', () => {
     const prompt = buildToolCallingSystemPrompt(
       {
@@ -607,6 +643,48 @@ describe('tool-calling prompt builder', () => {
         arguments: { location: 'Milwaukee, WI' },
         rawText: '<|tool_call_start|>[get_weather(location="Milwaukee, WI")]<|tool_call_end|>',
         format: 'special-token-call',
+      },
+    ]);
+  });
+
+  test('sniffs XML tool calls', () => {
+    expect(
+      sniffToolCalls(
+        '<tool_call><function=lookup_fact><parameter=topic>stars</parameter><parameter=count>2</parameter></function></tool_call>',
+        {
+          format: 'xml-tool-call',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'lookup_fact',
+        arguments: { topic: 'stars', count: 2 },
+        rawText:
+          '<tool_call><function=lookup_fact><parameter=topic>stars</parameter><parameter=count>2</parameter></function></tool_call>',
+        format: 'xml-tool-call',
+      },
+    ]);
+  });
+
+  test('sniffs Gemma special-token tool calls', () => {
+    expect(
+      sniffToolCalls(
+        '<|tool_call>call:lookup_fact{topic:<|"|>stars<|"|>, filters:{kind:<|"|>science<|"|>}, count:2}<tool_call|>',
+        {
+          format: 'gemma-special-token-call',
+        }
+      )
+    ).toEqual([
+      {
+        name: 'lookup_fact',
+        arguments: {
+          topic: 'stars',
+          filters: { kind: 'science' },
+          count: 2,
+        },
+        rawText:
+          '<|tool_call>call:lookup_fact{topic:<|"|>stars<|"|>, filters:{kind:<|"|>science<|"|>}, count:2}<tool_call|>',
+        format: 'gemma-special-token-call',
       },
     ]);
   });

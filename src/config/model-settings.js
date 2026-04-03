@@ -49,7 +49,7 @@ export const MODEL_FEATURE_FLAGS = Object.freeze([
 export const ALLOWED_RUNTIME_DTYPES = Object.freeze(new Set(['q4', 'q4f16', 'q8', 'fp16', 'fp32']));
 export const WEBGPU_COMPATIBLE_BACKEND_PREFERENCES = Object.freeze(new Set(['auto', 'webgpu']));
 export const ALLOWED_TOOL_CALLING_FORMATS = Object.freeze(
-  new Set(['json', 'tagged-json', 'special-token-call'])
+  new Set(['json', 'tagged-json', 'special-token-call', 'xml-tool-call', 'gemma-special-token-call'])
 );
 export const ALLOWED_THINKING_RUNTIME_PARAMETERS = Object.freeze(new Set(['enable_thinking']));
 
@@ -186,6 +186,9 @@ function normalizeToolCalling(rawToolCalling, { enabled = false } = {}) {
         }
       : null;
   }
+  if (format === 'xml-tool-call' || format === 'gemma-special-token-call') {
+    return { format };
+  }
   const callOpen = typeof rawToolCalling.callOpen === 'string' ? rawToolCalling.callOpen.trim() : '';
   const callClose = typeof rawToolCalling.callClose === 'string' ? rawToolCalling.callClose.trim() : '';
   return callOpen && callClose && callOpen !== callClose
@@ -195,6 +198,27 @@ function normalizeToolCalling(rawToolCalling, { enabled = false } = {}) {
         callClose,
       }
     : null;
+}
+
+function normalizePositiveIntegerLimit(value) {
+  if (!Number.isInteger(value) || value <= 0) {
+    return null;
+  }
+  return value;
+}
+
+function normalizeInputLimits(rawInputLimits) {
+  if (!rawInputLimits || typeof rawInputLimits !== 'object' || Array.isArray(rawInputLimits)) {
+    return {};
+  }
+  const maxImageInputs = normalizePositiveIntegerLimit(rawInputLimits.maxImageInputs);
+  const maxAudioInputs = normalizePositiveIntegerLimit(rawInputLimits.maxAudioInputs);
+  const maxVideoInputs = normalizePositiveIntegerLimit(rawInputLimits.maxVideoInputs);
+  return {
+    ...(maxImageInputs ? { maxImageInputs } : {}),
+    ...(maxAudioInputs ? { maxAudioInputs } : {}),
+    ...(maxVideoInputs ? { maxVideoInputs } : {}),
+  };
 }
 
 function normalizeThinkingControl(rawThinkingControl, { enabled = false } = {}) {
@@ -281,6 +305,7 @@ const configuredModels = Array.isArray(modelCatalog?.models)
         const toolCalling = normalizeToolCalling(model?.toolCalling, {
           enabled: features.toolCalling,
         });
+        const inputLimits = normalizeInputLimits(model?.inputLimits);
         return {
           id,
           label,
@@ -293,6 +318,7 @@ const configuredModels = Array.isArray(modelCatalog?.models)
           thinkingTags,
           generation,
           runtime,
+          inputLimits,
           hidden: normalizeHiddenFlag((/** @type {any} */ (model)).hidden),
         };
       })
@@ -320,6 +346,7 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
     thinkingTags: null,
     generation: normalizeGenerationLimits(null),
     runtime: {},
+    inputLimits: {},
     hidden: false,
   });
 }

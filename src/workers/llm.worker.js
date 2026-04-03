@@ -160,6 +160,18 @@ function normalizeRuntimeConfig(rawRuntime) {
   const imageInput = rawRuntime?.imageInput === true;
   const audioInput = rawRuntime?.audioInput === true;
   const videoInput = rawRuntime?.videoInput === true;
+  const maxImageInputs =
+    Number.isInteger(rawRuntime?.maxImageInputs) && rawRuntime.maxImageInputs > 0
+      ? rawRuntime.maxImageInputs
+      : 0;
+  const maxAudioInputs =
+    Number.isInteger(rawRuntime?.maxAudioInputs) && rawRuntime.maxAudioInputs > 0
+      ? rawRuntime.maxAudioInputs
+      : 0;
+  const maxVideoInputs =
+    Number.isInteger(rawRuntime?.maxVideoInputs) && rawRuntime.maxVideoInputs > 0
+      ? rawRuntime.maxVideoInputs
+      : 0;
   const useExternalDataFormat =
     rawRuntime?.useExternalDataFormat === true ||
     (Number.isInteger(rawRuntime?.useExternalDataFormat) && rawRuntime.useExternalDataFormat > 0)
@@ -173,6 +185,9 @@ function normalizeRuntimeConfig(rawRuntime) {
     ...(imageInput ? { imageInput: true } : {}),
     ...(audioInput ? { audioInput: true } : {}),
     ...(videoInput ? { videoInput: true } : {}),
+    ...(maxImageInputs ? { maxImageInputs } : {}),
+    ...(maxAudioInputs ? { maxAudioInputs } : {}),
+    ...(maxVideoInputs ? { maxVideoInputs } : {}),
     ...(useExternalDataFormat ? { useExternalDataFormat } : {}),
   };
 }
@@ -216,12 +231,88 @@ function normalizePromptContentPart(rawPart) {
     return normalizedImagePart;
   }
 
+  if (rawPart.type === 'audio') {
+    const normalizedAudioPart = { type: 'audio' };
+    if (typeof rawPart.mimeType === 'string' && rawPart.mimeType.trim()) {
+      normalizedAudioPart.mimeType = rawPart.mimeType.trim();
+    }
+    if (typeof rawPart.base64 === 'string' && rawPart.base64.trim()) {
+      normalizedAudioPart.base64 = rawPart.base64.trim();
+    }
+    if (typeof rawPart.url === 'string' && rawPart.url.trim()) {
+      normalizedAudioPart.url = rawPart.url.trim();
+    }
+    if (typeof rawPart.samplesBase64 === 'string' && rawPart.samplesBase64.trim()) {
+      normalizedAudioPart.samplesBase64 = rawPart.samplesBase64.trim();
+    }
+    if (Number.isFinite(rawPart.sampleRate) && rawPart.sampleRate > 0) {
+      normalizedAudioPart.sampleRate = Math.round(rawPart.sampleRate);
+    }
+    if (Number.isFinite(rawPart.sampleCount) && rawPart.sampleCount > 0) {
+      normalizedAudioPart.sampleCount = Math.round(rawPart.sampleCount);
+    }
+    return normalizedAudioPart.samplesBase64 ||
+      normalizedAudioPart.base64 ||
+      normalizedAudioPart.url ||
+      normalizedAudioPart.mimeType
+      ? normalizedAudioPart
+      : null;
+  }
+
+  if (rawPart.type === 'video') {
+    const normalizedVideoPart = { type: 'video' };
+    if (typeof rawPart.mimeType === 'string' && rawPart.mimeType.trim()) {
+      normalizedVideoPart.mimeType = rawPart.mimeType.trim();
+    }
+    if (typeof rawPart.base64 === 'string' && rawPart.base64.trim()) {
+      normalizedVideoPart.base64 = rawPart.base64.trim();
+    }
+    if (typeof rawPart.url === 'string' && rawPart.url.trim()) {
+      normalizedVideoPart.url = rawPart.url.trim();
+    }
+    return normalizedVideoPart.base64 || normalizedVideoPart.url || normalizedVideoPart.mimeType
+      ? normalizedVideoPart
+      : null;
+  }
+
   return null;
 }
 
-async function prepareImageInputsFromPrompt(messages, RawImage) {
+function base64ToUint8Array(base64) {
+  const normalized = typeof base64 === 'string' ? base64.trim() : '';
+  if (!normalized) {
+    return new Uint8Array(0);
+  }
+  if (typeof globalThis.atob === 'function') {
+    const binary = globalThis.atob(normalized);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  }
+  if (typeof globalThis.Buffer === 'function') {
+    return new Uint8Array(globalThis.Buffer.from(normalized, 'base64'));
+  }
+  return new Uint8Array(0);
+}
+
+function decodeFloat32ArrayFromBase64(base64) {
+  const bytes = base64ToUint8Array(base64);
+  if (!bytes.byteLength) {
+    return new Float32Array(0);
+  }
+  if (bytes.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+    throw new Error('Audio attachment waveform data is malformed.');
+  }
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return new Float32Array(buffer);
+}
+
+async function prepareMultimodalInputsFromPrompt(messages, RawImage) {
   const preparedMessages = [];
   const images = [];
+  const audios = [];
 
   for (const message of messages) {
     if (!message || typeof message !== 'object') {
@@ -248,6 +339,20 @@ async function prepareImageInputsFromPrompt(messages, RawImage) {
         }
         images.push(await RawImage.read(imageSource));
         preparedContent.push({ type: 'image' });
+        continue;
+      }
+      if (part.type === 'audio') {
+        const samplesBase64 = typeof part.samplesBase64 === 'string' ? part.samplesBase64.trim() : '';
+        if (!samplesBase64) {
+          throw new Error('Audio attachment data is missing normalized waveform samples.');
+        }
+        const sampleRate =
+          Number.isFinite(part.sampleRate) && part.sampleRate > 0 ? Math.round(part.sampleRate) : 16000;
+        if (sampleRate !== 16000) {
+          throw new Error('Audio attachments must be normalized to 16 kHz for this model runtime.');
+        }
+        audios.push(decodeFloat32ArrayFromBase64(samplesBase64));
+        preparedContent.push({ type: 'audio' });
       }
     }
 
@@ -260,6 +365,15 @@ async function prepareImageInputsFromPrompt(messages, RawImage) {
   return {
     messages: preparedMessages,
     images,
+    audios,
+  };
+}
+
+async function prepareImageInputsFromPrompt(messages, RawImage) {
+  const prepared = await prepareMultimodalInputsFromPrompt(messages, RawImage);
+  return {
+    messages: prepared.messages,
+    images: prepared.images,
   };
 }
 
@@ -315,18 +429,45 @@ function resolvePrompt(rawPrompt) {
 }
 
 function promptContainsImageParts(prompt) {
+  return countPromptParts(prompt, 'image') > 0;
+}
+
+function promptContainsAudioParts(prompt) {
+  return countPromptParts(prompt, 'audio') > 0;
+}
+
+function promptContainsVideoParts(prompt) {
+  return countPromptParts(prompt, 'video') > 0;
+}
+
+function countPromptParts(prompt, type) {
   return Array.isArray(prompt)
-    ? prompt.some((message) =>
-        Array.isArray(message?.content)
-          ? message.content.some((part) => part?.type === 'image')
-          : false
+    ? prompt.reduce(
+        (total, message) =>
+          total +
+          (Array.isArray(message?.content)
+            ? message.content.filter((part) => part?.type === type).length
+            : 0),
+        0
       )
-    : false;
+    : 0;
 }
 
 export { resolvePrompt };
 export { getBackendAttemptOrder };
 export { prepareImageInputsFromPrompt };
+
+function promptContainsStructuredMedia(prompt) {
+  return Array.isArray(prompt)
+    ? prompt.some((message) =>
+        Array.isArray(message?.content)
+          ? message.content.some(
+              (part) => part?.type === 'image' || part?.type === 'audio' || part?.type === 'video'
+            )
+          : false
+      )
+    : false;
+}
 
 async function initialize(payload) {
   const modelId = payload.modelId || 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
@@ -535,13 +676,36 @@ async function generate(payload) {
     );
     generationConfig = requestGenerationConfig;
     const runtime = normalizeRuntimeConfig(payload.runtime);
-    if (promptContainsImageParts(formattedPrompt) && !runtime.multimodalGeneration) {
+    const imageCount = countPromptParts(formattedPrompt, 'image');
+    const audioCount = countPromptParts(formattedPrompt, 'audio');
+    const videoCount = countPromptParts(formattedPrompt, 'video');
+    if (promptContainsStructuredMedia(formattedPrompt) && !runtime.multimodalGeneration) {
       throw new Error(
-        'Image attachments are not yet wired to the selected model runtime in this app.'
+        'Media attachments are not yet wired to the selected model runtime in this app.'
       );
     }
-    if (promptContainsImageParts(formattedPrompt) && !runtime.imageInput) {
+    if (imageCount > 0 && !runtime.imageInput) {
       throw new Error('The selected model does not support image inputs in this app.');
+    }
+    if (audioCount > 0 && !runtime.audioInput) {
+      throw new Error('The selected model does not support audio inputs in this app.');
+    }
+    if (videoCount > 0) {
+      throw new Error('The selected model does not support video inputs in this app.');
+    }
+    if (runtime.maxImageInputs && imageCount > runtime.maxImageInputs) {
+      throw new Error(
+        `The selected model accepts up to ${runtime.maxImageInputs} image attachment${
+          runtime.maxImageInputs === 1 ? '' : 's'
+        } in this app.`
+      );
+    }
+    if (runtime.maxAudioInputs && audioCount > runtime.maxAudioInputs) {
+      throw new Error(
+        `The selected model accepts up to ${runtime.maxAudioInputs} audio attachment${
+          runtime.maxAudioInputs === 1 ? '' : 's'
+        } in this app.`
+      );
     }
     if (runtime.multimodalGeneration && loadedExecutionMode !== 'multimodal') {
       throw new Error('The selected model runtime was not initialized for multimodal generation.');
@@ -558,12 +722,16 @@ async function generate(payload) {
 
     if (runtime.multimodalGeneration) {
       const { RawImage } = await loadTransformers();
-      const { messages, images } = await prepareImageInputsFromPrompt(formattedPrompt, RawImage);
+      const { messages, images, audios } = await prepareMultimodalInputsFromPrompt(
+        formattedPrompt,
+        RawImage
+      );
       const promptText = processor.apply_chat_template(messages, {
         add_generation_prompt: true,
       });
       const imageInputs = images.length > 1 ? images : images[0] || null;
-      const modelInputs = await processor(promptText, imageInputs, null, {
+      const audioInputs = audios.length > 1 ? audios : audios[0] || null;
+      const modelInputs = await processor(promptText, imageInputs, audioInputs, {
         add_special_tokens: false,
       });
 

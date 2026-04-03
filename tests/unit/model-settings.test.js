@@ -9,6 +9,8 @@ import {
 } from '../../src/config/model-settings.js';
 
 const LIQUID_MODEL_ID = 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX';
+const QWEN_MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX';
+const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
 const GEMMA_MODEL_ID = 'onnx-community/gemma-3n-E2B-it-ONNX';
 
 describe('model-settings availability', () => {
@@ -79,9 +81,14 @@ describe('model-settings availability', () => {
       defaultTopK: 50,
       defaultTopP: 0.9,
     });
-    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')?.generation).toMatchObject({
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 0.6,
       defaultTopK: 20,
+      defaultTopP: 0.95,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.generation).toMatchObject({
+      defaultTemperature: 1,
+      defaultTopK: 65,
       defaultTopP: 0.95,
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.generation).toMatchObject({
@@ -131,11 +138,11 @@ describe('model-settings availability', () => {
   });
 
   test('exposes model feature flags from config', () => {
-    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')?.features).toMatchObject({
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.features).toMatchObject({
       streaming: true,
       thinking: true,
       toolCalling: true,
-      imageInput: false,
+      imageInput: true,
       audioInput: false,
       videoInput: false,
     });
@@ -147,13 +154,21 @@ describe('model-settings availability', () => {
       audioInput: false,
       videoInput: false,
     });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.features).toMatchObject({
+      streaming: true,
+      thinking: false,
+      toolCalling: true,
+      imageInput: true,
+      audioInput: true,
+      videoInput: false,
+    });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.features).toMatchObject({
       streaming: true,
       thinking: false,
       toolCalling: true,
       imageInput: true,
       audioInput: true,
-      videoInput: true,
+      videoInput: false,
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.features).toMatchObject({
       streaming: true,
@@ -173,19 +188,33 @@ describe('model-settings availability', () => {
         decoder_model_merged: 'q4',
       },
     });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.runtime).toMatchObject({
+      dtype: 'q4f16',
+      requiresWebGpu: true,
+      multimodalGeneration: true,
+      useExternalDataFormat: true,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
+      dtype: 'q4f16',
+      requiresWebGpu: true,
+      multimodalGeneration: true,
+      useExternalDataFormat: true,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.inputLimits).toEqual({
+      maxImageInputs: 1,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.inputLimits).toEqual({
+      maxAudioInputs: 1,
+    });
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-3B-Instruct-onnx-web')?.toolCalling).toEqual({
       format: 'json',
       nameKey: 'name',
       argumentsKey: 'parameters',
     });
-    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')?.toolCalling).toEqual({
-      format: 'tagged-json',
-      nameKey: 'name',
-      argumentsKey: 'arguments',
-      openTag: '<tool_call>',
-      closeTag: '</tool_call>',
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.toolCalling).toEqual({
+      format: 'xml-tool-call',
     });
-    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')?.thinkingControl).toEqual({
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.thinkingControl).toEqual({
       defaultEnabled: true,
       runtimeParameter: 'enable_thinking',
       enabledInstruction: '/think',
@@ -196,14 +225,21 @@ describe('model-settings availability', () => {
       callOpen: '<|tool_call_start|>[',
       callClose: ']<|tool_call_end|>',
     });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.toolCalling).toEqual({
+      format: 'gemma-special-token-call',
+    });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.toolCalling).toEqual({
       format: 'json',
       nameKey: 'name',
       argumentsKey: 'arguments',
     });
-    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-0.6B-ONNX')).toMatchObject({
-      displayName: 'Qwen3 0.6B',
-      repositoryUrl: 'https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX',
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)).toMatchObject({
+      displayName: 'Qwen3.5 2B',
+      repositoryUrl: 'https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)).toMatchObject({
+      displayName: 'Gemma 4 E2B',
+      repositoryUrl: 'https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX',
     });
   });
 });

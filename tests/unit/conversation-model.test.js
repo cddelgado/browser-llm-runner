@@ -113,6 +113,69 @@ describe('conversation-model', () => {
     });
   });
 
+  test('preserves audio parts in user prompts and text edits', () => {
+    const conversation = createConversation({ id: 'conversation-1' });
+    const userMessage = addMessageToConversation(conversation, 'user', 'Transcribe this clip.', {
+      contentParts: [
+        { type: 'text', text: 'Transcribe this clip.' },
+        {
+          type: 'audio',
+          artifactId: 'artifact-audio-1',
+          mimeType: 'audio/mpeg',
+          base64: 'abc123',
+          url: 'data:audio/mpeg;base64,abc123',
+          filename: 'lecture.mp3',
+          durationSeconds: 5.2,
+          sampleRate: 16000,
+          sampleCount: 83200,
+          samplesBase64: 'def456',
+        },
+      ],
+      artifactRefs: [
+        {
+          id: 'artifact-audio-1',
+          kind: 'binary',
+          mimeType: 'audio/mpeg',
+          filename: 'lecture.mp3',
+          hash: { algorithm: 'sha256', value: 'cafebabe' },
+        },
+      ],
+    });
+
+    expect(buildPromptForConversationLeaf(conversation)).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Transcribe this clip.' },
+          {
+            type: 'audio',
+            artifactId: 'artifact-audio-1',
+            mimeType: 'audio/mpeg',
+            base64: 'abc123',
+            url: 'data:audio/mpeg;base64,abc123',
+            filename: 'lecture.mp3',
+            durationSeconds: 5.2,
+            sampleRate: 16000,
+            sampleCount: 83200,
+            samplesBase64: 'def456',
+          },
+        ],
+      },
+    ]);
+
+    setUserMessageText(userMessage, 'Focus on the final sentence.');
+
+    expect(getTextFromMessageContentParts(userMessage.content.parts)).toBe(
+      'Focus on the final sentence.'
+    );
+    expect(userMessage.content.parts.find((part) => part.type === 'audio')).toMatchObject({
+      artifactId: 'artifact-audio-1',
+      filename: 'lecture.mp3',
+      sampleRate: 16000,
+      samplesBase64: 'def456',
+    });
+  });
+
   test('adds text file attachments to the llm-facing user prompt while preserving file parts', () => {
     const conversation = createConversation({ id: 'conversation-1' });
     addMessageToConversation(conversation, 'user', 'Summarize these notes.', {

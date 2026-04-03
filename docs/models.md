@@ -28,10 +28,15 @@ Model support is configured in `src/config/models.json`:
   - `runtimeParameter` (currently `enable_thinking` when the worker should pass a runtime switch)
   - `enabledInstruction` / `disabledInstruction` (literal model-specific system-prompt switch text such as `/think` and `/no_think`)
 - `models[].toolCalling`: optional per-model tool-call output profile used to build prompts and future parsing:
-  - `format` (`json`, `tagged-json`, or `special-token-call`)
+  - `format` (`json`, `tagged-json`, `special-token-call`, `xml-tool-call`, or `gemma-special-token-call`)
   - `nameKey` / `argumentsKey` for JSON-based models
   - `openTag` / `closeTag` for tagged JSON models
   - `callOpen` / `callClose` for function-style tool call wrappers
+  - XML and Gemma special-token formats use `format` alone because their wrapper shapes are fixed in the app
+- `models[].inputLimits`: optional per-media limits used by the composer and worker
+  - `maxImageInputs`
+  - `maxAudioInputs`
+  - `maxVideoInputs`
 - `models[].generation`: per-model integer token limits:
   - `defaultMaxOutputTokens`
   - `maxOutputTokens`
@@ -137,9 +142,9 @@ Normalized in `src/config/model-settings.js` via `MODEL_FEATURE_FLAGS`.
 - `imageInput`
   Declares that the model can accept image input, but the UI/runtime only enables it when `runtime.multimodalGeneration === true`.
 - `audioInput`
-  Same pattern as image input. This is descriptive today unless the worker and UI are wired for audio.
+  Same pattern as image input. This app now wires upload-only audio input for models whose runtime path is verified.
 - `videoInput`
-  Same pattern as audio input.
+  Same pattern as audio input. Do not enable this unless the worker path is actually viable; the app currently keeps video disabled for supported models.
 
 ### Runtime fields
 
@@ -173,7 +178,7 @@ Important multimodal rule:
 ### Tool-calling fields
 
 - `toolCalling.format`
-  Must be one of `json`, `tagged-json`, or `special-token-call`.
+  Must be one of `json`, `tagged-json`, `special-token-call`, `xml-tool-call`, or `gemma-special-token-call`.
 - `nameKey` / `argumentsKey`
   Required for JSON-based formats.
 - `openTag` / `closeTag`
@@ -247,11 +252,17 @@ Do not mark a capability on the card just because the upstream model card advert
 Current selectable models in Settings:
 
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
-- `onnx-community/Qwen3-0.6B-ONNX`
-  - Uses runtime dtype `q4f16`, matching the model card's WebGPU example.
-  - Uses `<think>...</think>` tags for thought separation when the model emits them.
+- `onnx-community/Qwen3.5-2B-ONNX`
+  - Uses runtime dtype `q4f16`, requires WebGPU, and loads external ONNX data sidecars.
   - Uses recommended sampling defaults from the model card: temperature `0.6`, top-k `20`, top-p `0.95`.
   - Uses `thinkingControl` with runtime `enable_thinking` plus `/think` and `/no_think` system-prompt switches.
+  - Accepts uploaded image input in this app.
+  - Uses the XML tool-call format.
+- `onnx-community/gemma-4-E2B-it-ONNX`
+  - Uses runtime dtype `q4f16`, requires WebGPU, and loads external ONNX data sidecars.
+  - Accepts uploaded image input and upload-only audio input in this app.
+  - Video input is intentionally not exposed because the current browser runtime path is not reliable enough yet.
+  - Uses the Gemma special-token tool-call format.
 
 Hidden legacy/replacement models kept for compatibility and model-specific behavior:
 
@@ -261,12 +272,12 @@ Hidden legacy/replacement models kept for compatibility and model-specific behav
   - Uses `<think>...</think>` tags for thought separation.
   - Requires WebGPU in-browser, so it is disabled when WebGPU is unavailable or when `WASM only` is selected.
 - `onnx-community/gemma-3n-E2B-it-ONNX`
-  - Supports text output with image, audio, and video inputs.
-  - The current app UI exposes image attachments from both `Attach for Reference` and `Attach to Work With` when the selected model/runtime path supports image input; audio/video input UI is not implemented yet.
+  - Supports text output with image and audio inputs in this app.
+  - Video remains disabled in config because the current browser runtime path is not reliable enough yet.
   - The app uses a dedicated multimodal worker path for this model and requires WebGPU.
 - Legacy aliases remapped automatically at runtime:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-  - `onnx-community/Qwen3.5-2B-ONNX` -> `onnx-community/Qwen3-0.6B-ONNX`
+  - `onnx-community/Qwen3-0.6B-ONNX` -> `onnx-community/Qwen3.5-2B-ONNX`
   - `huggingworld/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
@@ -280,6 +291,8 @@ Notes:
 - Model artifacts are not revision-pinned yet; this is a documented accepted risk for now.
 - The pre-chat picker presents each model as a single-select card with icon-only ability badges, language tags, and short-term memory shown as tokens plus a rough word estimate rounded to the nearest 100.
 - Model capability flags describe what a model can support; the image/audio/video UI is only enabled when the runtime also declares `multimodalGeneration: true`.
+- Audio input is upload-only. The app does not expose live recording.
+- Video input should stay disabled until the worker path is validated end-to-end in the browser runtime.
 - Settings fields for maximum output/context tokens are numeric, step in 8, and disabled until a model is loaded.
 - Token fields show an estimated words value based on `tokens * 0.75`.
 - Temperature is numeric, step in 0.1, and disabled until a model is loaded.
@@ -293,6 +306,7 @@ Per-model limits and defaults:
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: runtime dtype `q4f16`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"cmd":"..."}` inside `parameters`, no thinking tags
 - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`: runtime dtype `q4f16`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
 - Both Llama entries use the published `model_q4f16` web export and enable `useExternalDataFormat: true` for `.onnx_data` loading.
-- `onnx-community/Qwen3-0.6B-ONNX`: runtime dtype `q4f16`, max context `40960`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, feature flags `thinking` and `toolCalling`, tool call format `<tool_call>{"name":"tool_name","arguments":{...}}</tool_call>`, thinking tags `<think>` / `</think>`, thinking control `{ runtimeParameter: "enable_thinking", enabledInstruction: "/think", disabledInstruction: "/no_think" }`
+- `onnx-community/Qwen3.5-2B-ONNX`: runtime dtype `q4f16`, `requiresWebGpu: true`, `multimodalGeneration: true`, `useExternalDataFormat: true`, max context `262144`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, feature flags `thinking`, `toolCalling`, and `imageInput`, input limit `maxImageInputs: 1`, tool call format `xml-tool-call`, thinking tags `<think>` / `</think>`, thinking control `{ runtimeParameter: "enable_thinking", enabledInstruction: "/think", disabledInstruction: "/no_think" }`
+- `onnx-community/gemma-4-E2B-it-ONNX`: runtime dtype `q4f16`, `requiresWebGpu: true`, `multimodalGeneration: true`, `useExternalDataFormat: true`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `65`, default top-p `0.95`, feature flags `toolCalling`, `imageInput`, and `audioInput`, input limit `maxAudioInputs: 1`, tool call format `gemma-special-token-call`
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: runtime dtype `q4`, `requiresWebGpu: true`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default temperature `0.1`, default top-k `50`, default top-p `0.1`, feature flags `thinking` and `toolCalling`, tool call format `<|tool_call_start|>[tool_name(arg="value")]<|tool_call_end|>`, thinking tags `<think>` / `</think>`
-- `onnx-community/gemma-3n-E2B-it-ONNX`: runtime dtype map `{ audio_encoder: fp32, vision_encoder: fp32, embed_tokens: q4, decoder_model_merged: q4 }`, `requiresWebGpu: true`, `multimodalGeneration: true`, max context `32768`, default context `8192`, default temperature `0.6`, default top-k `65`, default top-p `0.95`, feature flags `toolCalling`, `imageInput`, `audioInput`, and `videoInput`, tool call format `{"name":"tool_name","arguments":{...}}`
+- `onnx-community/gemma-3n-E2B-it-ONNX`: runtime dtype map `{ audio_encoder: fp32, vision_encoder: fp32, embed_tokens: q4, decoder_model_merged: q4 }`, `requiresWebGpu: true`, `multimodalGeneration: true`, max context `32768`, default context `8192`, default temperature `0.6`, default top-k `65`, default top-p `0.95`, feature flags `toolCalling`, `imageInput`, and `audioInput`, tool call format `{"name":"tool_name","arguments":{...}}`

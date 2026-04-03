@@ -37,13 +37,52 @@ export function createTranscriptView(dependencies) {
     return rawParts.filter((part) => part?.type === 'image');
   }
 
+  function getUserAudioParts(message) {
+    const rawParts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
+    return rawParts.filter((part) => part?.type === 'audio');
+  }
+
   function getUserFileParts(message) {
     const rawParts = Array.isArray(message?.content?.parts) ? message.content.parts : [];
     return rawParts.filter((part) => part?.type === 'file');
   }
 
   function getUserAttachmentCount(message) {
-    return getUserImageParts(message).length + getUserFileParts(message).length;
+    return (
+      getUserImageParts(message).length +
+      getUserAudioParts(message).length +
+      getUserFileParts(message).length
+    );
+  }
+
+  function formatAttachmentSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return '';
+    }
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    if (bytes >= 1024) {
+      return `${Math.round(bytes / 1024)} KB`;
+    }
+    return `${Math.round(bytes)} B`;
+  }
+
+  function formatAttachmentDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return '';
+    }
+    const totalSeconds = Math.round(seconds);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const remainingSeconds = totalSeconds % 60;
+    if (hours > 0) {
+      return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+    }
+    if (minutes > 0) {
+      return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+    }
+    return `${remainingSeconds}s`;
   }
 
   function getFileAttachmentIconClass(part) {
@@ -99,6 +138,68 @@ export function createTranscriptView(dependencies) {
         gallery.appendChild(figure);
       });
       content.appendChild(gallery);
+    }
+
+    const audioParts = getUserAudioParts(message);
+    if (audioParts.length) {
+      const audioList = documentRef.createElement('div');
+      audioList.className = 'message-file-list';
+      audioParts.forEach((part, index) => {
+        const card = documentRef.createElement('section');
+        card.className = 'message-file-card message-audio-card';
+
+        const header = documentRef.createElement('div');
+        header.className = 'message-file-header';
+
+        const iconWrap = documentRef.createElement('div');
+        iconWrap.className = 'message-file-icon';
+        const icon = documentRef.createElement('i');
+        icon.className = 'bi bi-file-earmark-music';
+        icon.setAttribute('aria-hidden', 'true');
+        iconWrap.appendChild(icon);
+        header.appendChild(iconWrap);
+
+        const meta = documentRef.createElement('div');
+        meta.className = 'message-file-meta';
+        const name = documentRef.createElement('p');
+        name.className = 'message-file-name';
+        name.textContent =
+          typeof part.filename === 'string' && part.filename.trim()
+            ? part.filename.trim()
+            : `Attached audio ${index + 1}`;
+        meta.appendChild(name);
+        const detail = documentRef.createElement('p');
+        detail.className = 'message-file-detail';
+        const detailBits = [];
+        if (typeof part.mimeType === 'string' && part.mimeType.trim()) {
+          detailBits.push(part.mimeType.trim());
+        }
+        const durationLabel = formatAttachmentDuration(part.durationSeconds);
+        if (durationLabel) {
+          detailBits.push(durationLabel);
+        }
+        const sizeLabel = formatAttachmentSize(part.size);
+        if (sizeLabel) {
+          detailBits.push(sizeLabel);
+        }
+        detail.textContent = detailBits.join(' · ');
+        meta.appendChild(detail);
+        header.appendChild(meta);
+        card.appendChild(header);
+
+        if (typeof part.url === 'string' && part.url.trim()) {
+          const audio = documentRef.createElement('audio');
+          audio.controls = true;
+          audio.preload = 'metadata';
+          audio.src = part.url.trim();
+          audio.className = 'mt-2 w-100';
+          audio.setAttribute('aria-label', `Attached audio: ${name.textContent}`);
+          card.appendChild(audio);
+        }
+
+        audioList.appendChild(card);
+      });
+      content.appendChild(audioList);
     }
 
     const fileParts = getUserFileParts(message);

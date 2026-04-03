@@ -451,6 +451,71 @@ describe('transcript-view', () => {
     );
   });
 
+  test('renders audio attachments in the user transcript bubble', () => {
+    const harness = createViewHarness();
+    harness.conversation.messageNodes[0].content.parts.splice(2, 0, /** @type {any} */ ({
+      type: 'audio',
+      filename: 'lecture.mp3',
+      mimeType: 'audio/mpeg',
+      url: 'data:audio/mpeg;base64,abc123',
+      durationSeconds: 65,
+      size: 2048,
+    }));
+
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => toolName,
+      getShowThinkingByDefault: () => false,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: false,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    const audioCard = harness.container.querySelector('.message-audio-card');
+    expect(audioCard?.textContent).toContain('lecture.mp3');
+    expect(audioCard?.textContent).toContain('audio/mpeg');
+    expect(audioCard?.textContent).toContain('1:05');
+    expect(audioCard?.textContent).toContain('2 KB');
+    expect(
+      harness.container.querySelector('.message-audio-card audio')?.getAttribute('src')
+    ).toContain('data:audio/mpeg;base64,abc123');
+  });
+
   test('keeps narration visible around tool calls', () => {
     const harness = createViewHarness();
     harness.conversation.messageNodes[1].toolCalls = [

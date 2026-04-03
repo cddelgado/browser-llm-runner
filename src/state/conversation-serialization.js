@@ -83,10 +83,7 @@ function buildStoredArtifactLookup(rawState) {
 function coerceStoredMessageContentParts(rawMessage, artifactLookup) {
   const rawParts = Array.isArray(rawMessage?.content?.parts) ? rawMessage.content.parts : [];
   return normalizeMessageContentParts(rawParts).map((part) => {
-    if (part.type !== 'image') {
-      if (part.type !== 'file') {
-        return part;
-      }
+    if (part.type === 'file') {
       const artifact =
         typeof part.artifactId === 'string' && part.artifactId.trim()
           ? artifactLookup.get(part.artifactId.trim()) || null
@@ -119,6 +116,9 @@ function coerceStoredMessageContentParts(rawMessage, artifactLookup) {
             : {}),
       };
     }
+    if (part.type !== 'image' && part.type !== 'audio') {
+      return part;
+    }
     const artifact =
       typeof part.artifactId === 'string' && part.artifactId.trim()
         ? artifactLookup.get(part.artifactId.trim()) || null
@@ -141,7 +141,7 @@ function coerceStoredMessageContentParts(rawMessage, artifactLookup) {
         : mimeType && base64
           ? `data:${mimeType};base64,${base64}`
           : '';
-    return {
+    const restoredPart = {
       ...part,
       ...(mimeType ? { mimeType } : {}),
       ...(base64 ? { base64 } : {}),
@@ -152,6 +152,24 @@ function coerceStoredMessageContentParts(rawMessage, artifactLookup) {
           ? { workspacePath: artifact.workspacePath.trim() }
           : {}),
     };
+    if (part.type === 'audio') {
+      return {
+        ...restoredPart,
+        ...(typeof part.samplesBase64 === 'string' && part.samplesBase64.trim()
+          ? { samplesBase64: part.samplesBase64.trim() }
+          : {}),
+        ...(Number.isFinite(part.durationSeconds) && part.durationSeconds >= 0
+          ? { durationSeconds: part.durationSeconds }
+          : {}),
+        ...(Number.isFinite(part.sampleRate) && part.sampleRate > 0
+          ? { sampleRate: Math.round(part.sampleRate) }
+          : {}),
+        ...(Number.isFinite(part.sampleCount) && part.sampleCount > 0
+          ? { sampleCount: Math.round(part.sampleCount) }
+          : {}),
+      };
+    }
+    return restoredPart;
   });
 }
 
@@ -346,6 +364,26 @@ function serializeMessageContent(message) {
           base64: typeof part.base64 === 'string' ? part.base64 : undefined,
           url: typeof part.url === 'string' ? part.url : undefined,
         }
+      : part.type === 'audio'
+        ? {
+            type: 'audio',
+            artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
+            mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
+            filename: typeof part.filename === 'string' ? part.filename : undefined,
+            workspacePath:
+              typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
+            size: Number.isFinite(part.size) ? part.size : undefined,
+            durationSeconds:
+              Number.isFinite(part.durationSeconds) && part.durationSeconds >= 0
+                ? part.durationSeconds
+                : undefined,
+            sampleRate: Number.isFinite(part.sampleRate) ? part.sampleRate : undefined,
+            sampleCount: Number.isFinite(part.sampleCount) ? part.sampleCount : undefined,
+            samplesBase64:
+              typeof part.samplesBase64 === 'string' ? part.samplesBase64 : undefined,
+            base64: typeof part.base64 === 'string' ? part.base64 : undefined,
+            url: typeof part.url === 'string' ? part.url : undefined,
+          }
       : part.type === 'file'
         ? {
             type: 'file',
@@ -404,7 +442,7 @@ function serializeMessageContent(message) {
                 typeof message.content.llmRepresentation === 'object' &&
                 message.content.llmRepresentation.type === 'text'
               ? message.content.llmRepresentation
-          : contentParts.some((part) => part.type === 'image')
+          : contentParts.some((part) => part.type === 'image' || part.type === 'audio')
             ? contentParts
             : {
                 type: 'text',

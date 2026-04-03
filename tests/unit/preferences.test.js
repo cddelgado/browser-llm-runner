@@ -167,25 +167,25 @@ describe('preferences controller', () => {
     harness.controller.populateModelSelect();
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
-    expect(cards.length).toBe(2);
+    expect(cards.length).toBe(3);
 
-    const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3 0.6B'));
-    expect(qwenCard?.textContent).toContain('40,960 tokens');
-    expect(qwenCard?.textContent).toContain('about 30,700 words');
+    const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3.5 2B'));
+    expect(qwenCard?.textContent).toContain('262,144 tokens');
+    expect(qwenCard?.textContent).toContain('about 196,600 words');
     expect(qwenCard?.textContent).toContain('EN');
     expect(qwenCard?.textContent).toContain('ZH');
     expect(qwenCard?.textContent).toContain('ES');
     expect(qwenCard?.textContent).toContain('FR');
     expect(qwenCard?.textContent).not.toContain('DE');
     expect(qwenCard?.textContent).toContain('and more');
-    expect(qwenCard?.textContent).not.toContain('onnx-community/Qwen3-0.6B-ONNX');
+    expect(qwenCard?.textContent).not.toContain('onnx-community/Qwen3.5-2B-ONNX');
     expect(
       /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))?.href
-    ).toBe('https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX');
+    ).toBe('https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX');
     expect(
       /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))?.textContent
     ).toBe('Model details');
-    expect(qwenCard?.querySelectorAll('.model-feature-pill')).toHaveLength(2);
+    expect(qwenCard?.querySelectorAll('.model-feature-pill')).toHaveLength(3);
     expect(
       Array.from(qwenCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
@@ -193,6 +193,7 @@ describe('preferences controller', () => {
     ).toEqual([
       'Shows a thinking section',
       'Can use built-in tools',
+      'Accepts image input',
     ]);
 
     expect(qwenCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('aria-label')).toBe(
@@ -203,14 +204,14 @@ describe('preferences controller', () => {
     );
     expect(
       /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-language-overflow'))?.href
-    ).toBe('https://huggingface.co/Qwen/Qwen3-0.6B');
+    ).toBe('https://huggingface.co/Qwen/Qwen3.5-2B');
 
     const qwenButton = /** @type {HTMLButtonElement | null} */ (
       qwenCard?.querySelector('.model-card-button')
     );
     qwenButton?.click();
 
-    expect(modelSelect.value).toBe('onnx-community/Qwen3-0.6B-ONNX');
+    expect(modelSelect.value).toBe('onnx-community/Qwen3.5-2B-ONNX');
     expect(qwenButton?.getAttribute('aria-checked')).toBe('true');
   });
 });

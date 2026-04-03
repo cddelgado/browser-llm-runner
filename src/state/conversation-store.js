@@ -403,6 +403,34 @@ async function encodeContentPart(part) {
           : undefined,
     };
   }
+  if (part.type === 'audio') {
+    return {
+      type: 'audio',
+      artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
+      mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
+      filename: typeof part.filename === 'string' ? part.filename : undefined,
+      workspacePath:
+        typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
+      size: Number.isFinite(part.size) ? part.size : undefined,
+      durationSeconds:
+        Number.isFinite(part.durationSeconds) && part.durationSeconds >= 0
+          ? part.durationSeconds
+          : undefined,
+      sampleRate: Number.isFinite(part.sampleRate) ? part.sampleRate : undefined,
+      sampleCount: Number.isFinite(part.sampleCount) ? part.sampleCount : undefined,
+      samplesBase64: await encodeTextValue(
+        typeof part.samplesBase64 === 'string' ? part.samplesBase64 : '',
+      ),
+      base64:
+        typeof part.base64 === 'string' && !part.artifactId
+          ? await encodeTextValue(part.base64)
+          : undefined,
+      url:
+        typeof part.url === 'string' && !part.artifactId
+          ? await encodeTextValue(part.url)
+          : undefined,
+    };
+  }
   if (part.type === 'file') {
     return {
       type: 'file',
@@ -481,6 +509,33 @@ async function decodeContentPart(part) {
     }
     if (image) {
       decoded.image = image;
+    }
+    return decoded;
+  }
+  if (part.type === 'audio') {
+    const decoded = {
+      type: 'audio',
+      artifactId: typeof part.artifactId === 'string' ? part.artifactId : undefined,
+      mimeType: typeof part.mimeType === 'string' ? part.mimeType : undefined,
+      filename: typeof part.filename === 'string' ? part.filename : undefined,
+      workspacePath:
+        typeof part.workspacePath === 'string' ? part.workspacePath : undefined,
+      size: Number.isFinite(part.size) ? part.size : undefined,
+      durationSeconds:
+        Number.isFinite(part.durationSeconds) && part.durationSeconds >= 0
+          ? part.durationSeconds
+          : undefined,
+      sampleRate: Number.isFinite(part.sampleRate) ? part.sampleRate : undefined,
+      sampleCount: Number.isFinite(part.sampleCount) ? part.sampleCount : undefined,
+      samplesBase64: await decodeTextValue(part.samplesBase64),
+    };
+    const base64 = await decodeTextValue(part.base64);
+    const url = await decodeTextValue(part.url);
+    if (base64) {
+      decoded.base64 = base64;
+    }
+    if (url) {
+      decoded.url = url;
     }
     return decoded;
   }

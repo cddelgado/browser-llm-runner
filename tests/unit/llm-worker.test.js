@@ -26,4 +26,38 @@ describe('llm.worker resolvePrompt', () => {
       { role: 'tool', content: '{"iso":"2026-03-26T06:00:00.000Z"}' },
     ]);
   });
+
+  test('preserves structured audio parts in multimodal prompts', () => {
+    expect(
+      resolvePrompt([
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Transcribe this.' },
+            {
+              type: 'audio',
+              mimeType: 'audio/mpeg',
+              samplesBase64: 'abcd',
+              sampleRate: 16000,
+              sampleCount: 4,
+            },
+          ],
+        },
+      ])
+    ).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Transcribe this.' },
+          {
+            type: 'audio',
+            mimeType: 'audio/mpeg',
+            samplesBase64: 'abcd',
+            sampleRate: 16000,
+            sampleCount: 4,
+          },
+        ],
+      },
+    ]);
+  });
 });

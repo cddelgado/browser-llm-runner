@@ -120,6 +120,53 @@ function normalizeImageContentPart(rawPart) {
   return normalizedPart;
 }
 
+function normalizeAudioContentPart(rawPart) {
+  const artifactId = typeof rawPart.artifactId === 'string' ? rawPart.artifactId.trim() : '';
+  const mimeType = typeof rawPart.mimeType === 'string' ? rawPart.mimeType.trim() : '';
+  const base64 = typeof rawPart.base64 === 'string' ? rawPart.base64.trim() : '';
+  const url = typeof rawPart.url === 'string' ? rawPart.url.trim() : '';
+  const samplesBase64 =
+    typeof rawPart.samplesBase64 === 'string' ? rawPart.samplesBase64.trim() : '';
+  if (!artifactId && !mimeType && !base64 && !url && !samplesBase64) {
+    return null;
+  }
+  const normalizedPart = { type: 'audio' };
+  if (artifactId) {
+    normalizedPart.artifactId = artifactId;
+  }
+  if (mimeType) {
+    normalizedPart.mimeType = mimeType;
+  }
+  if (base64) {
+    normalizedPart.base64 = base64;
+  }
+  if (url) {
+    normalizedPart.url = url;
+  }
+  if (samplesBase64) {
+    normalizedPart.samplesBase64 = samplesBase64;
+  }
+  if (typeof rawPart.filename === 'string' && rawPart.filename.trim()) {
+    normalizedPart.filename = rawPart.filename.trim();
+  }
+  if (Number.isFinite(rawPart.size) && rawPart.size >= 0) {
+    normalizedPart.size = Math.round(rawPart.size);
+  }
+  if (Number.isFinite(rawPart.durationSeconds) && rawPart.durationSeconds >= 0) {
+    normalizedPart.durationSeconds = rawPart.durationSeconds;
+  }
+  if (Number.isFinite(rawPart.sampleRate) && rawPart.sampleRate > 0) {
+    normalizedPart.sampleRate = Math.round(rawPart.sampleRate);
+  }
+  if (Number.isFinite(rawPart.sampleCount) && rawPart.sampleCount > 0) {
+    normalizedPart.sampleCount = Math.round(rawPart.sampleCount);
+  }
+  if (typeof rawPart.workspacePath === 'string' && rawPart.workspacePath.trim()) {
+    normalizedPart.workspacePath = rawPart.workspacePath.trim();
+  }
+  return normalizedPart;
+}
+
 function normalizeFileContentPart(rawPart) {
   const artifactId = typeof rawPart.artifactId === 'string' ? rawPart.artifactId.trim() : '';
   const mimeType = typeof rawPart.mimeType === 'string' ? rawPart.mimeType.trim() : '';
@@ -212,6 +259,9 @@ function normalizeMessageContentPart(rawPart) {
   if (rawPart.type === 'image') {
     return normalizeImageContentPart(rawPart);
   }
+  if (rawPart.type === 'audio') {
+    return normalizeAudioContentPart(rawPart);
+  }
   if (rawPart.type === 'file') {
     return normalizeFileContentPart(rawPart);
   }
@@ -262,6 +312,9 @@ function buildUserMessageLlmRepresentation(parts, fallbackText = '') {
       if (part.type === 'image') {
         return { ...part };
       }
+      if (part.type === 'audio') {
+        return { ...part };
+      }
       if (part.type === 'file') {
         const llmText = typeof part.llmText === 'string' ? part.llmText : '';
         if (!llmText.trim()) {
@@ -280,8 +333,10 @@ function buildUserMessageLlmRepresentation(parts, fallbackText = '') {
     return getTextFromMessageContentParts(normalizedParts, fallbackText);
   }
 
-  const containsImage = llmParts.some((part) => part.type === 'image');
-  if (!containsImage) {
+  const containsStructuredMedia = llmParts.some(
+    (part) => part.type === 'image' || part.type === 'audio'
+  );
+  if (!containsStructuredMedia) {
     return llmParts
       .filter((part) => part.type === 'text' && typeof part.text === 'string')
       .map((part) => part.text)
@@ -337,8 +392,10 @@ function buildMessagePromptContent(message) {
   if (Array.isArray(explicitLlmRepresentation)) {
     const normalizedExplicitParts = normalizeMessageContentParts(explicitLlmRepresentation);
     if (normalizedExplicitParts.length) {
-      const containsImage = normalizedExplicitParts.some((part) => part.type === 'image');
-      if (containsImage) {
+      const containsStructuredMedia = normalizedExplicitParts.some(
+        (part) => part.type === 'image' || part.type === 'audio'
+      );
+      if (containsStructuredMedia) {
         return normalizedExplicitParts.map((part) => ({ ...part }));
       }
       return getTextFromMessageContentParts(normalizedExplicitParts, message.text || '').trim();
@@ -366,12 +423,14 @@ function buildMessagePromptContent(message) {
   if (typeof llmRepresentation === 'string' && llmRepresentation.trim()) {
     return llmRepresentation.trim();
   }
-  const containsImage = normalizedParts.some((part) => part.type === 'image');
-  if (!containsImage) {
+  const containsStructuredMedia = normalizedParts.some(
+    (part) => part.type === 'image' || part.type === 'audio'
+  );
+  if (!containsStructuredMedia) {
     return getTextFromMessageContentParts(normalizedParts, message.text || '').trim();
   }
   return normalizedParts
-    .filter((part) => part.type === 'text' || part.type === 'image')
+    .filter((part) => part.type === 'text' || part.type === 'image' || part.type === 'audio')
     .map((part) => ({ ...part }));
 }
 

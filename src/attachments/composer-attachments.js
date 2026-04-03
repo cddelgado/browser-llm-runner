@@ -16,14 +16,28 @@ export const SUPPORTED_TEXT_ATTACHMENT_TYPES = Object.freeze({
   pdf: { mimeType: 'application/pdf', label: 'PDF document', category: 'pdf' },
 });
 
+export const SUPPORTED_AUDIO_ATTACHMENT_TYPES = Object.freeze({
+  mp3: { mimeType: 'audio/mpeg', label: 'MP3 audio' },
+  wav: { mimeType: 'audio/wav', label: 'WAV audio' },
+  ogg: { mimeType: 'audio/ogg', label: 'Ogg audio' },
+  oga: { mimeType: 'audio/ogg', label: 'Ogg audio' },
+  flac: { mimeType: 'audio/flac', label: 'FLAC audio' },
+  aac: { mimeType: 'audio/aac', label: 'AAC audio' },
+  m4a: { mimeType: 'audio/mp4', label: 'M4A audio' },
+  webm: { mimeType: 'audio/webm', label: 'WebM audio' },
+});
+
 export const FILE_ATTACHMENT_ACCEPT = '.txt,.csv,.md,.html,.htm,.css,.js,.pdf';
+export const AUDIO_ATTACHMENT_ACCEPT = 'audio/*,.mp3,.wav,.ogg,.oga,.flac,.aac,.m4a,.webm';
 export const IMAGE_AND_FILE_ATTACHMENT_ACCEPT = `image/*,${FILE_ATTACHMENT_ACCEPT}`;
 export const MAX_TEXT_ATTACHMENT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 export const MAX_TEXT_ATTACHMENT_TEXT_CHARS = 400000;
 export const MAX_IMAGE_ATTACHMENT_FILE_SIZE_BYTES = 15 * 1024 * 1024;
 export const MAX_IMAGE_ATTACHMENT_PIXEL_COUNT = 40000000;
+export const MAX_AUDIO_ATTACHMENT_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 export const MAX_PDF_ATTACHMENT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 export const MAX_PDF_ATTACHMENT_TEXT_CHARS = 120000;
+export const AUDIO_ATTACHMENT_SAMPLE_RATE = 16000;
 
 function base64FromArrayBuffer(buffer) {
   let binary = '';
@@ -39,6 +53,67 @@ function base64FromArrayBuffer(buffer) {
 async function computeSha256Hex(buffer) {
   const digest = await crypto.subtle.digest('SHA-256', buffer);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function getAudioContextClass() {
+  if (typeof window?.AudioContext === 'function') {
+    return window.AudioContext;
+  }
+  const webkitAudioContext = /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (
+    window
+  ).webkitAudioContext;
+  if (typeof webkitAudioContext === 'function') {
+    return webkitAudioContext;
+  }
+  return null;
+}
+
+function float32ArrayToBase64(floatArray) {
+  if (!(floatArray instanceof Float32Array)) {
+    return '';
+  }
+  const byteView = new Uint8Array(
+    floatArray.buffer.slice(floatArray.byteOffset, floatArray.byteOffset + floatArray.byteLength)
+  );
+  return base64FromArrayBuffer(byteView.buffer);
+}
+
+async function decodeAudioForAttachment(buffer, targetSampleRate = AUDIO_ATTACHMENT_SAMPLE_RATE) {
+  const AudioContextClass = getAudioContextClass();
+  if (!AudioContextClass) {
+    throw new Error('This browser cannot decode uploaded audio files locally.');
+  }
+  const audioContext = new AudioContextClass({ sampleRate: targetSampleRate });
+  try {
+    const decoded = await audioContext.decodeAudioData(buffer.slice(0));
+    let samples;
+    if (decoded.numberOfChannels === 2) {
+      const left = decoded.getChannelData(0);
+      const right = decoded.getChannelData(1);
+      samples = new Float32Array(decoded.length);
+      const scalingFactor = Math.sqrt(2);
+      for (let index = 0; index < decoded.length; index += 1) {
+        samples[index] = (scalingFactor * (left[index] + right[index])) / 2;
+      }
+    } else {
+      samples = decoded.getChannelData(0).slice(0);
+    }
+    return {
+      sampleRate: decoded.sampleRate,
+      durationSeconds: decoded.duration,
+      samples,
+    };
+  } catch {
+    throw new Error('The selected audio file could not be decoded in this browser.');
+  } finally {
+    if (typeof audioContext.close === 'function') {
+      try {
+        await audioContext.close();
+      } catch {
+        // Ignore best-effort cleanup failures.
+      }
+    }
+  }
 }
 
 function loadImageDimensions(src) {
@@ -86,6 +161,22 @@ export function getSupportedAttachmentMetadata(file) {
       extension,
     };
   }
+  if (mimeType.startsWith('audio/')) {
+    return {
+      category: 'audio',
+      mimeType,
+      extension,
+    };
+  }
+  const supportedAudioType = SUPPORTED_AUDIO_ATTACHMENT_TYPES[extension];
+  if (supportedAudioType) {
+    return {
+      category: 'audio',
+      mimeType: mimeType || supportedAudioType.mimeType,
+      extension,
+      label: supportedAudioType.label,
+    };
+  }
   const supportedTextType = SUPPORTED_TEXT_ATTACHMENT_TYPES[extension];
   if (supportedTextType) {
     return {
@@ -98,13 +189,27 @@ export function getSupportedAttachmentMetadata(file) {
   return null;
 }
 
-export function getAttachmentButtonAcceptValue(imageInputSupported) {
-  return imageInputSupported ? IMAGE_AND_FILE_ATTACHMENT_ACCEPT : FILE_ATTACHMENT_ACCEPT;
+export function getAttachmentButtonAcceptValue({
+  imageInputSupported = false,
+  audioInputSupported = false,
+} = {}) {
+  const acceptTokens = [];
+  if (imageInputSupported) {
+    acceptTokens.push('image/*');
+  }
+  if (audioInputSupported) {
+    acceptTokens.push(...AUDIO_ATTACHMENT_ACCEPT.split(','));
+  }
+  acceptTokens.push(...FILE_ATTACHMENT_ACCEPT.split(','));
+  return [...new Set(acceptTokens)].join(',');
 }
 
 export function getAttachmentIconClass(attachment) {
   if (attachment?.type === 'image') {
     return 'bi-image';
+  }
+  if (attachment?.type === 'audio' || String(attachment?.mimeType || '').startsWith('audio/')) {
+    return 'bi-file-earmark-music';
   }
   if (attachment?.extension === 'csv' || attachment?.mimeType === 'text/csv') {
     return 'bi-file-earmark-spreadsheet';
@@ -396,6 +501,11 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
       `Image files larger than ${Math.round(MAX_IMAGE_ATTACHMENT_FILE_SIZE_BYTES / (1024 * 1024))} MB are not supported yet.`
     );
   }
+  if (attachmentMetadata.category === 'audio' && fileSize > MAX_AUDIO_ATTACHMENT_FILE_SIZE_BYTES) {
+    throw new Error(
+      `Audio files larger than ${Math.round(MAX_AUDIO_ATTACHMENT_FILE_SIZE_BYTES / (1024 * 1024))} MB are not supported yet.`
+    );
+  }
   if (attachmentMetadata.category === 'file' && fileSize > MAX_TEXT_ATTACHMENT_FILE_SIZE_BYTES) {
     throw new Error(
       `Text attachments larger than ${Math.round(MAX_TEXT_ATTACHMENT_FILE_SIZE_BYTES / (1024 * 1024))} MB are not supported yet.`
@@ -442,6 +552,32 @@ export async function createComposerAttachmentFromFile(file, options = {}) {
       width: dimensions.width,
       height: dimensions.height,
       alt: visibleFilename ? `Selected image: ${visibleFilename}` : 'Selected image',
+      workspacePath: storedWorkspaceFile?.path,
+      hash: {
+        algorithm: 'sha256',
+        value: hashValue,
+      },
+    };
+  }
+  if (attachmentMetadata.category === 'audio') {
+    const base64 = base64FromArrayBuffer(buffer);
+    const mimeType = attachmentMetadata.mimeType || 'application/octet-stream';
+    const url = `data:${mimeType};base64,${base64}`;
+    const decodedAudio = await decodeAudioForAttachment(buffer);
+    return {
+      id,
+      type: 'audio',
+      kind: 'binary',
+      mimeType,
+      encoding: 'base64',
+      data: base64,
+      url,
+      filename: visibleFilename,
+      size: Number.isFinite(file.size) ? file.size : buffer.byteLength,
+      durationSeconds: decodedAudio.durationSeconds,
+      sampleRate: decodedAudio.sampleRate,
+      sampleCount: decodedAudio.samples.length,
+      samplesBase64: float32ArrayToBase64(decodedAudio.samples),
       workspacePath: storedWorkspaceFile?.path,
       hash: {
         algorithm: 'sha256',

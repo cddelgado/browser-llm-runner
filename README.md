@@ -169,17 +169,24 @@ Student-facing browser chat UI with local model inference.
 
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
   - Uses the published `q4f16` web export.
-- `onnx-community/Qwen3-0.6B-ONNX`
-  - Uses the model card's WebGPU-recommended `q4f16` runtime.
-  - Uses the model card's recommended sampling defaults: temperature `0.6`, top-k `20`, top-p `0.95`.
-  - Uses a configurable Qwen thinking-control profile: `enable_thinking` at generation time plus `/think` and `/no_think` system-prompt switches.
+- `onnx-community/Qwen3.5-2B-ONNX`
+  - Requires WebGPU and uses the published `q4f16` ONNX export with external data loading.
+  - Uses Qwen's thinking-control profile: `enable_thinking` at generation time plus `/think` and `/no_think` system-prompt switches.
+  - Exposes text plus uploaded image input in this app.
+  - Uses the XML tool-call format supported by this app.
+- `onnx-community/gemma-4-E2B-it-ONNX`
+  - Requires WebGPU and uses the published `q4f16` ONNX export with external data loading.
+  - Exposes text plus uploaded image and audio input in this app.
+  - Audio input is upload-only; live recording is intentionally not exposed.
+  - Video input is not exposed because the current browser runtime path is not viable enough yet.
+  - Uses Gemma's special-token tool-call format supported by this app.
 - Hidden legacy/replacement model definitions remain in config so stored conversations and model-specific behaviors still resolve correctly:
   - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
   - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
   - `onnx-community/gemma-3n-E2B-it-ONNX`
 - Legacy stored IDs are automatically remapped to the supported model:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-  - `onnx-community/Qwen3.5-2B-ONNX` -> `onnx-community/Qwen3-0.6B-ONNX`
+  - `onnx-community/Qwen3-0.6B-ONNX` -> `onnx-community/Qwen3.5-2B-ONNX`
   - `huggingworld/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
@@ -192,6 +199,7 @@ Student-facing browser chat UI with local model inference.
 - `models[].repositoryUrl`: model details link used from the card footer
   - `models[].features`: normalized capability flags (`streaming`, `thinking`, `imageInput`, `audioInput`, `videoInput`)
   - `models[].runtime`: per-model runtime hints (`dtype`, optional `enableThinking`, optional `requiresWebGpu`, optional `multimodalGeneration`, optional `useExternalDataFormat`)
+  - `models[].inputLimits`: optional per-media limits such as `maxImageInputs` and `maxAudioInputs`
   - `models[].thinkingControl`: optional model-specific reasoning control metadata (`defaultEnabled`, optional `runtimeParameter`, optional `enabledInstruction`, optional `disabledInstruction`)
   - `models[].generation`: per-model defaults and limits for output/context tokens, temperature, `defaultTopK`, and `defaultTopP`
   - `defaultModelId`: fallback/default selection
@@ -215,7 +223,10 @@ Student-facing browser chat UI with local model inference.
 - Attachment ingestion uses browser-local limits before large files are read into memory:
   - text files: 5 MB max, truncated to 400,000 characters
   - images: 15 MB max, 40,000,000 pixels max
+  - audio files: 25 MB max, decoded locally to mono 16 kHz waveform data when the selected model supports audio input
   - PDFs: 20 MB max, truncated to 120,000 characters after extraction
+- Audio input is upload-only. The app does not expose live recording.
+- Video input is not currently exposed because the supported browser runtime paths are not reliable enough yet.
 - The app still does not ship with a CSP. This is a documented hardening gap for a future pass.
 - Model artifacts are still fetched from upstream repositories at runtime and are not revision-pinned yet. That risk is currently accepted.
 

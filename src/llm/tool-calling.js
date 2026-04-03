@@ -179,6 +179,22 @@ function buildToolCallingFormatInstructions(toolCallingConfig) {
       'Shape inside the wrapper: tool_name(arg1="value1", arg2="value2").',
     ];
   }
+  if (toolCallingConfig.format === 'xml-tool-call') {
+    return [
+      'When you call a tool, output exactly one XML tool-call block and nothing else.',
+      'Wrap the call in <tool_call>...</tool_call>.',
+      'Inside it, use one nested <function=tool_name>...</function> block.',
+      'Represent each argument as its own <parameter=argument_name>value</parameter> block.',
+    ];
+  }
+  if (toolCallingConfig.format === 'gemma-special-token-call') {
+    return [
+      'When you call a tool, output exactly one Gemma-style tool-call block and nothing else.',
+      'Wrap the call in <|tool_call> and <tool_call|>.',
+      'Shape inside the wrapper: call:tool_name{arg1:<|"|>value1<|"|>, arg2:2}.',
+      'Use <|"|>...<|"|> around string values.',
+    ];
+  }
   return [];
 }
 
@@ -379,6 +395,84 @@ function detectTaggedJsonToolCall(rawText, toolCallingConfig) {
   return detectedCalls;
 }
 
+function parseLooseStructuredValue(rawValue) {
+  const text = String(rawValue ?? '').trim();
+  if (!text) {
+    return '';
+  }
+  if (
+    (text.startsWith('{') && text.endsWith('}')) ||
+    (text.startsWith('[') && text.endsWith(']')) ||
+    ((text.startsWith('"') && text.endsWith('"')) ||
+      (text.startsWith("'") && text.endsWith("'")))
+  ) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      // fall through to scalar parsing
+    }
+  }
+  if (text === 'true') {
+    return true;
+  }
+  if (text === 'false') {
+    return false;
+  }
+  if (text === 'null') {
+    return null;
+  }
+  if (/^-?(?:\d+|\d*\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) {
+    const numericValue = Number(text);
+    if (Number.isFinite(numericValue)) {
+      return numericValue;
+    }
+  }
+  return text;
+}
+
+function detectXmlToolCall(rawText, toolCallingConfig) {
+  const trimmed = String(rawText || '').trim();
+  const detectedCalls = [];
+  let searchIndex = 0;
+  const openTag = '<tool_call>';
+  const closeTag = '</tool_call>';
+  while (searchIndex < trimmed.length) {
+    const openIndex = trimmed.indexOf(openTag, searchIndex);
+    if (openIndex < 0) {
+      break;
+    }
+    const closeIndex = trimmed.indexOf(closeTag, openIndex + openTag.length);
+    if (closeIndex < 0) {
+      break;
+    }
+    const segmentText = trimmed.slice(openIndex, closeIndex + closeTag.length);
+    const innerText = trimmed.slice(openIndex + openTag.length, closeIndex).trim();
+    const functionMatch = innerText.match(
+      /^<function=([a-zA-Z_][a-zA-Z0-9_-]*)>\s*([\s\S]*?)\s*<\/function>$/
+    );
+    if (functionMatch) {
+      const [, toolName, parameterText] = functionMatch;
+      const argumentsObject = {};
+      const parameterPattern = /<parameter=([a-zA-Z_][a-zA-Z0-9_-]*)>\s*([\s\S]*?)\s*<\/parameter>/g;
+      let parameterMatch;
+      while ((parameterMatch = parameterPattern.exec(parameterText))) {
+        argumentsObject[parameterMatch[1]] = parseLooseStructuredValue(parameterMatch[2]);
+      }
+      const detected = normalizeDetectedToolCall(
+        toolName,
+        argumentsObject,
+        segmentText,
+        toolCallingConfig.format
+      );
+      if (detected) {
+        detectedCalls.push(detected);
+      }
+    }
+    searchIndex = closeIndex + closeTag.length;
+  }
+  return detectedCalls;
+}
+
 function parseSpecialTokenArgumentValue(value) {
   const trimmed = String(value || '').trim();
   if (!trimmed) {
@@ -434,6 +528,217 @@ function splitSpecialTokenArguments(rawArgumentsText) {
     segments.push(current.trim());
   }
   return segments;
+}
+
+function skipGemmaWhitespace(text, index) {
+  let cursor = index;
+  while (cursor < text.length && /\s/.test(text[cursor])) {
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function parseGemmaQuotedString(text, index) {
+  if (text.startsWith('<|"|>', index)) {
+    const closingIndex = text.indexOf('<|"|>', index + 5);
+    if (closingIndex < 0) {
+      throw new Error('Unterminated Gemma quoted string.');
+    }
+    return {
+      value: text.slice(index + 5, closingIndex),
+      index: closingIndex + 5,
+    };
+  }
+  const quote = text[index];
+  if (quote !== '"' && quote !== "'") {
+    throw new Error('Expected quoted string.');
+  }
+  let cursor = index + 1;
+  let value = '';
+  let escaped = false;
+  while (cursor < text.length) {
+    const character = text[cursor];
+    if (escaped) {
+      value += character;
+      escaped = false;
+      cursor += 1;
+      continue;
+    }
+    if (character === '\\') {
+      escaped = true;
+      cursor += 1;
+      continue;
+    }
+    if (character === quote) {
+      return {
+        value,
+        index: cursor + 1,
+      };
+    }
+    value += character;
+    cursor += 1;
+  }
+  throw new Error('Unterminated quoted string.');
+}
+
+function parseGemmaBareToken(text, index) {
+  let cursor = index;
+  while (cursor < text.length && !/[,\]}]/.test(text[cursor])) {
+    cursor += 1;
+  }
+  const token = text.slice(index, cursor).trim();
+  if (!token) {
+    throw new Error('Expected token value.');
+  }
+  return {
+    value: parseLooseStructuredValue(token),
+    index: cursor,
+  };
+}
+
+function parseGemmaKey(text, index) {
+  const cursor = skipGemmaWhitespace(text, index);
+  if (text.startsWith('<|"|>', cursor) || text[cursor] === '"' || text[cursor] === "'") {
+    return parseGemmaQuotedString(text, cursor);
+  }
+  const match = text.slice(cursor).match(/^[A-Za-z_][A-Za-z0-9_.-]*/);
+  if (!match) {
+    throw new Error('Expected object key.');
+  }
+  return {
+    value: match[0],
+    index: cursor + match[0].length,
+  };
+}
+
+function parseGemmaArray(text, index) {
+  let cursor = skipGemmaWhitespace(text, index);
+  if (text[cursor] !== '[') {
+    throw new Error('Expected array.');
+  }
+  cursor += 1;
+  const values = [];
+  while (cursor < text.length) {
+    cursor = skipGemmaWhitespace(text, cursor);
+    if (text[cursor] === ']') {
+      return {
+        value: values,
+        index: cursor + 1,
+      };
+    }
+    const parsedValue = parseGemmaValue(text, cursor);
+    values.push(parsedValue.value);
+    cursor = skipGemmaWhitespace(text, parsedValue.index);
+    if (text[cursor] === ',') {
+      cursor += 1;
+      continue;
+    }
+    if (text[cursor] === ']') {
+      return {
+        value: values,
+        index: cursor + 1,
+      };
+    }
+    throw new Error('Expected , or ] in array.');
+  }
+  throw new Error('Unterminated array.');
+}
+
+function parseGemmaObject(text, index) {
+  let cursor = skipGemmaWhitespace(text, index);
+  if (text[cursor] !== '{') {
+    throw new Error('Expected object.');
+  }
+  cursor += 1;
+  const result = {};
+  while (cursor < text.length) {
+    cursor = skipGemmaWhitespace(text, cursor);
+    if (text[cursor] === '}') {
+      return {
+        value: result,
+        index: cursor + 1,
+      };
+    }
+    const parsedKey = parseGemmaKey(text, cursor);
+    cursor = skipGemmaWhitespace(text, parsedKey.index);
+    if (text[cursor] !== ':') {
+      throw new Error('Expected : after object key.');
+    }
+    const parsedValue = parseGemmaValue(text, cursor + 1);
+    result[parsedKey.value] = parsedValue.value;
+    cursor = skipGemmaWhitespace(text, parsedValue.index);
+    if (text[cursor] === ',') {
+      cursor += 1;
+      continue;
+    }
+    if (text[cursor] === '}') {
+      return {
+        value: result,
+        index: cursor + 1,
+      };
+    }
+    throw new Error('Expected , or } in object.');
+  }
+  throw new Error('Unterminated object.');
+}
+
+function parseGemmaValue(text, index) {
+  const cursor = skipGemmaWhitespace(text, index);
+  if (text.startsWith('<|"|>', cursor) || text[cursor] === '"' || text[cursor] === "'") {
+    return parseGemmaQuotedString(text, cursor);
+  }
+  if (text[cursor] === '{') {
+    return parseGemmaObject(text, cursor);
+  }
+  if (text[cursor] === '[') {
+    return parseGemmaArray(text, cursor);
+  }
+  return parseGemmaBareToken(text, cursor);
+}
+
+function detectGemmaSpecialTokenCall(rawText, toolCallingConfig) {
+  const trimmed = String(rawText || '').trim();
+  const detectedCalls = [];
+  let searchIndex = 0;
+  const openTag = '<|tool_call>';
+  const closeTag = '<tool_call|>';
+  while (searchIndex < trimmed.length) {
+    const openIndex = trimmed.indexOf(openTag, searchIndex);
+    if (openIndex < 0) {
+      break;
+    }
+    const closeIndex = trimmed.indexOf(closeTag, openIndex + openTag.length);
+    if (closeIndex < 0) {
+      break;
+    }
+    const segmentText = trimmed.slice(openIndex, closeIndex + closeTag.length);
+    const innerText = trimmed.slice(openIndex + openTag.length, closeIndex).trim();
+    if (innerText.startsWith('call:')) {
+      const braceIndex = innerText.indexOf('{', 5);
+      if (braceIndex > 5) {
+        const toolName = innerText.slice(5, braceIndex).trim();
+        try {
+          const parsedArguments = parseGemmaObject(innerText, braceIndex);
+          const trailing = innerText.slice(parsedArguments.index).trim();
+          if (!trailing) {
+            const detected = normalizeDetectedToolCall(
+              toolName,
+              parsedArguments.value,
+              segmentText,
+              toolCallingConfig.format
+            );
+            if (detected) {
+              detectedCalls.push(detected);
+            }
+          }
+        } catch {
+          // Ignore malformed Gemma tool-call blocks and keep scanning.
+        }
+      }
+    }
+    searchIndex = closeIndex + closeTag.length;
+  }
+  return detectedCalls;
 }
 
 function detectSpecialTokenCall(rawText, toolCallingConfig) {
@@ -499,6 +804,12 @@ export function sniffToolCalls(rawText, toolCallingConfig) {
   }
   if (toolCallingConfig.format === 'special-token-call') {
     return detectSpecialTokenCall(rawText, toolCallingConfig);
+  }
+  if (toolCallingConfig.format === 'xml-tool-call') {
+    return detectXmlToolCall(rawText, toolCallingConfig);
+  }
+  if (toolCallingConfig.format === 'gemma-special-token-call') {
+    return detectGemmaSpecialTokenCall(rawText, toolCallingConfig);
   }
   return [];
 }
@@ -629,7 +940,8 @@ function sanitizeTaskListItemText(value) {
   }
   if (
     /^<tool_call>[\s\S]*<\/tool_call>$/i.test(normalizedText) ||
-    /^<\|tool_call_start\|>[\s\S]*<\|tool_call_end\|>$/i.test(normalizedText)
+    /^<\|tool_call_start\|>[\s\S]*<\|tool_call_end\|>$/i.test(normalizedText) ||
+    /^<\|tool_call\>[\s\S]*<tool_call\|>$/i.test(normalizedText)
   ) {
     throw new Error('tasklist item must be plain language, not a tool call block.');
   }

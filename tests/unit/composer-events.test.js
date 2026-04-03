@@ -70,6 +70,14 @@ function createHarness() {
       updateWelcomePanelVisibility: vi.fn(),
       getPendingComposerAttachments: vi.fn(() => appState.pendingComposerAttachments),
       selectedModelSupportsImageInput: vi.fn(() => false),
+      getSelectedModelAttachmentSupport: vi.fn(() => ({
+        imageInputSupported: false,
+        audioInputSupported: false,
+        videoInputSupported: false,
+        maxImageInputs: null,
+        maxAudioInputs: null,
+        maxVideoInputs: null,
+      })),
       createComposerAttachmentFromFile: vi.fn(),
       renderComposerAttachments: vi.fn(),
       setStatus: vi.fn(),
@@ -128,6 +136,14 @@ describe('composer-events', () => {
 
   test('opens the file picker from the reference menu option with the curated file filter', () => {
     const harness = createHarness();
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: true,
+      audioInputSupported: false,
+      videoInputSupported: false,
+      maxImageInputs: null,
+      maxAudioInputs: null,
+      maxVideoInputs: null,
+    });
     const clickSpy = vi.fn();
     harness.deps.imageAttachmentInput.click = clickSpy;
     bindComposerEvents(harness.deps);
@@ -220,6 +236,14 @@ describe('composer-events', () => {
     const harness = createHarness();
     harness.appState.pendingComposerAttachments = [];
     harness.deps.selectedModelSupportsImageInput.mockReturnValue(true);
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: true,
+      audioInputSupported: false,
+      videoInputSupported: false,
+      maxImageInputs: null,
+      maxAudioInputs: null,
+      maxVideoInputs: null,
+    });
     harness.deps.getPendingComposerAttachments.mockImplementation(
       () => harness.appState.pendingComposerAttachments
     );
@@ -302,6 +326,14 @@ describe('composer-events', () => {
     const harness = createHarness();
     harness.appState.pendingComposerAttachments = [];
     harness.deps.selectedModelSupportsImageInput.mockReturnValue(true);
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: true,
+      audioInputSupported: false,
+      videoInputSupported: false,
+      maxImageInputs: null,
+      maxAudioInputs: null,
+      maxVideoInputs: null,
+    });
     harness.deps.getPendingComposerAttachments.mockImplementation(
       () => harness.appState.pendingComposerAttachments
     );
@@ -330,7 +362,7 @@ describe('composer-events', () => {
 
     expect(harness.deps.createComposerAttachmentFromFile).not.toHaveBeenCalled();
     expect(harness.deps.setStatus).toHaveBeenCalledWith(
-      'Only image, .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached from this menu option.'
+      'Only image and .txt, .csv, .md, .html, .htm, .css, .js, and .pdf files can be attached from this menu option.'
     );
   });
 
@@ -338,6 +370,14 @@ describe('composer-events', () => {
     const harness = createHarness();
     harness.appState.pendingComposerAttachments = [];
     harness.deps.selectedModelSupportsImageInput.mockReturnValue(false);
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: false,
+      audioInputSupported: false,
+      videoInputSupported: false,
+      maxImageInputs: null,
+      maxAudioInputs: null,
+      maxVideoInputs: null,
+    });
     harness.deps.getPendingComposerAttachments.mockImplementation(
       () => harness.appState.pendingComposerAttachments
     );
@@ -369,6 +409,14 @@ describe('composer-events', () => {
     const harness = createHarness();
     harness.appState.pendingComposerAttachments = [];
     harness.deps.selectedModelSupportsImageInput.mockReturnValue(true);
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: true,
+      audioInputSupported: false,
+      videoInputSupported: false,
+      maxImageInputs: null,
+      maxAudioInputs: null,
+      maxVideoInputs: null,
+    });
     harness.deps.getPendingComposerAttachments.mockImplementation(
       () => harness.appState.pendingComposerAttachments
     );
@@ -411,6 +459,14 @@ describe('composer-events', () => {
     const harness = createHarness();
     harness.appState.pendingComposerAttachments = [];
     harness.deps.selectedModelSupportsImageInput.mockReturnValue(false);
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: false,
+      audioInputSupported: false,
+      videoInputSupported: false,
+      maxImageInputs: null,
+      maxAudioInputs: null,
+      maxVideoInputs: null,
+    });
     harness.deps.getPendingComposerAttachments.mockImplementation(
       () => harness.appState.pendingComposerAttachments
     );
@@ -435,6 +491,99 @@ describe('composer-events', () => {
     expect(harness.deps.createComposerAttachmentFromFile).not.toHaveBeenCalled();
     expect(harness.deps.setStatus).toHaveBeenCalledWith(
       'The selected files are not supported yet. Try a .txt, .csv, .md, .html, .htm, .css, .js, or .pdf file.'
+    );
+  });
+
+  test('accepts uploaded audio attachments when the model supports audio input', async () => {
+    const harness = createHarness();
+    harness.appState.pendingComposerAttachments = [];
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: false,
+      audioInputSupported: true,
+      videoInputSupported: false,
+      maxImageInputs: null,
+      maxAudioInputs: 1,
+      maxVideoInputs: null,
+    });
+    harness.deps.getPendingComposerAttachments.mockImplementation(
+      () => harness.appState.pendingComposerAttachments
+    );
+    harness.deps.createComposerAttachmentFromFile.mockImplementation(async (file) => ({
+      id: `attachment-${file.name}`,
+      type: 'audio',
+      filename: file.name,
+    }));
+    bindComposerEvents(harness.deps);
+
+    harness.deps.attachReferenceMenuItem.dispatchEvent(
+      new harness.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }),
+    );
+
+    const attachmentInput = harness.deps.imageAttachmentInput;
+    Object.defineProperty(attachmentInput, 'files', {
+      configurable: true,
+      value: [new harness.dom.window.File(['audio'], 'lecture.mp3', { type: 'audio/mpeg' })],
+    });
+
+    attachmentInput.dispatchEvent(
+      new harness.dom.window.Event('change', { bubbles: true, cancelable: true })
+    );
+
+    await new Promise((resolve) => harness.dom.window.setTimeout(resolve, 0));
+
+    expect(harness.deps.createComposerAttachmentFromFile).toHaveBeenCalledTimes(1);
+    expect(harness.appState.pendingComposerAttachments).toEqual([
+      expect.objectContaining({ filename: 'lecture.mp3', type: 'audio' }),
+    ]);
+    expect(harness.deps.setStatus).toHaveBeenCalledWith('1 audio file attached.');
+  });
+
+  test('skips extra images beyond the selected model input limit', async () => {
+    const harness = createHarness();
+    harness.appState.pendingComposerAttachments = [];
+    harness.deps.getSelectedModelAttachmentSupport.mockReturnValue({
+      imageInputSupported: true,
+      audioInputSupported: false,
+      videoInputSupported: false,
+      maxImageInputs: 1,
+      maxAudioInputs: null,
+      maxVideoInputs: null,
+    });
+    harness.deps.getPendingComposerAttachments.mockImplementation(
+      () => harness.appState.pendingComposerAttachments
+    );
+    harness.deps.createComposerAttachmentFromFile.mockImplementation(async (file) => ({
+      id: `attachment-${file.name}`,
+      type: 'image',
+      filename: file.name,
+    }));
+    bindComposerEvents(harness.deps);
+
+    harness.deps.attachReferenceMenuItem.dispatchEvent(
+      new harness.dom.window.MouseEvent('click', { bubbles: true, cancelable: true }),
+    );
+
+    const attachmentInput = harness.deps.imageAttachmentInput;
+    Object.defineProperty(attachmentInput, 'files', {
+      configurable: true,
+      value: [
+        new harness.dom.window.File(['a'], 'one.png', { type: 'image/png' }),
+        new harness.dom.window.File(['b'], 'two.png', { type: 'image/png' }),
+      ],
+    });
+
+    attachmentInput.dispatchEvent(
+      new harness.dom.window.Event('change', { bubbles: true, cancelable: true })
+    );
+
+    await new Promise((resolve) => harness.dom.window.setTimeout(resolve, 0));
+
+    expect(harness.deps.createComposerAttachmentFromFile).toHaveBeenCalledTimes(1);
+    expect(harness.appState.pendingComposerAttachments).toEqual([
+      expect.objectContaining({ filename: 'one.png', type: 'image' }),
+    ]);
+    expect(harness.deps.setStatus).toHaveBeenCalledWith(
+      '1 image attached. 1 extra attachment skipped because the selected model only accepts 1 image attachment.'
     );
   });
 });

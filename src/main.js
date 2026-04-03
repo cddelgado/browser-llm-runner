@@ -1167,10 +1167,33 @@ function getPendingComposerAttachments() {
     : [];
 }
 
-function selectedModelSupportsImageInput() {
-  const selectedModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+function normalizeAttachmentInputLimit(value) {
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function getModelAttachmentSupport(modelId) {
+  const selectedModelId = normalizeModelId(modelId || modelSelect?.value || DEFAULT_MODEL);
   const model = MODEL_OPTIONS_BY_ID.get(selectedModelId);
-  return model?.features?.imageInput === true && model?.runtime?.multimodalGeneration === true;
+  const runtime = model?.runtime || {};
+  const features = model?.features || {};
+  const inputLimits = model?.inputLimits || {};
+  const multimodalEnabled = runtime.multimodalGeneration === true;
+  return {
+    imageInputSupported: multimodalEnabled && features.imageInput === true,
+    audioInputSupported: multimodalEnabled && features.audioInput === true,
+    videoInputSupported: multimodalEnabled && features.videoInput === true,
+    maxImageInputs: normalizeAttachmentInputLimit(inputLimits.maxImageInputs),
+    maxAudioInputs: normalizeAttachmentInputLimit(inputLimits.maxAudioInputs),
+    maxVideoInputs: normalizeAttachmentInputLimit(inputLimits.maxVideoInputs),
+  };
+}
+
+function getSelectedModelAttachmentSupport() {
+  return getModelAttachmentSupport(modelSelect?.value || DEFAULT_MODEL);
+}
+
+function selectedModelSupportsImageInput() {
+  return getSelectedModelAttachmentSupport().imageInputSupported;
 }
 
 function modelSupportsToolCalling(modelId) {
@@ -1313,6 +1336,7 @@ function buildConversationRuntimeConfig(conversation = null) {
   const model = MODEL_OPTIONS_BY_ID.get(modelId);
   const runtime = model?.runtime || {};
   const features = model?.features || {};
+  const inputLimits = model?.inputLimits || {};
   const multimodalGeneration = runtime.multimodalGeneration === true;
   const thinkingControl = model?.thinkingControl || null;
   const thinkingEnabled = getConversationThinkingEnabled(conversation);
@@ -1321,6 +1345,15 @@ function buildConversationRuntimeConfig(conversation = null) {
     ...(multimodalGeneration && features.imageInput ? { imageInput: true } : {}),
     ...(multimodalGeneration && features.audioInput ? { audioInput: true } : {}),
     ...(multimodalGeneration && features.videoInput ? { videoInput: true } : {}),
+    ...(multimodalGeneration && Number.isInteger(inputLimits.maxImageInputs)
+      ? { maxImageInputs: inputLimits.maxImageInputs }
+      : {}),
+    ...(multimodalGeneration && Number.isInteger(inputLimits.maxAudioInputs)
+      ? { maxAudioInputs: inputLimits.maxAudioInputs }
+      : {}),
+    ...(multimodalGeneration && Number.isInteger(inputLimits.maxVideoInputs)
+      ? { maxVideoInputs: inputLimits.maxVideoInputs }
+      : {}),
     ...(thinkingControl?.runtimeParameter === 'enable_thinking'
       ? { enableThinking: thinkingEnabled }
       : {}),
@@ -1437,6 +1470,23 @@ function clearPendingComposerAttachments({ resetInput = true } = {}) {
   renderComposerAttachments();
 }
 
+function formatAttachmentDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '';
+  }
+  const totalSeconds = Math.round(seconds);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+  }
+  if (minutes > 0) {
+    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+  }
+  return `${remainingSeconds}s`;
+}
+
 function renderComposerAttachments() {
   if (!(composerAttachmentTray instanceof HTMLElement)) {
     return;
@@ -1454,6 +1504,19 @@ function renderComposerAttachments() {
       image.src = attachment.url;
       image.alt = attachment.alt;
       item.appendChild(image);
+    } else if (attachment.type === 'audio') {
+      const audio = document.createElement('audio');
+      audio.className = 'composer-attachment-audio';
+      audio.controls = true;
+      audio.preload = 'metadata';
+      audio.src = attachment.url;
+      audio.setAttribute(
+        'aria-label',
+        attachment.filename
+          ? `Attached audio preview: ${attachment.filename}`
+          : 'Attached audio preview'
+      );
+      item.appendChild(audio);
     } else {
       const iconWrap = document.createElement('div');
       iconWrap.className = 'composer-attachment-icon';
@@ -1477,6 +1540,14 @@ function renderComposerAttachments() {
       metaBits.push(
         attachment.extension ? attachment.extension.toUpperCase() : attachment.mimeType || 'FILE'
       );
+    } else if (attachment.type === 'audio') {
+      if (typeof attachment.mimeType === 'string' && attachment.mimeType.trim()) {
+        metaBits.push(attachment.mimeType.trim());
+      }
+      const durationLabel = formatAttachmentDuration(attachment.durationSeconds);
+      if (durationLabel) {
+        metaBits.push(durationLabel);
+      }
     }
     const sizeLabel = formatAttachmentSize(attachment.size);
     if (sizeLabel) {
@@ -1513,6 +1584,21 @@ function buildUserMessageAttachmentPayload(attachments) {
           alt: attachment.alt,
           workspacePath: attachment.workspacePath,
         }
+      : attachment.type === 'audio'
+        ? {
+            type: 'audio',
+            artifactId: attachment.id,
+            mimeType: attachment.mimeType,
+            base64: attachment.data,
+            url: attachment.url,
+            filename: attachment.filename,
+            size: attachment.size,
+            durationSeconds: attachment.durationSeconds,
+            sampleRate: attachment.sampleRate,
+            sampleCount: attachment.sampleCount,
+            samplesBase64: attachment.samplesBase64,
+            workspacePath: attachment.workspacePath,
+          }
       : {
           type: 'file',
           artifactId: attachment.id,
@@ -1549,7 +1635,9 @@ function buildUserMessageAttachmentPayload(attachments) {
 function getMessageArtifacts(message, conversationId) {
   const refs = Array.isArray(message?.artifactRefs) ? message.artifactRefs : [];
   const attachmentParts = Array.isArray(message?.content?.parts)
-    ? message.content.parts.filter((part) => part?.type === 'image' || part?.type === 'file')
+    ? message.content.parts.filter(
+        (part) => part?.type === 'image' || part?.type === 'audio' || part?.type === 'file'
+      )
     : [];
   return attachmentParts
     .map((part) => {
@@ -1655,6 +1743,128 @@ function queueConversationStateSave() {
     appState.conversationSaveTimerId = null;
     void persistConversationStateNow();
   }, CONVERSATION_SAVE_DEBOUNCE_MS);
+}
+
+function filterPendingComposerAttachmentsForModel(attachments, mediaSupport) {
+  const nextAttachments = [];
+  const removedUnsupported = [];
+  const removedLimited = [];
+  let imageCount = 0;
+  let audioCount = 0;
+  let videoCount = 0;
+
+  (Array.isArray(attachments) ? attachments : []).forEach((attachment) => {
+    if (!attachment || typeof attachment !== 'object') {
+      return;
+    }
+    if (attachment.type === 'image') {
+      if (!mediaSupport.imageInputSupported) {
+        removedUnsupported.push(attachment);
+        return;
+      }
+      if (mediaSupport.maxImageInputs && imageCount >= mediaSupport.maxImageInputs) {
+        removedLimited.push(attachment);
+        return;
+      }
+      imageCount += 1;
+      nextAttachments.push(attachment);
+      return;
+    }
+    if (attachment.type === 'audio') {
+      if (!mediaSupport.audioInputSupported) {
+        removedUnsupported.push(attachment);
+        return;
+      }
+      if (mediaSupport.maxAudioInputs && audioCount >= mediaSupport.maxAudioInputs) {
+        removedLimited.push(attachment);
+        return;
+      }
+      audioCount += 1;
+      nextAttachments.push(attachment);
+      return;
+    }
+    if (attachment.type === 'video') {
+      if (!mediaSupport.videoInputSupported) {
+        removedUnsupported.push(attachment);
+        return;
+      }
+      if (mediaSupport.maxVideoInputs && videoCount >= mediaSupport.maxVideoInputs) {
+        removedLimited.push(attachment);
+        return;
+      }
+      videoCount += 1;
+      nextAttachments.push(attachment);
+      return;
+    }
+    nextAttachments.push(attachment);
+  });
+
+  return {
+    attachments: nextAttachments,
+    removedUnsupported,
+    removedLimited,
+  };
+}
+
+function getAttachmentTypeLabel(type) {
+  if (type === 'image') {
+    return 'image';
+  }
+  if (type === 'audio') {
+    return 'audio';
+  }
+  if (type === 'video') {
+    return 'video';
+  }
+  return 'attachment';
+}
+
+function formatAttachmentTypeList(types) {
+  const normalizedTypes = [...new Set(types.filter(Boolean))];
+  if (!normalizedTypes.length) {
+    return 'attachments';
+  }
+  if (normalizedTypes.length === 1) {
+    return `${normalizedTypes[0]} attachments`;
+  }
+  if (normalizedTypes.length === 2) {
+    return `${normalizedTypes[0]} and ${normalizedTypes[1]} attachments`;
+  }
+  return `${normalizedTypes.slice(0, -1).join(', ')}, and ${normalizedTypes.at(-1)} attachments`;
+}
+
+function buildRemovedComposerAttachmentStatus({ removedUnsupported, removedLimited, mediaSupport }) {
+  const messages = [];
+  if (removedUnsupported.length) {
+    const unsupportedTypes = removedUnsupported.map((attachment) => getAttachmentTypeLabel(attachment?.type));
+    messages.push(
+      `${
+        removedUnsupported.length === 1
+          ? `${getAttachmentTypeLabel(removedUnsupported[0]?.type)} attachment was`
+          : `${formatAttachmentTypeList(unsupportedTypes)} were`
+      } removed because the selected model does not support ${
+        removedUnsupported.length === 1 ? 'it' : 'them'
+      }.`
+    );
+  }
+  const limitedTypes = [...new Set(removedLimited.map((attachment) => getAttachmentTypeLabel(attachment?.type)))];
+  limitedTypes.forEach((type) => {
+    const limit =
+      type === 'image'
+        ? mediaSupport.maxImageInputs
+        : type === 'audio'
+          ? mediaSupport.maxAudioInputs
+          : mediaSupport.maxVideoInputs;
+    if (!limit) {
+      return;
+    }
+    messages.push(
+      `Extra ${type} attachments were removed because the selected model only accepts ${limit} ${type} attachment${
+        limit === 1 ? '' : 's'
+      }.`
+    );
+  });
+  return messages.join(' ');
 }
 
 async function restoreConversationStateFromStorage() {
@@ -2976,7 +3186,7 @@ function updateActionButtons() {
     isOrchestrationRunningState(appState) ||
     isMessageEditActive(appState) ||
     disableComposerForPreChatSelection;
-  const imageInputSupported = selectedModelSupportsImageInput();
+  const attachmentSupport = getSelectedModelAttachmentSupport();
   if (messageInput instanceof HTMLTextAreaElement) {
     messageInput.disabled = disableComposerForPreChatSelection;
   }
@@ -2995,17 +3205,19 @@ function updateActionButtons() {
   }
   if (imageAttachmentInput instanceof HTMLInputElement) {
     imageAttachmentInput.disabled = composerControlsDisabled || isGeneratingResponse(appState);
-    imageAttachmentInput.accept = getAttachmentButtonAcceptValue(imageInputSupported);
+    imageAttachmentInput.accept = getAttachmentButtonAcceptValue(attachmentSupport);
   }
+  const filteredAttachments = filterPendingComposerAttachmentsForModel(
+    getPendingComposerAttachments(),
+    attachmentSupport
+  );
   if (
-    !imageInputSupported &&
-    getPendingComposerAttachments().some((attachment) => attachment?.type === 'image')
+    filteredAttachments.removedUnsupported.length > 0 ||
+    filteredAttachments.removedLimited.length > 0
   ) {
-    appState.pendingComposerAttachments = getPendingComposerAttachments().filter(
-      (attachment) => attachment?.type !== 'image'
-    );
+    appState.pendingComposerAttachments = filteredAttachments.attachments;
     renderComposerAttachments();
-    setStatus('Image attachments were removed because the selected model does not support them.');
+    setStatus(buildRemovedComposerAttachmentStatus({ ...filteredAttachments, mediaSupport: attachmentSupport }));
   }
   if (sendButton) {
     sendButton.disabled =
@@ -3880,6 +4092,7 @@ bindComposerEvents({
   updateWelcomePanelVisibility,
   getPendingComposerAttachments,
   selectedModelSupportsImageInput,
+  getSelectedModelAttachmentSupport,
   createComposerAttachmentFromFile: (file, options = {}) =>
     createComposerAttachmentFromFile(file, {
       ...options,
