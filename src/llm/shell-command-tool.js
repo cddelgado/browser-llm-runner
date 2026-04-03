@@ -258,12 +258,8 @@ function createShellResult(
 }
 
 function formatShellCommandUsageBody(currentWorkingDirectory = WORKSPACE_ROOT_PATH) {
-  return [
-    `Current working directory: ${currentWorkingDirectory}`,
-    `Supported commands: ${SHELL_COMMANDS.map((command) => command.name).join(', ')}`,
-    'Call again with {"cmd":"..."}',
-    'Legacy {"command":"..."} is still accepted.',
-  ].join('\n');
+  void currentWorkingDirectory;
+  return `Supported commands: ${SHELL_COMMANDS.map((command) => command.name).join(', ')}`;
 }
 
 function formatShellExecutionBody(result = {}) {

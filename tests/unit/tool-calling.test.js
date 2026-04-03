@@ -6,6 +6,7 @@ import {
   getEnabledToolDefinitions,
   sniffToolCalls,
 } from '../../src/llm/tool-calling.js';
+import { buildShellToolResponseEnvelope } from '../../src/llm/shell-command-tool.js';
 import {
   addMessageToConversation,
   createConversation,
@@ -1128,6 +1129,14 @@ describe('tool-calling prompt builder', () => {
 
     expect(result.toolName).toBe('run_shell_command');
     expect(result.result.stdout).toBe('/workspace');
+  });
+
+  test('keeps empty-argument shell discovery responses terse', () => {
+    expect(buildShellToolResponseEnvelope()).toEqual({
+      status: 'success',
+      body:
+        'Supported commands: pwd, basename, dirname, printf, true, false, cd, ls, cat, head, tail, wc, sort, uniq, cut, paste, join, column, tr, nl, rmdir, mkdir, mktemp, touch, cp, mv, rm, find, grep, sed, file, diff, curl, python, echo, set, unset, which',
+    });
   });
 
   test('rejects run_shell_command calls that send both cmd and command', async () => {
