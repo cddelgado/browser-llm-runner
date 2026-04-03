@@ -3,7 +3,7 @@ export function bindConversationListEvents({
   documentRef = document,
   conversationList,
   isGeneratingResponse,
-  deleteConversationStorage = async () => {},
+  deleteConversationStorage = async (_conversationId) => {},
   clearUserMessageEditSession,
   setChatTitleEditing,
   getActiveConversation,

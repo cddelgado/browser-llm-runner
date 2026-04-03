@@ -1342,6 +1342,37 @@ async function executeGetUserLocation(argumentsValue = {}, runtimeContext = {}) 
   }
 }
 
+const TOOL_EXECUTORS = Object.freeze({
+  get_current_date_time: {
+    execute: (argumentsValue) => executeGetCurrentDateTime(argumentsValue),
+  },
+  get_user_location: {
+    execute: (argumentsValue, runtimeContext) =>
+      executeGetUserLocation(argumentsValue, runtimeContext),
+  },
+  tasklist: {
+    execute: (argumentsValue, runtimeContext) => executeTaskList(argumentsValue, runtimeContext),
+  },
+  web_lookup: {
+    execute: (argumentsValue, runtimeContext) =>
+      executeWebLookupTool(argumentsValue, runtimeContext),
+  },
+  write_python_file: {
+    execute: (argumentsValue, runtimeContext) =>
+      executeWritePythonFileTool(argumentsValue, runtimeContext),
+  },
+  run_shell_command: {
+    execute: (argumentsValue, runtimeContext) =>
+      executeShellCommandTool(argumentsValue, runtimeContext),
+    serializeResult: (result) =>
+      JSON.stringify(
+        result?.responseEnvelope && typeof result.responseEnvelope === 'object'
+          ? result.responseEnvelope
+          : buildShellToolResponseEnvelope(result)
+      ),
+  },
+});
+
 export async function executeToolCall(toolCall, runtimeContext = {}) {
   if (!toolCall || typeof toolCall !== 'object') {
     throw new Error('Tool call is required.');
@@ -1353,63 +1384,18 @@ export async function executeToolCall(toolCall, runtimeContext = {}) {
     !Array.isArray(toolCall.arguments)
       ? toolCall.arguments
       : {};
-  if (toolName === 'get_current_date_time') {
-    const result = executeGetCurrentDateTime(argumentsValue);
-    return {
-      toolName,
-      arguments: argumentsValue,
-      result,
-      resultText: JSON.stringify(result),
-    };
+  const toolExecutor = TOOL_EXECUTORS[toolName];
+  if (!toolExecutor) {
+    throw new Error(`Unknown tool: ${toolName}`);
   }
-  if (toolName === 'get_user_location') {
-    const result = await executeGetUserLocation(argumentsValue, runtimeContext);
-    return {
-      toolName,
-      arguments: argumentsValue,
-      result,
-      resultText: JSON.stringify(result),
-    };
-  }
-  if (toolName === 'tasklist') {
-    const result = executeTaskList(argumentsValue, runtimeContext);
-    return {
-      toolName,
-      arguments: argumentsValue,
-      result,
-      resultText: JSON.stringify(result),
-    };
-  }
-  if (toolName === 'web_lookup') {
-    const result = await executeWebLookupTool(argumentsValue, runtimeContext);
-    return {
-      toolName,
-      arguments: argumentsValue,
-      result,
-      resultText: JSON.stringify(result),
-    };
-  }
-  if (toolName === 'write_python_file') {
-    const result = await executeWritePythonFileTool(argumentsValue, runtimeContext);
-    return {
-      toolName,
-      arguments: argumentsValue,
-      result,
-      resultText: JSON.stringify(result),
-    };
-  }
-  if (toolName === 'run_shell_command') {
-    const result = await executeShellCommandTool(argumentsValue, runtimeContext);
-    const responseEnvelope =
-      result?.responseEnvelope && typeof result.responseEnvelope === 'object'
-        ? result.responseEnvelope
-        : buildShellToolResponseEnvelope(result);
-    return {
-      toolName,
-      arguments: argumentsValue,
-      result,
-      resultText: JSON.stringify(responseEnvelope),
-    };
-  }
-  throw new Error(`Unknown tool: ${toolName}`);
+  const result = await toolExecutor.execute(argumentsValue, runtimeContext);
+  return {
+    toolName,
+    arguments: argumentsValue,
+    result,
+    resultText:
+      typeof toolExecutor.serializeResult === 'function'
+        ? toolExecutor.serializeResult(result)
+        : JSON.stringify(result),
+  };
 }

@@ -260,6 +260,7 @@ See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 - `src/main.js` remains the app shell for routing, page-level visibility, and wiring dependencies into those modules.
 - See `docs/conversation-domain.md`, `docs/app-state.md`, `docs/app-controller.md`, `docs/orchestrations.md`, and `docs/ui-views.md` for the current boundaries.
 - See `docs/tools.md` for current tool-calling behavior plus the planned separation between discrete function calls, MCP capability discovery, and `SKILL.md` playbooks.
+- See `docs/web-search-hypothesis.md` for the current low-bandwidth, mobile-assisted search design hypothesis.
 - See `docs/models.md` for the model catalog schema, visible-vs-hidden model policy, and the contributor checklist for adding, replacing, or retiring models.
 
 ## Orchestrations

@@ -609,7 +609,10 @@ describe('app-controller', () => {
     const modelMessages = conversation.messageNodes.filter((message) => message.role === 'model');
     expect(modelMessages).toHaveLength(2);
     expect(harness.dependencies.addMessageElement).toHaveBeenCalledTimes(1);
-    expect(harness.dependencies.addMessageElement.mock.calls[0][0].id).toBe(modelMessages[0]?.id);
+    const firstAddMessageCall = /** @type {any[] | undefined} */ (
+      harness.dependencies.addMessageElement.mock.calls.at(0)
+    );
+    expect(firstAddMessageCall?.[0]?.id).toBe(modelMessages[0]?.id);
     expect(harness.dependencies.findMessageElement).toHaveBeenNthCalledWith(2, modelMessages[0]?.id);
     expect(harness.dependencies.updateModelMessageElement).toHaveBeenLastCalledWith(
       modelMessages[0],

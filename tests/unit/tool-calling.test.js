@@ -1133,7 +1133,7 @@ describe('tool-calling prompt builder', () => {
         }),
         expect.objectContaining({
           name: 'grep',
-          usage: 'grep [-i] [-n] [-v] [-c] [-l] [-F] <pattern> <file>...',
+          usage: 'grep [-i] [-n] [-v] [-c] [-l] [-F] [-o] <pattern> <file>...',
         }),
         expect.objectContaining({
           name: 'sed',
@@ -1276,6 +1276,28 @@ describe('tool-calling prompt builder', () => {
       body:
         'Call again with {"cmd":"..."}\nCurrent working directory: /workspace\nSupported commands: pwd, basename, dirname, printf, true, false, cd, ls, cat, head, tail, wc, sort, uniq, cut, paste, join, column, tr, nl, rmdir, mkdir, mktemp, touch, cp, mv, rm, find, grep, sed, file, diff, curl, python, echo, set, unset, which',
     });
+  });
+
+  test('serializes run_shell_command execution with the shell response envelope', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          cmd: 'printf "hello"',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+      }
+    );
+
+    expect(result.result.stdout).toBe('hello');
+    expect(result.resultText).toBe(
+      JSON.stringify({
+        status: 'success',
+        body: 'hello',
+      })
+    );
   });
 
   test('marks oversized shell output as incomplete for the model response envelope', () => {
@@ -2941,6 +2963,49 @@ describe('tool-calling prompt builder', () => {
       '/workspace/a.txt:target',
       '/workspace/b.txt:target',
     ]);
+  });
+
+  test('supports grep -o in pipelines for match counting workflows', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/canvas.html':
+        '<a href="/one">One</a>\n<p>Skip</p>\n<a href="/two">Two</a>\n<a href="/three">Three</a>\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: `grep -o 'href="[^"]*"' canvas.html | wc -l`,
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe('3');
+  });
+
+  test('rejects grep -o combined with -v in this shell subset', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem({
+      '/workspace/notes.txt': 'Alpha\nbeta\n',
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          command: 'grep -ov alpha notes.txt',
+        },
+      },
+      {
+        workspaceFileSystem,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(2);
+    expect(result.result.stderr).toBe('grep: the -o and -v options cannot be combined in this subset.');
   });
 
   test('supports sed -n with line ranges and print', async () => {

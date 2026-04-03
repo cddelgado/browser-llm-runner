@@ -122,6 +122,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - uses browser `fetch`, so CORS, browser-managed redirects, and forbidden request headers still apply
   - only text-like responses are supported in the current implementation
   - non-URL input currently returns a failed envelope because search is not implemented yet
+  - the current low-bandwidth, mobile-assisted search direction is sketched in [docs/web-search-hypothesis.md](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/docs/web-search-hypothesis.md)
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js) and [src/llm/web-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/web-tool.js).
 
@@ -199,6 +200,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `rm`
   - `find` with `-name`, `-type f`, `-type d`, `-maxdepth`, and `-mindepth`
   - `grep` with `-i`, `-n`, `-v`, `-c`, `-l`, and `-F`
+  - `grep` with `-o` for match-only output
   - `sed` with a single sed-like script, `-n`, and `-i`
   - `file` with basic directory, signature, extension, and text-vs-binary classification
   - `diff` with `-u` unified-style emulated output

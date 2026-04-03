@@ -186,7 +186,7 @@ const SHELL_COMMANDS = Object.freeze([
   },
   {
     name: 'grep',
-    usage: 'grep [-i] [-n] [-v] [-c] [-l] [-F] <pattern> <file>...',
+    usage: 'grep [-i] [-n] [-v] [-c] [-l] [-F] [-o] <pattern> <file>...',
     description: 'Search text files under /workspace.',
   },
   {
@@ -381,8 +381,12 @@ function countWords(text) {
 }
 
 function countLines(text) {
-  const matches = toShellText(text).match(/\n/g);
-  return matches ? matches.length : 0;
+  const normalized = toShellText(text);
+  if (!normalized) {
+    return 0;
+  }
+  const matches = normalized.match(/\n/g);
+  return (matches ? matches.length : 0) + (normalized.endsWith('\n') ? 0 : 1);
 }
 
 function basename(path) {
@@ -886,6 +890,7 @@ function compileFindNamePattern(pattern) {
 function compileGrepPattern(pattern, { ignoreCase = false, fixedStrings = false } = {}) {
   const normalizedPattern = String(pattern || '');
   if (fixedStrings) {
+    const normalizedNeedle = ignoreCase ? normalizedPattern.toLowerCase() : normalizedPattern;
     return {
       test: (line) =>
         ignoreCase
@@ -893,9 +898,43 @@ function compileGrepPattern(pattern, { ignoreCase = false, fixedStrings = false 
               .toLowerCase()
               .includes(normalizedPattern.toLowerCase())
           : String(line || '').includes(normalizedPattern),
+      getMatches: (line) => {
+        const haystack = String(line || '');
+        const normalizedHaystack = ignoreCase ? haystack.toLowerCase() : haystack;
+        if (!normalizedNeedle) {
+          return normalizedHaystack.includes(normalizedNeedle) ? [''] : [];
+        }
+        const matches = [];
+        let searchStart = 0;
+        while (searchStart <= normalizedHaystack.length) {
+          const matchIndex = normalizedHaystack.indexOf(normalizedNeedle, searchStart);
+          if (matchIndex < 0) {
+            break;
+          }
+          matches.push(haystack.slice(matchIndex, matchIndex + normalizedPattern.length));
+          searchStart = matchIndex + Math.max(normalizedPattern.length, 1);
+        }
+        return matches;
+      },
     };
   }
-  return new RegExp(normalizedPattern, ignoreCase ? 'i' : '');
+  const testExpression = new RegExp(normalizedPattern, ignoreCase ? 'i' : '');
+  return {
+    test: (line) => testExpression.test(String(line || '')),
+    getMatches: (line) => {
+      const haystack = String(line || '');
+      const matchExpression = new RegExp(normalizedPattern, ignoreCase ? 'ig' : 'g');
+      const matches = [];
+      let match;
+      while ((match = matchExpression.exec(haystack)) !== null) {
+        matches.push(match[0]);
+        if (match[0] === '') {
+          matchExpression.lastIndex += 1;
+        }
+      }
+      return matches;
+    },
+  };
 }
 
 function formatLsEntry(entry, { longFormat = false, humanReadable = false } = {}) {
@@ -1813,7 +1852,7 @@ async function runHead(
       currentWorkingDirectory
     );
   }
-  const sourceText =
+  const sourceTextResult =
     parsedArguments.path === null
       ? String(stdinText ?? '')
       : await readWorkspaceTextFile(
@@ -1823,11 +1862,13 @@ async function runHead(
           workspaceFileSystem,
           currentWorkingDirectory
         );
-  if (sourceText?.error) {
-    return sourceText.error;
+  if (typeof sourceTextResult !== 'string' && sourceTextResult?.error) {
+    return sourceTextResult.error;
   }
+  const sourceText =
+    typeof sourceTextResult === 'string' ? sourceTextResult : sourceTextResult.text;
   const { lines, trailingNewline } = splitShellTextIntoLines(
-    parsedArguments.path === null ? sourceText : sourceText.text
+    sourceText
   );
   const selectedLines = lines.slice(0, parsedArguments.count);
   return createShellResult(commandText, {
@@ -1860,7 +1901,7 @@ async function runTail(
       currentWorkingDirectory
     );
   }
-  const sourceText =
+  const sourceTextResult =
     parsedArguments.path === null
       ? String(stdinText ?? '')
       : await readWorkspaceTextFile(
@@ -1870,11 +1911,13 @@ async function runTail(
           workspaceFileSystem,
           currentWorkingDirectory
         );
-  if (sourceText?.error) {
-    return sourceText.error;
+  if (typeof sourceTextResult !== 'string' && sourceTextResult?.error) {
+    return sourceTextResult.error;
   }
+  const sourceText =
+    typeof sourceTextResult === 'string' ? sourceTextResult : sourceTextResult.text;
   const { lines, trailingNewline } = splitShellTextIntoLines(
-    parsedArguments.path === null ? sourceText : sourceText.text
+    sourceText
   );
   const selectedLines = lines.slice(Math.max(0, lines.length - parsedArguments.count));
   return createShellResult(commandText, {
@@ -3917,6 +3960,7 @@ async function runGrep(
   let countOnly = false;
   let listMatchingFiles = false;
   let fixedStrings = false;
+  let onlyMatching = false;
   const positional = [];
 
   for (const argument of args) {
@@ -3949,6 +3993,10 @@ async function runGrep(
           fixedStrings = true;
           continue;
         }
+        if (flag === 'o') {
+          onlyMatching = true;
+          continue;
+        }
         return createShellError(
           commandText,
           'grep',
@@ -3967,6 +4015,15 @@ async function runGrep(
       commandText,
       'grep',
       'expected a pattern and at least one file path.',
+      2,
+      currentWorkingDirectory
+    );
+  }
+  if (onlyMatching && invertMatch) {
+    return createShellError(
+      commandText,
+      'grep',
+      'the -o and -v options cannot be combined in this subset.',
       2,
       currentWorkingDirectory
     );
@@ -4036,6 +4093,15 @@ async function runGrep(
         if (showLineNumbers) {
           prefixes.push(String(index + 1));
         }
+        if (onlyMatching) {
+          const matches = matcher.getMatches(line);
+          matchingLines.push(
+            ...matches.map((matchText) =>
+              prefixes.length ? `${prefixes.join(':')}:${matchText}` : matchText
+            )
+          );
+          continue;
+        }
         matchingLines.push(prefixes.length ? `${prefixes.join(':')}:${line}` : line);
       }
     }
@@ -4061,6 +4127,103 @@ async function runGrep(
     stdout: outputs.join('\n'),
     currentWorkingDirectory,
   });
+}
+
+const SHELL_COMMAND_EXECUTORS = Object.freeze({
+  pwd: ({ commandText, args, currentWorkingDirectory }) =>
+    runPwd(commandText, args, currentWorkingDirectory),
+  basename: ({ commandText, args, currentWorkingDirectory }) =>
+    runBasename(commandText, args, currentWorkingDirectory),
+  dirname: ({ commandText, args, currentWorkingDirectory }) =>
+    runDirname(commandText, args, currentWorkingDirectory),
+  printf: ({ commandText, args, currentWorkingDirectory }) =>
+    runPrintf(commandText, args, currentWorkingDirectory),
+  true: ({ commandText, args, currentWorkingDirectory }) =>
+    runTrue(commandText, args, currentWorkingDirectory),
+  false: ({ commandText, args, currentWorkingDirectory }) =>
+    runFalse(commandText, args, currentWorkingDirectory),
+  cd: ({ commandText, args, workspaceFileSystem, runtimeContext, currentWorkingDirectory }) =>
+    runCd(commandText, args, workspaceFileSystem, runtimeContext, currentWorkingDirectory),
+  echo: ({ commandText, args, currentWorkingDirectory }) =>
+    runEcho(commandText, args, currentWorkingDirectory),
+  set: ({ commandText, args, runtimeContext, currentWorkingDirectory }) =>
+    runSet(commandText, args, runtimeContext, currentWorkingDirectory),
+  unset: ({ commandText, args, runtimeContext, currentWorkingDirectory }) =>
+    runUnset(commandText, args, runtimeContext, currentWorkingDirectory),
+  which: ({ commandText, args, currentWorkingDirectory }) =>
+    runWhich(commandText, args, currentWorkingDirectory),
+  ls: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runLs(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  cat: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runCat(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  head: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runHead(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  tail: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runTail(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  wc: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runWc(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  sort: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runSort(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  uniq: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runUniq(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  cut: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runCut(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  paste: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runPaste(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  join: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runJoin(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  column: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runColumn(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  tr: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runTr(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  nl: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runNl(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  rmdir: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runRmdir(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  mkdir: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runMkdir(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  mktemp: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runMktemp(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  touch: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runTouch(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  cp: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runCp(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  mv: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runMv(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  rm: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runRm(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  find: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runFind(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  grep: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runGrep(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  sed: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText }) =>
+    runSed(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText),
+  file: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runFile(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  diff: ({ commandText, args, workspaceFileSystem, currentWorkingDirectory }) =>
+    runDiff(commandText, args, workspaceFileSystem, currentWorkingDirectory),
+  curl: ({ commandText, args, workspaceFileSystem, runtimeContext, currentWorkingDirectory }) =>
+    runCurl(commandText, args, workspaceFileSystem, runtimeContext, currentWorkingDirectory),
+  python: async ({
+    commandText,
+    args,
+    workspaceFileSystem,
+    runtimeContext,
+    currentWorkingDirectory,
+  }) => {
+    const pythonToolModule = await import('./python-tool.js');
+    return pythonToolModule.executePythonShellCommand(
+      commandText,
+      args,
+      workspaceFileSystem,
+      runtimeContext,
+      currentWorkingDirectory
+    );
+  },
+});
+
+function getShellCommandExecutor(commandName) {
+  return SHELL_COMMAND_EXECUTORS[commandName] || null;
 }
 
 async function runSed(
@@ -4696,98 +4859,9 @@ async function executeSingleShellCommand(
     );
   }
 
-  let result;
-  if (commandName === 'pwd') {
-    result = runPwd(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'basename') {
-    result = runBasename(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'dirname') {
-    result = runDirname(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'printf') {
-    result = runPrintf(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'true') {
-    result = runTrue(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'false') {
-    result = runFalse(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'cd') {
-    result = runCd(commandText, args, workspaceFileSystem, runtimeContext, currentWorkingDirectory);
-  } else if (commandName === 'echo') {
-    result = runEcho(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'set') {
-    result = runSet(commandText, args, runtimeContext, currentWorkingDirectory);
-  } else if (commandName === 'unset') {
-    result = runUnset(commandText, args, runtimeContext, currentWorkingDirectory);
-  } else if (commandName === 'which') {
-    result = runWhich(commandText, args, currentWorkingDirectory);
-  } else if (commandName === 'ls') {
-    result = runLs(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'cat') {
-    result = runCat(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'head') {
-    result = runHead(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'tail') {
-    result = runTail(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'wc') {
-    result = runWc(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'sort') {
-    result = runSort(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'uniq') {
-    result = runUniq(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'cut') {
-    result = runCut(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'paste') {
-    result = runPaste(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'join') {
-    result = runJoin(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'column') {
-    result = runColumn(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'tr') {
-    result = runTr(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'nl') {
-    result = runNl(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'rmdir') {
-    result = runRmdir(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'mkdir') {
-    result = runMkdir(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'mktemp') {
-    result = runMktemp(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'touch') {
-    result = runTouch(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'cp') {
-    result = runCp(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'mv') {
-    result = runMv(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'rm') {
-    result = runRm(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'find') {
-    result = runFind(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'grep') {
-    result = runGrep(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'sed') {
-    result = runSed(commandText, args, workspaceFileSystem, currentWorkingDirectory, stdinText);
-  } else if (commandName === 'file') {
-    result = runFile(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'diff') {
-    result = runDiff(commandText, args, workspaceFileSystem, currentWorkingDirectory);
-  } else if (commandName === 'curl') {
-    result = runCurl(
-      commandText,
-      args,
-      workspaceFileSystem,
-      runtimeContext,
-      currentWorkingDirectory
-    );
-  } else if (commandName === 'python') {
-    const pythonToolModule = await import('./python-tool.js');
-    result = pythonToolModule.executePythonShellCommand(
-      commandText,
-      args,
-      workspaceFileSystem,
-      runtimeContext,
-      currentWorkingDirectory
-    );
-  } else {
-    result = createShellError(
+  const executor = getShellCommandExecutor(commandName);
+  if (!executor) {
+    return createShellError(
       commandText,
       'shell',
       `command '${commandName}' is not available. Call run_shell_command with {} to inspect the supported subset.`,
@@ -4795,6 +4869,14 @@ async function executeSingleShellCommand(
       currentWorkingDirectory
     );
   }
+  const result = executor({
+    commandText,
+    args,
+    workspaceFileSystem,
+    runtimeContext,
+    currentWorkingDirectory,
+    stdinText,
+  });
   return await result;
 }
 
