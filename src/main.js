@@ -132,6 +132,7 @@ import {
 } from './state/app-state.js';
 import { loadConversationState, saveConversationState } from './state/conversation-store.js';
 import { renderConversationListView } from './ui/conversation-list-view.js';
+import { createBrowserView } from './ui/browser-view.js';
 import { createTranscriptView } from './ui/transcript-view.js';
 import { createTerminalView } from './ui/terminal-view.js';
 import { renderTaskListTray } from './ui/task-list-tray.js';
@@ -291,6 +292,11 @@ const settingsPage = document.getElementById('settingsPage');
 const terminalPanel = document.getElementById('terminalPanel');
 const terminalHost = document.getElementById('terminalHost');
 const closeTerminalButton = document.getElementById('closeTerminalButton');
+const webLookupPanel = document.getElementById('webLookupPanel');
+const webLookupFrame = document.getElementById('webLookupFrame');
+const webLookupPanelTitle = document.getElementById('webLookupPanelTitle');
+const webLookupPanelDescription = document.getElementById('webLookupPanelDescription');
+const closeWebLookupPanelButton = document.getElementById('closeWebLookupPanelButton');
 const settingsTabContainer = document.querySelector('.settings-tabs');
 const settingsTabButtons = settingsTabContainer
   ? settingsTabContainer.querySelectorAll('[data-settings-tab]')
@@ -2476,10 +2482,33 @@ const terminalView = createTerminalView({
   host: terminalHost,
 });
 
-function renderTerminalForActiveConversation() {
+const browserView = createBrowserView({
+  panel: webLookupPanel,
+  frame: webLookupFrame,
+  title: webLookupPanelTitle,
+  description: webLookupPanelDescription,
+});
+
+function getWebLookupPanelSessionForConversation(conversation = getActiveConversation()) {
+  if (!(appState.webLookupPanelsByConversationId instanceof Map) || !conversation?.id) {
+    return null;
+  }
+  return appState.webLookupPanelsByConversationId.get(conversation.id) || null;
+}
+
+function renderWorkspaceSidePanels() {
   const activeConversation = getActiveConversation();
+  const webLookupSession = getWebLookupPanelSessionForConversation(activeConversation);
+  const shouldShowWebLookupPanel =
+    !isSettingsView(appState) &&
+    Boolean(activeConversation?.id) &&
+    appState.activeWorkspaceSidePanel === 'web_lookup' &&
+    webLookupSession &&
+    typeof webLookupSession.searchUrl === 'string' &&
+    webLookupSession.searchUrl.trim();
   const session = getTerminalSessionForConversation(activeConversation);
   const shouldShowTerminal =
+    !shouldShowWebLookupPanel &&
     !isSettingsView(appState) &&
     Boolean(activeConversation?.id) &&
     session.hasVisibleContent &&
@@ -2495,16 +2524,33 @@ function renderTerminalForActiveConversation() {
     openTerminalForConversation(appState, activeConversation.id);
   }
 
+  if (shouldShowWebLookupPanel) {
+    document.body.classList.remove('terminal-open');
+    document.body.classList.add('web-lookup-open');
+    terminalView.setVisible(false);
+    browserView.setVisible(true);
+    browserView.renderSession({
+      heading: webLookupSession.heading,
+      details: webLookupSession.description,
+      url: webLookupSession.searchUrl,
+    });
+    return;
+  }
+
   if (!shouldShowTerminal) {
     if (!session.hasVisibleContent) {
       closeTerminal(appState, { conversationId: activeConversation?.id || null });
     }
     document.body.classList.remove('terminal-open');
+    document.body.classList.remove('web-lookup-open');
     terminalView.setVisible(false);
+    browserView.setVisible(false);
     return;
   }
 
+  document.body.classList.remove('web-lookup-open');
   document.body.classList.add('terminal-open');
+  browserView.setVisible(false);
   terminalView.setVisible(true);
   terminalView.renderSession(session);
 }
@@ -2516,7 +2562,23 @@ if (closeTerminalButton instanceof HTMLButtonElement) {
       conversationId: activeConversation?.id || null,
       dismissed: true,
     });
-    renderTerminalForActiveConversation();
+    if (appState.activeWorkspaceSidePanel === 'terminal') {
+      appState.activeWorkspaceSidePanel = null;
+    }
+    renderWorkspaceSidePanels();
+  });
+}
+
+if (closeWebLookupPanelButton instanceof HTMLButtonElement) {
+  closeWebLookupPanelButton.addEventListener('click', () => {
+    const activeConversation = getActiveConversation();
+    if (activeConversation?.id && appState.webLookupPanelsByConversationId instanceof Map) {
+      appState.webLookupPanelsByConversationId.delete(activeConversation.id);
+    }
+    if (appState.activeWorkspaceSidePanel === 'web_lookup') {
+      appState.activeWorkspaceSidePanel = null;
+    }
+    renderWorkspaceSidePanels();
   });
 }
 
@@ -2537,7 +2599,8 @@ function handleShellCommandStart({ command = '', currentWorkingDirectory = '/wor
     historyCount: getShellTerminalEntries(activeConversation).length,
   };
   openTerminalForConversation(appState, activeConversation.id);
-  renderTerminalForActiveConversation();
+  appState.activeWorkspaceSidePanel = 'terminal';
+  renderWorkspaceSidePanels();
 }
 
 function handleShellCommandComplete({
@@ -2568,7 +2631,64 @@ function handleShellCommandComplete({
     stderr: typeof stderr === 'string' ? stderr : '',
     historyCount: pendingConversation ? getShellTerminalEntries(pendingConversation).length : 0,
   };
-  renderTerminalForActiveConversation();
+  appState.activeWorkspaceSidePanel = 'terminal';
+  renderWorkspaceSidePanels();
+}
+
+function handleWebLookupSearchStart({ conversationId = null, query = '', searchUrl = '' } = {}) {
+  const resolvedConversationId =
+    typeof conversationId === 'string' && conversationId.trim()
+      ? conversationId.trim()
+      : getActiveConversation()?.id || null;
+  if (!resolvedConversationId || !String(searchUrl || '').trim()) {
+    return Promise.resolve();
+  }
+  if (!(appState.webLookupPanelsByConversationId instanceof Map)) {
+    appState.webLookupPanelsByConversationId = new Map();
+  }
+  appState.webLookupPanelsByConversationId.set(resolvedConversationId, {
+    heading: 'DuckDuckGo search',
+    description:
+      typeof query === 'string' && query.trim()
+        ? `Opening DuckDuckGo for "${query.trim()}" before the in-app search fetch runs.`
+        : 'Opening DuckDuckGo before the in-app search fetch runs.',
+    query: typeof query === 'string' ? query.trim() : '',
+    searchUrl: String(searchUrl || '').trim(),
+  });
+  appState.activeWorkspaceSidePanel = 'web_lookup';
+  renderWorkspaceSidePanels();
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+function handleWebLookupSearchComplete({
+  conversationId = null,
+  query = '',
+  resultCount = 0,
+  searchUrl = '',
+} = {}) {
+  const resolvedConversationId =
+    typeof conversationId === 'string' && conversationId.trim()
+      ? conversationId.trim()
+      : getActiveConversation()?.id || null;
+  if (!resolvedConversationId || !(appState.webLookupPanelsByConversationId instanceof Map)) {
+    return;
+  }
+  const existingPanel = appState.webLookupPanelsByConversationId.get(resolvedConversationId) || {};
+  appState.webLookupPanelsByConversationId.set(resolvedConversationId, {
+    ...existingPanel,
+    heading: 'DuckDuckGo search',
+    description:
+      typeof query === 'string' && query.trim()
+        ? `DuckDuckGo is open for "${query.trim()}". ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`
+        : `DuckDuckGo is open. ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`,
+    searchUrl:
+      typeof searchUrl === 'string' && searchUrl.trim()
+        ? searchUrl.trim()
+        : existingPanel.searchUrl || '',
+  });
+  renderWorkspaceSidePanels();
 }
 
 function renderConversationList() {
@@ -2885,7 +3005,7 @@ function updateTranscriptNavigationButtonVisibility() {
 function renderTranscript(options = {}) {
   transcriptView.renderTranscript(options);
   renderActiveTaskListTray();
-  renderTerminalForActiveConversation();
+  renderWorkspaceSidePanels();
 }
 
 function renderActiveTaskListTray() {
@@ -3636,7 +3756,7 @@ const routingShell = createRoutingShell({
   updateComposerVisibility,
   updateChatTitleEditorVisibility,
   updateTranscriptNavigationButtonVisibility,
-  updateTerminalVisibility: renderTerminalForActiveConversation,
+  updateTerminalVisibility: renderWorkspaceSidePanels,
   updateActionButtons,
   updatePreChatStatusHint,
   updatePreChatActionButtons,
@@ -3823,6 +3943,8 @@ const appController = createAppController({
       requestToolConsent,
       onShellCommandStart: handleShellCommandStart,
       onShellCommandComplete: handleShellCommandComplete,
+      onWebLookupSearchStart: handleWebLookupSearchStart,
+      onWebLookupSearchComplete: handleWebLookupSearchComplete,
       pythonExecutor: pythonRuntime,
       workspaceFileSystem: getConversationWorkspaceFileSystem(),
     }),

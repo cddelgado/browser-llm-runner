@@ -102,26 +102,29 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 ### `web_lookup`
 
 - Display name: `Web Lookup`
-- Purpose: fetches one web page through the browser network stack and returns a compact response envelope for the model
-- Current scope: only direct `https` URLs are supported for now; non-URL search input is reserved for future work
+- Purpose: fetches one web page or DuckDuckGo search through the browser network stack and returns a compact response envelope for the model
 - Arguments:
   - required `input`
 - Success result shape:
   - `status: "successful"`
-  - `body`: markdown containing MIME type, title, and summary text
-  - optional `message` when the fetched preview or extracted summary had to be truncated; the truncation note also tells the model to use `run_shell_command` with `curl` if it needs the full page
+  - `body`: markdown containing either page preview text or concise search results
+  - optional `message` with follow-up guidance for the model
 - Failure result shape:
   - `status: "failed"`
   - `body`: error detail
   - `message`: retry guidance for the model
 - Extraction behavior:
-  - does not return raw full-page HTML
+  - if `input` is a direct `https` URL, does not return raw full-page HTML
   - HTML responses prefer title, meta description, and visible main/article/body text
-  - large responses are clipped to a preview window before extraction and summarized into the markdown body
+  - large page responses are clipped to a preview window before extraction and summarized into the markdown body
+  - if `input` is not a URL, the tool treats it as a DuckDuckGo search query
+  - query mode opens a right-side DuckDuckGo browser panel first, then attempts an in-app fetch of DuckDuckGo search results for concise extraction
+  - query-mode `message` tells the model to call `web_lookup` again with one of the returned result URLs when it wants the page itself
 - Current limits:
   - uses browser `fetch`, so CORS, browser-managed redirects, and forbidden request headers still apply
   - only text-like responses are supported in the current implementation
-  - non-URL input currently returns a failed envelope because search is not implemented yet
+  - direct URLs must use `https`
+  - DuckDuckGo search extraction depends on what the browser can fetch from DuckDuckGo in the current session; failures still leave the visible DuckDuckGo panel open for the user
   - the current low-bandwidth, mobile-assisted search direction is sketched in [docs/web-search-hypothesis.md](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/docs/web-search-hypothesis.md)
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js) and [src/llm/web-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/web-tool.js).

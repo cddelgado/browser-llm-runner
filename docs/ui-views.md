@@ -21,6 +21,9 @@ Rendering-heavy DOM code is now split into small view modules under `src/ui/`.
   - read-only xterm rendering for browser-local shell tool activity
   - rebuilds terminal output from the active conversation's visible shell-tool history
   - keeps the live prompt/cursor visible and resizes to the split workspace panel
+- `src/ui/browser-view.js`
+  - simple right-side browser panel rendering for `web_lookup` query mode
+  - keeps an external DuckDuckGo page open alongside the chat workspace
 
 ## Boundary
 

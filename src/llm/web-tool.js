@@ -5,10 +5,16 @@ const MAX_WEB_TITLE_LENGTH = 200;
 const MAX_WEB_DESCRIPTION_LENGTH = 300;
 const MAX_WEB_HEADING_COUNT = 8;
 const MAX_WEB_HEADING_LENGTH = 160;
+const MAX_WEB_SEARCH_RESULT_COUNT = 5;
 const WEB_LOOKUP_RETRY_MESSAGE =
   'Use a direct https URL and retry with a simpler page if the request or extraction fails.';
 const WEB_LOOKUP_TRUNCATION_FOLLOW_UP =
   'Use the run_shell_command tool with curl to get the entire page.';
+const WEB_LOOKUP_SEARCH_FOLLOW_UP =
+  'Use web_lookup again with one of the result URLs to read the page.';
+const DDG_SEARCH_PAGE_BASE_URL = 'https://duckduckgo.com/';
+const DDG_SEARCH_HTML_URL = 'https://duckduckgo.com/html/';
+const DDG_SEARCH_DATA_URL = 'https://links.duckduckgo.com/d.js';
 
 function collapseWhitespace(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -50,6 +56,19 @@ function isHttpUrl(value) {
     return url.protocol === 'https:';
   } catch {
     return false;
+  }
+}
+
+function looksLikeUrl(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) {
+    return false;
+  }
+  try {
+    const url = new URL(trimmed);
+    return Boolean(url.protocol && url.hostname);
+  } catch {
+    return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed);
   }
 }
 
@@ -345,6 +364,162 @@ function buildWebLookupSuccessBody({ contentType = '', title = '', description =
   );
 }
 
+function decodeHtmlEntities(value) {
+  const rawValue = String(value || '');
+  if (!rawValue) {
+    return '';
+  }
+  if (typeof DOMParser === 'function') {
+    const parser = new DOMParser();
+    const documentRef = parser.parseFromString(`<!doctype html><body>${rawValue}`, 'text/html');
+    return collapseWhitespace(documentRef.body?.textContent || rawValue);
+  }
+  return collapseWhitespace(
+    rawValue
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+  );
+}
+
+function buildDuckDuckGoSearchPageUrl(query) {
+  const url = new URL(DDG_SEARCH_PAGE_BASE_URL);
+  url.searchParams.set('q', query);
+  url.searchParams.set('ia', 'web');
+  return url.toString();
+}
+
+function buildDuckDuckGoHtmlResultsUrl(query) {
+  const url = new URL(DDG_SEARCH_HTML_URL);
+  url.searchParams.set('q', query);
+  url.searchParams.set('ia', 'web');
+  return url.toString();
+}
+
+function extractDuckDuckGoVqd(htmlText) {
+  const match = String(htmlText || '').match(/vqd=['"](\d+-\d+(?:-\d+)?)['"]/i);
+  return match?.[1] || '';
+}
+
+function buildDuckDuckGoDataUrl(query, vqd) {
+  const url = new URL(DDG_SEARCH_DATA_URL);
+  url.searchParams.set('q', query);
+  url.searchParams.set('l', 'en-us');
+  url.searchParams.set('kl', 'wt-wt');
+  url.searchParams.set('s', '0');
+  url.searchParams.set('dl', 'en');
+  url.searchParams.set('ct', 'US');
+  url.searchParams.set('bing_market', 'en-US');
+  url.searchParams.set('df', 'a');
+  url.searchParams.set('vqd', vqd);
+  url.searchParams.set('sp', '1');
+  url.searchParams.set('bpa', '1');
+  url.searchParams.set('biaexp', 'b');
+  url.searchParams.set('msvrtexp', 'b');
+  url.searchParams.set('nadse', 'b');
+  url.searchParams.set('eclsexp', 'b');
+  url.searchParams.set('tjsexp', 'b');
+  url.searchParams.set('ex', '-2');
+  return url.toString();
+}
+
+function unwrapDuckDuckGoResultUrl(value) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) {
+    return '';
+  }
+  try {
+    const url = new URL(rawValue, DDG_SEARCH_PAGE_BASE_URL);
+    const redirectTarget = url.searchParams.get('uddg');
+    return redirectTarget ? decodeURIComponent(redirectTarget) : url.toString();
+  } catch {
+    return rawValue;
+  }
+}
+
+function buildResultDomain(urlValue) {
+  try {
+    return new URL(urlValue).hostname.replace(/^www\./i, '');
+  } catch {
+    return '';
+  }
+}
+
+function normalizeDuckDuckGoResult({ title = '', snippet = '', url = '' } = {}) {
+  const normalizedUrl = unwrapDuckDuckGoResultUrl(url);
+  if (!isHttpUrl(normalizedUrl)) {
+    return null;
+  }
+  return {
+    title: truncateText(decodeHtmlEntities(title) || 'Untitled result', MAX_WEB_TITLE_LENGTH).text,
+    snippet: truncateText(decodeHtmlEntities(snippet), MAX_WEB_DESCRIPTION_LENGTH).text,
+    url: normalizedUrl,
+    domain: buildResultDomain(normalizedUrl),
+  };
+}
+
+function parseDuckDuckGoSearchDataResponse(payloadText) {
+  const match = String(payloadText || '').match(/DDG\.pageLayout\.load\('d',(\[.+\])\);DDG\.duckbar\.load(?:Module)?\('/);
+  if (!match?.[1]) {
+    return [];
+  }
+  const parsed = JSON.parse(match[1].replace(/\t/g, '    '));
+  return parsed
+    .filter((entry) => entry && typeof entry === 'object' && !('n' in entry))
+    .map((entry) =>
+      normalizeDuckDuckGoResult({
+        title: entry.t,
+        snippet: entry.a,
+        url: entry.u,
+      })
+    )
+    .filter(Boolean)
+    .slice(0, MAX_WEB_SEARCH_RESULT_COUNT);
+}
+
+function parseDuckDuckGoHtmlSearchResults(htmlText) {
+  if (typeof DOMParser !== 'function') {
+    return [];
+  }
+  const parser = new DOMParser();
+  const documentRef = parser.parseFromString(String(htmlText || ''), 'text/html');
+  return Array.from(documentRef.querySelectorAll('.result'))
+    .map((element) => {
+      const anchor = element.querySelector('.result__title a, a.result__a');
+      return normalizeDuckDuckGoResult({
+        title: anchor?.textContent || '',
+        snippet:
+          element.querySelector('.result__snippet')?.textContent ||
+          element.querySelector('.result__body')?.textContent ||
+          '',
+        url: anchor?.getAttribute('href') || '',
+      });
+    })
+    .filter(Boolean)
+    .slice(0, MAX_WEB_SEARCH_RESULT_COUNT);
+}
+
+function buildWebSearchSuccessBody(query, results = []) {
+  const lines = [`## Search results`, `Query: ${query}`, ''];
+  if (!results.length) {
+    lines.push('No readable search results were extracted.');
+    return lines.join('\n');
+  }
+  results.forEach((result, index) => {
+    lines.push(`${index + 1}. ${result.title}`);
+    lines.push(`   URL: ${result.url}`);
+    if (result.domain) {
+      lines.push(`   Source: ${result.domain}`);
+    }
+    if (result.snippet) {
+      lines.push(`   Snippet: ${result.snippet}`);
+    }
+  });
+  return lines.join('\n');
+}
+
 function getValidatedWebLookupArguments(argumentsValue = {}) {
   if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
     throw new Error('web_lookup arguments must be an object.');
@@ -366,17 +541,88 @@ function getValidatedWebLookupArguments(argumentsValue = {}) {
   if (containsControlCharacters(input)) {
     throw new Error('web_lookup input cannot contain control characters.');
   }
-  if (!isHttpUrl(input)) {
-    throw new Error(
-      'web_lookup currently supports only direct https URLs. Search queries are not implemented yet.'
+  if (isHttpUrl(input)) {
+    return { input, mode: 'url' };
+  }
+  if (looksLikeUrl(input)) {
+    throw new Error('web_lookup direct URLs must use https.');
+  }
+  return { input, mode: 'search' };
+}
+
+async function executeWebSearchLookup(query, runtimeContext = {}) {
+  const searchPageUrl = buildDuckDuckGoSearchPageUrl(query);
+  const conversationId =
+    typeof runtimeContext?.conversation?.id === 'string' ? runtimeContext.conversation.id : null;
+  if (typeof runtimeContext?.onWebLookupSearchStart === 'function') {
+    await runtimeContext.onWebLookupSearchStart({
+      conversationId,
+      query,
+      searchUrl: searchPageUrl,
+    });
+  }
+
+  const fetchRef = getFetchRef(runtimeContext);
+  if (typeof fetchRef !== 'function') {
+    return buildWebLookupFailure(
+      'web_lookup is unavailable because fetch is not available in this browser session.'
     );
   }
-  return { input };
+
+  const headers = {
+    Accept: 'text/html, application/xhtml+xml;q=0.9, text/plain;q=0.8, */*;q=0.1',
+  };
+  const searchPageResponse = await fetchRef(searchPageUrl, {
+    method: 'GET',
+    body: null,
+    headers,
+  });
+  const searchPagePreview = await readResponseTextPreview(searchPageResponse);
+  const vqd = extractDuckDuckGoVqd(searchPagePreview.text);
+
+  let results = [];
+  if (vqd) {
+    const searchDataResponse = await fetchRef(buildDuckDuckGoDataUrl(query, vqd), {
+      method: 'GET',
+      body: null,
+      headers,
+    });
+    const searchDataPreview = await readResponseTextPreview(searchDataResponse);
+    results = parseDuckDuckGoSearchDataResponse(searchDataPreview.text);
+  }
+
+  if (!results.length) {
+    const htmlResponse = await fetchRef(buildDuckDuckGoHtmlResultsUrl(query), {
+      method: 'GET',
+      body: null,
+      headers,
+    });
+    const htmlPreview = await readResponseTextPreview(htmlResponse);
+    results = parseDuckDuckGoHtmlSearchResults(htmlPreview.text);
+  }
+
+  if (typeof runtimeContext?.onWebLookupSearchComplete === 'function') {
+    await runtimeContext.onWebLookupSearchComplete({
+      conversationId,
+      query,
+      searchUrl: searchPageUrl,
+      resultCount: results.length,
+    });
+  }
+
+  return {
+    status: 'successful',
+    body: buildWebSearchSuccessBody(query, results),
+    message: WEB_LOOKUP_SEARCH_FOLLOW_UP,
+  };
 }
 
 export async function executeWebLookupTool(argumentsValue = {}, runtimeContext = {}) {
   try {
-    const { input } = getValidatedWebLookupArguments(argumentsValue);
+    const { input, mode } = getValidatedWebLookupArguments(argumentsValue);
+    if (mode === 'search') {
+      return await executeWebSearchLookup(input, runtimeContext);
+    }
     const fetchRef = getFetchRef(runtimeContext);
     if (typeof fetchRef !== 'function') {
       return buildWebLookupFailure('web_lookup is unavailable because fetch is not available in this browser session.');

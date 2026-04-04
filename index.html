@@ -482,6 +482,36 @@
                 aria-describedby="terminalPanelDescription"
               ></div>
             </aside>
+            <aside
+              id="webLookupPanel"
+              class="web-lookup-panel d-none"
+              aria-labelledby="webLookupPanelTitle"
+            >
+              <div class="web-lookup-panel-header">
+                <div>
+                  <h2 id="webLookupPanelTitle" class="web-lookup-panel-title">Web search</h2>
+                  <p id="webLookupPanelDescription" class="web-lookup-panel-description mb-0">
+                    DuckDuckGo search opened for the current lookup.
+                  </p>
+                </div>
+                <button
+                  id="closeWebLookupPanelButton"
+                  type="button"
+                  class="btn icon-button web-lookup-close-button"
+                  aria-label="Close web search panel"
+                >
+                  <i class="bi bi-x-lg" aria-hidden="true"></i>
+                  <span class="visually-hidden">Close web search panel</span>
+                </button>
+              </div>
+              <iframe
+                id="webLookupFrame"
+                class="web-lookup-frame"
+                title="DuckDuckGo search page"
+                loading="eager"
+                referrerpolicy="no-referrer"
+              ></iframe>
+            </aside>
           </div>
           <section
             id="settingsPage"

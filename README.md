@@ -130,9 +130,10 @@ Student-facing browser chat UI with local model inference.
 - The effective system prompt also appends conversation-level language steering when a response language is selected and model-specific thinking-mode switch instructions when the selected model exposes them.
 - When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt and any enabled feature guidance.
 - Tool-calling behavior, transcript presentation, export semantics, the current built-in tool catalog, and the planned function-call/MCP/`SKILL.md` capability model are documented in `docs/tools.md`.
-- The current built-in tool catalog includes date/time lookup, user location lookup, a fetch-backed `web_lookup` page-preview tool, a `tasklist` planner whose latest state is derived from inline tasklist tool results on the visible conversation branch, a `write_python_file` tool for longer `/workspace/*.py` scripts, and a browser-local `run_shell_command` tool that exposes a documented GNU/Linux-like command subset over `/workspace`.
-  - `web_lookup` accepts one `input` string, requires a direct `https` URL, and returns a compact `{"status","body","message?"}` envelope.
-  - Successful `web_lookup` responses put MIME type, title, and a summary excerpt into markdown inside `body`.
+- The current built-in tool catalog includes date/time lookup, user location lookup, a fetch-backed `web_lookup` page/search tool, a `tasklist` planner whose latest state is derived from inline tasklist tool results on the visible conversation branch, a `write_python_file` tool for longer `/workspace/*.py` scripts, and a browser-local `run_shell_command` tool that exposes a documented GNU/Linux-like command subset over `/workspace`.
+  - `web_lookup` accepts one `input` string and returns a compact `{"status","body","message?"}` envelope.
+  - If `input` is a direct `https` URL, `web_lookup` returns MIME type, title, and a summary excerpt in markdown inside `body`.
+  - If `input` is a search query, `web_lookup` opens a right-side DuckDuckGo panel for that query, then attempts an in-app DuckDuckGo fetch and returns concise search results in `body`.
   - Failed `web_lookup` responses use `status: "failed"` plus retry guidance in `message`.
   - `web_lookup` uses the browser fetch API directly, so normal browser CORS and fetch restrictions still apply.
   - The shell tool keeps a conversation-local current working directory, defaults it to `/workspace`, and resolves relative paths from that pointer.

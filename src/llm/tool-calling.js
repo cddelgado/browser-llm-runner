@@ -63,7 +63,8 @@ export const TOOL_DEFINITIONS = Object.freeze([
   {
     name: 'web_lookup',
     displayName: 'Web Lookup',
-    description: 'Pass {"input":"https://..."} to fetch a page and return a preview.',
+    description:
+      'Pass {"input":"https://..."} to fetch a page preview, or pass a search query to search DuckDuckGo and return concise results.',
     enabled: true,
     parameters: {
       type: 'object',

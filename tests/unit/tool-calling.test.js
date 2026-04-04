@@ -382,7 +382,7 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      '- web_lookup: Pass {"input":"https://..."} to fetch a page and return a preview.'
+      '- web_lookup: Pass {"input":"https://..."} to fetch a page preview, or pass a search query to search DuckDuckGo and return concise results.'
     );
     expect(prompt).not.toContain('Returns a concise extracted preview, not raw HTML.');
   });
@@ -3417,29 +3417,90 @@ describe('tool-calling prompt builder', () => {
     );
   });
 
-  test('rejects non-url input for web_lookup until search is implemented', async () => {
+  test('supports web_lookup search queries and opens the search panel before fetching results', async () => {
+    const events = [];
+    const fetchRef = vi.fn(async (url) => {
+      events.push(`fetch:${url}`);
+      if (url === 'https://duckduckgo.com/?q=latest+news+about+europa&ia=web') {
+        return new globalThis.Response('<!doctype html><html><body>vqd="3-123456789012345678901234567890"</body></html>', {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+          },
+        });
+      }
+      if (
+        String(url).startsWith(
+          'https://links.duckduckgo.com/d.js?q=latest+news+about+europa'
+        )
+      ) {
+        return new globalThis.Response(
+          "DDG.pageLayout.load('d',[{\"t\":\"Europa update\",\"a\":\"A short summary of the latest Europa update.\",\"i\":\"example.com\",\"u\":\"https://example.com/europa-update\"}]);DDG.duckbar.load('images', {});",
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/javascript; charset=utf-8',
+            },
+          }
+        );
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    const onWebLookupSearchStart = vi.fn(async ({ searchUrl }) => {
+      events.push(`panel:${searchUrl}`);
+    });
+    const onWebLookupSearchComplete = vi.fn(({ resultCount }) => {
+      events.push(`complete:${resultCount}`);
+    });
+
     const result = await executeToolCall({
         name: 'web_lookup',
         arguments: {
           input: 'latest news about europa',
         },
-      })
-    ;
+      }, {
+        fetchRef,
+        onWebLookupSearchStart,
+        onWebLookupSearchComplete,
+      });
 
+    expect(onWebLookupSearchStart).toHaveBeenCalledWith({
+      conversationId: null,
+      query: 'latest news about europa',
+      searchUrl: 'https://duckduckgo.com/?q=latest+news+about+europa&ia=web',
+    });
+    expect(events[0]).toBe('panel:https://duckduckgo.com/?q=latest+news+about+europa&ia=web');
+    expect(events[1]).toBe('fetch:https://duckduckgo.com/?q=latest+news+about+europa&ia=web');
     expect(result.result).toEqual({
-      status: 'failed',
+      status: 'successful',
       body:
-        'web_lookup currently supports only direct https URLs. Search queries are not implemented yet.',
-      message:
-        'Use a direct https URL and retry with a simpler page if the request or extraction fails.',
+        '## Search results\n' +
+        'Query: latest news about europa\n' +
+        '\n' +
+        '1. Europa update\n' +
+        '   URL: https://example.com/europa-update\n' +
+        '   Source: example.com\n' +
+        '   Snippet: A short summary of the latest Europa update.',
+      message: 'Use web_lookup again with one of the result URLs to read the page.',
+    });
+    expect(onWebLookupSearchComplete).toHaveBeenCalledWith({
+      conversationId: null,
+      query: 'latest news about europa',
+      searchUrl: 'https://duckduckgo.com/?q=latest+news+about+europa&ia=web',
+      resultCount: 1,
     });
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'failed',
+        status: 'successful',
         body:
-          'web_lookup currently supports only direct https URLs. Search queries are not implemented yet.',
-        message:
-          'Use a direct https URL and retry with a simpler page if the request or extraction fails.',
+          '## Search results\n' +
+          'Query: latest news about europa\n' +
+          '\n' +
+          '1. Europa update\n' +
+          '   URL: https://example.com/europa-update\n' +
+          '   Source: example.com\n' +
+          '   Snippet: A short summary of the latest Europa update.',
+        message: 'Use web_lookup again with one of the result URLs to read the page.',
       })
     );
   });
@@ -3454,8 +3515,7 @@ describe('tool-calling prompt builder', () => {
 
     expect(result.result).toEqual({
       status: 'failed',
-      body:
-        'web_lookup currently supports only direct https URLs. Search queries are not implemented yet.',
+      body: 'web_lookup direct URLs must use https.',
       message:
         'Use a direct https URL and retry with a simpler page if the request or extraction fails.',
     });
