@@ -133,7 +133,7 @@ Student-facing browser chat UI with local model inference.
 - The current built-in tool catalog includes date/time lookup, user location lookup, a fetch-backed `web_lookup` page/search tool, a `tasklist` planner whose latest state is derived from inline tasklist tool results on the visible conversation branch, a `write_python_file` tool for longer `/workspace/*.py` scripts, and a browser-local `run_shell_command` tool that exposes a documented GNU/Linux-like command subset over `/workspace`.
   - `web_lookup` accepts one `input` string and returns a compact `{"status","body","message?"}` envelope.
   - If `input` is a direct `https` URL, `web_lookup` returns MIME type, title, and a summary excerpt in markdown inside `body`.
-  - If `input` is a search query, `web_lookup` opens a right-side DuckDuckGo panel for that query, then attempts an in-app DuckDuckGo fetch and returns concise search results in `body`.
+  - If `input` is a search query, `web_lookup` opens a right-side lightweight DuckDuckGo HTML results panel for that query, then attempts an in-app DuckDuckGo fetch and returns concise search results in `body`.
   - Failed `web_lookup` responses use `status: "failed"` plus retry guidance in `message`.
   - `web_lookup` uses the browser fetch API directly, so normal browser CORS and fetch restrictions still apply.
   - The shell tool keeps a conversation-local current working directory, defaults it to `/workspace`, and resolves relative paths from that pointer.

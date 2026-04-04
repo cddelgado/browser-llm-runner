@@ -3493,6 +3493,7 @@ describe('tool-calling prompt builder', () => {
     expect(onWebLookupSearchStart).toHaveBeenCalledWith({
       conversationId: null,
       query: 'latest news about europa',
+      panelUrl: 'https://duckduckgo.com/html/?q=latest+news+about+europa',
       searchUrl: 'https://duckduckgo.com/?q=latest+news+about+europa&ia=web',
     });
     expect(events[0]).toBe('panel:https://duckduckgo.com/?q=latest+news+about+europa&ia=web');
@@ -3512,6 +3513,7 @@ describe('tool-calling prompt builder', () => {
     expect(onWebLookupSearchComplete).toHaveBeenCalledWith({
       conversationId: null,
       query: 'latest news about europa',
+      panelUrl: 'https://duckduckgo.com/html/?q=latest+news+about+europa',
       searchUrl: 'https://duckduckgo.com/?q=latest+news+about+europa&ia=web',
       resultCount: 1,
     });

@@ -2637,12 +2637,21 @@ function handleShellCommandComplete({
   renderWorkspaceSidePanels();
 }
 
-function handleWebLookupSearchStart({ conversationId = null, query = '', searchUrl = '' } = {}) {
+function handleWebLookupSearchStart({
+  conversationId = null,
+  query = '',
+  panelUrl = '',
+  searchUrl = '',
+} = {}) {
   const resolvedConversationId =
     typeof conversationId === 'string' && conversationId.trim()
       ? conversationId.trim()
       : getActiveConversation()?.id || null;
-  if (!resolvedConversationId || !String(searchUrl || '').trim()) {
+  const resolvedPanelUrl =
+    typeof panelUrl === 'string' && panelUrl.trim()
+      ? panelUrl.trim()
+      : String(searchUrl || '').trim();
+  if (!resolvedConversationId || !resolvedPanelUrl) {
     return Promise.resolve();
   }
   if (!(appState.webLookupPanelsByConversationId instanceof Map)) {
@@ -2652,10 +2661,10 @@ function handleWebLookupSearchStart({ conversationId = null, query = '', searchU
     heading: 'DuckDuckGo search',
     description:
       typeof query === 'string' && query.trim()
-        ? `Opening DuckDuckGo for "${query.trim()}" before the in-app search fetch runs.`
-        : 'Opening DuckDuckGo before the in-app search fetch runs.',
+        ? `Opening the lightweight DuckDuckGo results view for "${query.trim()}" before the in-app search fetch runs.`
+        : 'Opening the lightweight DuckDuckGo results view before the in-app search fetch runs.',
     query: typeof query === 'string' ? query.trim() : '',
-    searchUrl: String(searchUrl || '').trim(),
+    searchUrl: resolvedPanelUrl,
   });
   appState.activeWorkspaceSidePanel = 'web_lookup';
   renderWorkspaceSidePanels();
@@ -2668,6 +2677,7 @@ function handleWebLookupSearchComplete({
   conversationId = null,
   query = '',
   resultCount = 0,
+  panelUrl = '',
   searchUrl = '',
 } = {}) {
   const resolvedConversationId =
@@ -2683,11 +2693,13 @@ function handleWebLookupSearchComplete({
     heading: 'DuckDuckGo search',
     description:
       typeof query === 'string' && query.trim()
-        ? `DuckDuckGo is open for "${query.trim()}". ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`
-        : `DuckDuckGo is open. ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`,
+        ? `The lightweight DuckDuckGo results view is open for "${query.trim()}". ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`
+        : `The lightweight DuckDuckGo results view is open. ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`,
     searchUrl:
-      typeof searchUrl === 'string' && searchUrl.trim()
-        ? searchUrl.trim()
+      typeof panelUrl === 'string' && panelUrl.trim()
+        ? panelUrl.trim()
+        : typeof searchUrl === 'string' && searchUrl.trim()
+          ? searchUrl.trim()
         : existingPanel.searchUrl || '',
   });
   renderWorkspaceSidePanels();
