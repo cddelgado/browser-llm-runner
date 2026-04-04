@@ -29,8 +29,10 @@ Student-facing browser chat UI with local model inference.
 - Keyboard users get route-safe skip links that jump to the visible main content, application controls, conversations, transcript, composer, and settings regions without breaking hash-based routing.
 - The app shell uses a full-width `ClawsChat` banner above the main control bar, and the title/control strip stays visually minimized until the chat workspace is started while keyboard/help/settings remain available.
 - The footer shows the current release stamp (`2026.03.25-01`), copyright for Catarino David Delgado, and links to the GitHub repository and MIT license.
-- `Settings -> Conversation` includes:
+- `Settings -> Tools, Services, and Skills` includes:
   - `Enable tool calling` to append tool-call instructions only when the selected conversation model supports tool calling
+  - per-tool toggles for each currently available built-in tool; disabled tools are removed from the computed system prompt and ignored if a model still emits them
+- `Settings -> Conversation` includes:
   - `Render MathML from LaTeX` to control transcript math rendering and the matching math-formatting prompt hint
   - `Enable single-key transcript shortcuts` to disable focused transcript shortcuts like `E`, `B`, `R`, `F`, and `C`
   - `Transcript view` with `Standard` and `Compact`

@@ -30,6 +30,7 @@ export const ORCHESTRATION_STATUSES = Object.freeze({
  *   activeGenerationConfig?: any;
  *   defaultSystemPrompt?: string;
  *   enableToolCalling?: boolean;
+ *   enabledToolNames?: string[];
  *   renderMathMl?: boolean;
  *   maxDebugEntries?: number;
  * }} [options]
@@ -38,6 +39,7 @@ export function createAppState({
   activeGenerationConfig,
   defaultSystemPrompt = '',
   enableToolCalling = true,
+  enabledToolNames = [],
   renderMathMl = true,
   maxDebugEntries = 120,
 } = {}) {
@@ -61,6 +63,7 @@ export function createAppState({
     conversationSaveTimerId: null,
     showThinkingByDefault: false,
     enableToolCalling: Boolean(enableToolCalling),
+    enabledToolNames: Array.isArray(enabledToolNames) ? [...enabledToolNames] : [],
     renderMathMl: Boolean(renderMathMl),
     enableSingleKeyShortcuts: true,
     transcriptView: 'standard',

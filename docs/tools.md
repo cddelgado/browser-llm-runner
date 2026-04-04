@@ -21,7 +21,8 @@ When tool calling is enabled for a conversation and the selected model supports 
 7. Resubmits the conversation so the model can continue only after that tool result is available.
 
 Tool calling is model-aware. The app does not use one universal tool-call format for every model family.
-If the selected model does not support tool calling, the tool-instruction section is omitted entirely from the computed system prompt even when the conversation-level tool-calling toggle is enabled.
+If the selected model does not support tool calling, the tool-instruction section is omitted entirely from the computed system prompt even when the global tool-calling toggle is enabled.
+Users can also disable individual built-in tools in `Settings -> Tools, Services, and Skills`; disabled tools are removed from the tool-instruction section and ignored by the local tool-execution loop.
 
 The prompt is organized into separate sections so models do not confuse tool descriptions, post-tool behavior, and call syntax:
 
@@ -428,7 +429,7 @@ This is still an early implementation.
 - The built-in tool set is intentionally small.
 - Tool execution is local and explicit; there is no remote service backend.
 - Detection and parsing are driven by per-model metadata rather than a universal Transformers.js orchestration API.
-- The current tool registry is code-defined, not user-configurable.
+- The current tool registry is code-defined, but users can turn the currently available built-in tools on or off from `Settings -> Tools, Services, and Skills`.
 - The current streaming interception path acts on the first complete tool call detected in a streamed turn, then resumes generation after that tool result is available.
 - MCP capability discovery is planned but not implemented yet.
 - `SKILL.md` discovery and selective ingestion are planned but not implemented yet.

@@ -579,6 +579,17 @@
                     >
                       Conversation
                     </button>
+                    <button
+                      type="button"
+                      class="nav-link"
+                      id="settingsTabTools"
+                      role="tab"
+                      data-settings-tab="tools"
+                      aria-controls="settingsToolsPanel"
+                      aria-selected="false"
+                    >
+                      Tools, Services, and Skills
+                    </button>
                   </div>
                 </nav>
                 <form class="settings-panels">
@@ -605,21 +616,6 @@
                         <option value="dark">Dark</option>
                         <option value="system">System</option>
                       </select>
-                    </div>
-                    <div class="form-check form-switch">
-                      <input
-                        class="form-check-input"
-                        type="checkbox"
-                        role="switch"
-                        id="enableToolCallingToggle"
-                        checked
-                      />
-                      <label class="form-check-label" for="enableToolCallingToggle">
-                        Enable tool calling
-                      </label>
-                      <p class="form-text mb-0">
-                        Appends tool-call instructions only for models that support tool calling.
-                      </p>
                     </div>
                     <div class="form-check form-switch">
                       <input
@@ -891,6 +887,43 @@
                         Compact view reduces transcript spacing while keeping every learning control
                         visible.
                       </p>
+                    </div>
+                  </section>
+
+                  <section
+                    id="settingsToolsPanel"
+                    class="settings-tab-panel d-none"
+                    role="tabpanel"
+                    data-settings-tab-panel="tools"
+                    aria-labelledby="settingsTabTools"
+                  >
+                    <h3 class="h6 mb-0" id="settingsToolsHeading">Tools, Services, and Skills</h3>
+                    <div class="form-check form-switch">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        id="enableToolCallingToggle"
+                        checked
+                      />
+                      <label class="form-check-label" for="enableToolCallingToggle">
+                        Enable tool calling
+                      </label>
+                      <p class="form-text mb-0">
+                        Appends tool-call instructions only for models that support tool calling.
+                      </p>
+                    </div>
+                    <div class="settings-control-group">
+                      <p class="form-label mb-1" id="availableToolsLabel">Available tools</p>
+                      <p class="form-text mt-0">
+                        Turn off any tool you do not want exposed in the system prompt or executed
+                        by the app. Services and skills are reserved for future capability types.
+                      </p>
+                      <div
+                        id="toolSettingsList"
+                        class="d-flex flex-column gap-3"
+                        aria-labelledby="availableToolsLabel"
+                      ></div>
                     </div>
                   </section>
                 </form>

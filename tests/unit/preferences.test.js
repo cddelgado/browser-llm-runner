@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { createAppState } from '../../src/state/app-state.js';
 import { createPreferencesController } from '../../src/app/preferences.js';
+import { getEnabledToolDefinitions } from '../../src/llm/tool-calling.js';
 
 function createPreferencesHarness() {
   const dom = new JSDOM(
@@ -13,6 +14,7 @@ function createPreferencesHarness() {
       </select>
       <input id="showThinkingToggle" type="checkbox" />
       <input id="enableToolCallingToggle" type="checkbox" />
+      <div id="toolSettingsList"></div>
       <input id="renderMathMlToggle" type="checkbox" />
       <input id="enableSingleKeyShortcutsToggle" type="checkbox" />
       <select id="transcriptViewSelect">
@@ -43,6 +45,7 @@ function createPreferencesHarness() {
   globalThis.HTMLSelectElement = dom.window.HTMLSelectElement;
   globalThis.HTMLTextAreaElement = dom.window.HTMLTextAreaElement;
   const appState = createAppState({ activeGenerationConfig: { maxOutputTokens: 256 } });
+  appState.enabledToolNames = getEnabledToolDefinitions().map((tool) => tool.name);
   appState.webGpuProbeCompleted = true;
   appState.webGpuAdapterAvailable = true;
 
@@ -57,6 +60,7 @@ function createPreferencesHarness() {
       themeStorageKey: 'theme',
       showThinkingStorageKey: 'show-thinking',
       enableToolCallingStorageKey: 'tool-calling',
+      enabledToolsStorageKey: 'enabled-tools',
       renderMathMlStorageKey: 'render-mathml',
       singleKeyShortcutsStorageKey: 'single-key',
       transcriptViewStorageKey: 'transcript-view',
@@ -66,9 +70,11 @@ function createPreferencesHarness() {
       backendStorageKey: 'backend',
       supportedBackendPreferences: new Set(['auto', 'webgpu', 'wasm', 'cpu']),
       webGpuRequiredModelSuffix: ' (WebGPU required)',
+      availableToolDefinitions: getEnabledToolDefinitions(),
       themeSelect: document.getElementById('themeSelect'),
       showThinkingToggle: document.getElementById('showThinkingToggle'),
       enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
+      toolSettingsList: document.getElementById('toolSettingsList'),
       renderMathMlToggle: document.getElementById('renderMathMlToggle'),
       enableSingleKeyShortcutsToggle: document.getElementById('enableSingleKeyShortcutsToggle'),
       transcriptViewSelect: document.getElementById('transcriptViewSelect'),
@@ -140,6 +146,41 @@ describe('preferences controller', () => {
 
     expect(harness.appState.renderMathMl).toBe(true);
     expect(renderMathMlToggle?.checked).toBe(true);
+  });
+
+  test('defaults the enabled tool list to every available tool and renders one toggle per tool', () => {
+    const harness = createPreferencesHarness();
+    const toolSettingsList = harness.document.getElementById('toolSettingsList');
+
+    const storedToolNames = harness.controller.getStoredEnabledToolNamesPreference();
+    const renderedToolToggles = Array.from(
+      toolSettingsList?.querySelectorAll('input[data-tool-toggle="true"]') || []
+    );
+
+    expect(storedToolNames).toEqual(getEnabledToolDefinitions().map((tool) => tool.name));
+    expect(renderedToolToggles).toHaveLength(getEnabledToolDefinitions().length);
+    expect(renderedToolToggles.every((toggle) => toggle.checked)).toBe(true);
+  });
+
+  test('persists user-selected enabled tools and updates the rendered toggle state', () => {
+    const harness = createPreferencesHarness();
+
+    harness.controller.applyEnabledToolNamesPreference(['get_current_date_time', 'tasklist'], {
+      persist: true,
+    });
+
+    expect(harness.appState.enabledToolNames).toEqual(['get_current_date_time', 'tasklist']);
+    expect(harness.controller.getStoredEnabledToolNamesPreference()).toEqual([
+      'get_current_date_time',
+      'tasklist',
+    ]);
+    expect(
+      harness.document.querySelector('[data-tool-name="get_current_date_time"]')?.checked
+    ).toBe(true);
+    expect(harness.document.querySelector('[data-tool-name="tasklist"]')?.checked).toBe(true);
+    expect(
+      harness.document.querySelector('[data-tool-name="run_shell_command"]')?.checked
+    ).toBe(false);
   });
 
   test('falls back to an available model when the current backend cannot use the requested model', () => {

@@ -18,6 +18,7 @@ export function createPreferencesController({
   themeStorageKey,
   showThinkingStorageKey,
   enableToolCallingStorageKey,
+  enabledToolsStorageKey,
   renderMathMlStorageKey,
   singleKeyShortcutsStorageKey,
   transcriptViewStorageKey,
@@ -27,9 +28,11 @@ export function createPreferencesController({
   backendStorageKey,
   supportedBackendPreferences,
   webGpuRequiredModelSuffix,
+  availableToolDefinitions = [],
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  toolSettingsList,
   renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
@@ -47,6 +50,28 @@ export function createPreferencesController({
   setStatus,
   appendDebug,
 }) {
+  const normalizedAvailableToolDefinitions = Array.isArray(availableToolDefinitions)
+    ? availableToolDefinitions
+        .filter((tool) => tool && typeof tool === 'object')
+        .map((tool) => ({
+          name: typeof tool.name === 'string' ? tool.name.trim() : '',
+          displayName:
+            typeof tool.displayName === 'string' && tool.displayName.trim()
+              ? tool.displayName.trim()
+              : typeof tool.name === 'string'
+                ? tool.name.trim()
+                : 'Unknown tool',
+          description:
+            typeof tool.description === 'string' && tool.description.trim()
+              ? tool.description.trim()
+              : '',
+        }))
+        .filter((tool) => tool.name)
+    : [];
+  const availableToolNameSet = new Set(
+    normalizedAvailableToolDefinitions.map((toolDefinition) => toolDefinition.name)
+  );
+
   function getStoredShowThinkingPreference() {
     return storage.getItem(showThinkingStorageKey) === 'true';
   }
@@ -54,6 +79,35 @@ export function createPreferencesController({
   function getStoredToolCallingPreference() {
     const stored = storage.getItem(enableToolCallingStorageKey);
     return stored === null ? true : stored === 'true';
+  }
+
+  function getDefaultEnabledToolNames() {
+    return normalizedAvailableToolDefinitions.map((toolDefinition) => toolDefinition.name);
+  }
+
+  function normalizeEnabledToolNames(value) {
+    const requestedToolNames = Array.isArray(value)
+      ? value
+          .map((toolName) => (typeof toolName === 'string' ? toolName.trim() : ''))
+          .filter(Boolean)
+      : [];
+    const requestedToolNameSet = new Set(requestedToolNames);
+    return normalizedAvailableToolDefinitions
+      .map((toolDefinition) => toolDefinition.name)
+      .filter((toolName) => requestedToolNameSet.has(toolName));
+  }
+
+  function getStoredEnabledToolNamesPreference() {
+    const stored = storage.getItem(enabledToolsStorageKey);
+    if (stored === null) {
+      return getDefaultEnabledToolNames();
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? normalizeEnabledToolNames(parsed) : getDefaultEnabledToolNames();
+    } catch {
+      return getDefaultEnabledToolNames();
+    }
   }
 
   function getStoredMathRenderingPreference() {
@@ -109,6 +163,70 @@ export function createPreferencesController({
     if (persist) {
       storage.setItem(enableToolCallingStorageKey, String(appState.enableToolCalling));
     }
+  }
+
+  function buildToolToggleId(toolName) {
+    return `toolSettingToggle-${toolName.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+  }
+
+  function renderToolAvailabilityPreferences() {
+    if (!(toolSettingsList instanceof HTMLElement)) {
+      return;
+    }
+    const enabledToolNameSet = new Set(appState.enabledToolNames);
+    toolSettingsList.replaceChildren();
+    normalizedAvailableToolDefinitions.forEach((toolDefinition) => {
+      const wrapper = documentRef.createElement('div');
+      wrapper.className = 'form-check form-switch';
+
+      const input = documentRef.createElement('input');
+      input.className = 'form-check-input';
+      input.type = 'checkbox';
+      input.role = 'switch';
+      input.id = buildToolToggleId(toolDefinition.name);
+      input.checked = enabledToolNameSet.has(toolDefinition.name);
+      input.dataset.toolToggle = 'true';
+      input.dataset.toolName = toolDefinition.name;
+      input.dataset.toolDisplayName = toolDefinition.displayName;
+      wrapper.appendChild(input);
+
+      const label = documentRef.createElement('label');
+      label.className = 'form-check-label';
+      label.htmlFor = input.id;
+      label.textContent = toolDefinition.displayName;
+      wrapper.appendChild(label);
+
+      if (toolDefinition.description) {
+        const help = documentRef.createElement('p');
+        help.className = 'form-text mb-0';
+        help.textContent = toolDefinition.description;
+        wrapper.appendChild(help);
+      }
+
+      toolSettingsList.appendChild(wrapper);
+    });
+  }
+
+  function applyEnabledToolNamesPreference(value, { persist = false } = {}) {
+    appState.enabledToolNames = normalizeEnabledToolNames(value);
+    renderToolAvailabilityPreferences();
+    if (persist) {
+      storage.setItem(enabledToolsStorageKey, JSON.stringify(appState.enabledToolNames));
+    }
+  }
+
+  function applyToolEnabledPreference(toolName, value, { persist = false } = {}) {
+    const normalizedToolName = typeof toolName === 'string' ? toolName.trim() : '';
+    if (!availableToolNameSet.has(normalizedToolName)) {
+      return;
+    }
+    const nextEnabledToolNames = new Set(appState.enabledToolNames);
+    if (value) {
+      nextEnabledToolNames.add(normalizedToolName);
+    } else {
+      nextEnabledToolNames.delete(normalizedToolName);
+    }
+    applyEnabledToolNamesPreference([...nextEnabledToolNames], { persist });
   }
 
   function applyMathRenderingPreference(value, { persist = false } = {}) {
@@ -689,9 +807,12 @@ export function createPreferencesController({
     });
   }
 
+  renderToolAvailabilityPreferences();
+
   return {
     getStoredShowThinkingPreference,
     getStoredToolCallingPreference,
+    getStoredEnabledToolNamesPreference,
     getStoredMathRenderingPreference,
     getStoredSingleKeyShortcutPreference,
     getStoredTranscriptViewPreference,
@@ -700,6 +821,8 @@ export function createPreferencesController({
     applyDefaultSystemPrompt,
     applyShowThinkingPreference,
     applyToolCallingPreference,
+    applyEnabledToolNamesPreference,
+    applyToolEnabledPreference,
     applyMathRenderingPreference,
     applySingleKeyShortcutPreference,
     applyTranscriptViewPreference,

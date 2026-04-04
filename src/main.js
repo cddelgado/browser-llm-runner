@@ -145,6 +145,7 @@ import {
 const THEME_STORAGE_KEY = 'ui-theme-preference';
 const SHOW_THINKING_STORAGE_KEY = 'ui-show-thinking';
 const ENABLE_TOOL_CALLING_STORAGE_KEY = 'conversation-enable-tool-calling';
+const ENABLED_TOOLS_STORAGE_KEY = 'conversation-enabled-tools';
 const RENDER_MATHML_STORAGE_KEY = 'conversation-render-mathml';
 const SINGLE_KEY_SHORTCUTS_STORAGE_KEY = 'ui-enable-single-key-shortcuts';
 const TRANSCRIPT_VIEW_STORAGE_KEY = 'ui-transcript-view';
@@ -193,6 +194,7 @@ window.MathJax.startup = {
 const themeSelect = document.getElementById('themeSelect');
 const showThinkingToggle = document.getElementById('showThinkingToggle');
 const enableToolCallingToggle = document.getElementById('enableToolCallingToggle');
+const toolSettingsList = document.getElementById('toolSettingsList');
 const renderMathMlToggle = document.getElementById('renderMathMlToggle');
 const defaultSystemPromptInput = document.getElementById('defaultSystemPromptInput');
 const conversationLanguageSelect = document.getElementById('conversationLanguageSelect');
@@ -361,6 +363,7 @@ const appState = createAppState({
   },
   defaultSystemPrompt: '',
   enableToolCalling: true,
+  enabledToolNames: getEnabledToolNames(),
   maxDebugEntries: MAX_DEBUG_ENTRIES,
 });
 appState.webGpuAdapterAvailable = browserSupportsWebGpu();
@@ -1211,12 +1214,20 @@ function getToolCallingConfigForModel(modelId) {
   return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.toolCalling || null;
 }
 
+function getConfiguredEnabledToolNames() {
+  return getEnabledToolNames(appState.enabledToolNames);
+}
+
+function getConfiguredEnabledToolDefinitions() {
+  return getEnabledToolDefinitions(appState.enabledToolNames);
+}
+
 function getToolCallingContext(modelId) {
   const enabled = appState.enableToolCalling === true;
   const config = enabled ? getToolCallingConfigForModel(modelId) : null;
   const supported = enabled && modelSupportsToolCalling(modelId) && Boolean(config);
-  const enabledToolDefinitions = getEnabledToolDefinitions();
-  const enabledTools = getEnabledToolNames();
+  const enabledToolDefinitions = getConfiguredEnabledToolDefinitions();
+  const enabledTools = getConfiguredEnabledToolNames();
   return {
     enabled,
     supported,
@@ -1291,7 +1302,7 @@ function getOptionalFeatureSystemPromptSection(modelId, conversation = null) {
   const thinkingControl = getThinkingControlForModel(modelId);
   return buildOptionalFeaturePromptSection([
     buildFactCheckingPrompt({
-      webLookupEnabled: getEnabledToolNames().includes('web_lookup'),
+      webLookupEnabled: getConfiguredEnabledToolNames().includes('web_lookup'),
     }),
     buildMathRenderingFeaturePrompt({ renderMathMl: appState.renderMathMl }),
     buildLanguagePreferencePrompt({
@@ -1466,10 +1477,17 @@ function buildComputedConversationSystemPromptPreview({
 
 function detectToolCallsForModel(rawText, modelId) {
   const toolCallingConfig = getToolCallingConfigForModel(modelId);
-  if (!toolCallingConfig) {
+  const toolContext = getToolCallingContext(modelId);
+  if (!toolCallingConfig || !toolContext.supported) {
     return [];
   }
-  return sniffToolCalls(rawText, toolCallingConfig);
+  const enabledToolNameSet = new Set(toolContext.enabledTools);
+  if (!enabledToolNameSet.size) {
+    return [];
+  }
+  return sniffToolCalls(rawText, toolCallingConfig).filter((toolCall) =>
+    enabledToolNameSet.has(toolCall?.name)
+  );
 }
 
 function clearPendingComposerAttachments({ resetInput = true } = {}) {
@@ -3791,6 +3809,7 @@ const preferencesController = createPreferencesController({
   themeStorageKey: THEME_STORAGE_KEY,
   showThinkingStorageKey: SHOW_THINKING_STORAGE_KEY,
   enableToolCallingStorageKey: ENABLE_TOOL_CALLING_STORAGE_KEY,
+  enabledToolsStorageKey: ENABLED_TOOLS_STORAGE_KEY,
   renderMathMlStorageKey: RENDER_MATHML_STORAGE_KEY,
   singleKeyShortcutsStorageKey: SINGLE_KEY_SHORTCUTS_STORAGE_KEY,
   transcriptViewStorageKey: TRANSCRIPT_VIEW_STORAGE_KEY,
@@ -3800,9 +3819,11 @@ const preferencesController = createPreferencesController({
   backendStorageKey: BACKEND_STORAGE_KEY,
   supportedBackendPreferences: SUPPORTED_BACKEND_PREFERENCES,
   webGpuRequiredModelSuffix: WEBGPU_REQUIRED_MODEL_SUFFIX,
+  availableToolDefinitions: getEnabledToolDefinitions(),
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  toolSettingsList,
   renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
@@ -3824,8 +3845,10 @@ const preferencesController = createPreferencesController({
 const {
   applyDefaultSystemPrompt,
   applyMathRenderingPreference,
+  applyEnabledToolNamesPreference,
   applyShowThinkingPreference,
   applyTheme,
+  applyToolEnabledPreference,
   applyToolCallingPreference,
   applyTranscriptViewPreference,
   applyConversationPanelCollapsedPreference,
@@ -3833,6 +3856,7 @@ const {
   formatBackendPreferenceLabel,
   getAvailableModelId,
   getStoredDefaultSystemPrompt,
+  getStoredEnabledToolNamesPreference,
   getStoredMathRenderingPreference,
   getStoredShowThinkingPreference,
   getStoredSingleKeyShortcutPreference,
@@ -3956,6 +3980,7 @@ const appController = createAppController({
   executeToolCall: (toolCall) =>
     executeToolCall(toolCall, {
       conversation: getActiveConversation(),
+      enabledToolNames: getConfiguredEnabledToolNames(),
       requestToolConsent,
       onShellCommandStart: handleShellCommandStart,
       onShellCommandComplete: handleShellCommandComplete,
@@ -4086,6 +4111,7 @@ const themePreference = getStoredThemePreference();
 applyTheme(themePreference);
 applyShowThinkingPreference(getStoredShowThinkingPreference());
 applyToolCallingPreference(getStoredToolCallingPreference());
+applyEnabledToolNamesPreference(getStoredEnabledToolNamesPreference());
 applyMathRenderingPreference(getStoredMathRenderingPreference());
 applySingleKeyShortcutPreference(getStoredSingleKeyShortcutPreference());
 applyTranscriptViewPreference(getStoredTranscriptViewPreference());
@@ -4132,6 +4158,7 @@ bindSettingsEvents({
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  toolSettingsList,
   renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
@@ -4156,6 +4183,7 @@ bindSettingsEvents({
   applyTheme,
   applyShowThinkingPreference,
   applyToolCallingPreference,
+  applyToolEnabledPreference,
   applyMathRenderingPreference,
   applySingleKeyShortcutPreference,
   applyTranscriptViewPreference,

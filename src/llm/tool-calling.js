@@ -144,10 +144,6 @@ function humanizeToolName(toolName) {
     .join(' ');
 }
 
-export function getEnabledToolDefinitions() {
-  return TOOL_DEFINITIONS.filter((tool) => tool?.enabled === true);
-}
-
 export function getToolDefinitionByName(toolName) {
   const normalizedName = typeof toolName === 'string' ? toolName.trim() : '';
   if (!normalizedName) {
@@ -163,8 +159,29 @@ export function getToolDisplayName(toolName) {
     : humanizeToolName(toolName);
 }
 
-export function getEnabledToolNames() {
-  return getEnabledToolDefinitions()
+function normalizeRequestedToolNames(requestedToolNames = []) {
+  return Array.isArray(requestedToolNames)
+    ? requestedToolNames
+        .map((toolName) => (typeof toolName === 'string' ? toolName.trim() : ''))
+        .filter(Boolean)
+    : [];
+}
+
+export function getAvailableToolDefinitions() {
+  return TOOL_DEFINITIONS.filter((tool) => tool?.enabled === true);
+}
+
+export function getEnabledToolDefinitions(requestedToolNames = null) {
+  const availableTools = getAvailableToolDefinitions();
+  if (!Array.isArray(requestedToolNames)) {
+    return availableTools;
+  }
+  const enabledToolNameSet = new Set(normalizeRequestedToolNames(requestedToolNames));
+  return availableTools.filter((tool) => enabledToolNameSet.has(tool.name));
+}
+
+export function getEnabledToolNames(requestedToolNames = null) {
+  return getEnabledToolDefinitions(requestedToolNames)
     .map((tool) => (typeof tool.name === 'string' ? tool.name.trim() : ''))
     .filter(Boolean);
 }
@@ -1407,6 +1424,12 @@ export async function executeToolCall(toolCall, runtimeContext = {}) {
     throw new Error('Tool call is required.');
   }
   const toolName = typeof toolCall.name === 'string' ? toolCall.name.trim() : '';
+  if (
+    Array.isArray(runtimeContext.enabledToolNames) &&
+    !getEnabledToolNames(runtimeContext.enabledToolNames).includes(toolName)
+  ) {
+    throw new Error(`Tool is disabled: ${toolName || 'unknown_tool'}`);
+  }
   const argumentsValue =
     toolCall.arguments &&
     typeof toolCall.arguments === 'object' &&

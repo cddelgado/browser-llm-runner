@@ -462,6 +462,23 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.stdout).toBe('/workspace');
   });
 
+  test('rejects execution when a known tool is disabled in runtime context', async () => {
+    await expect(
+      executeToolCall(
+        {
+          name: 'run_shell_command',
+          arguments: {
+            cmd: 'pwd',
+          },
+        },
+        {
+          enabledToolNames: ['tasklist'],
+          workspaceFileSystem: createMockWorkspaceFileSystem(),
+        }
+      )
+    ).rejects.toThrow('Tool is disabled: run_shell_command');
+  });
+
   test('does not notify shell callbacks when run_shell_command fails before execution starts', async () => {
     const onShellCommandStart = vi.fn();
     const onShellCommandComplete = vi.fn();
@@ -548,6 +565,17 @@ describe('tool-calling prompt builder', () => {
         }),
       ])
     );
+  });
+
+  test('filters enabled tool definitions to the requested available subset', () => {
+    expect(getEnabledToolDefinitions(['tasklist', 'run_shell_command'])).toEqual([
+      expect.objectContaining({
+        name: 'tasklist',
+      }),
+      expect.objectContaining({
+        name: 'run_shell_command',
+      }),
+    ]);
   });
 
   test('returns an empty prompt when no tools are enabled', () => {
@@ -1263,7 +1291,7 @@ describe('tool-calling prompt builder', () => {
     expect(result.result).toBeNull();
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'failure',
+        status: 'failed',
         body: 'write_python_file path must end in .py under /workspace.',
       })
     );

@@ -12,6 +12,7 @@ export function bindSettingsEvents({
   themeSelect,
   showThinkingToggle,
   enableToolCallingToggle,
+  toolSettingsList,
   renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
@@ -36,6 +37,7 @@ export function bindSettingsEvents({
   applyTheme,
   applyShowThinkingPreference,
   applyToolCallingPreference,
+  applyToolEnabledPreference,
   applyMathRenderingPreference,
   applySingleKeyShortcutPreference,
   applyTranscriptViewPreference,
@@ -152,7 +154,33 @@ export function bindSettingsEvents({
     enableToolCallingToggle.addEventListener('change', (event) => {
       const value = event.target instanceof HTMLInputElement ? event.target.checked : true;
       applyToolCallingPreference(value, { persist: true });
+      if (typeof refreshConversationSystemPromptPreview === 'function') {
+        refreshConversationSystemPromptPreview();
+      }
       setStatus(value ? 'Tool calling enabled.' : 'Tool calling disabled.');
+    });
+  }
+
+  if (toolSettingsList instanceof HTMLElement) {
+    toolSettingsList.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || target.dataset.toolToggle !== 'true') {
+        return;
+      }
+      const toolName = typeof target.dataset.toolName === 'string' ? target.dataset.toolName : '';
+      const toolLabel =
+        typeof target.dataset.toolDisplayName === 'string' && target.dataset.toolDisplayName.trim()
+          ? target.dataset.toolDisplayName.trim()
+          : toolName;
+      applyToolEnabledPreference(toolName, target.checked, { persist: true });
+      if (typeof refreshConversationSystemPromptPreview === 'function') {
+        refreshConversationSystemPromptPreview();
+      }
+      setStatus(
+        target.checked
+          ? `${toolLabel} enabled for tool calling.`
+          : `${toolLabel} disabled for tool calling.`
+      );
     });
   }
 
