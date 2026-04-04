@@ -414,7 +414,11 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      'Use to write longer Python scripts.'
+      '- write_python_file: Writes Python source code to a .py file under /workspace.'
+    );
+    expect(prompt).toContain('Use this for longer Python scripts.');
+    expect(prompt).toContain(
+      'Call with {"path":"/workspace/script.py","source":"print(\\"hello\\")\\n"}.'
     );
   });
 

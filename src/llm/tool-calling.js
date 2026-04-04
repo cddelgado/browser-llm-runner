@@ -80,7 +80,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
   {
     name: 'write_python_file',
     displayName: 'Write Python File',
-    description: 'Writes Python source code to a .py file under /workspace; use to write longer scripts.',
+    description: 'Writes Python source code to a .py file under /workspace.',
     enabled: true,
     parameters: {
       type: 'object',
@@ -244,7 +244,10 @@ function buildToolInstructionLines(name, description = '') {
     );
   }
   if (normalizedName === 'write_python_file') {
-    lines.push('  Use to write longer Python scripts.');
+    lines.push('  Use this for longer Python scripts.');
+    lines.push(
+      '  Call with {"path":"/workspace/script.py","source":"print(\\"hello\\")\\n"}.'
+    );
   }
   if (normalizedName === 'run_shell_command') {
     lines.push('  Files are in /workspace.');
