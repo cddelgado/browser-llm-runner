@@ -23,7 +23,8 @@ Rendering-heavy DOM code is now split into small view modules under `src/ui/`.
   - keeps the live prompt/cursor visible and resizes to the split workspace panel
 - `src/ui/browser-view.js`
   - simple right-side browser panel rendering for `web_lookup` query mode
-  - keeps an external DuckDuckGo page open alongside the chat workspace
+  - stays mounted but hidden/blank until a web lookup opens it
+  - keeps an external DuckDuckGo page open in a portrait 9:16 phone-like frame alongside the chat workspace
 
 ## Boundary
 

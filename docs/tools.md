@@ -118,7 +118,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - HTML responses prefer title, meta description, and visible main/article/body text
   - large page responses are clipped to a preview window before extraction and summarized into the markdown body
   - if `input` is not a URL, the tool treats it as a DuckDuckGo search query
-  - query mode opens a right-side lightweight DuckDuckGo HTML browser panel first, then attempts an in-app fetch of DuckDuckGo search results for concise extraction
+  - query mode opens a right-side lightweight DuckDuckGo HTML browser panel first in a portrait 9:16 phone-like frame, then attempts an in-app fetch of DuckDuckGo search results for concise extraction
   - query-mode `message` tells the model to call `web_lookup` again with one of the returned result URLs when it wants the page itself
 - Current limits:
   - uses browser `fetch`, so CORS, browser-managed redirects, and forbidden request headers still apply

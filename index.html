@@ -484,8 +484,10 @@
             </aside>
             <aside
               id="webLookupPanel"
-              class="web-lookup-panel d-none"
+              class="web-lookup-panel"
               aria-labelledby="webLookupPanelTitle"
+              aria-hidden="true"
+              hidden
             >
               <div class="web-lookup-panel-header">
                 <div>
@@ -507,8 +509,9 @@
               <iframe
                 id="webLookupFrame"
                 class="web-lookup-frame"
-                title="DuckDuckGo search page"
-                loading="eager"
+                title="Web lookup browser panel"
+                src="about:blank"
+                loading="lazy"
                 referrerpolicy="no-referrer"
               ></iframe>
             </aside>

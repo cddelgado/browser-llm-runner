@@ -578,6 +578,13 @@
   color: var(--ink);
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  width: min(100%, 24rem);
+  max-width: 24rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 24px 60px rgba(34, 48, 34, 0.12);
+  overflow: hidden;
 }
 
 .web-lookup-panel-header {
@@ -585,9 +592,10 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1rem 0.75rem;
+  padding: 1rem 1rem 0.35rem;
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 76%, transparent);
   background: rgba(255, 255, 255, 0.84);
+  border-radius: 1rem 1rem 0 0;
 }
 
 .web-lookup-panel-title {
@@ -610,11 +618,14 @@
 }
 
 .web-lookup-frame {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   width: 100%;
-  min-height: 16rem;
+  aspect-ratio: 9 / 16;
+  min-height: min(70vh, 32rem);
+  max-height: min(70vh, 42rem);
   border: 0;
   background: #ffffff;
+  border-radius: 0 0 1rem 1rem;
 }
 
 .app-footer {
@@ -2464,15 +2475,28 @@
   body.terminal-open .chat-workspace-layout,
   body.web-lookup-open .chat-workspace-layout {
     flex-direction: row;
+    align-items: stretch;
   }
 
   body.terminal-open .chat-workspace-primary,
-  body.terminal-open .terminal-panel,
-  body.web-lookup-open .chat-workspace-primary,
-  body.web-lookup-open .web-lookup-panel {
+  body.terminal-open .terminal-panel {
     flex: 0 0 50%;
     width: 50%;
     max-width: 50%;
+  }
+
+  body.web-lookup-open .chat-workspace-primary {
+    flex: 1 1 auto;
+    width: calc(100% - clamp(18rem, 24vw, 24rem));
+    max-width: calc(100% - clamp(18rem, 24vw, 24rem));
+  }
+
+  body.web-lookup-open .web-lookup-panel {
+    flex: 0 0 clamp(18rem, 24vw, 24rem);
+    width: clamp(18rem, 24vw, 24rem);
+    max-width: clamp(18rem, 24vw, 24rem);
+    margin-inline: auto;
+    align-self: center;
   }
 
   body.terminal-open .chat-workspace-primary,
@@ -2498,10 +2522,13 @@
   }
 
   body.terminal-open .transcript-step-nav,
-  body.terminal-open .jump-to-top-btn,
+  body.terminal-open .jump-to-top-btn {
+    right: calc(50% + 1rem);
+  }
+
   body.web-lookup-open .transcript-step-nav,
   body.web-lookup-open .jump-to-top-btn {
-    right: calc(50% + 1rem);
+    right: calc(clamp(18rem, 24vw, 24rem) + 1rem);
   }
 }
 

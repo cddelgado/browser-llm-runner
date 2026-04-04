@@ -11,11 +11,17 @@ export function createBrowserView({ panel, frame, title, description } = {}) {
     throw new Error('A browser frame element is required.');
   }
 
+  const EMPTY_BROWSER_URL = 'about:blank';
   let lastFingerprint = '';
 
   function setVisible(visible) {
     if (panel instanceof HTMLElement) {
-      panel.classList.toggle('d-none', !visible);
+      panel.hidden = !visible;
+      panel.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+    if (!visible && frame.src !== EMPTY_BROWSER_URL) {
+      frame.src = EMPTY_BROWSER_URL;
+      lastFingerprint = '';
     }
   }
 
