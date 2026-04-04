@@ -14,7 +14,10 @@ export function buildOptionalFeaturePromptSection(instructions = []) {
   );
 }
 
-export function buildFactCheckingPrompt() {
+export function buildFactCheckingPrompt({ webLookupEnabled = false } = {}) {
+  if (!webLookupEnabled) {
+    return '';
+  }
   return 'Use web_lookup to confirm facts before responding.';
 }
 

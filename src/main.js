@@ -1290,7 +1290,9 @@ function getOptionalFeatureSystemPromptSection(modelId, conversation = null) {
   const languagePreference = getConversationLanguagePreference(conversation);
   const thinkingControl = getThinkingControlForModel(modelId);
   return buildOptionalFeaturePromptSection([
-    buildFactCheckingPrompt(),
+    buildFactCheckingPrompt({
+      webLookupEnabled: getEnabledToolNames().includes('web_lookup'),
+    }),
     buildMathRenderingFeaturePrompt({ renderMathMl: appState.renderMathMl }),
     buildLanguagePreferencePrompt({
       languageName:

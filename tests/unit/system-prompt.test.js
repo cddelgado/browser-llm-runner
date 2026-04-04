@@ -8,6 +8,10 @@ import {
 } from '../../src/llm/system-prompt.js';
 
 describe('system prompt feature sections', () => {
+  test('omits the fact-checking instruction when web lookup is disabled', () => {
+    expect(buildFactCheckingPrompt()).toBe('');
+  });
+
   test('omits the optional feature section when no feature prompts are enabled', () => {
     expect(buildOptionalFeaturePromptSection([])).toBe('');
     expect(buildOptionalFeaturePromptSection(['', '   '])).toBe('');
@@ -15,7 +19,7 @@ describe('system prompt feature sections', () => {
 
   test('builds a dedicated optional feature section for math rendering', () => {
     const prompt = buildOptionalFeaturePromptSection([
-      buildFactCheckingPrompt(),
+      buildFactCheckingPrompt({ webLookupEnabled: true }),
       buildMathRenderingFeaturePrompt({ renderMathMl: true }),
     ]);
 

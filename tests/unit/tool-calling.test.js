@@ -520,7 +520,7 @@ describe('tool-calling prompt builder', () => {
     expect(getToolDisplayName('lookup_fact')).toBe('Lookup Fact');
   });
 
-  test('includes the user location and tasklist tool definitions', () => {
+  test('includes the enabled tool definitions and excludes disabled web lookup', () => {
     expect(getEnabledToolDefinitions()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -532,16 +532,19 @@ describe('tool-calling prompt builder', () => {
           displayName: 'Task List Planner',
         }),
         expect.objectContaining({
-          name: 'web_lookup',
-          displayName: 'Web Lookup',
-        }),
-        expect.objectContaining({
           name: 'write_python_file',
           displayName: 'Write Python File',
         }),
         expect.objectContaining({
           name: 'run_shell_command',
           displayName: 'Shell Command Runner',
+        }),
+      ])
+    );
+    expect(getEnabledToolDefinitions()).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'web_lookup',
         }),
       ])
     );
