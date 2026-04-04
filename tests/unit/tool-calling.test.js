@@ -578,6 +578,22 @@ describe('tool-calling prompt builder', () => {
     ]);
   });
 
+  test('builds tool-calling prompt content only for the enabled tool subset', () => {
+    const prompt = buildToolCallingSystemPrompt(
+      {
+        format: 'json',
+        nameKey: 'name',
+        argumentsKey: 'parameters',
+      },
+      ['tasklist'],
+      getEnabledToolDefinitions(['tasklist'])
+    );
+
+    expect(prompt).toContain('- tasklist: Manage a task list for multi-step work.');
+    expect(prompt).not.toContain('run_shell_command');
+    expect(prompt).not.toContain('write_python_file');
+  });
+
   test('returns an empty prompt when no tools are enabled', () => {
     const prompt = buildToolCallingSystemPrompt(
       {

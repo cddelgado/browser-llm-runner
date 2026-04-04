@@ -188,6 +188,9 @@ export function bindSettingsEvents({
     renderMathMlToggle.addEventListener('change', (event) => {
       const value = event.target instanceof HTMLInputElement ? event.target.checked : true;
       applyMathRenderingPreference(value, { persist: true });
+      if (typeof refreshConversationSystemPromptPreview === 'function') {
+        refreshConversationSystemPromptPreview();
+      }
       if (typeof refreshMathRendering === 'function') {
         refreshMathRendering();
       }
@@ -223,6 +226,9 @@ export function bindSettingsEvents({
     defaultSystemPromptInput.addEventListener('change', (event) => {
       const value = event.target instanceof HTMLTextAreaElement ? event.target.value : '';
       applyDefaultSystemPrompt(value, { persist: true });
+      if (typeof refreshConversationSystemPromptPreview === 'function') {
+        refreshConversationSystemPromptPreview();
+      }
     });
   }
 
