@@ -34,6 +34,7 @@ Student-facing browser chat UI with local model inference.
   - per-tool toggles for each currently available built-in tool; disabled built-in tools are removed from the computed system prompt and ignored if a model still emits them
 - `Settings -> Proxy` includes:
   - one optional prefix-style CORS proxy URL that is validated against `https://example.com/` before it is saved
+  - query-string-style prefixes such as `https://proxy.example/?url=` are allowed and preserved as entered
   - automatic retry through that proxy only when a direct cross-origin browser request appears blocked by CORS
   - safety checks that skip proxy fallback for same-origin requests, remote proxying of local/private-network targets, and requests with explicit authorization headers
 - `Settings -> MCP Servers` includes:

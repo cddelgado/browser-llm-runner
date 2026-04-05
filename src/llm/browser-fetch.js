@@ -185,10 +185,10 @@ export function normalizeCorsProxyUrl(value) {
   if (url.username || url.password) {
     throw new Error('CORS proxy URLs with embedded credentials are not supported.');
   }
-  if (url.search || url.hash) {
-    throw new Error('Use a prefix-style CORS proxy URL without a query string or fragment.');
+  if (url.hash) {
+    throw new Error('CORS proxy URLs cannot include fragments.');
   }
-  if (!url.pathname.endsWith('/')) {
+  if (!url.search && !url.pathname.endsWith('/')) {
     url.pathname = `${url.pathname}/`;
   }
   return url.toString();

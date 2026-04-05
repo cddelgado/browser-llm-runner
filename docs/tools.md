@@ -23,7 +23,7 @@ When tool calling is enabled for a conversation and the selected model supports 
 Tool calling is model-aware. The app does not use one universal tool-call format for every model family.
 If the selected model does not support tool calling, the tool-instruction section is omitted entirely from the computed system prompt even when the global tool-calling toggle is enabled.
 Users can disable individual built-in tools in `Settings -> Tools`; disabled tools are removed from the tool-instruction section and ignored by the local tool-execution loop.
-Users can configure one validated prefix-style CORS proxy in `Settings -> Proxy`; browser-networked features retry through it only when a direct cross-origin request appears blocked by CORS.
+Users can configure one validated prefix-style CORS proxy in `Settings -> Proxy`; browser-networked features retry through it only when a direct cross-origin request appears blocked by CORS, and query-string prefixes such as `...?url=` are allowed.
 Users configure MCP endpoints in `Settings -> MCP Servers`; imported servers start disabled, all discovered commands start disabled, and disabled servers or commands are omitted from the prompt and rejected by execution.
 
 The prompt is organized into separate sections so models do not confuse tool descriptions, post-tool behavior, and call syntax:

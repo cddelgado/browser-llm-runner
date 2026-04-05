@@ -982,9 +982,9 @@
                         <p id="corsProxyHelp" class="form-text mb-0">
                           Uses a prefix-style proxy only when a direct browser request appears
                           blocked by CORS. Proxy URLs must use <code>https</code>, or
-                          <code>http://localhost</code>, must not include credentials, query
-                          strings, or fragments, and are tested against
-                          <code>https://example.com/</code> before saving.
+                          <code>http://localhost</code>, must not include credentials or fragments,
+                          may include query-string prefixes such as <code>?url=</code>, and are
+                          tested against <code>https://example.com/</code> before saving.
                         </p>
                         <div id="corsProxyFeedback" class="d-none mt-3" aria-live="polite"></div>
                       </form>

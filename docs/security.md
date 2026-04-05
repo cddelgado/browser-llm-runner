@@ -8,7 +8,7 @@ This document tracks security hardening decisions and known gaps that should sta
 - After the user grants that consent, the app may reuse precise location in later tool calls.
 - If the user declines precise location consent, the location tool falls back to a coarse locale/timezone-derived label with no coordinates.
 - Browser-networked features share one browser fetch helper. A saved proxy from `Settings -> Proxy` is used only after a direct cross-origin request looks CORS-blocked and the proxy has already passed a browser-readable validation fetch against `https://example.com/`.
-- Proxy validation accepts only prefix-style `https` URLs, or `http://localhost`, and rejects embedded credentials, query strings, and fragments.
+- Proxy validation accepts only prefix-style `https` URLs, or `http://localhost`, preserves query-string prefixes, and rejects embedded credentials and fragments.
 - Proxy fallback is skipped for same-origin requests, requests that carry explicit authorization headers, and attempts to send local/private-network targets through a remote proxy.
 - MCP server support also uses the browser fetch API directly. It accepts only browser-reachable `https` endpoints, or `http://localhost`, and rejects embedded credentials plus obvious auth challenges where detected.
 - Transformers.js is loaded from the locally installed package and bundled with the app build instead of being imported from a CDN at runtime.

@@ -12,19 +12,25 @@ const APP_LOCATION = {
 };
 
 describe('browser fetch helper', () => {
-  test('normalizes prefix-style proxy URLs with a trailing slash', () => {
+  test('normalizes path-prefix proxy URLs with a trailing slash and preserves query prefixes', () => {
     expect(normalizeCorsProxyUrl('https://proxy.example')).toBe('https://proxy.example/');
     expect(buildCorsProxyRequestUrl('https://proxy.example', 'https://api.example/data')).toBe(
       'https://proxy.example/https://api.example/data'
     );
+    expect(normalizeCorsProxyUrl('https://proxy.example/proxy?url=')).toBe(
+      'https://proxy.example/proxy?url='
+    );
+    expect(
+      buildCorsProxyRequestUrl('https://proxy.example/proxy?url=', 'https://api.example/data')
+    ).toBe('https://proxy.example/proxy?url=https://api.example/data');
   });
 
   test('rejects proxy URLs that do not match the supported prefix format', async () => {
     await expect(validateCorsProxyUrl('http://proxy.example')).rejects.toThrow(
       'Use an https CORS proxy URL, or http on localhost.'
     );
-    await expect(validateCorsProxyUrl('https://proxy.example/?token=1')).rejects.toThrow(
-      'Use a prefix-style CORS proxy URL without a query string or fragment.'
+    await expect(validateCorsProxyUrl('https://proxy.example/#fragment')).rejects.toThrow(
+      'CORS proxy URLs cannot include fragments.'
     );
   });
 
