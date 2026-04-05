@@ -822,7 +822,7 @@
 
 .model-card-title-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.65rem;
 }
@@ -831,6 +831,17 @@
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.2;
+  min-width: 0;
+}
+
+.model-card-title-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+  margin-left: auto;
+  flex-wrap: wrap;
 }
 
 .model-card-badge {
@@ -919,15 +930,11 @@
 }
 
 .model-feature-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.42rem;
-  min-height: 1.95rem;
-  padding: 0.3rem 0.62rem;
+  display: inline-grid;
+  place-items: center;
+  width: 1.95rem;
+  height: 1.95rem;
   border-radius: 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.2;
   border: 1px solid color-mix(in srgb, var(--border-soft) 85%, transparent);
   background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
   color: var(--ink-strong);

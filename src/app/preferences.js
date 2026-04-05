@@ -1009,21 +1009,15 @@ export function createPreferencesController({
       title.className = 'model-card-title';
       title.textContent = model.displayName || model.label;
       titleRow.appendChild(title);
+
+      const titleMeta = documentRef.createElement('div');
+      titleMeta.className = 'model-card-title-meta';
       if (model.id === DEFAULT_MODEL) {
         const badge = documentRef.createElement('span');
         badge.className = 'badge text-bg-primary model-card-badge';
         badge.textContent = 'Default';
-        titleRow.appendChild(badge);
+        titleMeta.appendChild(badge);
       }
-      primary.appendChild(titleRow);
-
-      const context = documentRef.createElement('p');
-      context.className = 'model-card-context';
-      context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> <strong>${formatInteger(
-        model.generation.maxContextTokens
-      )} tokens</strong> / about ${formatWordEstimate(model.generation.maxContextTokens)} words`;
-      primary.appendChild(context);
-      content.appendChild(primary);
 
       const secondary = documentRef.createElement('div');
       secondary.className = 'model-card-secondary';
@@ -1035,12 +1029,24 @@ export function createPreferencesController({
         item.className = 'model-feature-pill';
         item.setAttribute('aria-label', feature.label);
         item.title = feature.label;
-        item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i><span>${feature.label}</span>`;
+        item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i>`;
         featureList.appendChild(item);
       });
       if (featureList.childElementCount > 0) {
-        secondary.appendChild(featureList);
+        titleMeta.appendChild(featureList);
       }
+      if (titleMeta.childElementCount > 0) {
+        titleRow.appendChild(titleMeta);
+      }
+      primary.appendChild(titleRow);
+
+      const context = documentRef.createElement('p');
+      context.className = 'model-card-context';
+      context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> <strong>${formatInteger(
+        model.generation.maxContextTokens
+      )} tokens</strong> / about ${formatWordEstimate(model.generation.maxContextTokens)} words`;
+      primary.appendChild(context);
+      content.appendChild(primary);
 
       if (!availability.available) {
         const availabilityNote = documentRef.createElement('p');

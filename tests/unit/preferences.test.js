@@ -384,9 +384,6 @@ describe('preferences controller', () => {
         node.getAttribute('aria-label')
       )
     ).toEqual(['Shows a thinking section', 'Can use built-in tools', 'Accepts image input']);
-    expect(qwenCard?.textContent).toContain('Shows a thinking section');
-    expect(qwenCard?.textContent).toContain('Can use built-in tools');
-    expect(qwenCard?.textContent).toContain('Accepts image input');
 
     expect(
       qwenCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('aria-label')
@@ -403,6 +400,7 @@ describe('preferences controller', () => {
         qwenCard?.querySelector('.model-card-language-overflow')
       )?.href
     ).toBe('https://huggingface.co/Qwen/Qwen3.5-2B');
+    expect(qwenCard?.querySelector('.model-card-title-row .model-card-features')).not.toBeNull();
 
     const qwenButton = /** @type {HTMLButtonElement | null} */ (
       qwenCard?.querySelector('.model-card-button')
