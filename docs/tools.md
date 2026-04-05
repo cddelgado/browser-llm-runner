@@ -29,7 +29,8 @@ Users configure MCP endpoints in `Settings -> MCP Servers`; imported servers sta
 The prompt is organized into separate sections so models do not confuse tool descriptions, post-tool behavior, and call syntax:
 
 - `Tools available in this conversation` lists the enabled tools and any tool-specific usage notes.
-- `MCP servers` lists only enabled MCP servers plus the two MCP helper call syntaxes.
+- `MCP Servers List` lists only enabled MCP servers.
+- `MCP Server Instructions` covers the MCP discovery flow plus the two MCP helper call syntaxes.
 - `Tool behavior` covers only generic behavior after a tool result is returned.
 - `Tool call format` describes the exact wrapper or JSON shape the selected model must emit, including that a tool call should be the only output in that turn.
 
@@ -283,11 +284,11 @@ Users add MCP servers from `Settings -> MCP Servers`.
 - rejected where practical: embedded credentials, token-like query parameters, and OAuth/token/basic-auth challenges
 - default state: imported servers are off, and every discovered command is off
 - metadata shown in the accordion: identifier, endpoint, protocol version, server version, capabilities, instructions, and per-command schema summaries
-- prompt exposure: only enabled servers with enabled commands are listed under the `MCP servers` section
+- prompt exposure: only enabled servers with enabled commands are listed under the `MCP Servers List` section, and MCP helper guidance appears under `MCP Server Instructions`
 - execution: disabled or unknown servers and commands are rejected even if the model still emits them
 - transport: the browser opens an MCP session with `initialize`, sends `notifications/initialized`, then uses `tools/list` or `tools/call`
 
-The MCP helper tools are not user-toggled. They become available automatically when at least one enabled MCP server has at least one enabled command, and they are listed only under the `MCP servers` prompt section rather than under the built-in tool list.
+The MCP helper tools are not user-toggled. They become available automatically when at least one enabled MCP server has at least one enabled command, and they are listed only under the MCP prompt sections rather than under the built-in tool list.
 
 ### `list_mcp_server_commands`
 

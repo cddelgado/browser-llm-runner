@@ -425,7 +425,7 @@ describe('tool-calling prompt builder', () => {
     );
   });
 
-  test('adds an MCP servers section without listing MCP tools under built-in tools', () => {
+  test('adds separate MCP server list and instruction sections without listing MCP tools under built-in tools', () => {
     const prompt = buildToolCallingSystemPrompt(
       {
         format: 'json',
@@ -462,8 +462,12 @@ describe('tool-calling prompt builder', () => {
       }
     );
 
-    expect(prompt).toContain('**MCP servers:**');
+    expect(prompt).toContain('**MCP Servers List:**');
     expect(prompt).toContain('- docs: Project documentation lookup.');
+    expect(prompt).toContain('**MCP Server Instructions:**');
+    expect(prompt).toContain(
+      '- Use MCP support progressively: inspect one listed server first, then call one enabled command at a time as needed.'
+    );
     expect(prompt).toContain(
       '- Discover enabled commands for a listed server with list_mcp_server_commands using {"server":"docs"}.'
     );

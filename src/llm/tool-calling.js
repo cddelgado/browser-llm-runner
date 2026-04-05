@@ -321,29 +321,38 @@ function buildEnabledToolInstructions(enabledTools = []) {
   );
 }
 
+function buildMcpServerListLines(enabledMcpServers = []) {
+  if (!Array.isArray(enabledMcpServers) || !enabledMcpServers.length) {
+    return [];
+  }
+  return [
+    '**MCP Servers List:**\nThese servers are available in this conversation.',
+    ...enabledMcpServers.map((server) => {
+      const identifier =
+        typeof server?.identifier === 'string' && server.identifier.trim()
+          ? server.identifier.trim()
+          : 'mcp-server';
+      const description =
+        typeof server?.description === 'string' && server.description.trim()
+          ? `: ${server.description.trim()}`
+          : '';
+      return `- ${identifier}${description}`;
+    }),
+  ];
+}
+
 function buildMcpServerInstructionLines(enabledMcpServers = []) {
   if (!Array.isArray(enabledMcpServers) || !enabledMcpServers.length) {
     return [];
   }
   const primaryServer = enabledMcpServers[0];
-  const serverLines = enabledMcpServers.map((server) => {
-    const identifier =
-      typeof server?.identifier === 'string' && server.identifier.trim()
-        ? server.identifier.trim()
-        : 'mcp-server';
-    const description =
-      typeof server?.description === 'string' && server.description.trim()
-        ? `: ${server.description.trim()}`
-        : '';
-    return `- ${identifier}${description}`;
-  });
   const exampleServer =
     typeof primaryServer?.identifier === 'string' && primaryServer.identifier.trim()
       ? primaryServer.identifier.trim()
       : 'mcp-server';
   return [
-    '**MCP servers:**\nThese servers are available in this conversation.',
-    ...serverLines,
+    '**MCP Server Instructions:**',
+    '- Use MCP support progressively: inspect one listed server first, then call one enabled command at a time as needed.',
     `- Discover enabled commands for a listed server with ${MCP_SERVER_COMMAND_LIST_TOOL} using {"server":"${exampleServer}"}.`,
     `- Call an enabled command on a listed server with ${MCP_SERVER_COMMAND_CALL_TOOL} using {"server":"${exampleServer}","command":"command_name","arguments":{...}}.`,
   ];
@@ -406,15 +415,18 @@ export function buildToolCallingSystemPrompt(
             })),
       ]
     : [];
-  const mcpLines = buildMcpServerInstructionLines(enabledMcpServers);
+  const mcpListLines = buildMcpServerListLines(enabledMcpServers);
+  const mcpInstructionLines = buildMcpServerInstructionLines(enabledMcpServers);
   const toolBehaviorLines = ['After a tool result, continue the work and answer naturally.'].filter(
     Boolean
   );
   const formatLines = buildToolCallingFormatInstructions(toolCallingConfig);
   return [
     ...toolLines,
-    toolLines.length && mcpLines.length ? '' : null,
-    ...mcpLines,
+    toolLines.length && mcpListLines.length ? '' : null,
+    ...mcpListLines,
+    mcpListLines.length && mcpInstructionLines.length ? '' : null,
+    ...mcpInstructionLines,
     toolBehaviorLines.length ? '' : null,
     toolBehaviorLines.length ? '**Tool behavior:**' : null,
     ...toolBehaviorLines.map((line) => `- ${line}`),
