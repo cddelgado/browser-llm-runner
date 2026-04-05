@@ -250,6 +250,26 @@ function normalizeThinkingControl(rawThinkingControl, { enabled = false } = {}) 
   };
 }
 
+function normalizeThinkingTags(rawThinkingTags) {
+  if (!rawThinkingTags || typeof rawThinkingTags !== 'object' || Array.isArray(rawThinkingTags)) {
+    return null;
+  }
+  const open = typeof rawThinkingTags.open === 'string' ? rawThinkingTags.open.trim() : '';
+  const close = typeof rawThinkingTags.close === 'string' ? rawThinkingTags.close.trim() : '';
+  if (!open || !close || open === close) {
+    return null;
+  }
+  const stripLeadingText =
+    typeof rawThinkingTags.stripLeadingText === 'string'
+      ? rawThinkingTags.stripLeadingText.trim()
+      : '';
+  return {
+    open,
+    close,
+    ...(stripLeadingText ? { stripLeadingText } : {}),
+  };
+}
+
 function normalizeFeatures(rawFeatures, { thinkingTags = null } = {}) {
   const normalized = Object.fromEntries(MODEL_FEATURE_FLAGS.map((feature) => [feature, rawFeatures?.[feature] === true]));
   if (thinkingTags) {
@@ -286,16 +306,7 @@ const configuredModels = Array.isArray(modelCatalog?.models)
         const displayName = normalizeModelCardText(model?.displayName) || label;
         const languageSupport = normalizeLanguageSupport(model?.languageSupport);
         const repositoryUrl = normalizeRepositoryUrl(model?.repositoryUrl, id);
-        const openThinkingTag = model?.thinkingTags?.open;
-        const closeThinkingTag = model?.thinkingTags?.close;
-        const thinkingTags =
-          typeof openThinkingTag === 'string' &&
-          openThinkingTag &&
-          typeof closeThinkingTag === 'string' &&
-          closeThinkingTag &&
-          openThinkingTag !== closeThinkingTag
-            ? { open: openThinkingTag, close: closeThinkingTag }
-            : null;
+        const thinkingTags = normalizeThinkingTags(model?.thinkingTags);
         const generation = normalizeGenerationLimits(model?.generation);
         const runtime = normalizeRuntime(model?.runtime);
         const features = normalizeFeatures(model?.features, { thinkingTags });
@@ -351,7 +362,10 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
   });
 }
 
-const visibleConfiguredModels = configuredModels.filter((model) => !model.hidden);
+const visibleConfiguredModels = [
+  ...configuredModels.filter((model) => !model.hidden && model.id === DEFAULT_MODEL),
+  ...configuredModels.filter((model) => !model.hidden && model.id !== DEFAULT_MODEL),
+];
 
 export const MODEL_OPTIONS = Object.freeze(visibleConfiguredModels);
 export const MODEL_OPTIONS_BY_ID = new Map(configuredModels.map((model) => [model.id, model]));

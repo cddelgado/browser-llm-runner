@@ -1,7 +1,7 @@
 export const TOKEN_STEP = 8;
 export const MIN_TOKEN_LIMIT = 8;
 export const TEMPERATURE_STEP = 0.1;
-export const TOP_K_STEP = 5;
+export const TOP_K_STEP = 1;
 export const MIN_TOP_K = 5;
 export const MAX_TOP_K = 500;
 export const DEFAULT_TOP_K = 50;
@@ -63,9 +63,7 @@ export function quantizeTopKInput(value) {
   if (!Number.isFinite(parsed)) {
     return DEFAULT_TOP_K;
   }
-  const bounded = clamp(parsed, MIN_TOP_K, MAX_TOP_K);
-  const steps = Math.round((bounded - MIN_TOP_K) / TOP_K_STEP);
-  return clamp(MIN_TOP_K + steps * TOP_K_STEP, MIN_TOP_K, MAX_TOP_K);
+  return clamp(parsed, MIN_TOP_K, MAX_TOP_K);
 }
 
 export function quantizeTopPInput(value) {

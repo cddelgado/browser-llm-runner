@@ -36,6 +36,7 @@ import {
   buildOptionalFeaturePromptSection,
   buildThinkingModePrompt,
 } from './llm/system-prompt.js';
+import { parseThinkingText } from './llm/thinking-parser.js';
 import {
   buildToolCallingSystemPrompt,
   executeToolCall,
@@ -2945,49 +2946,6 @@ function resetPendingConversationModelPreferences() {
   appState.pendingConversationLanguagePreference = 'auto';
   appState.pendingConversationThinkingEnabled =
     getThinkingControlForModel(selectedModelId)?.defaultEnabled !== false;
-}
-
-function parseThinkingText(rawText, thinkingTags) {
-  const text = String(rawText || '');
-  if (!thinkingTags?.open || !thinkingTags?.close) {
-    return {
-      response: text,
-      thoughts: '',
-      hasThinking: false,
-      isThinkingComplete: false,
-    };
-  }
-
-  const { open, close } = thinkingTags;
-  let response = '';
-  let thoughts = '';
-  let cursor = 0;
-  let hasThinking = false;
-  let isThinkingComplete = false;
-
-  while (cursor < text.length) {
-    const openIndex = text.indexOf(open, cursor);
-    if (openIndex < 0) {
-      response += text.slice(cursor);
-      break;
-    }
-
-    response += text.slice(cursor, openIndex);
-    hasThinking = true;
-
-    const contentStart = openIndex + open.length;
-    const closeIndex = text.indexOf(close, contentStart);
-    if (closeIndex < 0) {
-      thoughts += text.slice(contentStart);
-      break;
-    }
-
-    thoughts += text.slice(contentStart, closeIndex);
-    isThinkingComplete = true;
-    cursor = closeIndex + close.length;
-  }
-
-  return { response, thoughts, hasThinking, isThinkingComplete };
 }
 
 const runOrchestration = createOrchestrationRunner({

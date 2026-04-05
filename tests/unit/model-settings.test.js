@@ -18,6 +18,11 @@ const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
 const GEMMA_MODEL_ID = 'onnx-community/gemma-3n-E2B-it-ONNX';
 
 describe('model-settings availability', () => {
+  test('uses Gemma 4 as the default model and keeps it first in the visible catalog', () => {
+    expect(DEFAULT_MODEL).toBe(GEMMA_4_MODEL_ID);
+    expect(MODEL_OPTIONS[0]?.id).toBe(GEMMA_4_MODEL_ID);
+  });
+
   test('marks the LiquidAI thinking model unavailable without WebGPU', () => {
     expect(
       getModelAvailability(LIQUID_MODEL_ID, {
@@ -140,7 +145,7 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 1,
-      defaultTopK: 65,
+      defaultTopK: 64,
       defaultTopP: 0.95,
       defaultRepetitionPenalty: 1,
     });
@@ -227,7 +232,7 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.features).toMatchObject({
       streaming: true,
-      thinking: false,
+      thinking: true,
       toolCalling: true,
       imageInput: true,
       audioInput: true,
@@ -302,7 +307,12 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.runtime?.requiresWebGpu).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
-      dtype: 'q4f16',
+      dtype: {
+        audio_encoder: 'q8',
+        vision_encoder: 'q8',
+        embed_tokens: 'q8',
+        decoder_model_merged: 'q4',
+      },
       multimodalGeneration: true,
       useExternalDataFormat: true,
     });
@@ -345,6 +355,15 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.thinkingControl).toEqual({
       defaultEnabled: false,
       runtimeParameter: 'enable_thinking',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.thinkingControl).toEqual({
+      defaultEnabled: true,
+      runtimeParameter: 'enable_thinking',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.thinkingTags).toEqual({
+      open: '<|channel>',
+      close: '<channel|>',
+      stripLeadingText: 'thought',
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.toolCalling).toEqual({
       format: 'special-token-call',

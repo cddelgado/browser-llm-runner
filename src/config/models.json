@@ -1,5 +1,5 @@
 {
-  "defaultModelId": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
+  "defaultModelId": "onnx-community/gemma-4-E2B-it-ONNX",
   "models": [
     {
       "id": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
@@ -368,9 +368,22 @@
       },
       "repositoryUrl": "https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX",
       "runtime": {
-        "dtype": "q4f16",
+        "dtype": {
+          "audio_encoder": "q8",
+          "vision_encoder": "q8",
+          "embed_tokens": "q8",
+          "decoder_model_merged": "q4"
+        },
         "multimodalGeneration": true,
         "useExternalDataFormat": true
+      },
+      "thinkingControl": {
+        "runtimeParameter": "enable_thinking"
+      },
+      "thinkingTags": {
+        "open": "<|channel>",
+        "close": "<channel|>",
+        "stripLeadingText": "thought"
       },
       "toolCalling": {
         "format": "gemma-special-token-call"
@@ -383,7 +396,7 @@
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
         "defaultTemperature": 1.0,
-        "defaultTopK": 65,
+        "defaultTopK": 64,
         "defaultTopP": 0.95,
         "defaultRepetitionPenalty": 1.0
       },
@@ -392,7 +405,7 @@
       },
       "features": {
         "streaming": true,
-        "thinking": false,
+        "thinking": true,
         "toolCalling": true,
         "imageInput": true,
         "audioInput": true,

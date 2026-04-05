@@ -52,7 +52,7 @@ describe('generation-config', () => {
       maxOutputTokens: 2056,
       maxContextTokens: 2056,
       temperature: 1,
-      topK: 50,
+      topK: 52,
       topP: 0.95,
       repetitionPenalty: 1.05,
     });

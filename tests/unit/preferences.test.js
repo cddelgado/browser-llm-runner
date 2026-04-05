@@ -517,9 +517,22 @@ describe('preferences controller', () => {
       'Can use built-in tools',
     ]);
     expect(getFeatureLabels('Gemma 4 E2B')).toEqual([
+      'Shows a thinking section',
       'Can use built-in tools',
       'Accepts image input',
       'Accepts audio input',
     ]);
+  });
+
+  test('renders the default model first in the picker cards and select', () => {
+    const harness = createPreferencesHarness();
+    const modelCardList = harness.document.getElementById('modelCardList');
+    const modelSelect = /** @type {HTMLSelectElement} */ (harness.document.getElementById('modelSelect'));
+
+    harness.controller.populateModelSelect();
+
+    const firstCardTitle = modelCardList.querySelector('.model-card .model-card-title')?.textContent;
+    expect(firstCardTitle).toBe('Gemma 4 E2B');
+    expect(modelSelect.options[0]?.value).toBe('onnx-community/gemma-4-E2B-it-ONNX');
   });
 });

@@ -75,7 +75,7 @@ Student-facing browser chat UI with local model inference.
   - `Temperature (Creativity)` includes a `Reset to model default` link that applies the selected model default when clicked.
   - If changed during generation, updates are queued and applied after the current response finishes.
 - Sampling controls in Settings:
-  - `Top K (Predictability)` uses `step=5` and loads a model-specific default from `src/config/models.json`.
+  - `Top K (Predictability)` uses `step=1` and loads a model-specific default from `src/config/models.json`.
   - `Top P (Strangeness)` (nucleus sampling) uses min `0.00`, max `1.00`, and `step=0.05`, with a model-specific default from `src/config/models.json`.
   - `Top K` and `Top P` are persisted per model, like temperature and token limits.
   - The runtime also applies per-model `repetition_penalty` defaults where Transformers.js supports them; unsupported knobs such as `min_p` and `presence_penalty` are intentionally not exposed in this app.
@@ -133,6 +133,7 @@ Student-facing browser chat UI with local model inference.
   - `Markdown (.md) File`: exports the visible branch as `<conversation-name>.md` with conversation metadata (started/exported UTC times, the conversation's model, temperature), optional tool-calling metadata when enabled at export time, optional `## System prompt` section (when present), and one section per exchange including UTC date/time lines, model tool-call metadata, and tool-result details, including structured `toolResultData` when present.
 - Model load progress UI collapses after successful initialization.
 - Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in collapsible "Thinking" sections at the point they occurred within the model turn during streaming.
+  - Gemma 4 channel-style reasoning output (`<|channel>thought ... <channel|>`) is normalized into the same thinking UI without feeding that reasoning back into later turns.
 - Model responses are rendered as Markdown (via `markdown-it`) in the transcript.
 - `Settings -> Conversation -> Render MathML from LaTeX` controls whether LaTeX-delimited math is rendered in the transcript with MathJax (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`).
 - When `Render MathML from LaTeX` is enabled, the effective system prompt adds math-formatting guidance telling the model to format math in LaTeX with proper delimiters.
@@ -192,7 +193,15 @@ Student-facing browser chat UI with local model inference.
 
 ## Supported models
 
-- `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
+- `onnx-community/gemma-4-E2B-it-ONNX` (default)
+  - Uses the published ONNX export with a mixed smallest-supported quantization profile in this app: `audio_encoder: q8`, `vision_encoder: q8`, `embed_tokens: q8`, and `decoder_model_merged: q4`.
+  - Exposes text plus uploaded image and audio input in this app.
+  - Audio input is upload-only; live recording is intentionally not exposed.
+  - Video input is not exposed because the current browser runtime path is not viable enough yet.
+  - Uses runtime `enable_thinking` in Transformers.js and parses Gemma's `<|channel>...<channel|>` reasoning into the transcript thinking section.
+  - Uses the published Gemma ONNX generation defaults in this app: temperature `1.0`, top-k `64`, top-p `0.95`.
+  - Uses Gemma's special-token tool-call format supported by this app.
+- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - Uses the published `q4f16` web export.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses the published ONNX export with external data loading.
@@ -219,13 +228,6 @@ Student-facing browser chat UI with local model inference.
   - Requires WebGPU in this app.
   - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
   - Uses Liquid's special-token tool-call format supported by this app.
-- `onnx-community/gemma-4-E2B-it-ONNX`
-  - Uses the published `q4f16` ONNX export with external data loading.
-  - Exposes text plus uploaded image and audio input in this app.
-  - Audio input is upload-only; live recording is intentionally not exposed.
-  - Video input is not exposed because the current browser runtime path is not viable enough yet.
-  - Uses the app's near-published Gemma ONNX generation defaults: temperature `1.0`, top-k `65`, top-p `0.95`.
-  - Uses Gemma's special-token tool-call format supported by this app.
 - Hidden legacy/replacement model definitions remain in config so stored conversations and model-specific behaviors still resolve correctly:
   - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
   - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
