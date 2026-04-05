@@ -344,8 +344,8 @@ function buildMcpServerInstructionLines(enabledMcpServers = []) {
   return [
     '**MCP servers:**\nThese servers are available in this conversation.',
     ...serverLines,
-    `- Discover one server with ${MCP_SERVER_COMMAND_LIST_TOOL} using {"server":"${exampleServer}"}.`,
-    `- Call one enabled command with ${MCP_SERVER_COMMAND_CALL_TOOL} using {"server":"${exampleServer}","command":"command_name","arguments":{...}}.`,
+    `- Discover enabled commands for a listed server with ${MCP_SERVER_COMMAND_LIST_TOOL} using {"server":"${exampleServer}"}.`,
+    `- Call an enabled command on a listed server with ${MCP_SERVER_COMMAND_CALL_TOOL} using {"server":"${exampleServer}","command":"command_name","arguments":{...}}.`,
   ];
 }
 
