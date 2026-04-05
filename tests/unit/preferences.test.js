@@ -410,4 +410,40 @@ describe('preferences controller', () => {
     expect(modelSelect.value).toBe('onnx-community/Qwen3.5-2B-ONNX');
     expect(qwenButton?.getAttribute('aria-checked')).toBe('true');
   });
+
+  test('renders the expected feature icons for every visible model', () => {
+    const harness = createPreferencesHarness();
+    const modelCardList = harness.document.getElementById('modelCardList');
+
+    harness.controller.populateModelSelect();
+
+    const getFeatureLabels = (title) => {
+      const card = Array.from(modelCardList.querySelectorAll('.model-card')).find((candidate) =>
+        candidate.textContent?.includes(title)
+      );
+      return Array.from(card?.querySelectorAll('.model-feature-pill') || []).map((node) =>
+        node.getAttribute('aria-label')
+      );
+    };
+
+    expect(getFeatureLabels('Llama 3.2 3B Instruct')).toEqual(['Can use built-in tools']);
+    expect(getFeatureLabels('Llama 3.2 1B Instruct')).toEqual([]);
+    expect(getFeatureLabels('Qwen3.5 0.8B')).toEqual([
+      'Shows a thinking section',
+      'Can use built-in tools',
+      'Accepts image input',
+    ]);
+    expect(getFeatureLabels('Qwen3.5 2B')).toEqual([
+      'Shows a thinking section',
+      'Can use built-in tools',
+      'Accepts image input',
+    ]);
+    expect(getFeatureLabels('Liquid LFM 2.5 350M')).toEqual([]);
+    expect(getFeatureLabels('Liquid LFM 2.5 1.2B Instruct')).toEqual([]);
+    expect(getFeatureLabels('Gemma 4 E2B')).toEqual([
+      'Can use built-in tools',
+      'Accepts image input',
+      'Accepts audio input',
+    ]);
+  });
 });
