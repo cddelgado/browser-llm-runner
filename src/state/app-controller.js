@@ -1,4 +1,7 @@
 import {
+  ORCHESTRATION_KINDS,
+  getActiveOrchestrationKind,
+  isBlockingOrchestrationState,
   isEngineBusy,
   isEngineReady,
   isMessageEditActive,
@@ -18,6 +21,12 @@ function toErrorMessage(value) {
     return value.message;
   }
   return String(value || 'Unknown error');
+}
+
+function isAbortError(value) {
+  return globalThis.DOMException && value instanceof globalThis.DOMException
+    ? value.name === 'AbortError'
+    : value instanceof Error && value.name === 'AbortError';
 }
 
 function buildFailedToolResultText(toolCall, error) {
@@ -88,9 +97,49 @@ export function createAppController(dependencies) {
       ? dependencies.scheduleTask
       : (callback) => window.setTimeout(callback, 0);
   const streamUpdateIntervalMs =
-    Number.isFinite(dependencies?.streamUpdateIntervalMs) && dependencies.streamUpdateIntervalMs >= 0
+    Number.isFinite(dependencies?.streamUpdateIntervalMs) &&
+    dependencies.streamUpdateIntervalMs >= 0
       ? Math.max(0, Math.trunc(dependencies.streamUpdateIntervalMs))
       : 120;
+  let activeRenameAbortController = null;
+  let activeRenameConversationId = '';
+
+  function cancelBackgroundRenameIfNeeded() {
+    if (
+      !isOrchestrationRunningState(dependencies.state) ||
+      getActiveOrchestrationKind(dependencies.state) !== ORCHESTRATION_KINDS.RENAME
+    ) {
+      return null;
+    }
+
+    return (async () => {
+      const renameAbortController = activeRenameAbortController;
+      const renameConversationId = activeRenameConversationId;
+      if (renameAbortController && !renameAbortController.signal.aborted) {
+        renameAbortController.abort();
+      }
+
+      try {
+        await dependencies.engine.cancelGeneration();
+      } catch (error) {
+        dependencies.appendDebug(`Background rename cancellation failed: ${toErrorMessage(error)}`);
+      }
+
+      if (renameConversationId) {
+        const conversation = dependencies.findConversationById(renameConversationId);
+        if (conversation && !conversation.hasGeneratedName) {
+          conversation.name = dependencies.deriveConversationName(conversation);
+          conversation.hasGeneratedName = true;
+          dependencies.renderConversationList();
+          dependencies.updateChatTitle();
+          dependencies.queueConversationStateSave();
+          dependencies.appendDebug(
+            'Canceled background rename and applied a deterministic conversation title.'
+          );
+        }
+      }
+    })();
+  }
 
   function shouldDisposeEngineBeforeInit(nextConfig = {}) {
     const nextModelId = nextConfig.modelId
@@ -111,17 +160,17 @@ export function createAppController(dependencies) {
 
     return Boolean(
       dependencies.engine?.worker &&
-        ((nextModelId && normalizedLoadedModelId && nextModelId !== normalizedLoadedModelId) ||
-          (nextBackendPreference &&
-            currentBackendPreference &&
-            nextBackendPreference !== currentBackendPreference)),
+      ((nextModelId && normalizedLoadedModelId && nextModelId !== normalizedLoadedModelId) ||
+        (nextBackendPreference &&
+          currentBackendPreference &&
+          nextBackendPreference !== currentBackendPreference))
     );
   }
 
   async function initializeEngine() {
     const config = dependencies.readEngineConfig();
     dependencies.appendDebug(
-      `Initialize requested (model=${config.modelId}, backendPreference=${config.backendPreference})`,
+      `Initialize requested (model=${config.modelId}, backendPreference=${config.backendPreference})`
     );
     if (shouldDisposeEngineBeforeInit(config)) {
       dependencies.engine.dispose();
@@ -159,6 +208,10 @@ export function createAppController(dependencies) {
   }
 
   async function reinitializeEngineFromSettings() {
+    const pendingBackgroundRenameCancellation = cancelBackgroundRenameIfNeeded();
+    if (pendingBackgroundRenameCancellation) {
+      await pendingBackgroundRenameCancellation;
+    }
     const nextConfig = dependencies.readEngineConfig();
     if (shouldDisposeEngineBeforeInit(nextConfig)) {
       dependencies.engine.dispose();
@@ -176,20 +229,22 @@ export function createAppController(dependencies) {
   async function loadModelForSelectedConversation() {
     const selectedModelId = dependencies.normalizeModelId(dependencies.getSelectedModelId());
     const rawLoadedModelId = dependencies.getLoadedModelId?.();
-    const loadedModelId = rawLoadedModelId
-      ? dependencies.normalizeModelId(rawLoadedModelId)
-      : null;
+    const loadedModelId = rawLoadedModelId ? dependencies.normalizeModelId(rawLoadedModelId) : null;
     const selectedConversationModelReady =
       isEngineReady(dependencies.state) && loadedModelId === selectedModelId;
     if (
       selectedConversationModelReady ||
       isEngineBusy(dependencies.state) ||
-      isOrchestrationRunningState(dependencies.state)
+      isBlockingOrchestrationState(dependencies.state)
     ) {
       return;
     }
     if (!dependencies.hasSelectedConversationWithHistory()) {
       return;
+    }
+    const pendingBackgroundRenameCancellation = cancelBackgroundRenameIfNeeded();
+    if (pendingBackgroundRenameCancellation) {
+      await pendingBackgroundRenameCancellation;
     }
     dependencies.persistInferencePreferences();
     dependencies.setStatus('Loading model for selected conversation...');
@@ -204,7 +259,7 @@ export function createAppController(dependencies) {
     activeConversation,
     modelMessage,
     toolCalls,
-    { updateLastSpokenOnComplete = false } = {},
+    { updateLastSpokenOnComplete = false } = {}
   ) {
     let parentMessageId = modelMessage.id;
     for (const toolCall of toolCalls) {
@@ -217,9 +272,7 @@ export function createAppController(dependencies) {
         executionResult = {
           toolName: toolCall?.name || 'unknown_tool',
           arguments:
-            toolCall?.arguments && typeof toolCall.arguments === 'object'
-              ? toolCall.arguments
-              : {},
+            toolCall?.arguments && typeof toolCall.arguments === 'object' ? toolCall.arguments : {},
           resultText: buildFailedToolResultText(toolCall, error),
         };
         dependencies.appendDebug(`Tool execution failed: ${message}`);
@@ -238,7 +291,7 @@ export function createAppController(dependencies) {
             typeof executionResult.result === 'object'
               ? executionResult.result
               : undefined,
-        },
+        }
       );
       parentMessageId = toolMessage.id;
       dependencies.renderTranscript({ scrollToBottom: false });
@@ -246,13 +299,13 @@ export function createAppController(dependencies) {
       dependencies.queueConversationStateSave();
     }
     dependencies.setStatus('Tool result ready. Continuing response...');
-    startModelGeneration(
+    void startModelGeneration(
       activeConversation,
       dependencies.buildPromptForConversationLeaf(activeConversation),
       {
         parentMessageId,
         updateLastSpokenOnComplete,
-      },
+      }
     );
   }
 
@@ -301,7 +354,17 @@ export function createAppController(dependencies) {
     return cursor;
   }
 
-  function startModelGeneration(activeConversation, prompt, options = {}) {
+  async function startModelGeneration(activeConversation, prompt, options = {}) {
+    if (!activeConversation) {
+      return;
+    }
+    if (isBlockingOrchestrationState(dependencies.state)) {
+      return;
+    }
+    const pendingBackgroundRenameCancellation = cancelBackgroundRenameIfNeeded();
+    if (pendingBackgroundRenameCancellation) {
+      await pendingBackgroundRenameCancellation;
+    }
     const selectedModelId = dependencies.normalizeModelId(dependencies.getSelectedModelId());
     const thinkingTags = dependencies.getThinkingTagsForModel(selectedModelId);
     const parentMessageId =
@@ -324,8 +387,8 @@ export function createAppController(dependencies) {
     const modelMessage = canReuseExistingModelMessage
       ? existingModelMessage
       : dependencies.addMessageToConversation(activeConversation, 'model', '', {
-        parentId: parentMessageId,
-      });
+          parentId: parentMessageId,
+        });
 
     if (canReuseExistingModelMessage && clearExistingMessageBeforeStream) {
       modelMessage.text = '';
@@ -363,7 +426,10 @@ export function createAppController(dependencies) {
       dependencies.findMessageElement(visibleModelTurnMessage?.id || '') ||
       dependencies.addMessageElement(visibleModelTurnMessage || modelMessage);
     if (modelBubbleItem) {
-      dependencies.updateModelMessageElement(visibleModelTurnMessage || modelMessage, modelBubbleItem);
+      dependencies.updateModelMessageElement(
+        visibleModelTurnMessage || modelMessage,
+        modelBubbleItem
+      );
     }
     let streamedText = '';
     let isInterceptingToolCall = false;
@@ -410,9 +476,9 @@ export function createAppController(dependencies) {
             ? normalizeToolCallInterception(
                 dependencies.detectToolCalls(
                   modelMessage.response || modelMessage.text || '',
-                  selectedModelId,
+                  selectedModelId
                 ),
-                modelMessage.response || modelMessage.text || '',
+                modelMessage.response || modelMessage.text || ''
               )
             : null;
         if (interceptedToolCall) {
@@ -425,7 +491,7 @@ export function createAppController(dependencies) {
           }
           dependencies.updateModelMessageElement(
             visibleModelTurnMessage || modelMessage,
-            modelBubbleItem,
+            modelBubbleItem
           );
           dependencies.scrollTranscriptToBottom();
           dependencies.appendDebug('Detected emitted tool call during streaming.');
@@ -439,7 +505,7 @@ export function createAppController(dependencies) {
                   interceptedToolCall.toolCalls,
                   {
                     updateLastSpokenOnComplete,
-                  },
+                  }
                 );
               },
               (error) => {
@@ -453,14 +519,14 @@ export function createAppController(dependencies) {
                 setGenerating(dependencies.state, false);
                 dependencies.updateModelMessageElement(
                   visibleModelTurnMessage || modelMessage,
-                  modelBubbleItem,
+                  modelBubbleItem
                 );
                 dependencies.updateActionButtons();
                 dependencies.applyPendingGenerationSettingsIfReady();
                 dependencies.setStatus('Generation failed');
                 dependencies.appendDebug(`Tool call interception failed: ${message}`);
                 dependencies.queueConversationStateSave();
-              },
+              }
             );
           });
           return true;
@@ -469,7 +535,7 @@ export function createAppController(dependencies) {
       lastStreamUpdateAt = getStreamUpdateTimestamp();
       dependencies.updateModelMessageElement(
         visibleModelTurnMessage || modelMessage,
-        modelBubbleItem,
+        modelBubbleItem
       );
       dependencies.scrollTranscriptToBottom();
       return false;
@@ -489,9 +555,12 @@ export function createAppController(dependencies) {
       if (pendingStreamUpdateTimerId !== null) {
         return;
       }
-      pendingStreamUpdateTimerId = globalThis.setTimeout(() => {
-        applyStreamUpdate();
-      }, Math.max(0, streamUpdateIntervalMs - elapsed));
+      pendingStreamUpdateTimerId = globalThis.setTimeout(
+        () => {
+          applyStreamUpdate();
+        },
+        Math.max(0, streamUpdateIntervalMs - elapsed)
+      );
     }
 
     setGenerating(dependencies.state, true);
@@ -528,11 +597,14 @@ export function createAppController(dependencies) {
           modelMessage.text = modelMessage.response || '[No output]';
           modelMessage.toolCalls =
             typeof dependencies.detectToolCalls === 'function'
-              ? dependencies.detectToolCalls(modelMessage.response || modelMessage.text || '', selectedModelId)
+              ? dependencies.detectToolCalls(
+                  modelMessage.response || modelMessage.text || '',
+                  selectedModelId
+                )
               : [];
           const interceptedToolCall = normalizeToolCallInterception(
             modelMessage.toolCalls,
-            modelMessage.response || modelMessage.text || '',
+            modelMessage.response || modelMessage.text || ''
           );
           if (interceptedToolCall) {
             modelMessage.toolCalls = interceptedToolCall.toolCalls;
@@ -545,7 +617,7 @@ export function createAppController(dependencies) {
           modelMessage.isResponseComplete = true;
           dependencies.updateModelMessageElement(
             visibleModelTurnMessage || modelMessage,
-            modelBubbleItem,
+            modelBubbleItem
           );
           dependencies.scrollTranscriptToBottom();
           const hasDetectedToolCalls =
@@ -554,7 +626,11 @@ export function createAppController(dependencies) {
             activeConversation.lastSpokenLeafMessageId = modelMessage.id;
           }
 
-          if (!hasDetectedToolCalls && !activeConversation.hasGeneratedName && modelMessage.text !== '[No output]') {
+          if (
+            !hasDetectedToolCalls &&
+            !activeConversation.hasGeneratedName &&
+            modelMessage.text !== '[No output]'
+          ) {
             const parentUserMessage = modelMessage.parentId
               ? dependencies.getMessageNodeById(activeConversation, modelMessage.parentId)
               : null;
@@ -570,16 +646,21 @@ export function createAppController(dependencies) {
           dependencies.appendDebug('Generation completed.');
           if (hasDetectedToolCalls) {
             dependencies.appendDebug(
-              `Detected ${modelMessage.toolCalls.length} emitted tool call${modelMessage.toolCalls.length === 1 ? '' : 's'}.`,
+              `Detected ${modelMessage.toolCalls.length} emitted tool call${modelMessage.toolCalls.length === 1 ? '' : 's'}.`
             );
           }
           dependencies.queueConversationStateSave();
           if (hasDetectedToolCalls && typeof dependencies.executeToolCall === 'function') {
             dependencies.setStatus('Running tool call...');
             scheduleTask(() => {
-              void continueGenerationAfterToolCalls(activeConversation, modelMessage, modelMessage.toolCalls, {
-                updateLastSpokenOnComplete,
-              });
+              void continueGenerationAfterToolCalls(
+                activeConversation,
+                modelMessage,
+                modelMessage.toolCalls,
+                {
+                  updateLastSpokenOnComplete,
+                }
+              );
             });
             return;
           }
@@ -600,7 +681,7 @@ export function createAppController(dependencies) {
           modelMessage.isResponseComplete = true;
           dependencies.updateModelMessageElement(
             visibleModelTurnMessage || modelMessage,
-            modelBubbleItem,
+            modelBubbleItem
           );
           dependencies.scrollTranscriptToBottom();
           if (updateLastSpokenOnComplete) {
@@ -625,7 +706,7 @@ export function createAppController(dependencies) {
       modelMessage.isResponseComplete = true;
       dependencies.updateModelMessageElement(
         visibleModelTurnMessage || modelMessage,
-        modelBubbleItem,
+        modelBubbleItem
       );
       dependencies.scrollTranscriptToBottom();
       if (updateLastSpokenOnComplete) {
@@ -661,11 +742,11 @@ export function createAppController(dependencies) {
     }
   }
 
-  function regenerateFromMessage(messageId) {
+  async function regenerateFromMessage(messageId) {
     if (
       !messageId ||
       isEngineBusy(dependencies.state) ||
-      isOrchestrationRunningState(dependencies.state) ||
+      isBlockingOrchestrationState(dependencies.state) ||
       isMessageEditActive(dependencies.state)
     ) {
       return;
@@ -680,6 +761,10 @@ export function createAppController(dependencies) {
     if (!activeConversation) {
       return;
     }
+    const pendingBackgroundRenameCancellation = cancelBackgroundRenameIfNeeded();
+    if (pendingBackgroundRenameCancellation) {
+      await pendingBackgroundRenameCancellation;
+    }
 
     const targetModelMessage = dependencies.getMessageNodeById(activeConversation, messageId);
     if (!targetModelMessage || targetModelMessage.role !== 'model') {
@@ -689,19 +774,21 @@ export function createAppController(dependencies) {
     const parentUserMessage = findOriginatingUserMessage(activeConversation, targetModelMessage);
     if (!parentUserMessage || parentUserMessage.role !== 'user') {
       dependencies.setStatus('Unable to regenerate: no user message found.');
-      dependencies.appendDebug('Regenerate failed: target model message has no preceding user message.');
+      dependencies.appendDebug(
+        'Regenerate failed: target model message has no preceding user message.'
+      );
       return;
     }
 
     activeConversation.activeLeafMessageId = parentUserMessage.id;
     dependencies.renderTranscript();
     dependencies.queueConversationStateSave();
-    startModelGeneration(
+    void startModelGeneration(
       activeConversation,
       dependencies.buildPromptForConversationLeaf(activeConversation),
       {
         parentMessageId: parentUserMessage.id,
-      },
+      }
     );
   }
 
@@ -718,13 +805,22 @@ export function createAppController(dependencies) {
     if (!activeConversation || activeConversation.hasGeneratedName) {
       return;
     }
-    setOrchestrationRunning(dependencies.state, true);
+    const renameAbortController = new AbortController();
+    activeRenameAbortController = renameAbortController;
+    activeRenameConversationId = conversationId;
+    setOrchestrationRunning(dependencies.state, true, {
+      kind: ORCHESTRATION_KINDS.RENAME,
+      blocksUi: false,
+    });
     dependencies.updateActionButtons();
     dependencies.setStatus('Generating conversation title...');
     try {
       const { finalOutput } = await dependencies.runOrchestration(
         dependencies.renameOrchestration,
         inputs,
+        {
+          signal: renameAbortController.signal,
+        }
       );
       const nextName = dependencies.normalizeConversationName(finalOutput);
       activeConversation.name = nextName || dependencies.deriveConversationName(activeConversation);
@@ -734,6 +830,10 @@ export function createAppController(dependencies) {
       dependencies.queueConversationStateSave();
       dependencies.setStatus('Conversation title generated.');
     } catch (error) {
+      if (isAbortError(error)) {
+        dependencies.appendDebug('Background conversation rename canceled.');
+        return;
+      }
       const message = toErrorMessage(error);
       activeConversation.name = dependencies.deriveConversationName(activeConversation);
       activeConversation.hasGeneratedName = true;
@@ -743,6 +843,10 @@ export function createAppController(dependencies) {
       dependencies.appendDebug(`Rename orchestration failed: ${message}`);
       dependencies.setStatus('Conversation title generated.');
     } finally {
+      if (activeRenameAbortController === renameAbortController) {
+        activeRenameAbortController = null;
+        activeRenameConversationId = '';
+      }
       setOrchestrationRunning(dependencies.state, false);
       dependencies.updateActionButtons();
     }
@@ -752,7 +856,7 @@ export function createAppController(dependencies) {
     if (
       !messageId ||
       isEngineBusy(dependencies.state) ||
-      isOrchestrationRunningState(dependencies.state) ||
+      isBlockingOrchestrationState(dependencies.state) ||
       isMessageEditActive(dependencies.state)
     ) {
       return;
@@ -766,6 +870,10 @@ export function createAppController(dependencies) {
     const activeConversation = dependencies.getActiveConversation();
     if (!activeConversation) {
       return;
+    }
+    const pendingBackgroundRenameCancellation = cancelBackgroundRenameIfNeeded();
+    if (pendingBackgroundRenameCancellation) {
+      await pendingBackgroundRenameCancellation;
     }
     const targetModelMessage = dependencies.getMessageNodeById(activeConversation, messageId);
     if (!targetModelMessage || targetModelMessage.role !== 'model') {
@@ -788,9 +896,14 @@ export function createAppController(dependencies) {
       userPrompt: parentUserMessage.text || '',
       assistantResponse: targetModelMessage.response || targetModelMessage.text || '',
     };
-    const pendingFixMessage = dependencies.addMessageToConversation(activeConversation, 'model', '', {
-      parentId: parentUserMessage.id,
-    });
+    const pendingFixMessage = dependencies.addMessageToConversation(
+      activeConversation,
+      'model',
+      '',
+      {
+        parentId: parentUserMessage.id,
+      }
+    );
     pendingFixMessage.thoughts = '';
     pendingFixMessage.response = targetModelMessage.response || targetModelMessage.text || '';
     pendingFixMessage.text = pendingFixMessage.response;
@@ -802,7 +915,10 @@ export function createAppController(dependencies) {
     dependencies.queueConversationStateSave();
 
     let fixPrompt = '';
-    setOrchestrationRunning(dependencies.state, true);
+    setOrchestrationRunning(dependencies.state, true, {
+      kind: ORCHESTRATION_KINDS.FIX,
+      blocksUi: true,
+    });
     dependencies.updateActionButtons();
     dependencies.setStatus('Preparing response fix...');
     try {
@@ -811,7 +927,7 @@ export function createAppController(dependencies) {
         orchestrationInputs,
         {
           runFinalStep: false,
-        },
+        }
       );
       fixPrompt = result.finalPrompt;
     } catch (error) {
@@ -834,7 +950,7 @@ export function createAppController(dependencies) {
     }
     const refreshedParentUserMessage = dependencies.getMessageNodeById(
       refreshedConversation,
-      parentUserMessageId,
+      parentUserMessageId
     );
     if (!refreshedParentUserMessage || refreshedParentUserMessage.role !== 'user') {
       dependencies.setStatus('Unable to fix response: no user message found.');
@@ -843,7 +959,7 @@ export function createAppController(dependencies) {
     }
 
     dependencies.setStatus('Fixing response...');
-    startModelGeneration(refreshedConversation, fixPrompt, {
+    void startModelGeneration(refreshedConversation, fixPrompt, {
       parentMessageId: refreshedParentUserMessage.id,
       existingModelMessageId: pendingFixMessage.id,
       clearExistingMessageBeforeStream: true,

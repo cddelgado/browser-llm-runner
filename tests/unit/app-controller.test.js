@@ -15,6 +15,8 @@ function createControllerHarness() {
     isGenerating: false,
     isLoadingModel: false,
     isRunningOrchestration: false,
+    activeOrchestrationKind: 'none',
+    isBlockingOrchestration: false,
     activeGenerationConfig: {
       maxOutputTokens: 256,
       maxContextTokens: 2048,
@@ -44,7 +46,9 @@ function createControllerHarness() {
   };
 
   function getActiveConversation() {
-    return conversations.find((conversation) => conversation.id === activeConversationId.value) || null;
+    return (
+      conversations.find((conversation) => conversation.id === activeConversationId.value) || null
+    );
   }
 
   const dependencies = {
@@ -101,10 +105,10 @@ function createControllerHarness() {
     setLoadProgress: vi.fn((progress) => callLog.push(`load:${progress.message}`)),
     showLoadError: vi.fn((message) => callLog.push(`loadError:${message}`)),
     applyPendingGenerationSettingsIfReady: vi.fn(() =>
-      callLog.push('applyPendingGenerationSettingsIfReady'),
+      callLog.push('applyPendingGenerationSettingsIfReady')
     ),
     markActiveIncompleteModelMessageComplete: vi.fn(() =>
-      callLog.push('markActiveIncompleteModelMessageComplete'),
+      callLog.push('markActiveIncompleteModelMessageComplete')
     ),
     scheduleTask: (callback) => callback(),
     streamUpdateIntervalMs: 0,
@@ -181,11 +185,66 @@ describe('app-controller', () => {
         userPrompt: 'Explain photosynthesis.',
         assistantResponse: 'Plants convert light into energy.',
       },
+      expect.objectContaining({
+        signal: expect.any(Object),
+      })
     );
     expect(conversation.name).toBe('Plant Energy Basics');
     expect(conversation.hasGeneratedName).toBe(true);
     expect(harness.callLog).toContain('renderConversationList');
     expect(harness.callLog).toContain('updateChatTitle');
+    expect(harness.state.isRunningOrchestration).toBe(false);
+  });
+
+  test('cancels a background rename and falls back to a deterministic title before regenerating', async () => {
+    const harness = createControllerHarness();
+    const conversation = createConversation({ id: 'conversation-1', name: 'New Conversation' });
+    const userMessage = addMessageToConversation(conversation, 'user', 'Explain recursion simply.');
+    const modelMessage = addMessageToConversation(
+      conversation,
+      'model',
+      'Recursion is when a function solves a problem by calling itself on a smaller version.',
+      {
+        parentId: userMessage.id,
+      }
+    );
+    modelMessage.isResponseComplete = true;
+    harness.conversations.push(conversation);
+    harness.activeConversationId.value = conversation.id;
+    harness.state.modelReady = true;
+    const fallbackTitle = deriveConversationName(conversation);
+
+    harness.dependencies.runOrchestration.mockImplementation(
+      (_orchestration, _inputs, options = {}) =>
+        new Promise((_resolve, reject) => {
+          options.signal?.addEventListener(
+            'abort',
+            () => {
+              const abortError = new Error('Generation canceled.');
+              abortError.name = 'AbortError';
+              reject(abortError);
+            },
+            { once: true }
+          );
+        })
+    );
+
+    void harness.controller.runRenameChatOrchestration(conversation.id, {
+      userPrompt: userMessage.text,
+      assistantResponse: modelMessage.text,
+    });
+    await Promise.resolve();
+
+    harness.engine.generate.mockImplementation((_prompt, handlers) => {
+      handlers.onComplete('Here is a regenerated answer.');
+    });
+
+    await harness.controller.regenerateFromMessage(modelMessage.id);
+
+    expect(harness.engine.cancelGeneration).toHaveBeenCalledTimes(1);
+    expect(conversation.hasGeneratedName).toBe(true);
+    expect(conversation.name).toBe(fallbackTitle);
+    expect(harness.engine.generate).toHaveBeenCalledTimes(1);
     expect(harness.state.isRunningOrchestration).toBe(false);
   });
 
@@ -221,7 +280,9 @@ describe('app-controller', () => {
 
     expect(harness.engine.dispose).toHaveBeenCalledTimes(1);
     expect(harness.state.modelReady).toBe(false);
-    expect(harness.callLog).toContain('status:Settings updated. Send a message to load the selected model.');
+    expect(harness.callLog).toContain(
+      'status:Settings updated. Send a message to load the selected model.'
+    );
   });
 
   test('captures emitted tool calls on completed model messages', () => {
@@ -247,9 +308,13 @@ describe('app-controller', () => {
       handlers.onComplete('{"name":"get_weather","parameters":{"location":"Milwaukee, WI"}}');
     });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
 
     const modelMessage = conversation.messageNodes.find((message) => message.role === 'model');
     expect(modelMessage?.toolCalls).toEqual([
@@ -274,9 +339,13 @@ describe('app-controller', () => {
       handlers.onComplete('Done.');
     });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
 
     expect(harness.dependencies.getRuntimeConfigForConversation).toHaveBeenCalledWith(conversation);
     expect(harness.engine.generate.mock.calls[0][1]).toMatchObject({
@@ -315,16 +384,22 @@ describe('app-controller', () => {
         handlers.onComplete('It is currently 1:00 AM local time.');
       });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-      updateLastSpokenOnComplete: true,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+        updateLastSpokenOnComplete: true,
+      }
+    );
 
     await Promise.resolve();
     await Promise.resolve();
 
     const toolMessage = conversation.messageNodes.find((message) => message.role === 'tool');
-    const finalModelMessages = conversation.messageNodes.filter((message) => message.role === 'model');
+    const finalModelMessages = conversation.messageNodes.filter(
+      (message) => message.role === 'model'
+    );
     expect(harness.dependencies.executeToolCall).toHaveBeenCalledWith({
       name: 'get_current_date_time',
       arguments: {},
@@ -375,9 +450,13 @@ describe('app-controller', () => {
         handlers.onComplete('I found notes.txt.');
       });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
 
     await Promise.resolve();
     await Promise.resolve();
@@ -427,9 +506,13 @@ describe('app-controller', () => {
       );
     });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
 
     const modelMessage = conversation.messageNodes.find((message) => message.role === 'model');
     expect(modelMessage?.response).toBe('I need to check something first.');
@@ -472,10 +555,14 @@ describe('app-controller', () => {
         handlers.onComplete('The task list is currently empty.');
       });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-      updateLastSpokenOnComplete: true,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+        updateLastSpokenOnComplete: true,
+      }
+    );
 
     await Promise.resolve();
     await Promise.resolve();
@@ -521,7 +608,7 @@ describe('app-controller', () => {
             format: 'json',
           },
         ],
-      },
+      }
     );
     interceptedModelMessage.isResponseComplete = true;
     const toolMessage = addMessageToConversation(conversation, 'tool', '{"items":[]}', {
@@ -535,7 +622,7 @@ describe('app-controller', () => {
       'The task list is currently empty.',
       {
         parentId: toolMessage.id,
-      },
+      }
     );
     continuationModelMessage.isResponseComplete = true;
     harness.conversations.push(conversation);
@@ -556,7 +643,7 @@ describe('app-controller', () => {
       },
     ]);
     const regeneratedModelMessages = conversation.messageNodes.filter(
-      (message) => message.role === 'model' && message.parentId === userMessage.id,
+      (message) => message.role === 'model' && message.parentId === userMessage.id
     );
     expect(regeneratedModelMessages).toHaveLength(2);
     expect(regeneratedModelMessages.at(-1)?.text).toBe('Here is a regenerated answer.');
@@ -599,9 +686,13 @@ describe('app-controller', () => {
         handlers.onComplete('You are currently located in Milwaukee, Wisconsin, United States.');
       });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
 
     await Promise.resolve();
     await Promise.resolve();
@@ -613,10 +704,13 @@ describe('app-controller', () => {
       harness.dependencies.addMessageElement.mock.calls.at(0)
     );
     expect(firstAddMessageCall?.[0]?.id).toBe(modelMessages[0]?.id);
-    expect(harness.dependencies.findMessageElement).toHaveBeenNthCalledWith(2, modelMessages[0]?.id);
+    expect(harness.dependencies.findMessageElement).toHaveBeenNthCalledWith(
+      2,
+      modelMessages[0]?.id
+    );
     expect(harness.dependencies.updateModelMessageElement).toHaveBeenLastCalledWith(
       modelMessages[0],
-      originatingModelElement,
+      originatingModelElement
     );
   });
 
@@ -647,9 +741,13 @@ describe('app-controller', () => {
         handlers.onComplete('The lookup failed, so I need another approach.');
       });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
 
     await Promise.resolve();
     await Promise.resolve();
@@ -684,7 +782,7 @@ describe('app-controller', () => {
             format: 'json',
           },
         ],
-      },
+      }
     );
     interceptedModelMessage.isResponseComplete = true;
     const toolMessage = addMessageToConversation(conversation, 'tool', '{"items":[]}', {
@@ -698,7 +796,7 @@ describe('app-controller', () => {
       'The task list is currently empty.',
       {
         parentId: toolMessage.id,
-      },
+      }
     );
     continuationModelMessage.isResponseComplete = true;
     harness.conversations.push(conversation);
@@ -723,7 +821,7 @@ describe('app-controller', () => {
       },
       {
         runFinalStep: false,
-      },
+      }
     );
     expect(harness.engine.generate).toHaveBeenCalledTimes(1);
   });
@@ -743,9 +841,13 @@ describe('app-controller', () => {
       handlers.onComplete('Hello world');
     });
 
-    harness.controller.startModelGeneration(conversation, buildPromptForConversationLeaf(conversation), {
-      parentMessageId: userMessage.id,
-    });
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
 
     expect(harness.dependencies.queueConversationStateSave).toHaveBeenCalledTimes(1);
   });

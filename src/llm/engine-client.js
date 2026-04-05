@@ -80,6 +80,7 @@ export class LLMEngineClient {
       onToken: handlers.onToken,
       onComplete: handlers.onComplete,
       onError: handlers.onError,
+      onCancel: handlers.onCancel,
     };
 
     this.worker.postMessage({
@@ -210,6 +211,9 @@ export class LLMEngineClient {
           this.#pendingCancelResolve();
         }
         if (this.pendingGeneration?.requestId === data.payload?.requestId) {
+          if (typeof this.pendingGeneration.onCancel === 'function') {
+            this.pendingGeneration.onCancel();
+          }
           this.pendingGeneration = null;
         }
       }

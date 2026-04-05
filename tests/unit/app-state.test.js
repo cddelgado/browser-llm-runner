@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   ENGINE_PHASES,
   INTERACTION_MODES,
+  ORCHESTRATION_KINDS,
   ORCHESTRATION_STATUSES,
   WORKSPACE_VIEWS,
   beginAttachmentOperation,
@@ -15,6 +16,7 @@ import {
   getCurrentViewRoute,
   hasDismissedTerminalForConversation,
   hasSelectedConversationWithHistory,
+  isBlockingOrchestrationState,
   isProcessingAttachments,
   isTerminalOpenForConversation,
   openTerminalForConversation,
@@ -51,6 +53,8 @@ describe('app-state', () => {
     expect(state.workspaceView).toBe(WORKSPACE_VIEWS.HOME);
     expect(state.interactionMode).toBe(INTERACTION_MODES.NONE);
     expect(state.orchestrationStatus).toBe(ORCHESTRATION_STATUSES.IDLE);
+    expect(state.activeOrchestrationKind).toBe(ORCHESTRATION_KINDS.NONE);
+    expect(state.isBlockingOrchestration).toBe(false);
     expect(state.terminalOpenConversationId).toBeNull();
     expect(state.terminalDismissedConversationIds).toEqual(new Set());
   });
@@ -65,7 +69,7 @@ describe('app-state', () => {
         id: 'conversation-2',
         activeLeafMessageId: 'message-1',
         messageNodes: [{ id: 'message-1', role: 'user', parentId: null }],
-      },
+      }
     );
     state.activeConversationId = 'conversation-2';
 
@@ -93,7 +97,7 @@ describe('app-state', () => {
         routeHome: 'home',
         routeChat: 'chat',
         routeSettings: 'settings',
-      }),
+      })
     ).toBe('chat');
     expect(shouldDisableComposerForPreChatConversationSelection(state)).toBe(false);
 
@@ -103,7 +107,7 @@ describe('app-state', () => {
         routeHome: 'home',
         routeChat: 'chat',
         routeSettings: 'settings',
-      }),
+      })
     ).toBe('settings');
   });
 
@@ -152,6 +156,13 @@ describe('app-state', () => {
 
     setOrchestrationRunning(state, true);
     expect(shouldDisableConversationControls(state)).toBe(false);
+    expect(isBlockingOrchestrationState(state)).toBe(false);
+
+    setOrchestrationRunning(state, true, {
+      kind: ORCHESTRATION_KINDS.FIX,
+      blocksUi: true,
+    });
+    expect(isBlockingOrchestrationState(state)).toBe(true);
 
     setLoadingModel(state, true);
     expect(shouldDisableConversationControls(state)).toBe(true);

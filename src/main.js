@@ -118,6 +118,7 @@ import {
   hasConversationHistory as selectHasConversationHistory,
   hasSelectedConversationWithHistory as selectHasSelectedConversationWithHistory,
   hasStartedWorkspace as selectHasStartedWorkspace,
+  isBlockingOrchestrationState,
   isChatTitleEditingState,
   isEngineBusy,
   isEngineReady,
@@ -125,7 +126,6 @@ import {
   isProcessingAttachments,
   isTerminalOpenForConversation,
   isMessageEditActive,
-  isOrchestrationRunningState,
   isSettingsView,
   isVariantSwitchingState,
   isLoadingModelState,
@@ -1999,9 +1999,53 @@ function activeConversationNeedsModelLoad(
   return !isEngineReady(appState) || loadedModelId !== getConversationModelId(conversation);
 }
 
-function requestSingleGeneration(prompt) {
+function requestSingleGeneration(prompt, options = {}) {
   return new Promise((resolve, reject) => {
+    const signal =
+      globalThis.AbortSignal && options.signal instanceof globalThis.AbortSignal
+        ? options.signal
+        : null;
     let streamedText = '';
+    let isSettled = false;
+
+    const settle = (callback) => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      signal?.removeEventListener('abort', handleAbort);
+      callback();
+    };
+
+    const rejectAsAbort = () => {
+      settle(() => {
+        const AbortError =
+          globalThis.DOMException ||
+          class AbortError extends Error {
+            constructor(message) {
+              super(message);
+              this.name = 'AbortError';
+            }
+          };
+        reject(new AbortError('Generation canceled.', 'AbortError'));
+      });
+    };
+
+    const handleAbort = () => {
+      void engine
+        .cancelGeneration()
+        .catch(() => {})
+        .finally(() => {
+          rejectAsAbort();
+        });
+    };
+
+    if (signal?.aborted) {
+      rejectAsAbort();
+      return;
+    }
+
+    signal?.addEventListener('abort', handleAbort, { once: true });
     try {
       engine.generate(prompt, {
         generationConfig: appState.activeGenerationConfig,
@@ -2009,14 +2053,23 @@ function requestSingleGeneration(prompt) {
           streamedText += String(chunk || '');
         },
         onComplete: (finalText) => {
-          resolve(String(finalText || streamedText).trim());
+          settle(() => {
+            resolve(String(finalText || streamedText).trim());
+          });
         },
         onError: (message) => {
-          reject(new Error(String(message || 'Generation failed.')));
+          settle(() => {
+            reject(new Error(String(message || 'Generation failed.')));
+          });
+        },
+        onCancel: () => {
+          rejectAsAbort();
         },
       });
     } catch (error) {
-      reject(error);
+      settle(() => {
+        reject(error);
+      });
     }
   });
 }
@@ -2117,7 +2170,7 @@ const transcriptView = createTranscriptView({
   getControlsState: () => ({
     isGenerating: isGeneratingResponse(appState),
     isLoadingModel: isLoadingModelState(appState),
-    isRunningOrchestration: isOrchestrationRunningState(appState),
+    isRunningOrchestration: isBlockingOrchestrationState(appState),
     isSwitchingVariant: isVariantSwitchingState(appState),
   }),
   getEmptyStateVisible: () => isEngineReady(appState) && appState.conversations.length > 0,
@@ -2536,7 +2589,7 @@ function updateActionButtons() {
   const attachmentsAreProcessing = isProcessingAttachments(appState);
   const composerControlsDisabled =
     isLoadingModelState(appState) ||
-    isOrchestrationRunningState(appState) ||
+    isBlockingOrchestrationState(appState) ||
     isMessageEditActive(appState) ||
     disableComposerForPreChatSelection;
   const attachmentSupport = getSelectedModelAttachmentSupport();
@@ -2593,7 +2646,7 @@ function updateActionButtons() {
     newConversationBtn.disabled =
       attachmentsAreProcessing ||
       isGeneratingResponse(appState) ||
-      isOrchestrationRunningState(appState) ||
+      isBlockingOrchestrationState(appState) ||
       appState.isPreparingNewConversation ||
       !selectHasStartedWorkspace(appState);
   }
@@ -2608,7 +2661,7 @@ function updateRegenerateButtons() {
   const disabled =
     isLoadingModelState(appState) ||
     isGeneratingResponse(appState) ||
-    isOrchestrationRunningState(appState) ||
+    isBlockingOrchestrationState(appState) ||
     isVariantSwitchingState(appState) ||
     !isEngineReady(appState) ||
     isMessageEditActive(appState);
@@ -3030,7 +3083,7 @@ transcriptActions = createTranscriptActions({
   getUserVariantState,
   findPreferredLeafForVariant,
   isEngineBusy,
-  isOrchestrationRunningState,
+  isOrchestrationRunningState: isBlockingOrchestrationState,
   isVariantSwitchingState,
   isMessageEditActive,
   getActiveUserEditMessageId,
@@ -3271,7 +3324,7 @@ bindComposerEvents({
   imageAttachmentInput,
   composerAttachmentTray,
   isGeneratingResponse,
-  isOrchestrationRunningState,
+  isOrchestrationRunningState: isBlockingOrchestrationState,
   isMessageEditActive,
   isEngineReady,
   hasStartedWorkspace: selectHasStartedWorkspace,

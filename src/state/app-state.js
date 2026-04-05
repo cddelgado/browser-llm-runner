@@ -25,6 +25,13 @@ export const ORCHESTRATION_STATUSES = Object.freeze({
   RUNNING: 'running',
 });
 
+export const ORCHESTRATION_KINDS = Object.freeze({
+  NONE: 'none',
+  RENAME: 'rename',
+  FIX: 'fix',
+  GENERIC: 'generic',
+});
+
 /**
  * @param {{
  *   activeGenerationConfig?: any;
@@ -86,6 +93,8 @@ export function createAppState({
     isChatTitleEditing: false,
     isRunningOrchestration: false,
     orchestrationStatus: ORCHESTRATION_STATUSES.IDLE,
+    activeOrchestrationKind: ORCHESTRATION_KINDS.NONE,
+    isBlockingOrchestration: false,
     isSettingsPageOpen: false,
     activeSettingsTab: 'system',
     isConversationSystemPromptModalOpen: false,
@@ -249,16 +258,41 @@ export function setGenerating(state, value) {
   return refreshEnginePhase(state);
 }
 
-export function setOrchestrationRunning(state, value) {
+/**
+ * @param {any} state
+ * @param {any} value
+ * @param {{ kind?: string; blocksUi?: boolean }} [options]
+ */
+export function setOrchestrationRunning(
+  state,
+  value,
+  { kind = ORCHESTRATION_KINDS.GENERIC, blocksUi = false } = {}
+) {
   state.isRunningOrchestration = Boolean(value);
   state.orchestrationStatus = state.isRunningOrchestration
     ? ORCHESTRATION_STATUSES.RUNNING
     : ORCHESTRATION_STATUSES.IDLE;
+  const normalizedKind =
+    typeof kind === 'string' && kind.trim() ? kind.trim() : ORCHESTRATION_KINDS.GENERIC;
+  state.activeOrchestrationKind = state.isRunningOrchestration
+    ? normalizedKind
+    : ORCHESTRATION_KINDS.NONE;
+  state.isBlockingOrchestration = state.isRunningOrchestration && Boolean(blocksUi);
   return state.orchestrationStatus;
 }
 
 export function isOrchestrationRunningState(state) {
   return state?.orchestrationStatus === ORCHESTRATION_STATUSES.RUNNING;
+}
+
+export function getActiveOrchestrationKind(state) {
+  return typeof state?.activeOrchestrationKind === 'string'
+    ? state.activeOrchestrationKind
+    : ORCHESTRATION_KINDS.NONE;
+}
+
+export function isBlockingOrchestrationState(state) {
+  return isOrchestrationRunningState(state) && Boolean(state?.isBlockingOrchestration);
 }
 
 export function deriveInteractionMode(state) {

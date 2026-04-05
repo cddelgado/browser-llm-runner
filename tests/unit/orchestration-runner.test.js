@@ -16,11 +16,11 @@ describe('orchestration-runner', () => {
       {
         assistantResponse: 'A rough draft',
         userPrompt: 'the original question',
-      },
+      }
     );
 
     expect(prompt).toBe(
-      'Critique A rough draft for the original question\n\nResponse format:\nReturn one short paragraph.',
+      'Critique A rough draft for the original question\n\nResponse format:\nReturn one short paragraph.'
     );
   });
 
@@ -36,25 +36,32 @@ describe('orchestration-runner', () => {
       onDebug,
     });
 
-    const result = await runner({
-      id: 'fix-response',
-      steps: [
-        {
-          stepName: 'Critique',
-          prompt: 'Critique {{assistantResponse}}',
-          outputKey: 'critique',
-        },
-        {
-          stepName: 'Revise',
-          prompt: 'Revise using {{critique}}',
-        },
-      ],
-    }, {
-      assistantResponse: 'Draft answer',
-    });
+    const result = await runner(
+      {
+        id: 'fix-response',
+        steps: [
+          {
+            stepName: 'Critique',
+            prompt: 'Critique {{assistantResponse}}',
+            outputKey: 'critique',
+          },
+          {
+            stepName: 'Revise',
+            prompt: 'Revise using {{critique}}',
+          },
+        ],
+      },
+      {
+        assistantResponse: 'Draft answer',
+      }
+    );
 
-    expect(generateText).toHaveBeenNthCalledWith(1, 'Critique Draft answer');
-    expect(generateText).toHaveBeenNthCalledWith(2, 'Revise using Needs detail');
+    expect(generateText).toHaveBeenNthCalledWith(1, 'Critique Draft answer', {
+      signal: undefined,
+    });
+    expect(generateText).toHaveBeenNthCalledWith(2, 'Revise using Needs detail', {
+      signal: undefined,
+    });
     expect(result).toEqual({
       finalPrompt: 'Revise using Needs detail',
       finalOutput: 'Improved answer',
@@ -81,7 +88,7 @@ describe('orchestration-runner', () => {
       },
       {
         runFinalStep: false,
-      },
+      }
     );
 
     expect(generateText).toHaveBeenCalledTimes(1);
@@ -102,7 +109,7 @@ describe('orchestration-runner', () => {
           pageLabel: 'Pages 3-4',
           text: 'Extracted text',
         },
-      },
+      }
     );
 
     expect(prompt).toBe('Chunk 2 on Pages 3-4:\nExtracted text');
@@ -119,52 +126,61 @@ describe('orchestration-runner', () => {
       formatStepOutput: (_step, output) => output.trim(),
     });
 
-    const result = await runner({
-      id: 'pdf-to-markdown',
-      steps: [
-        {
-          type: 'transform',
-          stepName: 'Chunk text',
-          transform: 'chunkText',
-          source: 'documentPages',
-          outputKey: 'documentChunks',
-          parameters: {
-            maxChars: 15,
-            overlapChars: 0,
-            textField: 'text',
-            pageField: 'pageNumber',
+    const result = await runner(
+      {
+        id: 'pdf-to-markdown',
+        steps: [
+          {
+            type: 'transform',
+            stepName: 'Chunk text',
+            transform: 'chunkText',
+            source: 'documentPages',
+            outputKey: 'documentChunks',
+            parameters: {
+              maxChars: 15,
+              overlapChars: 0,
+              textField: 'text',
+              pageField: 'pageNumber',
+            },
           },
-        },
-        {
-          type: 'forEach',
-          stepName: 'Convert chunks',
-          input: 'documentChunks',
-          itemName: 'chunk',
-          outputKey: 'chunkMarkdown',
-          prompt: 'Convert {{chunk.pageLabel}}:\n{{chunk.text}}',
-        },
-        {
-          type: 'join',
-          stepName: 'Join markdown',
-          source: 'chunkMarkdown',
-          outputKey: 'combinedMarkdown',
-          separator: '\n\n',
-        },
-        {
-          stepName: 'Finalize',
-          prompt: 'Finalize:\n{{combinedMarkdown}}',
-        },
-      ],
-    }, {
-      documentPages: [
-        { pageNumber: 1, text: 'Alpha text.' },
-        { pageNumber: 2, text: 'Bravo text.' },
-      ],
-    });
+          {
+            type: 'forEach',
+            stepName: 'Convert chunks',
+            input: 'documentChunks',
+            itemName: 'chunk',
+            outputKey: 'chunkMarkdown',
+            prompt: 'Convert {{chunk.pageLabel}}:\n{{chunk.text}}',
+          },
+          {
+            type: 'join',
+            stepName: 'Join markdown',
+            source: 'chunkMarkdown',
+            outputKey: 'combinedMarkdown',
+            separator: '\n\n',
+          },
+          {
+            stepName: 'Finalize',
+            prompt: 'Finalize:\n{{combinedMarkdown}}',
+          },
+        ],
+      },
+      {
+        documentPages: [
+          { pageNumber: 1, text: 'Alpha text.' },
+          { pageNumber: 2, text: 'Bravo text.' },
+        ],
+      }
+    );
 
-    expect(generateText).toHaveBeenNthCalledWith(1, 'Convert Page 1:\nAlpha text.');
-    expect(generateText).toHaveBeenNthCalledWith(2, 'Convert Page 2:\nBravo text.');
-    expect(generateText).toHaveBeenNthCalledWith(3, 'Finalize:\n## Chunk 1\n\n## Chunk 2');
+    expect(generateText).toHaveBeenNthCalledWith(1, 'Convert Page 1:\nAlpha text.', {
+      signal: undefined,
+    });
+    expect(generateText).toHaveBeenNthCalledWith(2, 'Convert Page 2:\nBravo text.', {
+      signal: undefined,
+    });
+    expect(generateText).toHaveBeenNthCalledWith(3, 'Finalize:\n## Chunk 1\n\n## Chunk 2', {
+      signal: undefined,
+    });
     expect(result).toEqual({
       finalPrompt: 'Finalize:\n## Chunk 1\n\n## Chunk 2',
       finalOutput: '# Final Document',
@@ -178,20 +194,23 @@ describe('orchestration-runner', () => {
       formatStepOutput: (_step, output) => output.trim(),
     });
 
-    const result = await runner({
-      id: 'chunk-pass',
-      steps: [
-        {
-          type: 'forEach',
-          input: 'chunks',
-          itemName: 'chunk',
-          outputKey: 'chunkOutputs',
-          prompt: 'Chunk {{itemNumber}}/{{itemCount}}: {{chunk.text}}',
-        },
-      ],
-    }, {
-      chunks: [{ text: 'one' }, { text: 'two' }],
-    });
+    const result = await runner(
+      {
+        id: 'chunk-pass',
+        steps: [
+          {
+            type: 'forEach',
+            input: 'chunks',
+            itemName: 'chunk',
+            outputKey: 'chunkOutputs',
+            prompt: 'Chunk {{itemNumber}}/{{itemCount}}: {{chunk.text}}',
+          },
+        ],
+      },
+      {
+        chunks: [{ text: 'one' }, { text: 'two' }],
+      }
+    );
 
     expect(result).toEqual({
       finalPrompt: '',

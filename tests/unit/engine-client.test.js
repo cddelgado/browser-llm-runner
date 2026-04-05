@@ -122,7 +122,9 @@ describe('LLMEngineClient', () => {
 
     expect(firstResult).toEqual(secondResult);
     expect(MockWorker.instances).toHaveLength(1);
-    expect(MockWorker.instances[0].messages.filter((message) => message.type === 'init')).toHaveLength(1);
+    expect(
+      MockWorker.instances[0].messages.filter((message) => message.type === 'init')
+    ).toHaveLength(1);
   });
 
   test('streams tokens and completes generation', async () => {
@@ -161,7 +163,9 @@ describe('LLMEngineClient', () => {
       onError: () => {},
     });
 
-    const generateMessage = MockWorker.instances[0].messages.find((message) => message.type === 'generate');
+    const generateMessage = MockWorker.instances[0].messages.find(
+      (message) => message.type === 'generate'
+    );
     expect(generateMessage?.payload?.runtime).toEqual({
       dtype: 'q4f16',
       enableThinking: false,
@@ -178,6 +182,7 @@ describe('LLMEngineClient', () => {
       onToken: vi.fn(),
       onComplete: vi.fn(),
       onError: vi.fn(),
+      onCancel: vi.fn(),
     };
     await client.cancelGeneration();
 
@@ -190,6 +195,25 @@ describe('LLMEngineClient', () => {
       type: 'cancel',
       payload: { requestId: '11111111-1111-1111-1111-111111111111' },
     });
+  });
+
+  test('invokes onCancel when a generation is canceled', async () => {
+    const client = new LLMEngineClient();
+    await client.initialize({ modelId: 'example/model' });
+
+    const onCancel = vi.fn();
+    client.pendingGeneration = {
+      requestId: '22222222-2222-2222-2222-222222222222',
+      onToken: vi.fn(),
+      onComplete: vi.fn(),
+      onError: vi.fn(),
+      onCancel,
+    };
+
+    await client.cancelGeneration();
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(client.pendingGeneration).toBeNull();
   });
 
   test('switching models unloads the previous worker before loading the next model', async () => {

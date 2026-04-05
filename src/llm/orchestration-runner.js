@@ -2,7 +2,10 @@ function resolvePathValue(source, path) {
   if (!path || typeof path !== 'string') {
     return source;
   }
-  const keys = path.split('.').map((segment) => segment.trim()).filter(Boolean);
+  const keys = path
+    .split('.')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
   if (!keys.length) {
     return source;
   }
@@ -43,10 +46,13 @@ function stringifyPromptValue(value) {
           typeof item === 'string' ||
           typeof item === 'number' ||
           typeof item === 'boolean' ||
-          item == null,
+          item == null
       )
     ) {
-      return value.map((item) => stringifyPromptValue(item)).filter(Boolean).join('\n\n');
+      return value
+        .map((item) => stringifyPromptValue(item))
+        .filter(Boolean)
+        .join('\n\n');
     }
     return JSON.stringify(value, null, 2);
   }
@@ -110,7 +116,7 @@ export function buildOrchestrationPrompt(step, variables = {}) {
     throw new Error('Invalid orchestration definition.');
   }
   const renderedPrompt = step.prompt.replace(/\{\{([a-zA-Z0-9_.]+)\}\}/g, (_match, key) =>
-    stringifyPromptValue(resolvePathValue(variables, key)),
+    stringifyPromptValue(resolvePathValue(variables, key))
   );
   const responseInstructions =
     typeof step?.responseFormat?.instructions === 'string'
@@ -175,12 +181,18 @@ function normalizeChunkSourceItem(item, index, parameters = {}) {
 }
 
 function buildChunkFromEntries(entries, index, totalCount, overlapText = '') {
-  const normalizedEntries = entries.filter((entry) => typeof entry?.text === 'string' && entry.text.trim());
-  const startPage = normalizedEntries.find((entry) => Number.isFinite(entry.pageNumber))?.pageNumber ?? null;
+  const normalizedEntries = entries.filter(
+    (entry) => typeof entry?.text === 'string' && entry.text.trim()
+  );
+  const startPage =
+    normalizedEntries.find((entry) => Number.isFinite(entry.pageNumber))?.pageNumber ?? null;
   const endPage =
-    [...normalizedEntries].reverse().find((entry) => Number.isFinite(entry.pageNumber))?.pageNumber ?? null;
+    [...normalizedEntries].reverse().find((entry) => Number.isFinite(entry.pageNumber))
+      ?.pageNumber ?? null;
   const entryText = normalizedEntries.map((entry) => entry.text.trim()).join('\n\n');
-  const text = overlapText ? `${overlapText}${entryText ? `\n\n${entryText}` : ''}`.trim() : entryText;
+  const text = overlapText
+    ? `${overlapText}${entryText ? `\n\n${entryText}` : ''}`.trim()
+    : entryText;
   return {
     id: `chunk-${index + 1}`,
     text,
@@ -197,17 +209,14 @@ function chunkTextValue(input, parameters = {}) {
   const maxChars = Math.max(1, Number.parseInt(String(parameters?.maxChars ?? 4000), 10) || 4000);
   const overlapChars = Math.max(
     0,
-    Math.min(
-      maxChars - 1,
-      Number.parseInt(String(parameters?.overlapChars ?? 0), 10) || 0,
-    ),
+    Math.min(maxChars - 1, Number.parseInt(String(parameters?.overlapChars ?? 0), 10) || 0)
   );
 
   const sourceEntries = Array.isArray(input)
     ? input.map((item, index) => normalizeChunkSourceItem(item, index, parameters))
     : [normalizeChunkSourceItem(String(input ?? ''), 0, parameters)];
   const filteredEntries = sourceEntries.filter(
-    (entry) => typeof entry.text === 'string' && entry.text.trim(),
+    (entry) => typeof entry.text === 'string' && entry.text.trim()
   );
   if (!filteredEntries.length) {
     return [];
@@ -225,7 +234,8 @@ function chunkTextValue(input, parameters = {}) {
     }
     let overlapText = '';
     if (overlapChars > 0 && chunks.length > 0) {
-      const previousChunkText = typeof chunks[chunks.length - 1]?.text === 'string' ? chunks[chunks.length - 1].text : '';
+      const previousChunkText =
+        typeof chunks[chunks.length - 1]?.text === 'string' ? chunks[chunks.length - 1].text : '';
       overlapText = previousChunkText.slice(-overlapChars).trim();
     }
     chunks.push(buildChunkFromEntries(currentEntries, chunks.length, 0, overlapText));
@@ -247,7 +257,9 @@ function chunkTextValue(input, parameters = {}) {
         if (sliceText) {
           const overlapText =
             overlapChars > 0 && chunks.length > 0
-              ? String(chunks[chunks.length - 1]?.text || '').slice(-overlapChars).trim()
+              ? String(chunks[chunks.length - 1]?.text || '')
+                  .slice(-overlapChars)
+                  .trim()
               : '';
           chunks.push(
             buildChunkFromEntries(
@@ -259,8 +271,8 @@ function chunkTextValue(input, parameters = {}) {
               ],
               chunks.length,
               0,
-              overlapText,
-            ),
+              overlapText
+            )
           );
         }
         if (sliceEnd >= entryText.length) {
@@ -305,7 +317,10 @@ function runJoinStep(step, promptVariables) {
     return stringifyPromptValue(sourceValue);
   }
   const separator = typeof step?.separator === 'string' ? step.separator : '\n';
-  return sourceValue.map((item) => stringifyPromptValue(item)).filter(Boolean).join(separator);
+  return sourceValue
+    .map((item) => stringifyPromptValue(item))
+    .filter(Boolean)
+    .join(separator);
 }
 
 function assignStepOutputs(promptVariables, index, stepOutput, outputKey = '') {
@@ -326,7 +341,7 @@ function assignStepOutputs(promptVariables, index, stepOutput, outputKey = '') {
 
 /**
  * @param {{
- *   generateText: (prompt: string) => Promise<string>;
+ *   generateText: (prompt: string, options?: { signal?: AbortSignal }) => Promise<string>;
  *   formatStepOutput?: (step: any, rawOutput: string) => string;
  *   onDebug?: (message: string) => void;
  * }} dependencies
@@ -375,8 +390,12 @@ export function createOrchestrationRunner(dependencies) {
           };
         }
 
-        onDebug(`Orchestration step ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`);
-        const rawStepOutput = await generateText(stepPrompt);
+        onDebug(
+          `Orchestration step ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`
+        );
+        const rawStepOutput = await generateText(stepPrompt, {
+          signal: options?.signal,
+        });
         const stepOutput = formatStepOutput(step, rawStepOutput);
         assignStepOutputs(promptVariables, index, stepOutput, outputKey);
 
@@ -391,7 +410,9 @@ export function createOrchestrationRunner(dependencies) {
       }
 
       if (stepType === 'transform') {
-        onDebug(`Orchestration utility ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`);
+        onDebug(
+          `Orchestration utility ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`
+        );
         const stepOutput = runTransformStep(step, promptVariables);
         assignStepOutputs(promptVariables, index, stepOutput, outputKey);
         if (isFinalStep) {
@@ -405,7 +426,9 @@ export function createOrchestrationRunner(dependencies) {
       }
 
       if (stepType === 'join') {
-        onDebug(`Orchestration utility ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`);
+        onDebug(
+          `Orchestration utility ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`
+        );
         const stepOutput = runJoinStep(step, promptVariables);
         assignStepOutputs(promptVariables, index, stepOutput, outputKey);
         if (isFinalStep) {
@@ -423,9 +446,13 @@ export function createOrchestrationRunner(dependencies) {
         if (!Array.isArray(items)) {
           throw new Error(`forEach input is not an array: ${step.input}`);
         }
-        onDebug(`Orchestration step ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`);
+        onDebug(
+          `Orchestration step ${index + 1}/${steps.length}: ${orchestrationId} [${stepName}]`
+        );
         const itemName =
-          typeof step?.itemName === 'string' && step.itemName.trim() ? step.itemName.trim() : 'item';
+          typeof step?.itemName === 'string' && step.itemName.trim()
+            ? step.itemName.trim()
+            : 'item';
         const outputs = [];
         for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
           const item = items[itemIndex];
@@ -437,7 +464,9 @@ export function createOrchestrationRunner(dependencies) {
             itemCount: items.length,
           };
           const itemPrompt = buildOrchestrationPrompt(step, itemVariables);
-          const rawStepOutput = await generateText(itemPrompt);
+          const rawStepOutput = await generateText(itemPrompt, {
+            signal: options?.signal,
+          });
           const stepOutput = formatStepOutput(step, rawStepOutput);
           outputs.push(stepOutput);
         }
