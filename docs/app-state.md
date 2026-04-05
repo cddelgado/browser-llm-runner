@@ -38,5 +38,9 @@ That lets the shell disable send and attachment controls while uploads are still
   - selectors
 - `src/state/app-controller.js`
   - action sequencing and async lifecycle updates
+- `src/app/composer-runtime.js`
+  - pending attachment rendering, payload shaping, and attachment filtering/status text
+- `src/app/workspace-side-panels.js`
+  - terminal/web-lookup panel session shaping and visibility control
 - `src/main.js`
-  - DOM wiring, browser events, and persistence hookup
+  - top-level DOM wiring, browser events, and persistence hookup

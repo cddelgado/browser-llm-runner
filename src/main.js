@@ -6,6 +6,7 @@ import 'bootstrap/js/dist/offcanvas';
 import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import { bindComposerEvents } from './app/composer-events.js';
+import { createComposerRuntimeController } from './app/composer-runtime.js';
 import {
   formatAttachmentSize,
   getAttachmentButtonAcceptValue,
@@ -23,6 +24,7 @@ import { createShortcutHandlers } from './app/shortcut-events.js';
 import { createTranscriptNavigationController } from './app/transcript-navigation.js';
 import { createTranscriptActions } from './app/transcript-actions.js';
 import { bindTranscriptEvents } from './app/transcript-events.js';
+import { createWorkspaceSidePanelsController } from './app/workspace-side-panels.js';
 import { LLMEngineClient } from './llm/engine-client.js';
 import { createCorsAwareFetch, validateCorsProxyUrl } from './llm/browser-fetch.js';
 import { createOrchestrationRunner } from './llm/orchestration-runner.js';
@@ -139,7 +141,6 @@ import {
 import { loadConversationState, saveConversationState } from './state/conversation-store.js';
 import { renderConversationListView } from './ui/conversation-list-view.js';
 import { loadMarkdownRenderer, renderPlainTextMarkdownFallback } from './ui/markdown-renderer.js';
-import { createBrowserView } from './ui/browser-view.js';
 import { createTranscriptView } from './ui/transcript-view.js';
 import { renderTaskListTray } from './ui/task-list-tray.js';
 import {
@@ -489,6 +490,23 @@ const {
   modelLoadError,
   modelLoadErrorSummary,
   modelLoadErrorDetails,
+});
+const {
+  buildRemovedComposerAttachmentStatus,
+  buildUserMessageAttachmentPayload,
+  clearPendingComposerAttachments,
+  filterPendingComposerAttachmentsForModel,
+  getMessageArtifacts,
+  getPendingComposerAttachments,
+  renderComposerAttachments,
+} = createComposerRuntimeController({
+  appState,
+  documentRef: document,
+  imageAttachmentInput,
+  composerAttachmentTray,
+  getAttachmentIconClass,
+  formatAttachmentSize,
+  setIconButtonContent,
 });
 const {
   ensureModelVariantControlsVisible,
@@ -1326,12 +1344,6 @@ function shouldShowNewConversationButton() {
   return selectShouldShowNewConversationButton(appState);
 }
 
-function getPendingComposerAttachments() {
-  return Array.isArray(appState.pendingComposerAttachments)
-    ? appState.pendingComposerAttachments
-    : [];
-}
-
 function normalizeAttachmentInputLimit(value) {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
@@ -1656,270 +1668,6 @@ function detectToolCallsForModel(rawText, modelId) {
   );
 }
 
-function clearPendingComposerAttachments({ resetInput = true } = {}) {
-  appState.pendingComposerAttachments = [];
-  if (resetInput && imageAttachmentInput instanceof HTMLInputElement) {
-    imageAttachmentInput.value = '';
-  }
-  renderComposerAttachments();
-}
-
-function formatAttachmentDuration(seconds) {
-  if (!Number.isFinite(seconds) || seconds < 0) {
-    return '';
-  }
-  const totalSeconds = Math.round(seconds);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const remainingSeconds = totalSeconds % 60;
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-  }
-  if (minutes > 0) {
-    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
-  }
-  return `${remainingSeconds}s`;
-}
-
-function renderComposerAttachments() {
-  if (!(composerAttachmentTray instanceof HTMLElement)) {
-    return;
-  }
-  const attachments = getPendingComposerAttachments();
-  const attachmentsAreProcessing = isProcessingAttachments(appState);
-  composerAttachmentTray.replaceChildren();
-  composerAttachmentTray.classList.toggle('d-none', attachments.length === 0);
-  composerAttachmentTray.setAttribute('aria-busy', attachmentsAreProcessing ? 'true' : 'false');
-  attachments.forEach((attachment, index) => {
-    const item = document.createElement('article');
-    item.className = 'composer-attachment-card';
-    item.dataset.attachmentId = attachment.id;
-    if (attachment.type === 'image') {
-      const image = document.createElement('img');
-      image.className = 'composer-attachment-thumb';
-      image.src = attachment.url;
-      image.alt = attachment.alt;
-      item.appendChild(image);
-    } else if (attachment.type === 'audio') {
-      const audio = document.createElement('audio');
-      audio.className = 'composer-attachment-audio';
-      audio.controls = true;
-      audio.preload = 'metadata';
-      audio.src = attachment.url;
-      audio.setAttribute(
-        'aria-label',
-        attachment.filename
-          ? `Attached audio preview: ${attachment.filename}`
-          : 'Attached audio preview'
-      );
-      item.appendChild(audio);
-    } else {
-      const iconWrap = document.createElement('div');
-      iconWrap.className = 'composer-attachment-icon';
-      const icon = document.createElement('i');
-      icon.className = `bi ${getAttachmentIconClass(attachment)}`;
-      icon.setAttribute('aria-hidden', 'true');
-      iconWrap.appendChild(icon);
-      item.appendChild(iconWrap);
-    }
-
-    const meta = document.createElement('div');
-    meta.className = 'composer-attachment-meta';
-    const name = document.createElement('p');
-    name.className = 'composer-attachment-name';
-    name.textContent = attachment.filename;
-    meta.appendChild(name);
-    const size = document.createElement('p');
-    size.className = 'composer-attachment-detail';
-    const metaBits = [];
-    if (attachment.type === 'file') {
-      metaBits.push(
-        attachment.extension ? attachment.extension.toUpperCase() : attachment.mimeType || 'FILE'
-      );
-    } else if (attachment.type === 'audio') {
-      if (typeof attachment.mimeType === 'string' && attachment.mimeType.trim()) {
-        metaBits.push(attachment.mimeType.trim());
-      }
-      const durationLabel = formatAttachmentDuration(attachment.durationSeconds);
-      if (durationLabel) {
-        metaBits.push(durationLabel);
-      }
-    }
-    const sizeLabel = formatAttachmentSize(attachment.size);
-    if (sizeLabel) {
-      metaBits.push(sizeLabel);
-    }
-    size.textContent = metaBits.join(' · ');
-    meta.appendChild(size);
-    item.appendChild(meta);
-
-    const removeButton = document.createElement('button');
-    removeButton.type = 'button';
-    removeButton.className = 'btn btn-sm btn-light composer-attachment-remove';
-    removeButton.setAttribute('aria-label', `Remove ${attachment.filename}`);
-    removeButton.dataset.attachmentIndex = String(index);
-    removeButton.disabled = attachmentsAreProcessing;
-    setIconButtonContent(removeButton, 'bi-x-lg', `Remove ${attachment.filename}`);
-    item.appendChild(removeButton);
-    composerAttachmentTray.appendChild(item);
-  });
-}
-
-function buildUserMessageAttachmentPayload(attachments) {
-  const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
-  const contentParts = normalizedAttachments.map((attachment) => ({
-    ...(attachment.type === 'image'
-      ? {
-          type: 'image',
-          artifactId: attachment.id,
-          mimeType: attachment.mimeType,
-          base64: attachment.data,
-          url: attachment.url,
-          filename: attachment.filename,
-          width: attachment.width,
-          height: attachment.height,
-          alt: attachment.alt,
-          workspacePath: attachment.workspacePath,
-        }
-      : attachment.type === 'audio'
-        ? {
-            type: 'audio',
-            artifactId: attachment.id,
-            mimeType: attachment.mimeType,
-            base64: attachment.data,
-            url: attachment.url,
-            filename: attachment.filename,
-            size: attachment.size,
-            durationSeconds: attachment.durationSeconds,
-            sampleRate: attachment.sampleRate,
-            sampleCount: attachment.sampleCount,
-            samplesBase64: attachment.samplesBase64,
-            workspacePath: attachment.workspacePath,
-          }
-        : {
-            type: 'file',
-            artifactId: attachment.id,
-            mimeType: attachment.mimeType,
-            filename: attachment.filename,
-            extension: attachment.extension,
-            size: attachment.size,
-            text: attachment.data,
-            normalizedText: attachment.normalizedText,
-            normalizedFormat: attachment.normalizedFormat,
-            pageCount: attachment.pageCount,
-            conversionWarnings: Array.isArray(attachment.conversionWarnings)
-              ? attachment.conversionWarnings
-              : [],
-            memoryHint:
-              attachment.memoryHint && typeof attachment.memoryHint === 'object'
-                ? attachment.memoryHint
-                : undefined,
-            llmText: attachment.llmText,
-            workspacePath: attachment.workspacePath,
-          }),
-  }));
-  const artifactRefs = normalizedAttachments.map((attachment) => ({
-    id: attachment.id,
-    kind: attachment.kind,
-    mimeType: attachment.mimeType,
-    filename: attachment.filename,
-    workspacePath: attachment.workspacePath,
-    hash: attachment.hash,
-  }));
-  return { contentParts, artifactRefs };
-}
-
-function getMessageArtifacts(message, conversationId) {
-  const refs = Array.isArray(message?.artifactRefs) ? message.artifactRefs : [];
-  const attachmentParts = Array.isArray(message?.content?.parts)
-    ? message.content.parts.filter(
-        (part) => part?.type === 'image' || part?.type === 'audio' || part?.type === 'file'
-      )
-    : [];
-  return attachmentParts
-    .map((part) => {
-      const ref = refs.find((candidate) => candidate?.id === part.artifactId) || null;
-      const artifactId =
-        typeof part.artifactId === 'string' && part.artifactId.trim() ? part.artifactId.trim() : '';
-      const mimeType =
-        typeof part.mimeType === 'string' && part.mimeType.trim()
-          ? part.mimeType.trim()
-          : typeof ref?.mimeType === 'string'
-            ? ref.mimeType
-            : '';
-      if (!artifactId || !mimeType) {
-        return null;
-      }
-      if (part.type === 'file') {
-        const data = typeof part.text === 'string' ? part.text : '';
-        if (!data) {
-          return null;
-        }
-        return {
-          id: artifactId,
-          conversationId,
-          messageId: message.id,
-          kind: 'text',
-          mimeType,
-          encoding: 'utf-8',
-          data,
-          hash:
-            ref?.hash && typeof ref.hash === 'object'
-              ? {
-                  algorithm: ref.hash.algorithm,
-                  value: ref.hash.value,
-                }
-              : undefined,
-          filename:
-            typeof part.filename === 'string' && part.filename.trim()
-              ? part.filename.trim()
-              : typeof ref?.filename === 'string' && ref.filename.trim()
-                ? ref.filename.trim()
-                : null,
-          workspacePath:
-            typeof part.workspacePath === 'string' && part.workspacePath.trim()
-              ? part.workspacePath.trim()
-              : typeof ref?.workspacePath === 'string' && ref.workspacePath.trim()
-                ? ref.workspacePath.trim()
-                : null,
-        };
-      }
-      const data = typeof part.base64 === 'string' && part.base64.trim() ? part.base64.trim() : '';
-      if (!data) {
-        return null;
-      }
-      return {
-        id: artifactId,
-        conversationId,
-        messageId: message.id,
-        kind: 'binary',
-        mimeType,
-        encoding: 'base64',
-        data,
-        hash:
-          ref?.hash && typeof ref.hash === 'object'
-            ? {
-                algorithm: ref.hash.algorithm,
-                value: ref.hash.value,
-              }
-            : undefined,
-        filename:
-          typeof part.filename === 'string' && part.filename.trim()
-            ? part.filename.trim()
-            : typeof ref?.filename === 'string' && ref.filename.trim()
-              ? ref.filename.trim()
-              : null,
-        workspacePath:
-          typeof part.workspacePath === 'string' && part.workspacePath.trim()
-            ? part.workspacePath.trim()
-            : typeof ref?.workspacePath === 'string' && ref.workspacePath.trim()
-              ? ref.workspacePath.trim()
-              : null,
-      };
-    })
-    .filter(Boolean);
-}
-
 async function persistConversationStateNow() {
   try {
     await saveConversationState(
@@ -1940,136 +1688,6 @@ function queueConversationStateSave() {
     appState.conversationSaveTimerId = null;
     void persistConversationStateNow();
   }, CONVERSATION_SAVE_DEBOUNCE_MS);
-}
-
-function filterPendingComposerAttachmentsForModel(attachments, mediaSupport) {
-  const nextAttachments = [];
-  const removedUnsupported = [];
-  const removedLimited = [];
-  let imageCount = 0;
-  let audioCount = 0;
-  let videoCount = 0;
-
-  (Array.isArray(attachments) ? attachments : []).forEach((attachment) => {
-    if (!attachment || typeof attachment !== 'object') {
-      return;
-    }
-    if (attachment.type === 'image') {
-      if (!mediaSupport.imageInputSupported) {
-        removedUnsupported.push(attachment);
-        return;
-      }
-      if (mediaSupport.maxImageInputs && imageCount >= mediaSupport.maxImageInputs) {
-        removedLimited.push(attachment);
-        return;
-      }
-      imageCount += 1;
-      nextAttachments.push(attachment);
-      return;
-    }
-    if (attachment.type === 'audio') {
-      if (!mediaSupport.audioInputSupported) {
-        removedUnsupported.push(attachment);
-        return;
-      }
-      if (mediaSupport.maxAudioInputs && audioCount >= mediaSupport.maxAudioInputs) {
-        removedLimited.push(attachment);
-        return;
-      }
-      audioCount += 1;
-      nextAttachments.push(attachment);
-      return;
-    }
-    if (attachment.type === 'video') {
-      if (!mediaSupport.videoInputSupported) {
-        removedUnsupported.push(attachment);
-        return;
-      }
-      if (mediaSupport.maxVideoInputs && videoCount >= mediaSupport.maxVideoInputs) {
-        removedLimited.push(attachment);
-        return;
-      }
-      videoCount += 1;
-      nextAttachments.push(attachment);
-      return;
-    }
-    nextAttachments.push(attachment);
-  });
-
-  return {
-    attachments: nextAttachments,
-    removedUnsupported,
-    removedLimited,
-  };
-}
-
-function getAttachmentTypeLabel(type) {
-  if (type === 'image') {
-    return 'image';
-  }
-  if (type === 'audio') {
-    return 'audio';
-  }
-  if (type === 'video') {
-    return 'video';
-  }
-  return 'attachment';
-}
-
-function formatAttachmentTypeList(types) {
-  const normalizedTypes = [...new Set(types.filter(Boolean))];
-  if (!normalizedTypes.length) {
-    return 'attachments';
-  }
-  if (normalizedTypes.length === 1) {
-    return `${normalizedTypes[0]} attachments`;
-  }
-  if (normalizedTypes.length === 2) {
-    return `${normalizedTypes[0]} and ${normalizedTypes[1]} attachments`;
-  }
-  return `${normalizedTypes.slice(0, -1).join(', ')}, and ${normalizedTypes.at(-1)} attachments`;
-}
-
-function buildRemovedComposerAttachmentStatus({
-  removedUnsupported,
-  removedLimited,
-  mediaSupport,
-}) {
-  const messages = [];
-  if (removedUnsupported.length) {
-    const unsupportedTypes = removedUnsupported.map((attachment) =>
-      getAttachmentTypeLabel(attachment?.type)
-    );
-    messages.push(
-      `${
-        removedUnsupported.length === 1
-          ? `${getAttachmentTypeLabel(removedUnsupported[0]?.type)} attachment was`
-          : `${formatAttachmentTypeList(unsupportedTypes)} were`
-      } removed because the selected model does not support ${
-        removedUnsupported.length === 1 ? 'it' : 'them'
-      }.`
-    );
-  }
-  const limitedTypes = [
-    ...new Set(removedLimited.map((attachment) => getAttachmentTypeLabel(attachment?.type))),
-  ];
-  limitedTypes.forEach((type) => {
-    const limit =
-      type === 'image'
-        ? mediaSupport.maxImageInputs
-        : type === 'audio'
-          ? mediaSupport.maxAudioInputs
-          : mediaSupport.maxVideoInputs;
-    if (!limit) {
-      return;
-    }
-    messages.push(
-      `Extra ${type} attachments were removed because the selected model only accepts ${limit} ${type} attachment${
-        limit === 1 ? '' : 's'
-      }.`
-    );
-  });
-  return messages.join(' ');
 }
 
 async function restoreConversationStateFromStorage() {
@@ -2151,170 +1769,6 @@ async function deleteConversationStorage(conversationId) {
   } finally {
     conversationWorkspaceFileSystems.delete(normalizedConversationId);
   }
-}
-
-function parseShellToolResult(message) {
-  if (message?.toolResultData && typeof message.toolResultData === 'object') {
-    return message.toolResultData;
-  }
-  const rawResult =
-    typeof message?.toolResult === 'string'
-      ? message.toolResult
-      : typeof message?.text === 'string'
-        ? message.text
-        : '';
-  if (!rawResult.trim()) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(rawResult);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function parsePythonWriteToolResult(message) {
-  const rawResult =
-    typeof message?.toolResult === 'string'
-      ? message.toolResult
-      : typeof message?.text === 'string'
-        ? message.text
-        : '';
-  if (!rawResult.trim()) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(rawResult);
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function getShellTerminalEntries(conversation) {
-  if (!conversation) {
-    return [];
-  }
-  return getConversationPathMessages(conversation)
-    .filter(
-      (message) =>
-        message?.role === 'tool' &&
-        (message.toolName === 'run_shell_command' || message.toolName === 'write_python_file')
-    )
-    .map((message) => {
-      if (message.toolName === 'write_python_file') {
-        const result = parsePythonWriteToolResult(message);
-        const recordedPath =
-          typeof message?.toolArguments?.path === 'string' && message.toolArguments.path.trim()
-            ? message.toolArguments.path.trim()
-            : typeof result?.path === 'string' && result.path.trim()
-              ? result.path.trim()
-              : '/workspace/script.py';
-        const preview = typeof result?.preview === 'string' ? result.preview : '';
-        const lineCount = Number.isFinite(result?.lines) ? Number(result.lines) : 0;
-        const byteCount = Number.isFinite(result?.bytes) ? Number(result.bytes) : 0;
-        return {
-          command: `write_python_file ${recordedPath}`,
-          currentWorkingDirectory:
-            recordedPath.slice(0, recordedPath.lastIndexOf('/')) || '/workspace',
-          exitCode: 0,
-          stdout: `${typeof result?.message === 'string' ? result.message : `Python file written to ${recordedPath}.`}\n${lineCount ? `${lineCount} line${lineCount === 1 ? '' : 's'}` : '0 lines'}${byteCount ? `, ${byteCount} bytes` : ''}${preview ? `\n${preview}` : ''}`,
-          stderr: '',
-        };
-      }
-      const result = parseShellToolResult(message);
-      const recordedCommand =
-        typeof message?.toolArguments?.cmd === 'string' && message.toolArguments.cmd.trim()
-          ? message.toolArguments.cmd.trim()
-          : typeof message?.toolArguments?.command === 'string' &&
-              message.toolArguments.command.trim()
-            ? message.toolArguments.command.trim()
-            : '';
-      return {
-        command:
-          recordedCommand ||
-          (typeof result?.command === 'string' && result.command.trim()
-            ? result.command.trim()
-            : ''),
-        currentWorkingDirectory:
-          typeof result?.currentWorkingDirectory === 'string' &&
-          result.currentWorkingDirectory.trim()
-            ? result.currentWorkingDirectory.trim()
-            : typeof conversation?.currentWorkingDirectory === 'string' &&
-                conversation.currentWorkingDirectory.trim()
-              ? conversation.currentWorkingDirectory.trim()
-              : '/workspace',
-        exitCode: Number.isFinite(result?.exitCode) ? Number(result.exitCode) : 0,
-        stdout: typeof result?.stdout === 'string' ? result.stdout : '',
-        stderr: typeof result?.stderr === 'string' ? result.stderr : '',
-      };
-    })
-    .filter((entry) => entry.command);
-}
-
-function getTerminalSessionForConversation(conversation = getActiveConversation()) {
-  const entries = getShellTerminalEntries(conversation);
-  const pendingEntry =
-    appState.pendingShellCommand &&
-    conversation?.id &&
-    appState.pendingShellCommand.conversationId === conversation.id
-      ? appState.pendingShellCommand
-      : null;
-  const completedEntry =
-    appState.completedShellCommand &&
-    conversation?.id &&
-    appState.completedShellCommand.conversationId === conversation.id
-      ? appState.completedShellCommand
-      : null;
-
-  if (pendingEntry && entries.length > pendingEntry.historyCount) {
-    appState.pendingShellCommand = null;
-    return getTerminalSessionForConversation(conversation);
-  }
-  if (completedEntry && entries.length > completedEntry.historyCount) {
-    appState.completedShellCommand = null;
-    return getTerminalSessionForConversation(conversation);
-  }
-
-  const visibleEntries =
-    completedEntry && completedEntry.command && entries.length === completedEntry.historyCount
-      ? entries.concat({
-          command: completedEntry.command,
-          currentWorkingDirectory: completedEntry.currentWorkingDirectory,
-          exitCode: completedEntry.exitCode,
-          stdout: completedEntry.stdout,
-          stderr: completedEntry.stderr,
-        })
-      : entries;
-
-  const currentWorkingDirectory =
-    typeof pendingEntry?.currentWorkingDirectory === 'string' &&
-    pendingEntry.currentWorkingDirectory.trim()
-      ? pendingEntry.currentWorkingDirectory.trim()
-      : typeof visibleEntries[visibleEntries.length - 1]?.currentWorkingDirectory === 'string' &&
-          visibleEntries[visibleEntries.length - 1].currentWorkingDirectory.trim()
-        ? visibleEntries[visibleEntries.length - 1].currentWorkingDirectory.trim()
-        : typeof conversation?.currentWorkingDirectory === 'string' &&
-            conversation.currentWorkingDirectory.trim()
-          ? conversation.currentWorkingDirectory.trim()
-          : '/workspace';
-
-  return {
-    currentWorkingDirectory,
-    entries: visibleEntries,
-    hasVisibleContent: visibleEntries.length > 0 || Boolean(pendingEntry?.command),
-    pendingEntry:
-      pendingEntry && typeof pendingEntry.command === 'string' && pendingEntry.command.trim()
-        ? {
-            command: pendingEntry.command.trim(),
-            currentWorkingDirectory,
-          }
-        : null,
-    sessionKey: `${conversation?.id || 'none'}:${conversation?.activeLeafMessageId || 'root'}:${
-      visibleEntries.length
-    }:${pendingEntry?.command || ''}:${completedEntry?.command || ''}`,
-  };
 }
 
 function isModelTurnComplete(conversation, rootModelMessage) {
@@ -2676,278 +2130,42 @@ const transcriptView = createTranscriptView({
   saveUserMessageEdit,
 });
 
-let terminalView = null;
-let terminalViewLoadPromise = null;
-const browserView = createBrowserView({
-  panel: webLookupPanel,
-  frame: webLookupFrame,
-  title: webLookupPanelTitle,
-  description: webLookupPanelDescription,
+const {
+  handleCloseTerminalPanel,
+  handleCloseWebLookupPanel,
+  handleShellCommandComplete,
+  handleShellCommandStart,
+  handleWebLookupSearchComplete,
+  handleWebLookupSearchStart,
+  renderWorkspaceSidePanels,
+} = createWorkspaceSidePanelsController({
+  appState,
+  documentRef: document,
+  windowRef: window,
+  terminalPanel,
+  terminalHost,
+  webLookupPanel,
+  webLookupFrame,
+  webLookupPanelTitle,
+  webLookupPanelDescription,
+  getActiveConversation,
+  getConversationPathMessages,
+  findConversationById,
+  isSettingsView,
+  isTerminalOpenForConversation,
+  hasDismissedTerminalForConversation,
+  openTerminalForConversation,
+  closeTerminal,
+  clearTerminalDismissal,
+  appendDebug,
 });
 
-async function ensureTerminalView() {
-  if (terminalView) {
-    return terminalView;
-  }
-  if (!terminalViewLoadPromise) {
-    terminalViewLoadPromise = import('./ui/terminal-view.js')
-      .then(({ createTerminalView }) => {
-        terminalView = createTerminalView({
-          panel: terminalPanel,
-          host: terminalHost,
-        });
-        return terminalView;
-      })
-      .catch((error) => {
-        terminalViewLoadPromise = null;
-        throw error;
-      });
-  }
-  return terminalViewLoadPromise;
-}
-
-function getWebLookupPanelSessionForConversation(conversation = getActiveConversation()) {
-  if (!(appState.webLookupPanelsByConversationId instanceof Map) || !conversation?.id) {
-    return null;
-  }
-  return appState.webLookupPanelsByConversationId.get(conversation.id) || null;
-}
-
-function renderWorkspaceSidePanels() {
-  const activeConversation = getActiveConversation();
-  const webLookupSession = getWebLookupPanelSessionForConversation(activeConversation);
-  const shouldShowWebLookupPanel =
-    !isSettingsView(appState) &&
-    Boolean(activeConversation?.id) &&
-    appState.activeWorkspaceSidePanel === 'web_lookup' &&
-    webLookupSession &&
-    typeof webLookupSession.searchUrl === 'string' &&
-    webLookupSession.searchUrl.trim();
-  const session = getTerminalSessionForConversation(activeConversation);
-  const shouldShowTerminal =
-    !shouldShowWebLookupPanel &&
-    !isSettingsView(appState) &&
-    Boolean(activeConversation?.id) &&
-    session.hasVisibleContent &&
-    (isTerminalOpenForConversation(appState, activeConversation.id) ||
-      (!hasDismissedTerminalForConversation(appState, activeConversation.id) &&
-        session.entries.length > 0));
-
-  if (
-    activeConversation?.id &&
-    session.hasVisibleContent &&
-    !hasDismissedTerminalForConversation(appState, activeConversation.id)
-  ) {
-    openTerminalForConversation(appState, activeConversation.id);
-  }
-
-  if (shouldShowWebLookupPanel) {
-    document.body.classList.remove('terminal-open');
-    document.body.classList.add('web-lookup-open');
-    terminalView?.setVisible(false);
-    browserView.setVisible(true);
-    browserView.renderSession({
-      heading: webLookupSession.heading,
-      details: webLookupSession.description,
-      url: webLookupSession.searchUrl,
-    });
-    return;
-  }
-
-  if (!shouldShowTerminal) {
-    if (!session.hasVisibleContent) {
-      closeTerminal(appState, { conversationId: activeConversation?.id || null });
-    }
-    document.body.classList.remove('terminal-open');
-    document.body.classList.remove('web-lookup-open');
-    terminalView?.setVisible(false);
-    browserView.setVisible(false);
-    return;
-  }
-
-  document.body.classList.remove('web-lookup-open');
-  document.body.classList.add('terminal-open');
-  browserView.setVisible(false);
-  void ensureTerminalView()
-    .then((loadedTerminalView) => {
-      const latestConversation = getActiveConversation();
-      const latestWebLookupSession = getWebLookupPanelSessionForConversation(latestConversation);
-      const latestSession = getTerminalSessionForConversation(latestConversation);
-      const shouldStillShowTerminal =
-        !isSettingsView(appState) &&
-        Boolean(latestConversation?.id) &&
-        latestSession.hasVisibleContent &&
-        !(
-          appState.activeWorkspaceSidePanel === 'web_lookup' &&
-          latestWebLookupSession &&
-          typeof latestWebLookupSession.searchUrl === 'string' &&
-          latestWebLookupSession.searchUrl.trim()
-        ) &&
-        (isTerminalOpenForConversation(appState, latestConversation.id) ||
-          (!hasDismissedTerminalForConversation(appState, latestConversation.id) &&
-            latestSession.entries.length > 0));
-      if (!shouldStillShowTerminal) {
-        loadedTerminalView.setVisible(false);
-        return;
-      }
-      loadedTerminalView.setVisible(true);
-      loadedTerminalView.renderSession(latestSession);
-    })
-    .catch((error) => {
-      appendDebug(
-        `Terminal view failed to load: ${error instanceof Error ? error.message : String(error)}`
-      );
-      document.body.classList.remove('terminal-open');
-      browserView.setVisible(false);
-    });
-}
-
 if (closeTerminalButton instanceof HTMLButtonElement) {
-  closeTerminalButton.addEventListener('click', () => {
-    const activeConversation = getActiveConversation();
-    closeTerminal(appState, {
-      conversationId: activeConversation?.id || null,
-      dismissed: true,
-    });
-    if (appState.activeWorkspaceSidePanel === 'terminal') {
-      appState.activeWorkspaceSidePanel = null;
-    }
-    renderWorkspaceSidePanels();
-  });
+  closeTerminalButton.addEventListener('click', handleCloseTerminalPanel);
 }
 
 if (closeWebLookupPanelButton instanceof HTMLButtonElement) {
-  closeWebLookupPanelButton.addEventListener('click', () => {
-    const activeConversation = getActiveConversation();
-    if (activeConversation?.id && appState.webLookupPanelsByConversationId instanceof Map) {
-      appState.webLookupPanelsByConversationId.delete(activeConversation.id);
-    }
-    if (appState.activeWorkspaceSidePanel === 'web_lookup') {
-      appState.activeWorkspaceSidePanel = null;
-    }
-    renderWorkspaceSidePanels();
-  });
-}
-
-function handleShellCommandStart({ command = '', currentWorkingDirectory = '/workspace' } = {}) {
-  const activeConversation = getActiveConversation();
-  if (!activeConversation?.id || !String(command || '').trim()) {
-    return;
-  }
-  clearTerminalDismissal(appState, activeConversation.id);
-  appState.completedShellCommand = null;
-  appState.pendingShellCommand = {
-    command: String(command || '').trim(),
-    conversationId: activeConversation.id,
-    currentWorkingDirectory:
-      typeof currentWorkingDirectory === 'string' && currentWorkingDirectory.trim()
-        ? currentWorkingDirectory.trim()
-        : '/workspace',
-    historyCount: getShellTerminalEntries(activeConversation).length,
-  };
-  openTerminalForConversation(appState, activeConversation.id);
-  appState.activeWorkspaceSidePanel = 'terminal';
-  renderWorkspaceSidePanels();
-}
-
-function handleShellCommandComplete({
-  command = '',
-  currentWorkingDirectory = '/workspace',
-  exitCode = 0,
-  stdout = '',
-  stderr = '',
-} = {}) {
-  const activeConversation = getActiveConversation();
-  const pendingConversationId =
-    typeof appState.pendingShellCommand?.conversationId === 'string'
-      ? appState.pendingShellCommand.conversationId
-      : activeConversation?.id || null;
-  if (!pendingConversationId || !String(command || '').trim()) {
-    return;
-  }
-  const pendingConversation = findConversationById(appState, pendingConversationId);
-  appState.completedShellCommand = {
-    command: String(command || '').trim(),
-    conversationId: pendingConversationId,
-    currentWorkingDirectory:
-      typeof currentWorkingDirectory === 'string' && currentWorkingDirectory.trim()
-        ? currentWorkingDirectory.trim()
-        : '/workspace',
-    exitCode: Number.isFinite(exitCode) ? Number(exitCode) : 0,
-    stdout: typeof stdout === 'string' ? stdout : '',
-    stderr: typeof stderr === 'string' ? stderr : '',
-    historyCount: pendingConversation ? getShellTerminalEntries(pendingConversation).length : 0,
-  };
-  appState.activeWorkspaceSidePanel = 'terminal';
-  renderWorkspaceSidePanels();
-}
-
-function handleWebLookupSearchStart({
-  conversationId = null,
-  query = '',
-  panelUrl = '',
-  searchUrl = '',
-} = {}) {
-  const resolvedConversationId =
-    typeof conversationId === 'string' && conversationId.trim()
-      ? conversationId.trim()
-      : getActiveConversation()?.id || null;
-  const resolvedPanelUrl =
-    typeof panelUrl === 'string' && panelUrl.trim()
-      ? panelUrl.trim()
-      : String(searchUrl || '').trim();
-  if (!resolvedConversationId || !resolvedPanelUrl) {
-    return Promise.resolve();
-  }
-  if (!(appState.webLookupPanelsByConversationId instanceof Map)) {
-    appState.webLookupPanelsByConversationId = new Map();
-  }
-  appState.webLookupPanelsByConversationId.set(resolvedConversationId, {
-    heading: 'DuckDuckGo search',
-    description:
-      typeof query === 'string' && query.trim()
-        ? `Opening the lightweight DuckDuckGo results view for "${query.trim()}" before the in-app search fetch runs.`
-        : 'Opening the lightweight DuckDuckGo results view before the in-app search fetch runs.',
-    query: typeof query === 'string' ? query.trim() : '',
-    searchUrl: resolvedPanelUrl,
-  });
-  appState.activeWorkspaceSidePanel = 'web_lookup';
-  renderWorkspaceSidePanels();
-  return new Promise((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
-}
-
-function handleWebLookupSearchComplete({
-  conversationId = null,
-  query = '',
-  resultCount = 0,
-  panelUrl = '',
-  searchUrl = '',
-} = {}) {
-  const resolvedConversationId =
-    typeof conversationId === 'string' && conversationId.trim()
-      ? conversationId.trim()
-      : getActiveConversation()?.id || null;
-  if (!resolvedConversationId || !(appState.webLookupPanelsByConversationId instanceof Map)) {
-    return;
-  }
-  const existingPanel = appState.webLookupPanelsByConversationId.get(resolvedConversationId) || {};
-  appState.webLookupPanelsByConversationId.set(resolvedConversationId, {
-    ...existingPanel,
-    heading: 'DuckDuckGo search',
-    description:
-      typeof query === 'string' && query.trim()
-        ? `The lightweight DuckDuckGo results view is open for "${query.trim()}". ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`
-        : `The lightweight DuckDuckGo results view is open. ${resultCount} result${resultCount === 1 ? '' : 's'} extracted in-app.`,
-    searchUrl:
-      typeof panelUrl === 'string' && panelUrl.trim()
-        ? panelUrl.trim()
-        : typeof searchUrl === 'string' && searchUrl.trim()
-          ? searchUrl.trim()
-          : existingPanel.searchUrl || '',
-  });
-  renderWorkspaceSidePanels();
+  closeWebLookupPanelButton.addEventListener('click', handleCloseWebLookupPanel);
 }
 
 function renderConversationList() {

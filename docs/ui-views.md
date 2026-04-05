@@ -36,14 +36,16 @@ They do not own:
 - persistence
 - route state
 - conversation mutation rules
-- shell-level skip-link behavior, transcript-step navigation, or route-safe focus jumps between top-level regions
+- shell-level skip-link behavior, transcript-step navigation, route-safe focus jumps between top-level regions, or workspace side-panel state
 
 Those responsibilities remain in:
 
 - `src/state/conversation-model.js`
 - `src/state/app-controller.js`
 - `src/main.js`
+- `src/app/composer-runtime.js`
 - `src/app/transcript-navigation.js`
+- `src/app/workspace-side-panels.js`
 - `src/app/routing-shell.js`
 
 ## Tool-call rendering contract

@@ -297,8 +297,8 @@ See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 - App control flow for generation, stop, rename, and fix actions lives in `src/state/app-controller.js`.
 - Orchestration prompt templating, nested placeholder rendering, utility-step execution, and chunk-pipeline support live in `src/llm/orchestration-runner.js`.
 - Transcript and conversation-list DOM rendering live in `src/ui/`.
-- Transcript navigation/skip-link behavior and model-load feedback controllers live in `src/app/`.
-- `src/main.js` remains the app shell for routing, page-level visibility, and wiring dependencies into those modules.
+- Transcript navigation/skip-link behavior, model-load feedback, composer attachment/runtime state, and workspace side-panel controllers live in `src/app/`.
+- `src/main.js` remains the app shell for routing, page-level visibility, persistence hookup, and wiring dependencies into those modules.
 - See `docs/conversation-domain.md`, `docs/app-state.md`, `docs/app-controller.md`, `docs/orchestrations.md`, and `docs/ui-views.md` for the current boundaries.
 - See `docs/tools.md` for current built-in and MCP tool-calling behavior plus the remaining `SKILL.md` planning.
 - See `docs/web-search-hypothesis.md` for the current low-bandwidth, mobile-assisted search design hypothesis.

@@ -1,7 +1,7 @@
 /**
  * @param {{
  *   panel?: HTMLElement | null;
- *   frame?: HTMLElement | null;
+ *   frame?: HTMLIFrameElement | null;
  *   title?: HTMLElement | null;
  *   description?: HTMLElement | null;
  * }} options
