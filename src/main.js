@@ -51,8 +51,6 @@ import {
 import {
   DEFAULT_GENERATION_LIMITS,
   DEFAULT_MODEL,
-  DEFAULT_TOP_K,
-  DEFAULT_TOP_P,
   MAX_TOP_K,
   MAX_TOP_P,
   MIN_TOKEN_LIMIT,
@@ -372,9 +370,7 @@ const PRE_CHAT_STATUS_HINT_MODEL_READY =
   'The current model is ready. Send your first message to continue with it, or choose a different model first.';
 const appState = createAppState({
   activeGenerationConfig: {
-    ...normalizeGenerationLimits(null),
-    topK: DEFAULT_TOP_K,
-    topP: DEFAULT_TOP_P,
+    ...buildDefaultGenerationConfig(normalizeGenerationLimits(null)),
   },
   defaultSystemPrompt: '',
   enableToolCalling: true,
@@ -1054,7 +1050,7 @@ function applyPendingGenerationSettingsIfReady() {
   syncGenerationSettingsFromModel(selectedModel, false);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}, repetitionPenalty=${nextConfig.repetitionPenalty.toFixed(2)}).`
   );
 }
 
@@ -1073,7 +1069,7 @@ function onGenerationSettingInputChanged() {
   engine.setGenerationConfig(nextConfig);
   setStatus('Generation settings updated.');
   appendDebug(
-    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}).`
+    `Generation settings applied (maxOutputTokens=${nextConfig.maxOutputTokens}, maxContextTokens=${nextConfig.maxContextTokens}, temperature=${nextConfig.temperature.toFixed(1)}, topK=${nextConfig.topK}, topP=${nextConfig.topP.toFixed(2)}, repetitionPenalty=${nextConfig.repetitionPenalty.toFixed(2)}).`
   );
 }
 

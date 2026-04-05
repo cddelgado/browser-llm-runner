@@ -19,6 +19,7 @@ export class LLMEngineClient {
         temperature: 0.6,
         topK: 50,
         topP: 0.9,
+        repetitionPenalty: 1.0,
       },
     };
     this.onStatus = (_message) => {};

@@ -77,6 +77,7 @@ Student-facing browser chat UI with local model inference.
   - `Top K (Predictability)` uses `step=5` and loads a model-specific default from `src/config/models.json`.
   - `Top P (Strangeness)` (nucleus sampling) uses min `0.00`, max `1.00`, and `step=0.05`, with a model-specific default from `src/config/models.json`.
   - `Top K` and `Top P` are persisted per model, like temperature and token limits.
+  - The runtime also applies per-model `repetition_penalty` defaults where Transformers.js supports them; unsupported knobs such as `min_p` and `presence_penalty` are intentionally not exposed in this app.
 - `Auto` attempts WebGPU first, then WASM, then CPU if earlier backends are unavailable or initialization fails.
 - The selected backend and model are stored in `localStorage`.
 - Model files are downloaded on first load and cached in-browser for reuse (`Transformers.js` browser cache).
@@ -198,28 +199,29 @@ Student-facing browser chat UI with local model inference.
 - `onnx-community/Qwen3.5-0.8B-ONNX`
   - Uses the published `q4f16` ONNX export with external data loading.
   - Defaults to Qwen's non-thinking mode in this app and uses runtime `enable_thinking` when the conversation-level thinking toggle is enabled.
-  - Uses the Qwen 3.5 non-thinking sampling defaults in this app: temperature `0.7`, top-k `20`, top-p `0.8`.
+  - Uses the Qwen 3.5 "thinking mode for VL or precise coding" profile as the app-wide default to avoid mode-specific sampling UI drift: temperature `0.6`, top-k `20`, top-p `0.95`, repetition penalty `1.0`.
   - Exposes text plus uploaded image input in this app.
   - Uses the XML tool-call format supported by this app.
 - `onnx-community/Qwen3.5-2B-ONNX`
   - Uses the published `q4f16` ONNX export with external data loading.
   - Defaults to Qwen's non-thinking mode in this app and uses runtime `enable_thinking` when the conversation-level thinking toggle is enabled.
-  - Uses the Qwen 3.5 non-thinking sampling defaults in this app: temperature `0.7`, top-k `20`, top-p `0.8`.
+  - Uses the Qwen 3.5 "thinking mode for VL or precise coding" profile as the app-wide default to avoid mode-specific sampling UI drift: temperature `0.6`, top-k `20`, top-p `0.95`, repetition penalty `1.0`.
   - Exposes text plus uploaded image input in this app.
   - Uses the XML tool-call format supported by this app.
 - `LiquidAI/LFM2.5-350M-ONNX`
   - Uses the published `q4` ONNX export with external data loading.
   - Requires WebGPU in this app.
-  - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, top-p `1.0`.
+  - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
 - `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`
   - Uses the published `q4` ONNX export with external data loading.
   - Requires WebGPU in this app.
-  - Uses a conservative low-temperature sampled profile in this app: temperature `0.1`, top-k `50`, top-p `1.0`.
+  - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
 - `onnx-community/gemma-4-E2B-it-ONNX`
   - Uses the published `q4f16` ONNX export with external data loading.
   - Exposes text plus uploaded image and audio input in this app.
   - Audio input is upload-only; live recording is intentionally not exposed.
   - Video input is not exposed because the current browser runtime path is not viable enough yet.
+  - Uses the app's near-published Gemma ONNX generation defaults: temperature `1.0`, top-k `65`, top-p `0.95`.
   - Uses Gemma's special-token tool-call format supported by this app.
 - Hidden legacy/replacement model definitions remain in config so stored conversations and model-specific behaviors still resolve correctly:
   - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
@@ -242,7 +244,7 @@ Student-facing browser chat UI with local model inference.
   - `models[].runtime`: per-model runtime hints (`dtype`, optional `enableThinking`, optional `requiresWebGpu`, optional `multimodalGeneration`, optional `useExternalDataFormat`)
   - `models[].inputLimits`: optional per-media limits such as `maxImageInputs` and `maxAudioInputs`
   - `models[].thinkingControl`: optional model-specific reasoning control metadata (`defaultEnabled`, optional `runtimeParameter`, optional `enabledInstruction`, optional `disabledInstruction`)
-  - `models[].generation`: per-model defaults and limits for output/context tokens, temperature, `defaultTopK`, and `defaultTopP`
+  - `models[].generation`: per-model defaults and limits for output/context tokens, temperature, `defaultTopK`, `defaultTopP`, and optional runtime-supported defaults such as `defaultRepetitionPenalty`
   - `defaultModelId`: fallback/default selection
   - `legacyAliases`: stored legacy IDs remapped at runtime
 - Orchestration definitions are JSON files for transparency:

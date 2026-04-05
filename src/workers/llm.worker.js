@@ -13,6 +13,7 @@ const WORKER_GENERATION_LIMITS = {
   defaultTemperature: 0.6,
   defaultTopK: 50,
   defaultTopP: 0.9,
+  defaultRepetitionPenalty: 1.0,
 };
 
 let model = null;
@@ -435,18 +436,6 @@ function resolvePrompt(rawPrompt) {
   ];
 }
 
-function promptContainsImageParts(prompt) {
-  return countPromptParts(prompt, 'image') > 0;
-}
-
-function promptContainsAudioParts(prompt) {
-  return countPromptParts(prompt, 'audio') > 0;
-}
-
-function promptContainsVideoParts(prompt) {
-  return countPromptParts(prompt, 'video') > 0;
-}
-
 function countPromptParts(prompt, type) {
   return Array.isArray(prompt)
     ? prompt.reduce(
@@ -464,6 +453,21 @@ export { resolvePrompt };
 export { getBackendAttemptOrder };
 export { prepareImageInputsFromPrompt };
 export { buildMultimodalChatTemplateOptions };
+
+function buildGenerationOptions(requestGenerationConfig, runtime = {}) {
+  return {
+    max_new_tokens: requestGenerationConfig.maxOutputTokens,
+    max_length: requestGenerationConfig.maxContextTokens,
+    temperature: requestGenerationConfig.temperature,
+    top_k: requestGenerationConfig.topK,
+    top_p: requestGenerationConfig.topP,
+    repetition_penalty: requestGenerationConfig.repetitionPenalty,
+    do_sample: true,
+    ...(runtime.enableThinking ? { enable_thinking: true } : {}),
+  };
+}
+
+export { buildGenerationOptions };
 
 function promptContainsStructuredMedia(prompt) {
   return Array.isArray(prompt)
@@ -718,15 +722,7 @@ async function generate(payload) {
     if (runtime.multimodalGeneration && loadedExecutionMode !== 'multimodal') {
       throw new Error('The selected model runtime was not initialized for multimodal generation.');
     }
-    const generationOptions = {
-      max_new_tokens: requestGenerationConfig.maxOutputTokens,
-      max_length: requestGenerationConfig.maxContextTokens,
-      temperature: requestGenerationConfig.temperature,
-      top_k: requestGenerationConfig.topK,
-      top_p: requestGenerationConfig.topP,
-      do_sample: true,
-      ...(runtime.enableThinking ? { enable_thinking: true } : {}),
-    };
+    const generationOptions = buildGenerationOptions(requestGenerationConfig, runtime);
 
     if (runtime.multimodalGeneration) {
       const { RawImage } = await loadTransformers();

@@ -115,39 +115,46 @@ describe('model-settings availability', () => {
       defaultTopP: 0.9,
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.generation).toMatchObject({
-      defaultTemperature: 0.7,
+      defaultTemperature: 0.6,
       defaultTopK: 20,
-      defaultTopP: 0.8,
+      defaultTopP: 0.95,
+      defaultRepetitionPenalty: 1,
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 0.1,
       defaultTopK: 50,
       defaultTopP: 1,
+      defaultRepetitionPenalty: 1.05,
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 0.1,
       defaultTopK: 50,
       defaultTopP: 1,
+      defaultRepetitionPenalty: 1.05,
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.generation).toMatchObject({
-      defaultTemperature: 0.7,
+      defaultTemperature: 0.6,
       defaultTopK: 20,
-      defaultTopP: 0.8,
+      defaultTopP: 0.95,
+      defaultRepetitionPenalty: 1,
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 1,
       defaultTopK: 65,
       defaultTopP: 0.95,
+      defaultRepetitionPenalty: 1,
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 0.1,
       defaultTopK: 50,
       defaultTopP: 0.1,
+      defaultRepetitionPenalty: 1,
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 0.6,
       defaultTopK: 65,
       defaultTopP: 0.95,
+      defaultRepetitionPenalty: 1,
     });
   });
 

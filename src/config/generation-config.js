@@ -9,6 +9,7 @@ export const TOP_P_STEP = 0.05;
 export const MIN_TOP_P = 0;
 export const MAX_TOP_P = 1;
 export const DEFAULT_TOP_P = 0.9;
+export const DEFAULT_REPETITION_PENALTY = 1.0;
 
 export const DEFAULT_GENERATION_LIMITS = Object.freeze({
   defaultMaxOutputTokens: 1024,
@@ -20,6 +21,7 @@ export const DEFAULT_GENERATION_LIMITS = Object.freeze({
   defaultTemperature: 0.6,
   defaultTopK: DEFAULT_TOP_K,
   defaultTopP: DEFAULT_TOP_P,
+  defaultRepetitionPenalty: DEFAULT_REPETITION_PENALTY,
 });
 
 function toPositiveInt(value, fallback) {
@@ -77,6 +79,14 @@ export function quantizeTopPInput(value) {
   return Number(clamp(quantized, MIN_TOP_P, MAX_TOP_P).toFixed(2));
 }
 
+export function normalizeRepetitionPenalty(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return Number(DEFAULT_REPETITION_PENALTY.toFixed(2));
+  }
+  return Number(parsed.toFixed(2));
+}
+
 export function normalizeGenerationLimits(rawLimits) {
   const maxContextTokens = toPositiveInt(
     rawLimits?.maxContextTokens,
@@ -114,6 +124,12 @@ export function normalizeGenerationLimits(rawLimits) {
   const defaultTopP = quantizeTopPInput(
     toFiniteNumber(rawLimits?.defaultTopP, DEFAULT_GENERATION_LIMITS.defaultTopP),
   );
+  const defaultRepetitionPenalty = normalizeRepetitionPenalty(
+    toFiniteNumber(
+      rawLimits?.defaultRepetitionPenalty,
+      DEFAULT_GENERATION_LIMITS.defaultRepetitionPenalty,
+    ),
+  );
   return {
     defaultMaxOutputTokens: Math.min(defaultMaxOutputTokens, defaultMaxContextTokens),
     maxOutputTokens,
@@ -124,6 +140,7 @@ export function normalizeGenerationLimits(rawLimits) {
     defaultTemperature,
     defaultTopK,
     defaultTopP,
+    defaultRepetitionPenalty,
   };
 }
 
@@ -138,6 +155,7 @@ export function buildDefaultGenerationConfig(limits) {
     temperature: normalizedLimits.defaultTemperature,
     topK: normalizedLimits.defaultTopK,
     topP: normalizedLimits.defaultTopP,
+    repetitionPenalty: normalizedLimits.defaultRepetitionPenalty,
   };
 }
 
@@ -162,5 +180,8 @@ export function sanitizeGenerationConfig(candidateConfig, limits) {
     ),
     topK: quantizeTopKInput(candidateConfig?.topK ?? normalizedLimits.defaultTopK),
     topP: quantizeTopPInput(candidateConfig?.topP ?? normalizedLimits.defaultTopP),
+    repetitionPenalty: normalizeRepetitionPenalty(
+      candidateConfig?.repetitionPenalty ?? normalizedLimits.defaultRepetitionPenalty,
+    ),
   };
 }

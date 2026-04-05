@@ -20,6 +20,7 @@ describe('generation-config', () => {
       temperature: 0.7,
       topK: 40,
       topP: 0.85,
+      repetitionPenalty: 1,
     });
   });
 
@@ -32,6 +33,7 @@ describe('generation-config', () => {
           temperature: '1.04',
           topK: '52',
           topP: '0.93',
+          repetitionPenalty: '1.047',
         },
         {
           defaultMaxOutputTokens: 512,
@@ -43,6 +45,7 @@ describe('generation-config', () => {
           defaultTemperature: 0.6,
           defaultTopK: 50,
           defaultTopP: 0.9,
+          defaultRepetitionPenalty: 1.05,
         },
       ),
     ).toEqual({
@@ -51,6 +54,7 @@ describe('generation-config', () => {
       temperature: 1,
       topK: 50,
       topP: 0.95,
+      repetitionPenalty: 1.05,
     });
   });
 });

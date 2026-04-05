@@ -2,13 +2,14 @@ import { beforeAll, describe, expect, test } from 'vitest';
 
 let resolvePrompt;
 let buildMultimodalChatTemplateOptions;
+let buildGenerationOptions;
 
 beforeAll(async () => {
   globalThis.self = /** @type {any} */ ({
     postMessage: () => {},
     onmessage: null,
   });
-  ({ resolvePrompt, buildMultimodalChatTemplateOptions } = await import(
+  ({ resolvePrompt, buildMultimodalChatTemplateOptions, buildGenerationOptions } = await import(
     '../../src/workers/llm.worker.js'
   ));
 });
@@ -76,6 +77,33 @@ describe('llm.worker multimodal chat template options', () => {
   test('omits the thinking flag when runtime thinking is disabled', () => {
     expect(buildMultimodalChatTemplateOptions({ enableThinking: false })).toEqual({
       add_generation_prompt: true,
+    });
+  });
+});
+
+describe('llm.worker generation options', () => {
+  test('maps runtime-supported sampling fields to Transformers.js generate options', () => {
+    expect(
+      buildGenerationOptions(
+        {
+          maxOutputTokens: 512,
+          maxContextTokens: 4096,
+          temperature: 0.6,
+          topK: 20,
+          topP: 0.95,
+          repetitionPenalty: 1.05,
+        },
+        { enableThinking: true }
+      )
+    ).toEqual({
+      max_new_tokens: 512,
+      max_length: 4096,
+      temperature: 0.6,
+      top_k: 20,
+      top_p: 0.95,
+      repetition_penalty: 1.05,
+      do_sample: true,
+      enable_thinking: true,
     });
   });
 });
