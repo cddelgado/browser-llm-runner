@@ -192,6 +192,9 @@ Student-facing browser chat UI with local model inference.
 
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
   - Uses the published `q4f16` web export.
+- `onnx-community/Llama-3.2-1B-Instruct-ONNX`
+  - Uses the published ONNX export with external data loading.
+  - Uses the same conservative app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
 - `onnx-community/Qwen3.5-0.8B-ONNX`
   - Uses the published `q4f16` ONNX export with external data loading.
   - Defaults to Qwen's non-thinking mode in this app and uses runtime `enable_thinking` when the conversation-level thinking toggle is enabled.
@@ -204,6 +207,14 @@ Student-facing browser chat UI with local model inference.
   - Uses the Qwen 3.5 non-thinking sampling defaults in this app: temperature `0.7`, top-k `20`, top-p `0.8`.
   - Exposes text plus uploaded image input in this app.
   - Uses the XML tool-call format supported by this app.
+- `LiquidAI/LFM2.5-350M-ONNX`
+  - Uses the published `q4` ONNX export with external data loading.
+  - Requires WebGPU in this app.
+  - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, top-p `1.0`.
+- `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`
+  - Uses the published `q4` ONNX export with external data loading.
+  - Requires WebGPU in this app.
+  - Uses a conservative low-temperature sampled profile in this app: temperature `0.1`, top-k `50`, top-p `1.0`.
 - `onnx-community/gemma-4-E2B-it-ONNX`
   - Uses the published `q4f16` ONNX export with external data loading.
   - Exposes text plus uploaded image and audio input in this app.

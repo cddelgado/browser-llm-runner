@@ -307,7 +307,14 @@ describe('preferences controller', () => {
     harness.controller.populateModelSelect();
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
-    expect(cards.length).toBe(4);
+    expect(cards.length).toBe(7);
+
+    const llama1BCard = cards.find((card) => card.textContent?.includes('Llama 3.2 1B Instruct'));
+    expect(llama1BCard?.textContent).toContain('131,072 tokens');
+    expect(llama1BCard?.textContent).toContain('Temp 0.6');
+    expect(
+      /** @type {HTMLAnchorElement | null} */ (llama1BCard?.querySelector('.model-card-link'))?.href
+    ).toBe('https://huggingface.co/onnx-community/Llama-3.2-1B-Instruct-ONNX');
 
     const qwenSmallCard = cards.find((card) => card.textContent?.includes('Qwen3.5 0.8B'));
     expect(qwenSmallCard?.textContent).toContain('262,144 tokens');
@@ -324,6 +331,30 @@ describe('preferences controller', () => {
         qwenSmallCard?.querySelector('.model-card-language-overflow')
       )?.href
     ).toBe('https://huggingface.co/Qwen/Qwen3.5-0.8B');
+
+    const liquidSmallCard = cards.find((card) => card.textContent?.includes('Liquid LFM 2.5 350M'));
+    expect(liquidSmallCard?.textContent).toContain('32,768 tokens');
+    expect(liquidSmallCard?.textContent).toContain('Temp 0.1');
+    expect(liquidSmallCard?.textContent).toContain('Top P 1.00');
+    expect(liquidSmallCard?.textContent).toContain('This model requires WebGPU.');
+    expect(
+      /** @type {HTMLAnchorElement | null} */ (
+        liquidSmallCard?.querySelector('.model-card-link')
+      )?.href
+    ).toBe('https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX');
+
+    const liquidInstructCard = cards.find((card) =>
+      card.textContent?.includes('Liquid LFM 2.5 1.2B Instruct')
+    );
+    expect(liquidInstructCard?.textContent).toContain('32,768 tokens');
+    expect(liquidInstructCard?.textContent).toContain('Temp 0.1');
+    expect(liquidInstructCard?.textContent).toContain('Top P 1.00');
+    expect(liquidInstructCard?.textContent).toContain('This model requires WebGPU.');
+    expect(
+      /** @type {HTMLAnchorElement | null} */ (
+        liquidInstructCard?.querySelector('.model-card-link')
+      )?.href
+    ).toBe('https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-ONNX');
 
     const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3.5 2B'));
     expect(qwenCard?.textContent).toContain('262,144 tokens');

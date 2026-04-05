@@ -9,6 +9,9 @@ import {
 } from '../../src/config/model-settings.js';
 
 const LIQUID_MODEL_ID = 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX';
+const LIQUID_SMALL_MODEL_ID = 'LiquidAI/LFM2.5-350M-ONNX';
+const LIQUID_INSTRUCT_MODEL_ID = 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX';
+const LLAMA_1B_MODEL_ID = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
 const QWEN_SMALL_MODEL_ID = 'onnx-community/Qwen3.5-0.8B-ONNX';
 const QWEN_MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX';
 const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
@@ -49,6 +52,30 @@ describe('model-settings availability', () => {
     });
   });
 
+  test('marks the visible LiquidAI models unavailable without WebGPU or on non-WebGPU backends', () => {
+    [LIQUID_SMALL_MODEL_ID, LIQUID_INSTRUCT_MODEL_ID].forEach((modelId) => {
+      expect(
+        getModelAvailability(modelId, {
+          backendPreference: 'auto',
+          webGpuAvailable: false,
+        }),
+      ).toEqual({
+        available: false,
+        reason: 'This model requires WebGPU, which is not available in this browser.',
+      });
+
+      expect(
+        getModelAvailability(modelId, {
+          backendPreference: 'wasm',
+          webGpuAvailable: true,
+        }),
+      ).toEqual({
+        available: false,
+        reason: 'This model requires WebGPU. Choose Auto or WebGPU only.',
+      });
+    });
+  });
+
   test('keeps the LiquidAI thinking model available when WebGPU is usable', () => {
     expect(
       getModelAvailability(LIQUID_MODEL_ID, {
@@ -82,10 +109,25 @@ describe('model-settings availability', () => {
       defaultTopK: 50,
       defaultTopP: 0.9,
     });
+    expect(MODEL_OPTIONS_BY_ID.get(LLAMA_1B_MODEL_ID)?.generation).toMatchObject({
+      defaultTemperature: 0.6,
+      defaultTopK: 50,
+      defaultTopP: 0.9,
+    });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 0.7,
       defaultTopK: 20,
       defaultTopP: 0.8,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)?.generation).toMatchObject({
+      defaultTemperature: 0.1,
+      defaultTopK: 50,
+      defaultTopP: 1,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)?.generation).toMatchObject({
+      defaultTemperature: 0.1,
+      defaultTopK: 50,
+      defaultTopP: 1,
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.generation).toMatchObject({
       defaultTemperature: 0.7,
@@ -126,9 +168,9 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS.some((model) => model.id === GEMMA_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === LIQUID_MODEL_ID)).toBe(false);
-    expect(
-      MODEL_OPTIONS.some((model) => model.id === 'onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa'),
-    ).toBe(false);
+    expect(MODEL_OPTIONS.some((model) => model.id === 'onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')).toBe(
+      false,
+    );
   });
 
   test('marks the Gemma multimodal model unavailable without WebGPU', () => {
@@ -144,6 +186,14 @@ describe('model-settings availability', () => {
   });
 
   test('exposes model feature flags from config', () => {
+    expect(MODEL_OPTIONS_BY_ID.get(LLAMA_1B_MODEL_ID)?.features).toMatchObject({
+      streaming: true,
+      thinking: false,
+      toolCalling: false,
+      imageInput: false,
+      audioInput: false,
+      videoInput: false,
+    });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.features).toMatchObject({
       streaming: true,
       thinking: true,
@@ -192,6 +242,22 @@ describe('model-settings availability', () => {
       audioInput: false,
       videoInput: false,
     });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)?.features).toMatchObject({
+      streaming: true,
+      thinking: false,
+      toolCalling: false,
+      imageInput: false,
+      audioInput: false,
+      videoInput: false,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)?.features).toMatchObject({
+      streaming: true,
+      thinking: false,
+      toolCalling: false,
+      imageInput: false,
+      audioInput: false,
+      videoInput: false,
+    });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.runtime).toMatchObject({
       requiresWebGpu: true,
       multimodalGeneration: true,
@@ -201,6 +267,20 @@ describe('model-settings availability', () => {
         embed_tokens: 'q4',
         decoder_model_merged: 'q4',
       },
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LLAMA_1B_MODEL_ID)?.runtime).toMatchObject({
+      dtype: 'q4f16',
+      useExternalDataFormat: true,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)?.runtime).toMatchObject({
+      dtype: 'q4',
+      requiresWebGpu: true,
+      useExternalDataFormat: true,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)?.runtime).toMatchObject({
+      dtype: 'q4',
+      requiresWebGpu: true,
+      useExternalDataFormat: true,
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.runtime).toMatchObject({
       dtype: 'q4f16',
@@ -234,6 +314,9 @@ describe('model-settings availability', () => {
       nameKey: 'name',
       argumentsKey: 'parameters',
     });
+    expect(MODEL_OPTIONS_BY_ID.get(LLAMA_1B_MODEL_ID)?.toolCalling).toBeNull();
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)?.toolCalling).toBeNull();
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)?.toolCalling).toBeNull();
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.toolCalling).toEqual({
       format: 'xml-tool-call',
     });
@@ -260,6 +343,18 @@ describe('model-settings availability', () => {
       format: 'json',
       nameKey: 'name',
       argumentsKey: 'arguments',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LLAMA_1B_MODEL_ID)).toMatchObject({
+      displayName: 'Llama 3.2 1B Instruct',
+      repositoryUrl: 'https://huggingface.co/onnx-community/Llama-3.2-1B-Instruct-ONNX',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)).toMatchObject({
+      displayName: 'Liquid LFM 2.5 350M',
+      repositoryUrl: 'https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)).toMatchObject({
+      displayName: 'Liquid LFM 2.5 1.2B Instruct',
+      repositoryUrl: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-ONNX',
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)).toMatchObject({
       displayName: 'Qwen3.5 0.8B',
