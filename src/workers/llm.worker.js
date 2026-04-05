@@ -306,6 +306,24 @@ function buildMultimodalChatTemplateOptions(runtime = {}) {
   };
 }
 
+function shouldSkipSpecialTokensInMultimodalOutput(runtime = {}) {
+  return runtime.enableThinking !== true;
+}
+
+function buildMultimodalStreamerOptions(tokenizerInstance, runtime = {}, onText = () => {}) {
+  return new TextStreamer(tokenizerInstance, {
+    skip_prompt: true,
+    skip_special_tokens: shouldSkipSpecialTokensInMultimodalOutput(runtime),
+    callback_function: onText,
+  });
+}
+
+function buildMultimodalDecodeOptions(runtime = {}) {
+  return {
+    skip_special_tokens: shouldSkipSpecialTokensInMultimodalOutput(runtime),
+  };
+}
+
 function normalizePromptContentPart(rawPart) {
   if (!rawPart || typeof rawPart !== 'object') {
     return null;
@@ -559,6 +577,9 @@ export { resolvePrompt };
 export { getBackendAttemptOrder };
 export { prepareImageInputsFromPrompt };
 export { buildMultimodalChatTemplateOptions };
+export { shouldSkipSpecialTokensInMultimodalOutput };
+export { buildMultimodalStreamerOptions };
+export { buildMultimodalDecodeOptions };
 
 function buildGenerationOptions(requestGenerationConfig, runtime = {}) {
   return {
@@ -857,13 +878,9 @@ async function generate(payload) {
       });
 
       if (TextStreamer) {
-        const streamer = new TextStreamer(tokenizer, {
-          skip_prompt: true,
-          skip_special_tokens: true,
-          callback_function: (text) => {
-            streamedText += text;
-            queueBufferedToken(generationState, text);
-          },
+        const streamer = buildMultimodalStreamerOptions(tokenizer, runtime, (text) => {
+          streamedText += text;
+          queueBufferedToken(generationState, text);
         });
 
         await model.generate({
@@ -878,7 +895,7 @@ async function generate(payload) {
         });
         const decoded = processor.batch_decode(
           output.slice(null, [modelInputs.input_ids.dims.at(-1), null]),
-          { skip_special_tokens: true }
+          buildMultimodalDecodeOptions(runtime)
         );
         streamedText = decoded?.[0] || '';
         queueBufferedToken(generationState, streamedText);

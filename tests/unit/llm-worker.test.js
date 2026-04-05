@@ -3,13 +3,21 @@ import { beforeAll, describe, expect, test } from 'vitest';
 let resolvePrompt;
 let buildMultimodalChatTemplateOptions;
 let buildGenerationOptions;
+let shouldSkipSpecialTokensInMultimodalOutput;
+let buildMultimodalDecodeOptions;
 
 beforeAll(async () => {
   globalThis.self = /** @type {any} */ ({
     postMessage: () => {},
     onmessage: null,
   });
-  ({ resolvePrompt, buildMultimodalChatTemplateOptions, buildGenerationOptions } = await import(
+  ({
+    resolvePrompt,
+    buildMultimodalChatTemplateOptions,
+    buildGenerationOptions,
+    shouldSkipSpecialTokensInMultimodalOutput,
+    buildMultimodalDecodeOptions,
+  } = await import(
     '../../src/workers/llm.worker.js'
   ));
 });
@@ -77,6 +85,20 @@ describe('llm.worker multimodal chat template options', () => {
   test('omits the thinking flag when runtime thinking is disabled', () => {
     expect(buildMultimodalChatTemplateOptions({ enableThinking: false })).toEqual({
       add_generation_prompt: true,
+    });
+  });
+
+  test('preserves special tokens in multimodal output when thinking is enabled', () => {
+    expect(shouldSkipSpecialTokensInMultimodalOutput({ enableThinking: true })).toBe(false);
+    expect(buildMultimodalDecodeOptions({ enableThinking: true })).toEqual({
+      skip_special_tokens: false,
+    });
+  });
+
+  test('skips special tokens in multimodal output when thinking is disabled', () => {
+    expect(shouldSkipSpecialTokensInMultimodalOutput({ enableThinking: false })).toBe(true);
+    expect(buildMultimodalDecodeOptions({ enableThinking: false })).toEqual({
+      skip_special_tokens: true,
     });
   });
 });

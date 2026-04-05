@@ -512,8 +512,10 @@ describe('preferences controller', () => {
       'Can use built-in tools',
       'Accepts image input',
     ]);
-    expect(getFeatureLabels('Liquid LFM 2.5 350M')).toEqual([]);
-    expect(getFeatureLabels('Liquid LFM 2.5 1.2B Instruct')).toEqual([]);
+    expect(getFeatureLabels('Liquid LFM 2.5 350M')).toEqual(['Can use built-in tools']);
+    expect(getFeatureLabels('Liquid LFM 2.5 1.2B Instruct')).toEqual([
+      'Can use built-in tools',
+    ]);
     expect(getFeatureLabels('Gemma 4 E2B')).toEqual([
       'Can use built-in tools',
       'Accepts image input',

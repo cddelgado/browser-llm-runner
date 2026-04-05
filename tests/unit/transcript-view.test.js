@@ -289,6 +289,71 @@ describe('transcript-view', () => {
     expect(mathMlButton?.getAttribute('aria-label')).toBe('Copy MathML');
   });
 
+  test('refreshes thinking visibility without losing the thinking toggle', () => {
+    const harness = createViewHarness();
+    harness.conversation.messageNodes[1].thoughts = 'First reason through the puzzle.';
+    harness.conversation.messageNodes[1].hasThinking = true;
+    harness.conversation.messageNodes[1].isThinkingComplete = true;
+
+    let showThinkingByDefault = false;
+    const view = createTranscriptView({
+      container: harness.container,
+      getActiveConversation: () => harness.conversation,
+      getConversationPathMessages: (conversation) => conversation.messageNodes,
+      getConversationCardHeading: (_conversation, message) =>
+        message.role === 'user' ? 'User Prompt 1' : 'Model Response 1',
+      getModelVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      getUserVariantState: () => ({
+        index: 0,
+        total: 1,
+        hasVariants: false,
+        canGoPrev: false,
+        canGoNext: false,
+      }),
+      renderModelMarkdown: (content) => `<p>${content}</p>`,
+      scheduleMathTypeset: vi.fn(),
+      getToolDisplayName: (toolName) => toolName,
+      getShowThinkingByDefault: () => showThinkingByDefault,
+      getActiveUserEditMessageId: () => null,
+      getControlsState: () => ({
+        isGenerating: false,
+        isLoadingModel: false,
+        isRunningOrchestration: false,
+        isSwitchingVariant: false,
+      }),
+      getEmptyStateVisible: () => false,
+      initializeTooltips: vi.fn(),
+      disposeTooltips: vi.fn(),
+      applyVariantCardSignals: vi.fn(),
+      applyFixCardSignals: vi.fn(),
+      scrollTranscriptToBottom: vi.fn(),
+      updateTranscriptNavigationButtonVisibility: vi.fn(),
+      cancelUserMessageEdit: vi.fn(),
+      saveUserMessageEdit: vi.fn(),
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    let thinkingToggle = harness.container.querySelector('.thinking-toggle');
+    let thinkingBody = harness.container.querySelector('.thoughts-content');
+    expect(thinkingToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(thinkingBody?.hasAttribute('hidden')).toBe(true);
+
+    showThinkingByDefault = true;
+    expect(() => view.refreshModelThinkingVisibility()).not.toThrow();
+
+    thinkingToggle = harness.container.querySelector('.thinking-toggle');
+    thinkingBody = harness.container.querySelector('.thoughts-content');
+    expect(thinkingToggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(thinkingBody?.hasAttribute('hidden')).toBe(false);
+  });
+
   test('shows Please wait while a model response card is still empty', () => {
     const harness = createViewHarness();
     harness.conversation.messageNodes[1].response = '';

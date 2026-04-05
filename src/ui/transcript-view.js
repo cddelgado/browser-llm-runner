@@ -1029,9 +1029,6 @@ export function createTranscriptView(dependencies) {
       if (!refs || !message || message.role !== 'model') {
         return;
       }
-      const showThinkingByDefault = getShowThinkingByDefault();
-      refs.thinkingToggle.setAttribute('aria-expanded', String(showThinkingByDefault));
-      /** @type {HTMLElement} */ (refs.thinkingBody).hidden = !showThinkingByDefault;
       setModelBubbleContent(message, refs);
     });
   }
