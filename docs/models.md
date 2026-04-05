@@ -226,11 +226,11 @@ Use this quick map before adding fields ad hoc:
 - New backend or runtime requirement:
   Check `src/config/model-settings.js`, `docs/engine-selection.md`, and `src/workers/llm.worker.js`.
 - New image/audio/video behavior:
-  Check `src/main.js`, `src/app/preferences.js`, `src/app/composer-events.js`, `src/attachments/composer-attachments.js`, and `src/workers/llm.worker.js`.
+  Check `src/main.js`, `src/app/preferences-models.js`, `src/app/composer-events.js`, `src/attachments/composer-attachments.js`, and `src/workers/llm.worker.js`.
 - New thought / reasoning output style:
   Check `src/main.js`, `src/state/app-controller.js`, and transcript rendering.
 - New picker badge or capability category:
-  Check `src/app/preferences.js` and the feature normalization list in `src/config/model-settings.js`.
+  Check `src/app/preferences-models.js` and the feature normalization list in `src/config/model-settings.js`.
 - New persisted alias or replacement path:
   Check `legacyAliases`, conversation migration behavior, and export expectations.
 

@@ -84,10 +84,10 @@ test('send stays disabled until an uploaded attachment finishes processing', asy
     const encoded = new window.TextEncoder().encode(source);
     Object.defineProperty(file, 'arrayBuffer', {
       configurable: true,
-      value: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        return encoded.buffer.slice(0);
-      },
+      value: () =>
+        new Promise((resolve) => {
+          window.__releaseAttachmentRead = () => resolve(encoded.buffer.slice(0));
+        }),
     });
     const input = /** @type {HTMLInputElement | null} */ (
       document.getElementById('imageAttachmentInput')
@@ -107,6 +107,19 @@ test('send stays disabled until an uploaded attachment finishes processing', asy
   await page.locator('#messageInput').fill('Count the links.');
   await page.locator('#messageInput').press('Enter');
   await expect(page.locator('.message-row.user-message')).toHaveCount(0);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => typeof window.__releaseAttachmentRead === 'function')
+    )
+    .toBe(true);
+
+  await page.evaluate(() => {
+    if (typeof window.__releaseAttachmentRead === 'function') {
+      window.__releaseAttachmentRead();
+      delete window.__releaseAttachmentRead;
+    }
+  });
 
   await expect(page.locator('.composer-attachment-card')).toContainText('canvas.html');
   await expect(page.locator('#sendButton')).toBeEnabled();
