@@ -297,6 +297,7 @@ See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 - App control flow for generation, stop, rename, and fix actions lives in `src/state/app-controller.js`.
 - Orchestration prompt templating, nested placeholder rendering, utility-step execution, and chunk-pipeline support live in `src/llm/orchestration-runner.js`.
 - Settings persistence and cross-domain wiring live in `src/app/preferences.js`, with tool/MCP settings extracted to `src/app/preferences-tooling.js` and model/backend picker logic extracted to `src/app/preferences-models.js`.
+- Settings page event wiring lives in `src/app/settings-events.js`, with tool/network handlers extracted to `src/app/settings-events-tooling.js` and conversation/model handlers extracted to `src/app/settings-events-models.js`.
 - Transcript and conversation-list DOM rendering live in `src/ui/`.
 - Transcript navigation/skip-link behavior, model-load feedback, composer attachment/runtime state, and workspace side-panel controllers live in `src/app/`.
 - `src/main.js` remains the app shell for routing, page-level visibility, persistence hookup, and wiring dependencies into those modules.

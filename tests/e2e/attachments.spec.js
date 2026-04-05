@@ -79,6 +79,7 @@ test('send stays disabled until an uploaded attachment finishes processing', asy
   await page.locator('#attachWorkWithMenuItem').click();
 
   await page.evaluate(async () => {
+    const typedWindow = /** @type {any} */ (window);
     const source = '<html><body><main><h1>Canvas</h1><a href="/next">Next</a></main></body></html>';
     const file = new window.File([source], 'canvas.html', { type: 'text/html' });
     const encoded = new window.TextEncoder().encode(source);
@@ -86,7 +87,7 @@ test('send stays disabled until an uploaded attachment finishes processing', asy
       configurable: true,
       value: () =>
         new Promise((resolve) => {
-          window.__releaseAttachmentRead = () => resolve(encoded.buffer.slice(0));
+          typedWindow.__releaseAttachmentRead = () => resolve(encoded.buffer.slice(0));
         }),
     });
     const input = /** @type {HTMLInputElement | null} */ (
@@ -110,14 +111,15 @@ test('send stays disabled until an uploaded attachment finishes processing', asy
 
   await expect
     .poll(() =>
-      page.evaluate(() => typeof window.__releaseAttachmentRead === 'function')
+      page.evaluate(() => typeof /** @type {any} */ (window).__releaseAttachmentRead === 'function')
     )
     .toBe(true);
 
   await page.evaluate(() => {
-    if (typeof window.__releaseAttachmentRead === 'function') {
-      window.__releaseAttachmentRead();
-      delete window.__releaseAttachmentRead;
+    const typedWindow = /** @type {any} */ (window);
+    if (typeof typedWindow.__releaseAttachmentRead === 'function') {
+      typedWindow.__releaseAttachmentRead();
+      delete typedWindow.__releaseAttachmentRead;
     }
   });
 
