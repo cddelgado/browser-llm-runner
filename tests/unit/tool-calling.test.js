@@ -1114,6 +1114,79 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toContain('Shape inside the wrapper: tool_name(arg1="value1", arg2="value2").');
   });
 
+  test('keeps MCP inventory markdown for LFM and includes MCP helper tools in the json tool list', () => {
+    const prompt = buildToolCallingSystemPrompt(
+      {
+        toolListFormat: 'json',
+        format: 'special-token-call',
+        callOpen: '<|tool_call_start|>[',
+        callClose: ']<|tool_call_end|>',
+      },
+      ['list_mcp_server_commands', 'call_mcp_server_command'],
+      [
+        {
+          name: 'list_mcp_server_commands',
+          description: 'Lists the enabled commands for one configured MCP server.',
+          parameters: {
+            type: 'object',
+            properties: {
+              server: {
+                type: 'string',
+              },
+            },
+            required: ['server'],
+            additionalProperties: false,
+          },
+        },
+        {
+          name: 'call_mcp_server_command',
+          description: 'Calls one enabled command on one configured MCP server.',
+          parameters: {
+            type: 'object',
+            properties: {
+              server: {
+                type: 'string',
+              },
+              command: {
+                type: 'string',
+              },
+              arguments: {
+                type: 'object',
+              },
+            },
+            required: ['server', 'command'],
+            additionalProperties: false,
+          },
+        },
+      ],
+      {
+        mcpServers: [
+          {
+            identifier: 'docs',
+            endpoint: 'https://example.com/mcp',
+            displayName: 'Docs',
+            description: 'Project documentation lookup.',
+            enabled: true,
+            commands: [
+              {
+                name: 'search_docs',
+                enabled: true,
+              },
+            ],
+          },
+        ],
+      }
+    );
+
+    expect(prompt).toContain('List of tools: [{"name":"list_mcp_server_commands"');
+    expect(prompt).toContain('"name":"call_mcp_server_command"');
+    expect(prompt).toContain('**Available MCP servers:**');
+    expect(prompt).toContain(
+      '  - docs: Project documentation lookup. Enabled commands: search_docs.'
+    );
+    expect(prompt).not.toContain('Available MCP servers: [{"identifier":"docs"');
+  });
+
   test('returns a friendly tool display name', () => {
     expect(getToolDisplayName('get_current_date_time')).toBe('Get Date and Time');
     expect(getToolDisplayName('get_user_location')).toBe('Get User Location');

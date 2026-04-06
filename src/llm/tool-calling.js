@@ -533,27 +533,8 @@ function buildJsonToolListLines(resolvedToolDefinitions = [], enabledMcpServers 
   });
   const lines = [`List of tools: ${JSON.stringify(serializedTools)}`];
   if (Array.isArray(enabledMcpServers) && enabledMcpServers.length) {
-    const serializedServers = enabledMcpServers.map((server) => {
-      const identifier =
-        typeof server?.identifier === 'string' && server.identifier.trim()
-          ? server.identifier.trim()
-          : 'mcp-server';
-      const enabledCommands = Array.isArray(server?.commands)
-        ? server.commands
-            .filter((command) => command?.enabled)
-            .map((command) => (typeof command?.name === 'string' ? command.name.trim() : ''))
-            .filter(Boolean)
-        : [];
-      return {
-        identifier,
-        ...(typeof server?.description === 'string' && server.description.trim()
-          ? { description: server.description.trim() }
-          : {}),
-        enabledCommands,
-      };
-    });
     lines.push('');
-    lines.push(`Available MCP servers: ${JSON.stringify(serializedServers)}`);
+    lines.push(...buildMcpServerInventoryLines(enabledMcpServers));
   }
   return lines;
 }

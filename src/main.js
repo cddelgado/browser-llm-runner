@@ -1437,7 +1437,7 @@ function getToolCallingSystemPromptSuffix(modelId) {
   }
   return buildToolCallingSystemPrompt(
     toolContext.config,
-    toolContext.enabledTools,
+    toolContext.exposedToolNames,
     toolContext.enabledToolDefinitions,
     {
       mcpServers: toolContext.enabledMcpServers,
