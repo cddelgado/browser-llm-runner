@@ -363,6 +363,7 @@ The current design keeps MCP usage discovery-first:
 - the model sees only enabled servers, each with a short description
 - the model discovers enabled commands through `list_mcp_server_commands`
 - the model calls one enabled command at a time through `call_mcp_server_command`
+- if a model still emits a direct enabled MCP command name, the runtime treats it as an alias only when exactly one enabled server exposes that command name; ambiguous direct command names are rejected
 
 The tool call is the mechanism for progressive disclosure. The model sees only enough context to decide whether it should inspect one server, then can inspect or call enabled commands as needed.
 

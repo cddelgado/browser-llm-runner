@@ -331,6 +331,7 @@ function buildMcpServerInventoryLines(enabledMcpServers = []) {
   }
   return [
     '  Enabled MCP servers for these tools:',
+    '  Call MCP commands through call_mcp_server_command with the server identifier and command name.',
     ...enabledMcpServers.map((server) => {
       const identifier =
         typeof server?.identifier === 'string' && server.identifier.trim()
@@ -1603,6 +1604,27 @@ function getAllowedToolNamesForRuntime(runtimeContext = {}) {
   return allowedToolNames;
 }
 
+function findEnabledMcpCommandAlias(mcpServers = [], toolName = '') {
+  const normalizedToolName = typeof toolName === 'string' ? toolName.trim() : '';
+  if (!normalizedToolName) {
+    return null;
+  }
+  const matches = [];
+  getEnabledMcpServerConfigs(mcpServers).forEach((server) => {
+    const command = findMcpServerCommand(server, normalizedToolName, { enabledOnly: true });
+    if (command) {
+      matches.push({
+        server,
+        command,
+      });
+    }
+  });
+  if (matches.length !== 1) {
+    return matches.length ? { ambiguous: true, matches } : null;
+  }
+  return matches[0];
+}
+
 const TOOL_EXECUTORS = Object.freeze({
   get_current_date_time: {
     execute: (argumentsValue) => executeGetCurrentDateTime(argumentsValue),
@@ -1659,11 +1681,22 @@ export async function executeToolCall(toolCall, runtimeContext = {}) {
   if (!toolCall || typeof toolCall !== 'object') {
     throw new Error('Tool call is required.');
   }
-  const toolName = typeof toolCall.name === 'string' ? toolCall.name.trim() : '';
+  const requestedToolName = typeof toolCall.name === 'string' ? toolCall.name.trim() : '';
+  let toolName = requestedToolName;
+  let aliasResolution = null;
   if (Array.isArray(runtimeContext.enabledToolNames)) {
     const allowedToolNames = getAllowedToolNamesForRuntime(runtimeContext);
     if (!allowedToolNames.has(toolName)) {
-      throw new Error(`Tool is disabled: ${toolName || 'unknown_tool'}`);
+      aliasResolution = findEnabledMcpCommandAlias(runtimeContext.mcpServers, toolName);
+      if (aliasResolution?.ambiguous) {
+        throw new Error(
+          `Tool name is ambiguous across enabled MCP servers: ${toolName || 'unknown_tool'}`
+        );
+      }
+      if (!aliasResolution) {
+        throw new Error(`Tool is disabled: ${toolName || 'unknown_tool'}`);
+      }
+      toolName = MCP_SERVER_COMMAND_CALL_TOOL;
     }
   }
   const argumentsValue =
@@ -1674,29 +1707,50 @@ export async function executeToolCall(toolCall, runtimeContext = {}) {
       : {};
   const toolExecutor = TOOL_EXECUTORS[toolName];
   if (!toolExecutor) {
+    aliasResolution = findEnabledMcpCommandAlias(runtimeContext.mcpServers, toolName);
+    if (aliasResolution?.ambiguous) {
+      throw new Error(
+        `Tool name is ambiguous across enabled MCP servers: ${toolName || 'unknown_tool'}`
+      );
+    }
+    if (!aliasResolution) {
+      throw new Error(`Unknown tool: ${toolName}`);
+    }
+    toolName = MCP_SERVER_COMMAND_CALL_TOOL;
+  }
+  const resolvedArgumentsValue =
+    aliasResolution && toolName === MCP_SERVER_COMMAND_CALL_TOOL
+      ? {
+          server: aliasResolution.server.identifier,
+          command: aliasResolution.command.name,
+          arguments: argumentsValue,
+        }
+      : argumentsValue;
+  const resolvedExecutor = TOOL_EXECUTORS[toolName];
+  if (!resolvedExecutor) {
     throw new Error(`Unknown tool: ${toolName}`);
   }
   let result;
   try {
-    result = await toolExecutor.execute(argumentsValue, runtimeContext);
+    result = await resolvedExecutor.execute(resolvedArgumentsValue, runtimeContext);
   } catch (error) {
-    if (typeof toolExecutor.serializeError === 'function') {
+    if (typeof resolvedExecutor.serializeError === 'function') {
       return {
-        toolName,
-        arguments: argumentsValue,
+        toolName: requestedToolName,
+        arguments: resolvedArgumentsValue,
         result: null,
-        resultText: toolExecutor.serializeError(error, argumentsValue),
+        resultText: resolvedExecutor.serializeError(error, resolvedArgumentsValue),
       };
     }
     throw error;
   }
   return {
-    toolName,
-    arguments: argumentsValue,
+    toolName: requestedToolName,
+    arguments: resolvedArgumentsValue,
     result,
     resultText:
-      typeof toolExecutor.serializeResult === 'function'
-        ? toolExecutor.serializeResult(result)
+      typeof resolvedExecutor.serializeResult === 'function'
+        ? resolvedExecutor.serializeResult(result)
         : JSON.stringify(result),
   };
 }

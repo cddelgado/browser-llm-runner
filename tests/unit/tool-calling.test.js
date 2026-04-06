@@ -489,6 +489,9 @@ describe('tool-calling prompt builder', () => {
       '- Call with {"server":"server_identifier","command":"command_name","arguments":{...}}.'
     );
     expect(prompt).toContain('Enabled MCP servers for these tools:');
+    expect(prompt).toContain(
+      'Call MCP commands through call_mcp_server_command with the server identifier and command name.'
+    );
     expect(prompt).toContain('  - docs: Project documentation lookup.');
     expect(prompt).toContain('**Tool call format:**');
   });
@@ -724,6 +727,153 @@ describe('tool-calling prompt builder', () => {
         },
       ],
     });
+  });
+
+  test('accepts a direct enabled MCP command name as a call alias', async () => {
+    const fetchRef = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new globalThis.Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'initialize',
+            result: {
+              protocolVersion: '2025-03-26',
+              serverInfo: {
+                name: 'Docs',
+                version: '1.0.0',
+              },
+              capabilities: {
+                tools: {},
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'MCP-Session-Id': 'session-1',
+            },
+          }
+        )
+      )
+      .mockResolvedValueOnce(new globalThis.Response('', { status: 202 }))
+      .mockResolvedValueOnce(
+        new globalThis.Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'tools-call-search_docs',
+            result: {
+              content: [
+                {
+                  type: 'text',
+                  text: 'Alias result.',
+                },
+              ],
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      );
+
+    const result = await executeToolCall(
+      {
+        name: 'search_docs',
+        arguments: {
+          query: 'routing',
+        },
+      },
+      {
+        enabledToolNames: [],
+        fetchRef,
+        mcpServers: [
+          {
+            identifier: 'docs',
+            endpoint: 'https://example.com/mcp',
+            displayName: 'Docs',
+            description: 'Project documentation lookup.',
+            enabled: true,
+            commands: [
+              {
+                name: 'search_docs',
+                enabled: true,
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    query: {
+                      type: 'string',
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }
+    );
+
+    expect(fetchRef).toHaveBeenCalledTimes(3);
+    expect(fetchRef.mock.calls[2][1].body).toContain('"method":"tools/call"');
+    expect(fetchRef.mock.calls[2][1].body).toContain('"name":"search_docs"');
+    expect(fetchRef.mock.calls[2][1].body).toContain('"query":"routing"');
+    expect(result.toolName).toBe('search_docs');
+    expect(result.arguments).toEqual({
+      server: 'docs',
+      command: 'search_docs',
+      arguments: {
+        query: 'routing',
+      },
+    });
+    expect(result.result).toEqual({
+      status: 'success',
+      server: 'docs',
+      command: 'search_docs',
+      body: 'Alias result.',
+      structuredContent: null,
+      content: [
+        {
+          type: 'text',
+          text: 'Alias result.',
+        },
+      ],
+    });
+  });
+
+  test('rejects a direct MCP command alias when multiple enabled servers expose the same command', async () => {
+    await expect(
+      executeToolCall(
+        {
+          name: 'search_docs',
+          arguments: {
+            query: 'routing',
+          },
+        },
+        {
+          enabledToolNames: [],
+          mcpServers: [
+            {
+              identifier: 'docs',
+              endpoint: 'https://example.com/mcp',
+              displayName: 'Docs',
+              enabled: true,
+              commands: [{ name: 'search_docs', enabled: true, inputSchema: { type: 'object' } }],
+            },
+            {
+              identifier: 'microsoft',
+              endpoint: 'https://example.net/mcp',
+              displayName: 'Microsoft Docs',
+              enabled: true,
+              commands: [{ name: 'search_docs', enabled: true, inputSchema: { type: 'object' } }],
+            },
+          ],
+        }
+      )
+    ).rejects.toThrow('Tool name is ambiguous across enabled MCP servers: search_docs');
   });
 
   test('does not notify shell callbacks when run_shell_command fails before execution starts', async () => {
