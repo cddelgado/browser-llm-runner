@@ -29,7 +29,7 @@ Users configure MCP endpoints in `Settings -> MCP Servers`; imported servers sta
 The prompt keeps all callable tool surfaces under one tool section, then separates only the generic post-tool behavior and model-specific call syntax:
 
 - `Tools available in this conversation` lists the enabled tools and any tool-specific usage notes.
-- When MCP is available, that same tool section also lists `list_mcp_server_commands` and `call_mcp_server_command`, plus the enabled MCP server inventory those tools can reach.
+- When MCP is available, that same tool section also lists `list_mcp_server_commands` and `call_mcp_server_command`, plus an `Available MCP servers` list showing each enabled server and its enabled command names.
 - `Tool behavior` covers only generic behavior after a tool result is returned.
 - `Tool call format` describes the exact wrapper or JSON shape the selected model must emit, including that a tool call should be the only output in that turn.
 

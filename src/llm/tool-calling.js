@@ -330,8 +330,8 @@ function buildMcpServerInventoryLines(enabledMcpServers = []) {
     return [];
   }
   return [
-    '  Enabled MCP servers for these tools:',
-    '  Call MCP commands through call_mcp_server_command with the server identifier and command name.',
+    '  **Available MCP servers:**',
+    '  Use call_mcp_server_command with a server identifier and one of that server\'s enabled command names.',
     ...enabledMcpServers.map((server) => {
       const identifier =
         typeof server?.identifier === 'string' && server.identifier.trim()
@@ -341,7 +341,16 @@ function buildMcpServerInventoryLines(enabledMcpServers = []) {
         typeof server?.description === 'string' && server.description.trim()
           ? `: ${server.description.trim()}`
           : '';
-      return `  - ${identifier}${description}`;
+      const enabledCommands = Array.isArray(server?.commands)
+        ? server.commands
+            .filter((command) => command?.enabled)
+            .map((command) => command?.name)
+            .filter((commandName) => typeof commandName === 'string' && commandName.trim())
+        : [];
+      const commandSummary = enabledCommands.length
+        ? ` Enabled commands: ${enabledCommands.join(', ')}.`
+        : ' Enabled commands: none.';
+      return `  - ${identifier}${description}${commandSummary}`;
     }),
   ];
 }

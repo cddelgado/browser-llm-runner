@@ -488,11 +488,13 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toContain(
       '- Call with {"server":"server_identifier","command":"command_name","arguments":{...}}.'
     );
-    expect(prompt).toContain('Enabled MCP servers for these tools:');
+    expect(prompt).toContain('**Available MCP servers:**');
     expect(prompt).toContain(
-      'Call MCP commands through call_mcp_server_command with the server identifier and command name.'
+      'Use call_mcp_server_command with a server identifier and one of that server\'s enabled command names.'
     );
-    expect(prompt).toContain('  - docs: Project documentation lookup.');
+    expect(prompt).toContain(
+      '  - docs: Project documentation lookup. Enabled commands: search_docs.'
+    );
     expect(prompt).toContain('**Tool call format:**');
   });
 
