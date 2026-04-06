@@ -5,6 +5,8 @@ let buildMultimodalChatTemplateOptions;
 let buildGenerationOptions;
 let shouldSkipSpecialTokensInMultimodalOutput;
 let buildMultimodalDecodeOptions;
+let getBackendAttemptOrder;
+let resolveBrowserWasmThreadCount;
 
 beforeAll(async () => {
   globalThis.self = /** @type {any} */ ({
@@ -17,6 +19,8 @@ beforeAll(async () => {
     buildGenerationOptions,
     shouldSkipSpecialTokensInMultimodalOutput,
     buildMultimodalDecodeOptions,
+    getBackendAttemptOrder,
+    resolveBrowserWasmThreadCount,
   } = await import(
     '../../src/workers/llm.worker.js'
   ));
@@ -152,6 +156,79 @@ describe('llm.worker generation options', () => {
       repetition_penalty: 1.0,
       do_sample: true,
       enable_thinking: false,
+    });
+  });
+});
+
+describe('llm.worker backend selection', () => {
+  test('auto falls back from webgpu to wasm only in the browser worker', () => {
+    expect(getBackendAttemptOrder('auto', {})).toEqual(['webgpu', 'wasm']);
+  });
+
+  test('cpu preference maps to the wasm executor in the browser worker', () => {
+    expect(getBackendAttemptOrder('cpu', {})).toEqual(['wasm']);
+  });
+
+  test('webgpu-required models reject wasm-only preference', () => {
+    expect(getBackendAttemptOrder('wasm', { requiresWebGpu: true })).toEqual([]);
+  });
+
+  test('webgpu-required models reject cpu-only preference', () => {
+    expect(getBackendAttemptOrder('cpu', { requiresWebGpu: true })).toEqual([]);
+  });
+});
+
+describe('llm.worker wasm thread selection', () => {
+  test('uses a conservative threaded wasm count when isolation requirements are met', () => {
+    expect(
+      resolveBrowserWasmThreadCount({
+        navigatorLike: { hardwareConcurrency: 8 },
+        globalLike: {
+          SharedArrayBuffer: class SharedArrayBufferMock {},
+          crossOriginIsolated: true,
+        },
+      })
+    ).toEqual({
+      logicalCores: 8,
+      hasSharedArrayBuffer: true,
+      isCrossOriginIsolated: true,
+      canUseThreadedWasm: true,
+      numThreads: 4,
+    });
+  });
+
+  test('falls back to one wasm thread when cross-origin isolation is unavailable', () => {
+    expect(
+      resolveBrowserWasmThreadCount({
+        navigatorLike: { hardwareConcurrency: 8 },
+        globalLike: {
+          SharedArrayBuffer: class SharedArrayBufferMock {},
+          crossOriginIsolated: false,
+        },
+      })
+    ).toEqual({
+      logicalCores: 8,
+      hasSharedArrayBuffer: true,
+      isCrossOriginIsolated: false,
+      canUseThreadedWasm: false,
+      numThreads: 1,
+    });
+  });
+
+  test('falls back to one wasm thread when SharedArrayBuffer is unavailable', () => {
+    expect(
+      resolveBrowserWasmThreadCount({
+        navigatorLike: { hardwareConcurrency: 8 },
+        globalLike: {
+          crossOriginIsolated: true,
+        },
+      })
+    ).toEqual({
+      logicalCores: 8,
+      hasSharedArrayBuffer: false,
+      isCrossOriginIsolated: true,
+      canUseThreadedWasm: false,
+      numThreads: 1,
     });
   });
 });

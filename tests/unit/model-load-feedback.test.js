@@ -35,6 +35,7 @@ function createHarness() {
     controller: createModelLoadFeedbackController({
       appState,
       documentRef: document,
+      modelLoadFeedback: document.createElement('div'),
       modelLoadProgressWrap: document.getElementById('modelLoadProgressWrap'),
       modelLoadProgressLabel: document.getElementById('modelLoadProgressLabel'),
       modelLoadProgressValue: document.getElementById('modelLoadProgressValue'),
@@ -46,6 +47,7 @@ function createHarness() {
       modelLoadError: document.getElementById('modelLoadError'),
       modelLoadErrorSummary: document.getElementById('modelLoadErrorSummary'),
       modelLoadErrorDetails: document.getElementById('modelLoadErrorDetails'),
+      modelCardList: document.createElement('div'),
     }),
     document,
   };
@@ -71,9 +73,9 @@ describe('model-load-feedback', () => {
     expect(harness.document.getElementById('modelLoadProgressLabel')?.textContent).toBe(
       'Downloading model...'
     );
-    expect(harness.document.getElementById('modelLoadProgressValue')?.textContent).toBe('25%');
+    expect(harness.document.getElementById('modelLoadProgressValue')?.textContent).toBe('0/1');
     expect(harness.document.getElementById('modelLoadProgressSummary')?.textContent).toBe(
-      '0/1 stages complete'
+      '0 of 1 model parts loaded'
     );
     expect(harness.document.getElementById('modelLoadCurrentFileLabel')?.textContent).toBe(
       'mock-model.onnx'

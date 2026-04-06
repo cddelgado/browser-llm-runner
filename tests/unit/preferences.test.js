@@ -116,6 +116,7 @@ function createPreferencesHarness({
       inspectMcpServerEndpoint,
       setStatus: vi.fn(),
       appendDebug,
+      onSelectedModelCardChange: vi.fn(),
     }),
     validateCorsProxyUrl,
     inspectMcpServerEndpoint,

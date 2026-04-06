@@ -174,6 +174,35 @@ async function loadTransformers() {
   return cachedModule;
 }
 
+function resolveBrowserWasmThreadCount({
+  navigatorLike = typeof navigator !== 'undefined' ? navigator : undefined,
+  globalLike = globalThis,
+  maxThreads = 4,
+} = {}) {
+  const requestedMaxThreads =
+    Number.isInteger(maxThreads) && maxThreads > 0 ? Math.max(1, maxThreads) : 4;
+  const logicalCores =
+    Number.isInteger(navigatorLike?.hardwareConcurrency) && navigatorLike.hardwareConcurrency > 0
+      ? navigatorLike.hardwareConcurrency
+      : 1;
+  const hasSharedArrayBuffer = typeof globalLike?.SharedArrayBuffer !== 'undefined';
+  const isCrossOriginIsolated = globalLike?.crossOriginIsolated === true;
+  const canUseThreadedWasm = hasSharedArrayBuffer && isCrossOriginIsolated;
+  const numThreads = canUseThreadedWasm
+    ? Math.min(requestedMaxThreads, Math.max(1, Math.ceil(logicalCores / 2)))
+    : 1;
+
+  return {
+    logicalCores,
+    hasSharedArrayBuffer,
+    isCrossOriginIsolated,
+    canUseThreadedWasm,
+    numThreads,
+  };
+}
+
+export { resolveBrowserWasmThreadCount };
+
 async function ensureMultimodalProcessor(modelId, progressCallback = null) {
   if (processor) {
     return processor;
@@ -201,13 +230,10 @@ function getBackendAttemptOrder(preference, runtimeConfig = {}) {
   if (normalizedPreference === 'webgpu') {
     return ['webgpu'];
   }
-  if (normalizedPreference === 'wasm') {
+  if (normalizedPreference === 'wasm' || normalizedPreference === 'cpu') {
     return ['wasm'];
   }
-  if (normalizedPreference === 'cpu') {
-    return ['cpu'];
-  }
-  return ['webgpu', 'wasm', 'cpu'];
+  return ['webgpu', 'wasm'];
 }
 
 function normalizeBackendPreference(preference) {
@@ -726,18 +752,19 @@ async function initialize(payload) {
   InterruptableStoppingCriteriaClass = InterruptableStoppingCriteria;
   env.allowRemoteModels = true;
   env.useBrowserCache = true;
+  if (env?.backends?.onnx?.wasm) {
+    const threadConfig = resolveBrowserWasmThreadCount();
+    env.backends.onnx.wasm.numThreads = threadConfig.numThreads;
+  }
 
   for (const backend of attempts) {
     if (backend === 'webgpu' && !(typeof navigator !== 'undefined' && 'gpu' in navigator)) {
       errors.push('WebGPU unavailable in this browser.');
       continue;
     }
-    if (backend === 'cpu' && typeof navigator !== 'undefined') {
-      errors.push('CPU backend unavailable in this browser runtime (supported: webgpu, wasm).');
-      continue;
-    }
 
     try {
+      const resolvedBackendLabel = backendPreference === 'cpu' && backend === 'wasm' ? 'cpu' : backend;
       postStatus(`Loading ${modelId} with ${backend.toUpperCase()}...`);
       postProgress({ percent: 5, message: `Preparing ${backend.toUpperCase()} backend...` });
       const pipelineOptions = {
@@ -807,12 +834,15 @@ async function initialize(payload) {
       }
       backendInUse = backend;
       loadedModelId = modelId;
-      postProgress({ percent: 100, message: `Loaded ${modelId} (${backend.toUpperCase()}).` });
+      postProgress({
+        percent: 100,
+        message: `Loaded ${modelId} (${resolvedBackendLabel.toUpperCase()}).`,
+      });
       self.postMessage({
         type: 'init-success',
-        payload: { backend, modelId },
+        payload: { backend: resolvedBackendLabel, modelId },
       });
-      postStatus(`Ready (${backend.toUpperCase()})`);
+      postStatus(`Ready (${resolvedBackendLabel.toUpperCase()})`);
       return;
     } catch (error) {
       const rawMessage =

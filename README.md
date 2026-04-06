@@ -54,9 +54,10 @@ Student-facing browser chat UI with local model inference.
 - If no active conversation exists, a new untitled conversation is created when the first message is sent.
 - New conversations get a UUID-backed route only after the first prompt is sent and the selected model has loaded.
 - Backend selection supports:
-  - `Auto (WebGPU then WASM then CPU)`
+  - `Auto (WebGPU then WASM/CPU)`
   - `WebGPU only`
   - `WASM only`
+  - `CPU only (via WASM)`
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
   - Values are constrained by per-model limits from `src/config/models.json` and use `step=8`.
@@ -80,7 +81,7 @@ Student-facing browser chat UI with local model inference.
   - `Top P (Strangeness)` (nucleus sampling) uses min `0.00`, max `1.00`, and `step=0.05`, with a model-specific default from `src/config/models.json`.
   - `Top K` and `Top P` are persisted per model, like temperature and token limits.
   - The runtime also applies per-model `repetition_penalty` defaults where Transformers.js supports them; unsupported knobs such as `min_p` and `presence_penalty` are intentionally not exposed in this app.
-- `Auto` attempts WebGPU first, then WASM, then CPU if earlier backends are unavailable or initialization fails.
+- `Auto` attempts WebGPU first, then falls back to the browser CPU path via WASM if WebGPU is unavailable or initialization fails.
 - The selected backend and model are stored in `localStorage`.
 - Model files are downloaded on first load and cached in-browser for reuse (`Transformers.js` browser cache).
 - Debug status history is available in `Settings -> Debug info` (accordion), including proxy validation and MCP transport diagnostics for failed browser-side handshakes.
