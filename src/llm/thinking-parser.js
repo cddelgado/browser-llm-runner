@@ -21,6 +21,31 @@ function stripThinkingPrefix(text, stripLeadingText) {
   return text.replace(pattern, '');
 }
 
+const RESPONSE_CONTROL_TOKEN_NAMES = [
+  'bos',
+  'eos',
+  'pad',
+  'turn',
+  'eot',
+  'eom',
+  'eot_id',
+  'eom_id',
+  'start_of_turn',
+  'end_of_turn',
+];
+
+const RESPONSE_CONTROL_TOKEN_PATTERN = new RegExp(
+  `<\\|?(?:${RESPONSE_CONTROL_TOKEN_NAMES.join('|')})\\|?>`,
+  'gi'
+);
+
+function stripTrailingResponseControlTokens(text) {
+  return String(text || '').replace(
+    new RegExp(`(?:\\s*${RESPONSE_CONTROL_TOKEN_PATTERN.source})+$`, 'gi'),
+    ''
+  );
+}
+
 export function parseThinkingText(rawText, thinkingTags) {
   const text = String(rawText || '');
   const normalizedThinkingTags = normalizeThinkingTags(thinkingTags);
@@ -62,5 +87,10 @@ export function parseThinkingText(rawText, thinkingTags) {
     cursor = closeIndex + close.length;
   }
 
-  return { response, thoughts, hasThinking, isThinkingComplete };
+  return {
+    response: stripTrailingResponseControlTokens(response),
+    thoughts,
+    hasThinking,
+    isThinkingComplete,
+  };
 }

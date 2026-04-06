@@ -34,4 +34,37 @@ describe('thinking-parser', () => {
       isThinkingComplete: true,
     });
   });
+
+  test('strips trailing turn-control tags from the visible response after Gemma thinking', () => {
+    expect(
+      parseThinkingText('<|channel>thought\nconsidering options<channel|>Final answer<turn>', {
+        open: '<|channel>',
+        close: '<channel|>',
+        stripLeadingText: 'thought',
+      })
+    ).toEqual({
+      response: 'Final answer',
+      thoughts: 'considering options',
+      hasThinking: true,
+      isThinkingComplete: true,
+    });
+  });
+
+  test('strips trailing end-of-turn tokens from the visible response after thinking', () => {
+    expect(
+      parseThinkingText(
+        '<|channel>thought\nconsidering options<channel|>Final answer<end_of_turn>',
+        {
+          open: '<|channel>',
+          close: '<channel|>',
+          stripLeadingText: 'thought',
+        }
+      )
+    ).toEqual({
+      response: 'Final answer',
+      thoughts: 'considering options',
+      hasThinking: true,
+      isThinkingComplete: true,
+    });
+  });
 });
