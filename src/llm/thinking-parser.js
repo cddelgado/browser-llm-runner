@@ -51,7 +51,7 @@ export function parseThinkingText(rawText, thinkingTags) {
   const normalizedThinkingTags = normalizeThinkingTags(thinkingTags);
   if (!normalizedThinkingTags) {
     return {
-      response: text,
+      response: stripTrailingResponseControlTokens(text),
       thoughts: '',
       hasThinking: false,
       isThinkingComplete: false,

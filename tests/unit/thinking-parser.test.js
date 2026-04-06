@@ -11,6 +11,15 @@ describe('thinking-parser', () => {
     });
   });
 
+  test('strips trailing control tokens even when no thinking tags are configured', () => {
+    expect(parseThinkingText('Chicago Time Zone<turn|>', null)).toEqual({
+      response: 'Chicago Time Zone',
+      thoughts: '',
+      hasThinking: false,
+      isThinkingComplete: false,
+    });
+  });
+
   test('extracts standard tagged thinking blocks', () => {
     expect(parseThinkingText('<think>scratch</think>Final answer', { open: '<think>', close: '</think>' })).toEqual({
       response: 'Final answer',
