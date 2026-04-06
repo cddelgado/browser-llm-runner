@@ -209,10 +209,10 @@ function configureOnnxWasmBackend(env, backend) {
   }
   const threadConfig = resolveBrowserWasmThreadCount();
   env.backends.onnx.wasm.numThreads = threadConfig.numThreads;
-  env.backends.onnx.wasm.proxy = backend === 'wasm';
+  env.backends.onnx.wasm.proxy = backend === 'wasm' || backend === 'default';
   return {
     ...threadConfig,
-    proxy: backend === 'wasm',
+    proxy: backend === 'wasm' || backend === 'default',
   };
 }
 
@@ -246,9 +246,9 @@ function getBackendAttemptOrder(preference, runtimeConfig = {}) {
     return ['webgpu'];
   }
   if (normalizedPreference === 'wasm' || normalizedPreference === 'cpu') {
-    return ['wasm'];
+    return ['wasm', 'default'];
   }
-  return ['webgpu', 'wasm'];
+  return ['webgpu', 'wasm', 'default'];
 }
 
 function normalizeBackendPreference(preference) {
@@ -775,12 +775,14 @@ async function initialize(payload) {
     }
 
     try {
-      const resolvedBackendLabel = backendPreference === 'cpu' && backend === 'wasm' ? 'cpu' : backend;
+      const resolvedBackendLabel =
+        backend === 'default' || backendPreference === 'cpu' ? 'cpu' : backend;
       configureOnnxWasmBackend(env, backend);
-      postStatus(`Loading ${modelId} with ${backend.toUpperCase()}...`);
-      postProgress({ percent: 5, message: `Preparing ${backend.toUpperCase()} backend...` });
+      const backendStatusLabel = backend === 'default' ? 'DEFAULT DEVICE' : backend.toUpperCase();
+      postStatus(`Loading ${modelId} with ${backendStatusLabel}...`);
+      postProgress({ percent: 5, message: `Preparing ${backendStatusLabel} backend...` });
       const pipelineOptions = {
-        device: backend,
+        ...(backend !== 'default' ? { device: backend } : {}),
         ...(runtime.dtype ? { dtype: runtime.dtype } : {}),
         ...(runtime.useExternalDataFormat
           ? {

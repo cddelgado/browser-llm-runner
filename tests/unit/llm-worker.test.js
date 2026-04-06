@@ -163,12 +163,12 @@ describe('llm.worker generation options', () => {
 });
 
 describe('llm.worker backend selection', () => {
-  test('auto falls back from webgpu to wasm only in the browser worker', () => {
-    expect(getBackendAttemptOrder('auto', {})).toEqual(['webgpu', 'wasm']);
+  test('auto falls back from webgpu to wasm to the default device in the browser worker', () => {
+    expect(getBackendAttemptOrder('auto', {})).toEqual(['webgpu', 'wasm', 'default']);
   });
 
-  test('cpu preference maps to the wasm executor in the browser worker', () => {
-    expect(getBackendAttemptOrder('cpu', {})).toEqual(['wasm']);
+  test('cpu preference maps to wasm then the default device in the browser worker', () => {
+    expect(getBackendAttemptOrder('cpu', {})).toEqual(['wasm', 'default']);
   });
 
   test('webgpu-required models reject wasm-only preference', () => {
@@ -294,5 +294,19 @@ describe('llm.worker wasm backend config', () => {
     const result = configureOnnxWasmBackend(env, 'webgpu');
     expect(env.backends.onnx.wasm.proxy).toBe(false);
     expect(result?.proxy).toBe(false);
+  });
+
+  test('enables proxying for default-device execution', () => {
+    const env = {
+      backends: {
+        onnx: {
+          wasm: {},
+        },
+      },
+    };
+
+    const result = configureOnnxWasmBackend(env, 'default');
+    expect(env.backends.onnx.wasm.proxy).toBe(true);
+    expect(result?.proxy).toBe(true);
   });
 });
