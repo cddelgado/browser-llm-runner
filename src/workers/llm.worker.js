@@ -203,6 +203,21 @@ function resolveBrowserWasmThreadCount({
 
 export { resolveBrowserWasmThreadCount };
 
+function configureOnnxWasmBackend(env, backend) {
+  if (!env?.backends?.onnx?.wasm) {
+    return null;
+  }
+  const threadConfig = resolveBrowserWasmThreadCount();
+  env.backends.onnx.wasm.numThreads = threadConfig.numThreads;
+  env.backends.onnx.wasm.proxy = backend === 'wasm';
+  return {
+    ...threadConfig,
+    proxy: backend === 'wasm',
+  };
+}
+
+export { configureOnnxWasmBackend };
+
 async function ensureMultimodalProcessor(modelId, progressCallback = null) {
   if (processor) {
     return processor;
@@ -752,10 +767,6 @@ async function initialize(payload) {
   InterruptableStoppingCriteriaClass = InterruptableStoppingCriteria;
   env.allowRemoteModels = true;
   env.useBrowserCache = true;
-  if (env?.backends?.onnx?.wasm) {
-    const threadConfig = resolveBrowserWasmThreadCount();
-    env.backends.onnx.wasm.numThreads = threadConfig.numThreads;
-  }
 
   for (const backend of attempts) {
     if (backend === 'webgpu' && !(typeof navigator !== 'undefined' && 'gpu' in navigator)) {
@@ -765,6 +776,7 @@ async function initialize(payload) {
 
     try {
       const resolvedBackendLabel = backendPreference === 'cpu' && backend === 'wasm' ? 'cpu' : backend;
+      configureOnnxWasmBackend(env, backend);
       postStatus(`Loading ${modelId} with ${backend.toUpperCase()}...`);
       postProgress({ percent: 5, message: `Preparing ${backend.toUpperCase()} backend...` });
       const pipelineOptions = {

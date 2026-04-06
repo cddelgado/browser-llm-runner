@@ -7,6 +7,7 @@ let shouldSkipSpecialTokensInMultimodalOutput;
 let buildMultimodalDecodeOptions;
 let getBackendAttemptOrder;
 let resolveBrowserWasmThreadCount;
+let configureOnnxWasmBackend;
 
 beforeAll(async () => {
   globalThis.self = /** @type {any} */ ({
@@ -21,6 +22,7 @@ beforeAll(async () => {
     buildMultimodalDecodeOptions,
     getBackendAttemptOrder,
     resolveBrowserWasmThreadCount,
+    configureOnnxWasmBackend,
   } = await import(
     '../../src/workers/llm.worker.js'
   ));
@@ -230,5 +232,67 @@ describe('llm.worker wasm thread selection', () => {
       canUseThreadedWasm: false,
       numThreads: 1,
     });
+  });
+});
+
+describe('llm.worker wasm backend config', () => {
+  test('enables proxying for wasm execution', () => {
+    const env = {
+      backends: {
+        onnx: {
+          wasm: {},
+        },
+      },
+    };
+
+    const originalSharedArrayBuffer = globalThis.SharedArrayBuffer;
+    const originalCrossOriginIsolated = globalThis.crossOriginIsolated;
+    const originalNavigator = globalThis.navigator;
+    Object.defineProperty(globalThis, 'SharedArrayBuffer', {
+      configurable: true,
+      value: class SharedArrayBufferMock {},
+    });
+    Object.defineProperty(globalThis, 'crossOriginIsolated', {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { hardwareConcurrency: 8 },
+    });
+
+    try {
+      const result = configureOnnxWasmBackend(env, 'wasm');
+      expect(env.backends.onnx.wasm.proxy).toBe(true);
+      expect(env.backends.onnx.wasm.numThreads).toBe(4);
+      expect(result?.proxy).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, 'SharedArrayBuffer', {
+        configurable: true,
+        value: originalSharedArrayBuffer,
+      });
+      Object.defineProperty(globalThis, 'crossOriginIsolated', {
+        configurable: true,
+        value: originalCrossOriginIsolated,
+      });
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true,
+        value: originalNavigator,
+      });
+    }
+  });
+
+  test('disables wasm proxying for webgpu execution', () => {
+    const env = {
+      backends: {
+        onnx: {
+          wasm: {},
+        },
+      },
+    };
+
+    const result = configureOnnxWasmBackend(env, 'webgpu');
+    expect(env.backends.onnx.wasm.proxy).toBe(false);
+    expect(result?.proxy).toBe(false);
   });
 });
