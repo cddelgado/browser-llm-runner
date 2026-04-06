@@ -164,6 +164,8 @@ describe('model-settings availability', () => {
   });
 
   test('keeps hidden replacement models addressable while removing them from the visible catalog', () => {
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.hidden).toBe(true);
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')?.hidden).toBe(
@@ -178,6 +180,8 @@ describe('model-settings availability', () => {
       available: true,
       reason: '',
     });
+    expect(MODEL_OPTIONS.some((model) => model.id === QWEN_SMALL_MODEL_ID)).toBe(false);
+    expect(MODEL_OPTIONS.some((model) => model.id === QWEN_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === GEMMA_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === LIQUID_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === 'onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')).toBe(

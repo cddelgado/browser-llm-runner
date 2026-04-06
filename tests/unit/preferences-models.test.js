@@ -75,23 +75,23 @@ describe('preferences-models', () => {
     harness.controller.populateModelSelect();
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
-    expect(cards.length).toBe(7);
+    expect(cards.length).toBe(5);
 
-    const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3.5 2B'));
-    expect(qwenCard?.textContent).toContain('262,144 tokens');
-    expect(qwenCard?.querySelectorAll('.model-feature-pill')).toHaveLength(3);
+    const gemmaCard = cards.find((card) => card.textContent?.includes('Gemma 4 E2B'));
+    expect(gemmaCard?.textContent).toContain('131,072 tokens');
+    expect(gemmaCard?.querySelectorAll('.model-feature-pill')).toHaveLength(4);
     expect(
-      qwenCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('aria-label')
+      gemmaCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('aria-label')
     ).toBe(
-      'Supported languages: English (EN), Chinese (ZH), Spanish (ES), French (FR), German (DE), Japanese (JA), and more.'
+      'Supported languages: English (EN), Spanish (ES), French (FR), Chinese (ZH), Hindi (HI), Japanese (JA), and more.'
     );
 
-    const qwenButton = /** @type {HTMLButtonElement | null} */ (
-      qwenCard?.querySelector('.model-card-button')
+    const gemmaButton = /** @type {HTMLButtonElement | null} */ (
+      gemmaCard?.querySelector('.model-card-button')
     );
-    qwenButton?.click();
-    expect(modelSelect.value).toBe('onnx-community/Qwen3.5-2B-ONNX');
-    expect(qwenButton?.getAttribute('aria-checked')).toBe('true');
+    gemmaButton?.click();
+    expect(modelSelect.value).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(gemmaButton?.getAttribute('aria-checked')).toBe('true');
 
     modelCardList.dispatchEvent(new harness.document.defaultView.KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
 
@@ -138,31 +138,31 @@ describe('preferences-models', () => {
     const generationConfig = { maxOutputTokens: 512 };
 
     harness.controller.populateModelSelect();
-    modelSelect.value = 'onnx-community/Qwen3.5-2B-ONNX';
+    modelSelect.value = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
     backendSelect.value = 'cpu';
 
     const engineConfig = harness.controller.readEngineConfigFromUI(generationConfig);
 
     expect(engineConfig).toEqual({
-      modelId: 'onnx-community/Qwen3.5-2B-ONNX',
+      modelId: 'onnx-community/Llama-3.2-1B-Instruct-ONNX',
       backendPreference: 'cpu',
-      runtime: { runtimeModelId: 'onnx-community/Qwen3.5-2B-ONNX' },
+      runtime: { runtimeModelId: 'onnx-community/Llama-3.2-1B-Instruct-ONNX' },
       generationConfig,
     });
     expect(harness.deps.getRuntimeConfigForModel).toHaveBeenCalledWith(
-      'onnx-community/Qwen3.5-2B-ONNX'
+      'onnx-community/Llama-3.2-1B-Instruct-ONNX'
     );
     expect(harness.deps.syncGenerationSettingsFromModel).toHaveBeenCalledWith(
-      'onnx-community/Qwen3.5-2B-ONNX',
+      'onnx-community/Llama-3.2-1B-Instruct-ONNX',
       false
     );
 
     harness.controller.persistInferencePreferences(generationConfig);
 
-    expect(harness.storage.getItem('model')).toBe('onnx-community/Qwen3.5-2B-ONNX');
+    expect(harness.storage.getItem('model')).toBe('onnx-community/Llama-3.2-1B-Instruct-ONNX');
     expect(harness.storage.getItem('backend')).toBe('cpu');
     expect(harness.deps.persistGenerationConfigForModel).toHaveBeenCalledWith(
-      'onnx-community/Qwen3.5-2B-ONNX',
+      'onnx-community/Llama-3.2-1B-Instruct-ONNX',
       generationConfig
     );
   });

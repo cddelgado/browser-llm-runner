@@ -216,18 +216,6 @@ Student-facing browser chat UI with local model inference.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses `q4` in this app with external data loading.
   - Uses the same conservative app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
-- `onnx-community/Qwen3.5-0.8B-ONNX`
-  - Uses `q8` in this app with external data loading.
-  - Defaults to Qwen's non-thinking mode in this app and uses runtime `enable_thinking` when the conversation-level thinking toggle is enabled.
-  - Uses the Qwen 3.5 "thinking mode for VL or precise coding" profile as the app-wide default to avoid mode-specific sampling UI drift: temperature `0.6`, top-k `20`, top-p `0.95`, repetition penalty `1.0`.
-  - Exposes text plus uploaded image input in this app.
-  - Uses the XML tool-call format supported by this app.
-- `onnx-community/Qwen3.5-2B-ONNX`
-  - Uses `q4` in this app with external data loading.
-  - Defaults to Qwen's non-thinking mode in this app and uses runtime `enable_thinking` when the conversation-level thinking toggle is enabled.
-  - Uses the Qwen 3.5 "thinking mode for VL or precise coding" profile as the app-wide default to avoid mode-specific sampling UI drift: temperature `0.6`, top-k `20`, top-p `0.95`, repetition penalty `1.0`.
-  - Exposes text plus uploaded image input in this app.
-  - Uses the XML tool-call format supported by this app.
 - `LiquidAI/LFM2.5-350M-ONNX`
   - Uses `q8` in this app with external data loading.
   - Requires WebGPU in this app.
@@ -239,6 +227,8 @@ Student-facing browser chat UI with local model inference.
   - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
   - Uses Liquid's special-token tool-call format supported by this app.
 - Hidden legacy/replacement model definitions remain in config so stored conversations and model-specific behaviors still resolve correctly:
+  - `onnx-community/Qwen3.5-0.8B-ONNX`
+  - `onnx-community/Qwen3.5-2B-ONNX`
   - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
   - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
   - `onnx-community/gemma-3n-E2B-it-ONNX`

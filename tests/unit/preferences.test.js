@@ -382,7 +382,7 @@ describe('preferences controller', () => {
     harness.controller.populateModelSelect();
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
-    expect(cards.length).toBe(7);
+    expect(cards.length).toBe(5);
 
     const llama1BCard = cards.find((card) => card.textContent?.includes('Llama 3.2 1B Instruct'));
     expect(llama1BCard?.textContent).toContain('131,072 tokens');
@@ -391,22 +391,6 @@ describe('preferences controller', () => {
     expect(
       /** @type {HTMLAnchorElement | null} */ (llama1BCard?.querySelector('.model-card-link'))?.href
     ).toBe('https://huggingface.co/onnx-community/Llama-3.2-1B-Instruct-ONNX');
-
-    const qwenSmallCard = cards.find((card) => card.textContent?.includes('Qwen3.5 0.8B'));
-    expect(qwenSmallCard?.textContent).toContain('262,144 tokens');
-    expect(qwenSmallCard?.textContent).not.toContain('Default context 8,192');
-    expect(qwenSmallCard?.textContent).not.toContain('Temp 0.7');
-    expect(qwenSmallCard?.textContent).not.toContain('Top P 0.80');
-    expect(qwenSmallCard?.textContent).not.toContain('Top K 20');
-    expect(
-      /** @type {HTMLAnchorElement | null} */ (qwenSmallCard?.querySelector('.model-card-link'))
-        ?.href
-    ).toBe('https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX');
-    expect(
-      /** @type {HTMLAnchorElement | null} */ (
-        qwenSmallCard?.querySelector('.model-card-language-overflow')
-      )?.href
-    ).toBe('https://huggingface.co/Qwen/Qwen3.5-0.8B');
 
     const liquidSmallCard = cards.find((card) => card.textContent?.includes('Liquid LFM 2.5 350M'));
     expect(liquidSmallCard?.textContent).toContain('32,768 tokens');
@@ -432,58 +416,60 @@ describe('preferences controller', () => {
       )?.href
     ).toBe('https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-ONNX');
 
-    const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3.5 2B'));
-    expect(qwenCard?.textContent).toContain('262,144 tokens');
-    expect(qwenCard?.textContent).toContain('about 196,600 words');
-    expect(qwenCard?.textContent).not.toContain('Default context 8,192');
-    expect(qwenCard?.textContent).not.toContain('Temp 0.7');
-    expect(qwenCard?.textContent).not.toContain('Top P 0.80');
-    expect(qwenCard?.textContent).not.toContain('Top K 20');
-    expect(qwenCard?.textContent).toContain('EN');
-    expect(qwenCard?.textContent).toContain('ZH');
-    expect(qwenCard?.textContent).toContain('ES');
-    expect(qwenCard?.textContent).toContain('FR');
-    expect(qwenCard?.textContent).not.toContain('DE');
-    expect(qwenCard?.textContent).toContain('and more');
-    expect(qwenCard?.textContent).not.toContain('onnx-community/Qwen3.5-2B-ONNX');
+    const gemmaCard = cards.find((card) => card.textContent?.includes('Gemma 4 E2B'));
+    expect(gemmaCard?.textContent).toContain('131,072 tokens');
+    expect(gemmaCard?.textContent).toContain('about 98,300 words');
+    expect(gemmaCard?.textContent).not.toContain('Default context 8,192');
+    expect(gemmaCard?.textContent).toContain('EN');
+    expect(gemmaCard?.textContent).toContain('ES');
+    expect(gemmaCard?.textContent).toContain('FR');
+    expect(gemmaCard?.textContent).toContain('ZH');
+    expect(gemmaCard?.textContent).not.toContain('HI');
+    expect(gemmaCard?.textContent).toContain('and more');
+    expect(gemmaCard?.textContent).not.toContain('onnx-community/gemma-4-E2B-it-ONNX');
     expect(
-      /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))?.href
-    ).toBe('https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX');
+      /** @type {HTMLAnchorElement | null} */ (gemmaCard?.querySelector('.model-card-link'))?.href
+    ).toBe('https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX');
     expect(
-      /** @type {HTMLAnchorElement | null} */ (qwenCard?.querySelector('.model-card-link'))
+      /** @type {HTMLAnchorElement | null} */ (gemmaCard?.querySelector('.model-card-link'))
         ?.textContent
     ).toBe('Model details');
-    expect(qwenCard?.querySelectorAll('.model-feature-pill')).toHaveLength(3);
+    expect(gemmaCard?.querySelectorAll('.model-feature-pill')).toHaveLength(4);
     expect(
-      Array.from(qwenCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
+      Array.from(gemmaCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
       )
-    ).toEqual(['Shows a thinking section', 'Can use built-in tools', 'Accepts image input']);
+    ).toEqual([
+      'Shows a thinking section',
+      'Can use built-in tools',
+      'Accepts image input',
+      'Accepts audio input',
+    ]);
 
     expect(
-      qwenCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('aria-label')
+      gemmaCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('aria-label')
     ).toBe(
-      'Supported languages: English (EN), Chinese (ZH), Spanish (ES), French (FR), German (DE), Japanese (JA), and more.'
+      'Supported languages: English (EN), Spanish (ES), French (FR), Chinese (ZH), Hindi (HI), Japanese (JA), and more.'
     );
     expect(
-      qwenCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('title')
+      gemmaCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('title')
     ).toBe(
-      'English (EN), Chinese (ZH), Spanish (ES), French (FR), German (DE), Japanese (JA), and more.'
+      'English (EN), Spanish (ES), French (FR), Chinese (ZH), Hindi (HI), Japanese (JA), and more.'
     );
     expect(
       /** @type {HTMLAnchorElement | null} */ (
-        qwenCard?.querySelector('.model-card-language-overflow')
+        gemmaCard?.querySelector('.model-card-language-overflow')
       )?.href
-    ).toBe('https://huggingface.co/Qwen/Qwen3.5-2B');
-    expect(qwenCard?.querySelector('.model-card-title-row .model-card-features')).not.toBeNull();
+    ).toBe('https://ai.google.dev/gemma');
+    expect(gemmaCard?.querySelector('.model-card-title-row .model-card-features')).not.toBeNull();
 
-    const qwenButton = /** @type {HTMLButtonElement | null} */ (
-      qwenCard?.querySelector('.model-card-button')
+    const gemmaButton = /** @type {HTMLButtonElement | null} */ (
+      gemmaCard?.querySelector('.model-card-button')
     );
-    qwenButton?.click();
+    gemmaButton?.click();
 
-    expect(modelSelect.value).toBe('onnx-community/Qwen3.5-2B-ONNX');
-    expect(qwenButton?.getAttribute('aria-checked')).toBe('true');
+    expect(modelSelect.value).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(gemmaButton?.getAttribute('aria-checked')).toBe('true');
   });
 
   test('renders the expected feature icons for every visible model', () => {
@@ -503,16 +489,6 @@ describe('preferences controller', () => {
 
     expect(getFeatureLabels('Llama 3.2 3B Instruct')).toEqual(['Can use built-in tools']);
     expect(getFeatureLabels('Llama 3.2 1B Instruct')).toEqual([]);
-    expect(getFeatureLabels('Qwen3.5 0.8B')).toEqual([
-      'Shows a thinking section',
-      'Can use built-in tools',
-      'Accepts image input',
-    ]);
-    expect(getFeatureLabels('Qwen3.5 2B')).toEqual([
-      'Shows a thinking section',
-      'Can use built-in tools',
-      'Accepts image input',
-    ]);
     expect(getFeatureLabels('Liquid LFM 2.5 350M')).toEqual(['Can use built-in tools']);
     expect(getFeatureLabels('Liquid LFM 2.5 1.2B Instruct')).toEqual([
       'Can use built-in tools',

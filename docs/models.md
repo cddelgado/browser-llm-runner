@@ -264,18 +264,6 @@ Current selectable models in Settings:
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses runtime dtype `q4` and loads external ONNX data sidecars.
   - Uses the same app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
-- `onnx-community/Qwen3.5-0.8B-ONNX`
-  - Uses runtime dtype `q8` and loads external ONNX data sidecars.
-  - Uses the app's single Qwen default profile based on Qwen's published "thinking mode for VL or precise coding" guidance: temperature `0.6`, top-k `20`, top-p `0.95`, repetition penalty `1.0`.
-  - Uses `thinkingControl` with runtime `enable_thinking` and defaults that toggle to off for new conversations.
-  - Accepts uploaded image input in this app.
-  - Uses the XML tool-call format.
-- `onnx-community/Qwen3.5-2B-ONNX`
-  - Uses runtime dtype `q4` and loads external ONNX data sidecars.
-  - Uses the app's single Qwen default profile based on Qwen's published "thinking mode for VL or precise coding" guidance: temperature `0.6`, top-k `20`, top-p `0.95`, repetition penalty `1.0`.
-  - Uses `thinkingControl` with runtime `enable_thinking` and defaults that toggle to off for new conversations.
-  - Accepts uploaded image input in this app.
-  - Uses the XML tool-call format.
 - `LiquidAI/LFM2.5-350M-ONNX`
   - Uses runtime dtype `q8`, loads external ONNX data sidecars, and requires WebGPU in-browser.
   - Uses the published 350M sampling defaults available from the model card: temperature `0.1`, top-k `50`, repetition penalty `1.05`. This app keeps top-p effectively open at `1.0` because the card does not publish a nucleus cutoff.
@@ -286,6 +274,10 @@ Current selectable models in Settings:
   - Uses Liquid's special-token tool-call format in this app.
 Hidden legacy/replacement models kept for compatibility and model-specific behavior:
 
+- `onnx-community/Qwen3.5-0.8B-ONNX`
+  - Hidden from the picker for now, but kept in config so stored conversations, aliases, and model-specific handling still resolve.
+- `onnx-community/Qwen3.5-2B-ONNX`
+  - Hidden from the picker for now, but kept in config so stored conversations, aliases, and model-specific handling still resolve.
 - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
   - Uses ONNX `q4` weights.

@@ -140,6 +140,7 @@
       "id": "onnx-community/Qwen3.5-0.8B-ONNX",
       "label": "onnx-community/Qwen3.5-0.8B-ONNX",
       "displayName": "Qwen3.5 0.8B",
+      "hidden": true,
       "languageSupport": {
         "tags": [
           { "code": "en", "name": "English" },
@@ -197,6 +198,7 @@
       "id": "onnx-community/Qwen3.5-2B-ONNX",
       "label": "onnx-community/Qwen3.5-2B-ONNX",
       "displayName": "Qwen3.5 2B",
+      "hidden": true,
       "languageSupport": {
         "tags": [
           { "code": "en", "name": "English" },
