@@ -165,6 +165,53 @@ export const MCP_TOOL_DEFINITIONS = Object.freeze([
 const reverseGeocodeCache = new Map();
 const WEB_LOOKUP_FAILURE_MESSAGE =
   'Use a direct https URL and retry with a simpler page if the request or extraction fails.';
+const MCP_TOOL_BODY_FRACTION_OF_CONTEXT = 0.06;
+const DEFAULT_MCP_TOOL_BODY_LENGTH = 500;
+
+function trimToolBody(text, maxLength) {
+  const normalizedText = typeof text === 'string' ? text : String(text ?? '');
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || normalizedText.length <= maxLength) {
+    return {
+      text: normalizedText,
+      trimmed: false,
+    };
+  }
+  return {
+    text: normalizedText.slice(0, maxLength),
+    trimmed: true,
+  };
+}
+
+function getMcpToolBodyLimit(runtimeContext = {}) {
+  const configuredContextSize = Number(runtimeContext?.generationConfig?.maxContextTokens);
+  if (!Number.isFinite(configuredContextSize) || configuredContextSize <= 0) {
+    return DEFAULT_MCP_TOOL_BODY_LENGTH;
+  }
+  return Math.max(1, Math.floor(configuredContextSize * MCP_TOOL_BODY_FRACTION_OF_CONTEXT));
+}
+
+function buildMcpToolTruncationMessage(maxLength) {
+  return `This response was too long, so it was trimmed to ${maxLength} characters. Feel free to make another request if necessary.`;
+}
+
+function serializeMcpCommandCallResult(result, runtimeContext = {}) {
+  const normalizedResult = result && typeof result === 'object' ? result : {};
+  const maxLength = getMcpToolBodyLimit(runtimeContext);
+  const trimmedBody = trimToolBody(normalizedResult.body, maxLength);
+  return JSON.stringify({
+    status: normalizedResult.status === 'failed' ? 'failed' : 'success',
+    server:
+      typeof normalizedResult.server === 'string' && normalizedResult.server.trim()
+        ? normalizedResult.server.trim()
+        : undefined,
+    command:
+      typeof normalizedResult.command === 'string' && normalizedResult.command.trim()
+        ? normalizedResult.command.trim()
+        : undefined,
+    body: trimmedBody.text,
+    ...(trimmedBody.trimmed ? { message: buildMcpToolTruncationMessage(maxLength) } : {}),
+  });
+}
 
 /**
  * @param {unknown} error
@@ -1682,7 +1729,12 @@ const TOOL_EXECUTORS = Object.freeze({
   [MCP_SERVER_COMMAND_CALL_TOOL]: {
     execute: (argumentsValue, runtimeContext) =>
       executeCallMcpServerCommand(argumentsValue, runtimeContext),
-    serializeError: (error) => buildFailedToolEnvelope(error),
+    serializeResult: (result, runtimeContext) => serializeMcpCommandCallResult(result, runtimeContext),
+    serializeError: (error, runtimeContext) =>
+      serializeMcpCommandCallResult({
+        status: 'failed',
+        body: error instanceof Error ? error.message : String(error),
+      }, runtimeContext),
   },
 });
 
@@ -1748,7 +1800,7 @@ export async function executeToolCall(toolCall, runtimeContext = {}) {
         toolName: requestedToolName,
         arguments: resolvedArgumentsValue,
         result: null,
-        resultText: resolvedExecutor.serializeError(error, resolvedArgumentsValue),
+        resultText: resolvedExecutor.serializeError(error, runtimeContext, resolvedArgumentsValue),
       };
     }
     throw error;
@@ -1759,7 +1811,7 @@ export async function executeToolCall(toolCall, runtimeContext = {}) {
     result,
     resultText:
       typeof resolvedExecutor.serializeResult === 'function'
-        ? resolvedExecutor.serializeResult(result)
+        ? resolvedExecutor.serializeResult(result, runtimeContext, resolvedArgumentsValue)
         : JSON.stringify(result),
   };
 }

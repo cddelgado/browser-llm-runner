@@ -729,6 +729,174 @@ describe('tool-calling prompt builder', () => {
         },
       ],
     });
+    expect(result.resultText).toBe(
+      JSON.stringify({
+        status: 'success',
+        server: 'docs',
+        command: 'search_docs',
+        body: 'Result from MCP.',
+      })
+    );
+  });
+
+  test('trims long MCP command responses in the serialized tool result', async () => {
+    const longBody = 'A'.repeat(700);
+    const fetchRef = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new globalThis.Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'initialize',
+            result: {
+              protocolVersion: '2025-03-26',
+              serverInfo: {
+                name: 'Docs',
+                version: '1.0.0',
+              },
+              capabilities: {
+                tools: {},
+              },
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'MCP-Session-Id': 'session-1',
+            },
+          }
+        )
+      )
+      .mockResolvedValueOnce(new globalThis.Response('', { status: 202 }))
+      .mockResolvedValueOnce(
+        new globalThis.Response(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'tools-call-search_docs',
+            result: {
+              content: [
+                {
+                  type: 'text',
+                  text: longBody,
+                },
+              ],
+            },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      );
+
+    const result = await executeToolCall(
+      {
+        name: 'call_mcp_server_command',
+        arguments: {
+          server: 'docs',
+          command: 'search_docs',
+          arguments: {
+            query: 'routing',
+          },
+        },
+      },
+      {
+        enabledToolNames: [],
+        fetchRef,
+        generationConfig: {
+          maxContextTokens: 8192,
+        },
+        mcpServers: [
+          {
+            identifier: 'docs',
+            endpoint: 'https://example.com/mcp',
+            displayName: 'Docs',
+            description: 'Project documentation lookup.',
+            enabled: true,
+            commands: [
+              {
+                name: 'search_docs',
+                enabled: true,
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    query: {
+                      type: 'string',
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }
+    );
+
+    expect(result.result.body).toBe(longBody);
+    expect(result.resultText).toBe(
+      JSON.stringify({
+        status: 'success',
+        server: 'docs',
+        command: 'search_docs',
+        body: longBody.slice(0, 491),
+        message:
+          'This response was too long, so it was trimmed to 491 characters. Feel free to make another request if necessary.',
+      })
+    );
+  });
+
+  test('trims long MCP command failures in the serialized tool result', async () => {
+    const longError = `Server error: ${'B'.repeat(700)}`;
+
+    const result = await executeToolCall(
+      {
+        name: 'call_mcp_server_command',
+        arguments: {
+          server: 'docs',
+          command: 'search_docs',
+        },
+      },
+      {
+        enabledToolNames: [],
+        generationConfig: {
+          maxContextTokens: 8192,
+        },
+        fetchRef: vi.fn(async () => {
+          throw new Error(longError);
+        }),
+        mcpServers: [
+          {
+            identifier: 'docs',
+            endpoint: 'https://example.com/mcp',
+            displayName: 'Docs',
+            description: 'Project documentation lookup.',
+            enabled: true,
+            commands: [
+              {
+                name: 'search_docs',
+                enabled: true,
+                inputSchema: {
+                  type: 'object',
+                },
+              },
+            ],
+          },
+        ],
+      }
+    );
+
+    expect(result.result).toBeNull();
+    expect(result.resultText).toBe(
+      JSON.stringify({
+        status: 'failed',
+        body: longError.slice(0, 491),
+        message:
+          'This response was too long, so it was trimmed to 491 characters. Feel free to make another request if necessary.',
+      })
+    );
   });
 
   test('accepts a direct enabled MCP command name as a call alias', async () => {

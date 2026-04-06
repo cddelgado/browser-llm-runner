@@ -3079,6 +3079,7 @@ const appController = createAppController({
       onWebLookupSearchComplete: handleWebLookupSearchComplete,
       fetchRef: corsAwareFetch,
       onDebug: appendDebug,
+      generationConfig: appState.activeGenerationConfig,
       pythonExecutor,
       workspaceFileSystem: getConversationWorkspaceFileSystem(),
     }),
