@@ -74,7 +74,7 @@ export const TOOL_DEFINITIONS = Object.freeze([
     name: 'web_lookup',
     displayName: 'Web Lookup',
     description: 'Interact with the web by calling {"input":"..."}.',
-    enabled: false,
+    enabled: true,
     parameters: {
       type: 'object',
       properties: {

@@ -7,8 +7,10 @@ import { normalizeMcpServerConfigs, summarizeMcpInputSchema } from '../llm/mcp-c
  *   documentRef?: Document;
  *   enableToolCallingStorageKey?: string;
  *   enabledToolsStorageKey?: string;
+ *   enabledToolMigrationsStorageKey?: string;
  *   mcpServersStorageKey?: string;
  *   availableToolDefinitions?: any[];
+ *   enabledToolMigrations?: Array<{id?: string; toolName?: string}>;
  *   enableToolCallingToggle?: HTMLInputElement | null;
  *   toolSettingsList?: HTMLElement | null;
  *   mcpServerEndpointInput?: HTMLInputElement | null;
@@ -23,8 +25,10 @@ export function createToolingPreferencesController({
   documentRef = document,
   enableToolCallingStorageKey,
   enabledToolsStorageKey,
+  enabledToolMigrationsStorageKey,
   mcpServersStorageKey,
   availableToolDefinitions = [],
+  enabledToolMigrations = [],
   enableToolCallingToggle,
   toolSettingsList,
   mcpServerEndpointInput,
@@ -53,6 +57,16 @@ export function createToolingPreferencesController({
   const availableToolNameSet = new Set(
     normalizedAvailableToolDefinitions.map((toolDefinition) => toolDefinition.name)
   );
+  const normalizedEnabledToolMigrations = Array.isArray(enabledToolMigrations)
+    ? enabledToolMigrations
+        .map((migration) => ({
+          id: typeof migration?.id === 'string' ? migration.id.trim() : '',
+          toolName: typeof migration?.toolName === 'string' ? migration.toolName.trim() : '',
+        }))
+        .filter(
+          (migration) => migration.id && migration.toolName && availableToolNameSet.has(migration.toolName)
+        )
+    : [];
 
   function getStoredToolCallingPreference() {
     const stored = storage.getItem(enableToolCallingStorageKey);
@@ -88,6 +102,59 @@ export function createToolingPreferencesController({
     } catch {
       return getDefaultEnabledToolNames();
     }
+  }
+
+  function getStoredEnabledToolMigrationIds() {
+    if (!enabledToolMigrationsStorageKey) {
+      return [];
+    }
+    const stored = storage.getItem(enabledToolMigrationsStorageKey);
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed)
+        ? parsed
+            .map((migrationId) => (typeof migrationId === 'string' ? migrationId.trim() : ''))
+            .filter(Boolean)
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function migrateStoredEnabledToolNamesPreference({ persist = false } = {}) {
+    const stored = storage.getItem(enabledToolsStorageKey);
+    const enabledToolNames = getStoredEnabledToolNamesPreference();
+    if (stored === null || !normalizedEnabledToolMigrations.length) {
+      return enabledToolNames;
+    }
+    const appliedMigrationIds = new Set(getStoredEnabledToolMigrationIds());
+    const nextEnabledToolNames = [...enabledToolNames];
+    let enabledToolNamesChanged = false;
+    let migrationIdsChanged = false;
+    normalizedEnabledToolMigrations.forEach((migration) => {
+      if (appliedMigrationIds.has(migration.id)) {
+        return;
+      }
+      if (!nextEnabledToolNames.includes(migration.toolName)) {
+        nextEnabledToolNames.push(migration.toolName);
+        enabledToolNamesChanged = true;
+      }
+      appliedMigrationIds.add(migration.id);
+      migrationIdsChanged = true;
+    });
+    if (persist && (enabledToolNamesChanged || migrationIdsChanged)) {
+      storage.setItem(enabledToolsStorageKey, JSON.stringify(nextEnabledToolNames));
+      if (enabledToolMigrationsStorageKey) {
+        storage.setItem(
+          enabledToolMigrationsStorageKey,
+          JSON.stringify([...appliedMigrationIds])
+        );
+      }
+    }
+    return nextEnabledToolNames;
   }
 
   function applyToolCallingPreference(value, { persist = false } = {}) {
@@ -612,6 +679,7 @@ export function createToolingPreferencesController({
     applyToolEnabledPreference,
     clearMcpServerFeedback,
     getStoredEnabledToolNamesPreference,
+    migrateStoredEnabledToolNamesPreference,
     getStoredMcpServersPreference,
     getStoredToolCallingPreference,
     importMcpServerEndpoint,

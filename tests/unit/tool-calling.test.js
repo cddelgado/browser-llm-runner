@@ -6,6 +6,7 @@ import {
   getEnabledToolDefinitions,
   sniffToolCalls,
 } from '../../src/llm/tool-calling.js';
+import { createCorsAwareFetch } from '../../src/llm/browser-fetch.js';
 import {
   buildShellToolResponseEnvelope,
   MAX_SHELL_TOOL_OUTPUT_LENGTH,
@@ -1263,7 +1264,7 @@ describe('tool-calling prompt builder', () => {
     expect(getToolDisplayName('lookup_fact')).toBe('Lookup Fact');
   });
 
-  test('includes the enabled tool definitions and excludes disabled web lookup', () => {
+  test('includes web_lookup in the enabled tool definitions', () => {
     expect(getEnabledToolDefinitions()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1275,19 +1276,16 @@ describe('tool-calling prompt builder', () => {
           displayName: 'Task List Planner',
         }),
         expect.objectContaining({
+          name: 'web_lookup',
+          displayName: 'Web Lookup',
+        }),
+        expect.objectContaining({
           name: 'write_python_file',
           displayName: 'Write Python File',
         }),
         expect.objectContaining({
           name: 'run_shell_command',
           displayName: 'Shell Command Runner',
-        }),
-      ])
-    );
-    expect(getEnabledToolDefinitions()).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: 'web_lookup',
         }),
       ])
     );
@@ -4166,6 +4164,58 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.body).toContain('Second paragraph.');
     expect(result.result.body).not.toContain('console.log');
     expect(result.result.message).toBeUndefined();
+  });
+
+  test('supports web_lookup page previews through the proxy-aware fetch helper', async () => {
+    const fetchRef = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        throw new TypeError('Failed to fetch');
+      })
+      .mockImplementationOnce(async (url, init = {}) => {
+        expect(url).toBe('https://example.com/lesson');
+        expect(init.mode).toBe('no-cors');
+        return new globalThis.Response('', { status: 200 });
+      })
+      .mockImplementationOnce(async (request) => {
+        expect(request).toBeInstanceOf(globalThis.Request);
+        expect(request.url).toBe('https://proxy.example/?url=https://example.com/lesson');
+        return new globalThis.Response(
+          '<!doctype html><html><head><title>Proxy Lesson</title></head><body><main><p>Read through proxy.</p></main></body></html>',
+          {
+            status: 200,
+            statusText: 'OK',
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+            },
+          }
+        );
+      });
+    const wrappedFetch = createCorsAwareFetch({
+      fetchRef,
+      getProxyUrl: () => 'https://proxy.example/?url=',
+      locationRef: {
+        href: 'https://app.example/chat',
+        origin: 'https://app.example',
+      },
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'web_lookup',
+        arguments: {
+          input: 'https://example.com/lesson',
+        },
+      },
+      {
+        fetchRef: wrappedFetch,
+      }
+    );
+
+    expect(result.result.status).toBe('successful');
+    expect(result.result.body).toContain('- Title: Proxy Lesson');
+    expect(result.result.body).toContain('Read through proxy.');
+    expect(fetchRef).toHaveBeenCalledTimes(3);
   });
 
   test('adds curl guidance when web_lookup truncates extracted content', async () => {

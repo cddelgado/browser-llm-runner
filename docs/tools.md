@@ -119,8 +119,6 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 
 ### `web_lookup`
 
-This tool remains implemented but is currently disabled and not exposed to models.
-
 - Display name: `Web Lookup`
 - Purpose: fetches one web page or DuckDuckGo search through the browser network stack and returns a compact response envelope for the model
 - Arguments:

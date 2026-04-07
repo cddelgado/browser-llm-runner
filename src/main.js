@@ -158,6 +158,7 @@ const THEME_STORAGE_KEY = 'ui-theme-preference';
 const SHOW_THINKING_STORAGE_KEY = 'ui-show-thinking';
 const ENABLE_TOOL_CALLING_STORAGE_KEY = 'conversation-enable-tool-calling';
 const ENABLED_TOOLS_STORAGE_KEY = 'conversation-enabled-tools';
+const ENABLED_TOOL_MIGRATIONS_STORAGE_KEY = 'conversation-enabled-tool-migrations';
 const RENDER_MATHML_STORAGE_KEY = 'conversation-render-mathml';
 const SINGLE_KEY_SHORTCUTS_STORAGE_KEY = 'ui-enable-single-key-shortcuts';
 const TRANSCRIPT_VIEW_STORAGE_KEY = 'ui-transcript-view';
@@ -2996,6 +2997,7 @@ const preferencesController = createPreferencesController({
   showThinkingStorageKey: SHOW_THINKING_STORAGE_KEY,
   enableToolCallingStorageKey: ENABLE_TOOL_CALLING_STORAGE_KEY,
   enabledToolsStorageKey: ENABLED_TOOLS_STORAGE_KEY,
+  enabledToolMigrationsStorageKey: ENABLED_TOOL_MIGRATIONS_STORAGE_KEY,
   renderMathMlStorageKey: RENDER_MATHML_STORAGE_KEY,
   singleKeyShortcutsStorageKey: SINGLE_KEY_SHORTCUTS_STORAGE_KEY,
   transcriptViewStorageKey: TRANSCRIPT_VIEW_STORAGE_KEY,
@@ -3069,7 +3071,6 @@ const {
   formatBackendPreferenceLabel,
   getAvailableModelId,
   getStoredDefaultSystemPrompt,
-  getStoredEnabledToolNamesPreference,
   getStoredMathRenderingPreference,
   getStoredMcpServersPreference,
   getStoredShowThinkingPreference,
@@ -3078,6 +3079,7 @@ const {
   getStoredToolCallingPreference,
   getStoredTranscriptViewPreference,
   getStoredConversationPanelCollapsedPreference,
+  migrateStoredEnabledToolNamesPreference,
   getWebGpuAvailability,
   importMcpServerEndpoint,
   normalizeBackendPreference,
@@ -3293,7 +3295,7 @@ const themePreference = getStoredThemePreference();
 applyTheme(themePreference);
 applyShowThinkingPreference(getStoredShowThinkingPreference());
 applyToolCallingPreference(getStoredToolCallingPreference());
-applyEnabledToolNamesPreference(getStoredEnabledToolNamesPreference());
+applyEnabledToolNamesPreference(migrateStoredEnabledToolNamesPreference({ persist: true }));
 applyCorsProxyPreference(getStoredCorsProxyPreference());
 applyMcpServersPreference(getStoredMcpServersPreference());
 applyMathRenderingPreference(getStoredMathRenderingPreference());

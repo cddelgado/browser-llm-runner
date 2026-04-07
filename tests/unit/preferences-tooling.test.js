@@ -53,8 +53,15 @@ function createHarness({
       documentRef: document,
       enableToolCallingStorageKey: 'tool-calling',
       enabledToolsStorageKey: 'enabled-tools',
+      enabledToolMigrationsStorageKey: 'enabled-tool-migrations',
       mcpServersStorageKey: 'mcp-servers',
       availableToolDefinitions,
+      enabledToolMigrations: [
+        {
+          id: '2026-04-06-enable-web-lookup',
+          toolName: 'web_lookup',
+        },
+      ],
       enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
       toolSettingsList: document.getElementById('toolSettingsList'),
       mcpServerEndpointInput: document.getElementById('mcpServerEndpointInput'),
@@ -94,6 +101,48 @@ describe('preferences-tooling', () => {
       JSON.stringify(['run_shell_command', 'tasklist', 'get_current_date_time'])
     );
     expect(harness.document.querySelector('[data-tool-name="tasklist"]')?.checked).toBe(true);
+  });
+
+  test('migrates stored enabled tools to add web_lookup once', () => {
+    const harness = createHarness({
+      availableToolDefinitions: [
+        {
+          name: 'run_shell_command',
+          displayName: 'Run Shell Command',
+          description: 'Execute shell commands.',
+        },
+        {
+          name: 'web_lookup',
+          displayName: 'Web Lookup',
+          description: 'Interact with the web.',
+        },
+      ],
+      appState: {
+        enableToolCalling: true,
+        enabledToolNames: ['run_shell_command'],
+        mcpServers: [],
+      },
+    });
+
+    harness.storage.setItem('enabled-tools', JSON.stringify(['run_shell_command']));
+
+    expect(harness.controller.migrateStoredEnabledToolNamesPreference({ persist: true })).toEqual([
+      'run_shell_command',
+      'web_lookup',
+    ]);
+    expect(harness.storage.getItem('enabled-tools')).toBe(
+      JSON.stringify(['run_shell_command', 'web_lookup'])
+    );
+    expect(harness.storage.getItem('enabled-tool-migrations')).toBe(
+      JSON.stringify(['2026-04-06-enable-web-lookup'])
+    );
+
+    harness.storage.setItem('enabled-tools', JSON.stringify(['run_shell_command']));
+
+    expect(harness.controller.migrateStoredEnabledToolNamesPreference({ persist: true })).toEqual([
+      'run_shell_command',
+    ]);
+    expect(harness.storage.getItem('enabled-tools')).toBe(JSON.stringify(['run_shell_command']));
   });
 
   test('imports a new MCP server, persists it, and clears the endpoint input', async () => {

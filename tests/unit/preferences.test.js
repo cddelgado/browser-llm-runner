@@ -75,6 +75,7 @@ function createPreferencesHarness({
       showThinkingStorageKey: 'show-thinking',
       enableToolCallingStorageKey: 'tool-calling',
       enabledToolsStorageKey: 'enabled-tools',
+      enabledToolMigrationsStorageKey: 'enabled-tool-migrations',
       renderMathMlStorageKey: 'render-mathml',
       singleKeyShortcutsStorageKey: 'single-key',
       transcriptViewStorageKey: 'transcript-view',
@@ -207,6 +208,27 @@ describe('preferences controller', () => {
     expect(harness.document.querySelector('[data-tool-name="tasklist"]')?.checked).toBe(true);
     expect(harness.document.querySelector('[data-tool-name="run_shell_command"]')?.checked).toBe(
       false
+    );
+  });
+
+  test('migrates stored tool preferences to include web_lookup once for existing users', () => {
+    const harness = createPreferencesHarness();
+
+    harness.document.defaultView?.localStorage.setItem(
+      'enabled-tools',
+      JSON.stringify(['get_current_date_time', 'tasklist'])
+    );
+
+    expect(harness.controller.migrateStoredEnabledToolNamesPreference({ persist: true })).toEqual([
+      'get_current_date_time',
+      'tasklist',
+      'web_lookup',
+    ]);
+    expect(harness.document.defaultView?.localStorage.getItem('enabled-tools')).toBe(
+      JSON.stringify(['get_current_date_time', 'tasklist', 'web_lookup'])
+    );
+    expect(harness.document.defaultView?.localStorage.getItem('enabled-tool-migrations')).toBe(
+      JSON.stringify(['2026-04-06-enable-web-lookup'])
     );
   });
 
@@ -382,7 +404,7 @@ describe('preferences controller', () => {
     harness.controller.populateModelSelect();
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
-    expect(cards.length).toBe(5);
+    expect(cards.length).toBe(modelSelect.querySelectorAll('option').length);
 
     const llama1BCard = cards.find((card) => card.textContent?.includes('Llama 3.2 1B Instruct'));
     expect(llama1BCard?.textContent).toContain('131,072 tokens');
