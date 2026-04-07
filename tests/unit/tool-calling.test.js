@@ -385,6 +385,36 @@ describe('tool-calling prompt builder', () => {
     );
   });
 
+  test('adds available uploaded skills and read_skill to the prompt', () => {
+    const prompt = buildToolCallingSystemPrompt(
+      {
+        format: 'json',
+        nameKey: 'name',
+        argumentsKey: 'arguments',
+      },
+      ['read_skill'],
+      [],
+      {
+        skills: [
+          {
+            id: 'skill-1',
+            name: 'Lesson Planner',
+            lookupName: 'lesson planner',
+            description: 'Plan lessons with objectives and quick checks.',
+            hasSkillMarkdown: true,
+            isUsable: true,
+            skillMarkdown: '# Lesson Planner\n\nPlan lessons with objectives and quick checks.',
+            filePaths: ['lesson-planner/SKILL.md'],
+          },
+        ],
+      }
+    );
+
+    expect(prompt).toContain('read_skill');
+    expect(prompt).toContain('Available Agent Skills');
+    expect(prompt).toContain('Lesson Planner: Plan lessons with objectives and quick checks.');
+  });
+
   test('adds a terminal-use instruction for get_user_location', () => {
     const prompt = buildToolCallingSystemPrompt(
       {
@@ -1645,6 +1675,76 @@ describe('tool-calling prompt builder', () => {
     expect(JSON.parse(result.resultText)).toMatchObject({
       iso: expect.any(String),
       unixMs: expect.any(Number),
+    });
+  });
+
+  test('executes read_skill for an available uploaded skill', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'read_skill',
+        arguments: {
+          name: 'Lesson Planner',
+        },
+      },
+      {
+        enabledToolNames: [],
+        skills: [
+          {
+            id: 'skill-1',
+            name: 'Lesson Planner',
+            lookupName: 'lesson planner',
+            description: 'Plan lessons with objectives.',
+            hasSkillMarkdown: true,
+            isUsable: true,
+            skillMarkdown: '# Lesson Planner\n\nPlan lessons with objectives.',
+            filePaths: ['lesson-planner/SKILL.md'],
+          },
+        ],
+      }
+    );
+
+    expect(result.toolName).toBe('read_skill');
+    expect(result.arguments).toEqual({ name: 'Lesson Planner' });
+    expect(result.result).toEqual({
+      status: 'success',
+      body: '# Lesson Planner\n\nPlan lessons with objectives.',
+    });
+    expect(JSON.parse(result.resultText)).toEqual({
+      status: 'success',
+      body: '# Lesson Planner\n\nPlan lessons with objectives.',
+    });
+  });
+
+  test('returns a failed envelope when read_skill references an unknown skill', async () => {
+    const result = await executeToolCall(
+      {
+        name: 'read_skill',
+        arguments: {
+          name: 'Missing Skill',
+        },
+      },
+      {
+        enabledToolNames: [],
+        skills: [
+          {
+            id: 'skill-1',
+            name: 'Lesson Planner',
+            lookupName: 'lesson planner',
+            description: 'Plan lessons with objectives.',
+            hasSkillMarkdown: true,
+            isUsable: true,
+            skillMarkdown: '# Lesson Planner\n\nPlan lessons with objectives.',
+            filePaths: ['lesson-planner/SKILL.md'],
+          },
+        ],
+      }
+    );
+
+    expect(result.toolName).toBe('read_skill');
+    expect(result.result).toBeNull();
+    expect(JSON.parse(result.resultText)).toEqual({
+      status: 'failed',
+      body: 'Unknown skill: Missing Skill',
     });
   });
 

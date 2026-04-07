@@ -26,6 +26,11 @@ function createHarness() {
             checked
           />
         </div>
+        <form id="skillPackageForm">
+          <input id="skillPackageInput" type="file" />
+          <button id="addSkillPackageButton" type="submit">Upload skill</button>
+        </form>
+        <div id="skillsList"></div>
         <form id="corsProxyForm">
           <input id="corsProxyInput" type="url" />
           <button id="saveCorsProxyButton" type="submit">Save proxy</button>
@@ -130,6 +135,10 @@ function createHarness() {
     showThinkingToggle: document.getElementById('showThinkingToggle'),
     enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
     toolSettingsList: document.getElementById('toolSettingsList'),
+    skillPackageForm: document.getElementById('skillPackageForm'),
+    skillPackageInput: document.getElementById('skillPackageInput'),
+    addSkillPackageButton: document.getElementById('addSkillPackageButton'),
+    skillsList: document.getElementById('skillsList'),
     corsProxyForm: document.getElementById('corsProxyForm'),
     corsProxyInput: document.getElementById('corsProxyInput'),
     saveCorsProxyButton: document.getElementById('saveCorsProxyButton'),
@@ -165,6 +174,9 @@ function createHarness() {
     applyShowThinkingPreference: vi.fn(),
     applyToolCallingPreference: vi.fn(),
     applyToolEnabledPreference: vi.fn(),
+    clearSkillPackageFeedback: vi.fn(),
+    importSkillPackageFile: vi.fn(async () => ({ name: 'Lesson Planner', isUsable: true })),
+    removeSkillPackagePreference: vi.fn(async () => true),
     saveCorsProxyPreference: vi.fn(async () => 'https://proxy.example/'),
     clearCorsProxyPreference: vi.fn(),
     setCorsProxyFeedback: vi.fn(),
@@ -187,6 +199,7 @@ function createHarness() {
       displayName: 'Docs',
     })),
     removeMcpServerPreference: vi.fn(),
+    setSkillPackageFeedback: vi.fn(),
     setMcpServerFeedback: vi.fn(),
     syncModelSelectionForCurrentEnvironment: vi.fn(() => 'model-b'),
     syncConversationLanguageAndThinkingControls: vi.fn(),

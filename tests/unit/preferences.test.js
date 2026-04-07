@@ -24,6 +24,9 @@ function createPreferencesHarness({
       <input id="showThinkingToggle" type="checkbox" />
       <input id="enableToolCallingToggle" type="checkbox" />
       <div id="toolSettingsList"></div>
+      <input id="skillPackageInput" type="file" />
+      <div id="skillPackageAddFeedback"></div>
+      <div id="skillsList"></div>
       <input id="corsProxyInput" type="url" />
       <div id="corsProxyFeedback"></div>
       <input id="mcpServerEndpointInput" type="url" />
@@ -92,8 +95,13 @@ function createPreferencesHarness({
       showThinkingToggle: document.getElementById('showThinkingToggle'),
       enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
       toolSettingsList: document.getElementById('toolSettingsList'),
+      skillPackageInput: document.getElementById('skillPackageInput'),
+      skillPackageAddFeedback: document.getElementById('skillPackageAddFeedback'),
+      skillsList: document.getElementById('skillsList'),
       corsProxyInput: document.getElementById('corsProxyInput'),
       corsProxyFeedback: document.getElementById('corsProxyFeedback'),
+      importSkillPackage: vi.fn(),
+      removeSkillPackage: vi.fn(),
       mcpServerEndpointInput: document.getElementById('mcpServerEndpointInput'),
       mcpServerAddFeedback: document.getElementById('mcpServerAddFeedback'),
       mcpServersList: document.getElementById('mcpServersList'),

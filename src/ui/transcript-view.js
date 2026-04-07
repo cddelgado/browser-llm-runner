@@ -841,6 +841,9 @@ export function createTranscriptView(dependencies) {
     if (toolName === 'run_shell_command') {
       return 'Running shell command';
     }
+    if (toolName === 'read_skill') {
+      return 'Reading skill';
+    }
     if (toolName === 'list_mcp_server_commands') {
       return 'Inspecting MCP server';
     }

@@ -16,6 +16,21 @@ function createHarness() {
           checked
         />
       </div>
+      <form id="skillPackageForm">
+        <input id="skillPackageInput" type="file" />
+        <button id="addSkillPackageButton" type="submit">Upload skill</button>
+      </form>
+      <div id="skillsList">
+        <button
+          id="skillPackageRemoveLesson"
+          type="button"
+          data-skill-package-remove="true"
+          data-skill-package-id="skill-1"
+          data-skill-package-name="Lesson Planner"
+        >
+          Remove
+        </button>
+      </div>
       <form id="corsProxyForm">
         <input id="corsProxyInput" type="url" />
         <button id="saveCorsProxyButton" type="submit">Save proxy</button>
@@ -64,6 +79,10 @@ function createHarness() {
   const deps = {
     enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
     toolSettingsList: document.getElementById('toolSettingsList'),
+    skillPackageForm: document.getElementById('skillPackageForm'),
+    skillPackageInput: document.getElementById('skillPackageInput'),
+    addSkillPackageButton: document.getElementById('addSkillPackageButton'),
+    skillsList: document.getElementById('skillsList'),
     corsProxyForm: document.getElementById('corsProxyForm'),
     corsProxyInput: document.getElementById('corsProxyInput'),
     saveCorsProxyButton: document.getElementById('saveCorsProxyButton'),
@@ -74,6 +93,12 @@ function createHarness() {
     mcpServersList: document.getElementById('mcpServersList'),
     applyToolCallingPreference: vi.fn(),
     applyToolEnabledPreference: vi.fn(),
+    clearSkillPackageFeedback: vi.fn(),
+    importSkillPackageFile: vi.fn(async () => ({
+      name: 'Lesson Planner',
+      isUsable: true,
+    })),
+    removeSkillPackagePreference: vi.fn(async () => true),
     saveCorsProxyPreference: vi.fn(async () => 'https://proxy.example/'),
     clearCorsProxyPreference: vi.fn(),
     setCorsProxyFeedback: vi.fn(),
@@ -85,6 +110,7 @@ function createHarness() {
     refreshConversationSystemPromptPreview: vi.fn(),
     refreshMcpServerPreference: vi.fn(async () => ({ displayName: 'Docs' })),
     removeMcpServerPreference: vi.fn(),
+    setSkillPackageFeedback: vi.fn(),
     setMcpServerFeedback: vi.fn(),
     setStatus: vi.fn(),
   };
@@ -98,6 +124,10 @@ function createHarness() {
     elements: {
       enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
       toolToggleShell: document.getElementById('toolToggleShell'),
+      skillPackageForm: document.getElementById('skillPackageForm'),
+      skillPackageInput: document.getElementById('skillPackageInput'),
+      addSkillPackageButton: document.getElementById('addSkillPackageButton'),
+      skillPackageRemoveLesson: document.getElementById('skillPackageRemoveLesson'),
       corsProxyForm: document.getElementById('corsProxyForm'),
       corsProxyInput: document.getElementById('corsProxyInput'),
       clearCorsProxyButton: document.getElementById('clearCorsProxyButton'),
@@ -138,6 +168,39 @@ describe('settings-events-tooling', () => {
       2,
       'Shell Command Runner disabled for tool calling.'
     );
+  });
+
+  test('skill package actions import, refresh the prompt preview, and remove packages', async () => {
+    const harness = createHarness();
+    const form = /** @type {HTMLFormElement} */ (harness.elements.skillPackageForm);
+    const input = /** @type {HTMLInputElement} */ (harness.elements.skillPackageInput);
+    const removeButton = /** @type {HTMLButtonElement} */ (
+      harness.elements.skillPackageRemoveLesson
+    );
+    const uploadedFile = { name: 'lesson-planner.zip' };
+
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [uploadedFile],
+    });
+
+    form.dispatchEvent(new harness.dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    removeButton.click();
+    await Promise.resolve();
+
+    expect(harness.deps.importSkillPackageFile).toHaveBeenCalledWith(uploadedFile, {
+      persist: true,
+    });
+    expect(harness.deps.removeSkillPackagePreference).toHaveBeenCalledWith('skill-1', {
+      persist: true,
+    });
+    expect(harness.deps.refreshConversationSystemPromptPreview).toHaveBeenCalledTimes(2);
+    expect(harness.deps.setStatus).toHaveBeenNthCalledWith(
+      1,
+      'Lesson Planner uploaded and exposed to the model.'
+    );
+    expect(harness.deps.setStatus).toHaveBeenNthCalledWith(2, 'Lesson Planner removed.');
   });
 
   test('cors proxy actions validate, save, clear, and announce status', async () => {

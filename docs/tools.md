@@ -5,7 +5,7 @@ This repo now includes a browser-local tool-calling loop with browser-mediated M
 This document covers both:
 
 - the current implemented built-in and MCP tool-calling behavior
-- the remaining `SKILL.md` planning
+- the current uploaded `SKILL.md` skill support
 
 ## What it does
 
@@ -25,11 +25,13 @@ If the selected model does not support tool calling, the tool-instruction sectio
 Users can disable individual built-in tools in `Settings -> Tools`; disabled tools are removed from the tool-instruction section and ignored by the local tool-execution loop.
 Users can configure one validated prefix-style CORS proxy in `Settings -> Proxy`; validation uses an MCP `initialize` probe against `https://example-server.modelcontextprotocol.io/mcp`, browser-networked features retry through the saved proxy only when a direct cross-origin request appears blocked by CORS, and query-string prefixes such as `...?url=` are allowed.
 Users configure MCP endpoints in `Settings -> MCP Servers`; imported servers start disabled, all discovered commands start disabled, and disabled servers or commands are omitted from the prompt and rejected by execution.
+Users can upload local skill packages in `Settings -> Skills`; packages are extracted into dedicated browser-local skills storage, can be reviewed or removed in that settings panel, and only packages containing a single `SKILL.md` file are exposed to the model.
 
 The prompt keeps all callable tool surfaces in one model-specific tool inventory section, then separates only the generic post-tool behavior and model-specific call syntax:
 
 - By default, `Tools available in this conversation` is a markdown list of the enabled tools and any tool-specific usage notes.
 - Liquid LFM models use a JSON-formatted `List of tools: [...]` block in the system prompt instead of that markdown list.
+- When uploaded skills are available, the same prompt block also includes `read_skill` plus an `Available Agent Skills` section listing each skill name and description.
 - When MCP is available, the same model-specific section also includes `list_mcp_server_commands` and `call_mcp_server_command`, plus the enabled MCP server inventory rendered in that model's list style.
 - When MCP is available, the system prompt also includes an `Example MCP Server Tool Calls` section that uses a fake server and fake command names in the selected model's exact tool-call wrapper.
 - `Tool behavior` covers only generic behavior after a tool result is returned.
@@ -50,6 +52,7 @@ That empty object is not a universal synonym for "this tool has no inputs." It o
 Today, the app implements:
 
 - a small built-in tool registry
+- a local uploaded-skill registry backed by dedicated browser storage
 - a local tool execution loop
 - browser-mediated MCP HTTP inspection and execution for user-configured servers
 
@@ -61,7 +64,8 @@ Current MCP constraints:
 - only enabled servers with enabled commands are exposed to the model or executable through the harness
 - MCP HTTP requests use the shared browser fetch helper, so they can retry through the validated proxy only after a likely CORS block
 - proxy validation plus MCP initialize/list/call failures write transport details into `Settings -> Debug`, alongside complete per-turn raw model-output blobs, so browser-side request, status, parse, and model-emission problems are inspectable without devtools
-- `SKILL.md` discovery and selective ingestion are still not implemented
+- uploaded skill packages stay local to the browser and are stored outside `/workspace`
+- only single-file `SKILL.md` packages are exposed to the model in the current implementation
 
 ## Built-in tools
 
@@ -258,6 +262,26 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js), [src/llm/shell-command-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/shell-command-tool.js), [src/llm/python-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/python-tool.js), [src/llm/python-runtime-client.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/python-runtime-client.js), and [src/workers/python.worker.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/workers/python.worker.js).
 
+### `read_skill`
+
+- Display name: `Read Skill`
+- Purpose: returns the stored `SKILL.md` markdown for one uploaded usable skill package
+- Availability:
+  - this is an implicit tool, not a toggle in `Settings -> Tools`
+  - it appears only when at least one uploaded package contains exactly one `SKILL.md` file
+- Arguments:
+  - required `name`
+- Success result shape:
+  - `status: "success"`
+  - `body`: the stored `SKILL.md` markdown
+- Failure result shape:
+  - `status: "failed"`
+  - `body`: error detail such as an unknown skill name
+- Model-facing syntax:
+  - `{"name":"Skill Name"}`
+
+This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js).
+
 ### Standard for future shell commands
 
 Any new command added to `run_shell_command` should meet the same baseline as the current subset.
@@ -386,14 +410,15 @@ Skills may:
 - rely on MCP-backed utilities
 - combine multiple steps or decision rules that are too broad to fit a single simple function call
 
-The design intent is similar to a library workflow:
+Current implementation:
 
-- the model should be aware that skills exist
-- the model should have a short description of what skills can offer
-- the model should be able to request a list of available skills through a tool call
-- the model should ingest or invoke a selected skill only when needed
+- users upload local `.zip` packages in `Settings -> Skills`
+- packages are extracted into dedicated browser-local skills storage and do not enter `/workspace`
+- the base prompt lists only the uploaded usable skills by name and short description under `Available Agent Skills`
+- the model reads the full markdown only when it calls `read_skill`
+- only packages containing a single `SKILL.md` file are exposed to the model today
 
-Skills should therefore remain discoverable and selectively loaded, rather than being fully embedded into the base prompt by default.
+This keeps skills discovery-first instead of embedding every full skill body into the base prompt.
 
 ## Prompting philosophy
 
@@ -403,7 +428,7 @@ System-prompt additions should:
 
 - mention enabled direct function calls for small discrete tasks
 - mention enabled MCP servers and the discovery/call syntax needed to inspect them
-- keep future `SKILL.md` support discovery-first as well
+- keep `SKILL.md` support discovery-first as well
 - avoid dumping full MCP inventories or full skill bodies into the base context
 
 This keeps prompt context smaller, reduces distraction, and encourages the model to pull in only the capability descriptions it actually needs for the current task.
@@ -499,7 +524,8 @@ This is still an early implementation.
 - Tool execution is explicit; built-in tools run in-browser, while MCP calls go through browser fetch to configured endpoints.
 - Detection and parsing are driven by per-model metadata rather than a universal Transformers.js orchestration API.
 - The current built-in tool registry is code-defined, but users can turn the currently available built-in tools on or off from `Settings -> Tools`.
+- Uploaded skill packages are configured in `Settings -> Skills`; only single-file `SKILL.md` packages are exposed through the implicit `read_skill` tool.
 - MCP endpoints are configured in `Settings -> MCP Servers`; imported servers and imported commands default to off.
 - MCP support is limited to browser-reachable `https` endpoints, or `http://localhost`, without OAuth or token-based authentication.
 - The current streaming interception path acts on the first complete tool call detected in a streamed turn, then resumes generation after that tool result is available.
-- `SKILL.md` discovery and selective ingestion are planned but not implemented yet.
+- Skill packages are markdown-only in the current implementation; multi-file skill bundles can be stored for review but are not exposed to the model.

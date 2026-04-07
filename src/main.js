@@ -48,6 +48,11 @@ import {
   getToolDisplayName,
   sniffToolCalls,
 } from './llm/tool-calling.js';
+import {
+  getUsableSkillPackages,
+  normalizeSkillLookupName,
+  parseSkillArchiveBytes,
+} from './skills/skill-packages.js';
 import renameChatOrchestration from './config/orchestrations/rename-chat.json';
 import fixResponseOrchestration from './config/orchestrations/fix-response.json';
 import {
@@ -105,6 +110,7 @@ import {
   applyStoredConversationState,
   buildConversationStateSnapshot,
 } from './state/conversation-serialization.js';
+import { loadSkillPackages, removeSkillPackage, saveSkillPackage } from './state/skill-store.js';
 import {
   beginAttachmentOperation,
   clearTerminalDismissal,
@@ -212,6 +218,11 @@ const themeSelect = document.getElementById('themeSelect');
 const showThinkingToggle = document.getElementById('showThinkingToggle');
 const enableToolCallingToggle = document.getElementById('enableToolCallingToggle');
 const toolSettingsList = document.getElementById('toolSettingsList');
+const skillPackageForm = document.getElementById('skillPackageForm');
+const skillPackageInput = document.getElementById('skillPackageInput');
+const addSkillPackageButton = document.getElementById('addSkillPackageButton');
+const skillPackageAddFeedback = document.getElementById('skillPackageAddFeedback');
+const skillsList = document.getElementById('skillsList');
 const corsProxyForm = document.getElementById('corsProxyForm');
 const corsProxyInput = document.getElementById('corsProxyInput');
 const saveCorsProxyButton = document.getElementById('saveCorsProxyButton');
@@ -1492,6 +1503,10 @@ function getConfiguredEnabledToolDefinitions() {
   return getEnabledToolDefinitions(appState.enabledToolNames);
 }
 
+function getConfiguredAvailableSkills() {
+  return getUsableSkillPackages(appState.skillPackages);
+}
+
 function getConfiguredEnabledMcpServers() {
   return getEnabledMcpServerConfigs(appState.mcpServers);
 }
@@ -1502,15 +1517,19 @@ function getToolCallingContext(modelId) {
   const supported = enabled && modelSupportsToolCalling(modelId) && Boolean(config);
   const enabledToolDefinitions = getConfiguredEnabledToolDefinitions();
   const enabledTools = getConfiguredEnabledToolNames();
+  const enabledSkills = getConfiguredAvailableSkills();
   const enabledMcpServers = getConfiguredEnabledMcpServers();
-  const implicitToolNames = supported ? getImplicitlyEnabledToolNames(enabledMcpServers) : [];
+  const implicitToolNames = supported
+    ? getImplicitlyEnabledToolNames(enabledMcpServers, enabledSkills)
+    : [];
   const implicitToolDefinitions = supported
-    ? getImplicitlyEnabledToolDefinitions(enabledMcpServers)
+    ? getImplicitlyEnabledToolDefinitions(enabledMcpServers, enabledSkills)
     : [];
   return {
     enabled,
     supported,
-    enabledTools,
+    enabledTools: [...new Set([...enabledTools, ...implicitToolNames])],
+    enabledSkills,
     enabledToolDefinitions: [...enabledToolDefinitions, ...implicitToolDefinitions],
     enabledMcpServers,
     exposedToolNames: [...new Set([...enabledTools, ...implicitToolNames])],
@@ -1528,6 +1547,7 @@ function getToolCallingSystemPromptSuffix(modelId) {
     toolContext.exposedToolNames,
     toolContext.enabledToolDefinitions,
     {
+      skills: toolContext.enabledSkills,
       mcpServers: toolContext.enabledMcpServers,
     }
   );
@@ -2988,6 +3008,40 @@ const routingShell = createRoutingShell({
 const { setActiveSettingsTab, setSettingsPageVisibility, updateWelcomePanelVisibility } =
   routingShell;
 
+async function importSkillPackage(file, { existingSkillPackages = [] } = {}) {
+  if (!file || typeof file.arrayBuffer !== 'function') {
+    throw new Error('Choose a valid skill zip before uploading.');
+  }
+  if (!/\.zip$/i.test(file.name)) {
+    throw new Error('Skill packages must be uploaded as .zip files.');
+  }
+  const parsedSkillPackage = parseSkillArchiveBytes(new Uint8Array(await file.arrayBuffer()), {
+    packageName: file.name,
+  });
+  if (parsedSkillPackage.isUsable) {
+    const normalizedLookupName = normalizeSkillLookupName(parsedSkillPackage.name);
+    const existingMatch = getUsableSkillPackages(existingSkillPackages).find(
+      (skillPackage) => skillPackage.lookupName === normalizedLookupName
+    );
+    if (existingMatch) {
+      throw new Error(`A skill named "${parsedSkillPackage.name}" has already been added.`);
+    }
+  }
+  const savedSkillPackage = await saveSkillPackage(parsedSkillPackage);
+  if (!savedSkillPackage) {
+    throw new Error('Skill package storage is unavailable in this browser session.');
+  }
+  return savedSkillPackage;
+}
+
+async function deleteSkillPackage(skillPackageId) {
+  const removed = await removeSkillPackage(skillPackageId);
+  if (!removed) {
+    throw new Error('The selected skill package could not be removed.');
+  }
+  return true;
+}
+
 const preferencesController = createPreferencesController({
   appState,
   storage: localStorage,
@@ -3014,8 +3068,13 @@ const preferencesController = createPreferencesController({
   showThinkingToggle,
   enableToolCallingToggle,
   toolSettingsList,
+  skillPackageInput,
+  skillPackageAddFeedback,
+  skillsList,
   corsProxyInput,
   corsProxyFeedback,
+  importSkillPackage,
+  removeSkillPackage: deleteSkillPackage,
   mcpServerEndpointInput,
   addMcpServerButton,
   mcpServerAddFeedback,
@@ -3054,6 +3113,7 @@ const {
   applyCorsProxyPreference,
   applyMathRenderingPreference,
   applyEnabledToolNamesPreference,
+  applySkillPackagesPreference,
   applyShowThinkingPreference,
   applyTheme,
   applyToolEnabledPreference,
@@ -3064,6 +3124,7 @@ const {
   applyTranscriptViewPreference,
   applyConversationPanelCollapsedPreference,
   applySingleKeyShortcutPreference,
+  clearSkillPackageFeedback,
   clearCorsProxyFeedback,
   clearCorsProxyPreference,
   clearMcpServerFeedback,
@@ -3081,18 +3142,21 @@ const {
   getStoredConversationPanelCollapsedPreference,
   migrateStoredEnabledToolNamesPreference,
   getWebGpuAvailability,
+  importSkillPackageFile,
   importMcpServerEndpoint,
   normalizeBackendPreference,
   persistInferencePreferences,
   populateModelSelect,
   probeWebGpuAvailability,
   readEngineConfigFromUI,
+  removeSkillPackagePreference,
   saveCorsProxyPreference,
   refreshMcpServerPreference,
   removeMcpServerPreference,
   restoreInferencePreferences,
   setSelectedModelId,
   setCorsProxyFeedback,
+  setSkillPackageFeedback,
   setMcpServerFeedback,
   syncModelSelectionForCurrentEnvironment,
 } = preferencesController;
@@ -3123,6 +3187,19 @@ function applyConversationThinkingPreference(value, { persist = false } = {}) {
     appState.pendingConversationThinkingEnabled = nextValue;
   }
   syncConversationLanguageAndThinkingControls(activeConversation);
+}
+
+async function restoreSkillPackagesFromStorage() {
+  try {
+    applySkillPackagesPreference(await loadSkillPackages());
+    updateConversationSystemPromptPreview();
+  } catch (error) {
+    appendDebug({
+      kind: 'skill-packages',
+      message: 'Failed to restore skill packages.',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function resetPendingConversationModelPreferences() {
@@ -3160,6 +3237,7 @@ const appController = createAppController({
     executeToolCall(toolCall, {
       conversation: getActiveConversation(),
       enabledToolNames: getConfiguredEnabledToolNames(),
+      skills: getConfiguredAvailableSkills(),
       mcpServers: getConfiguredEnabledMcpServers(),
       requestToolConsent,
       onShellCommandStart: handleShellCommandStart,
@@ -3331,6 +3409,7 @@ skipLinkElements.forEach((link) => {
 });
 updateSkipLinkVisibility();
 applyAppRouteFromHash();
+void restoreSkillPackagesFromStorage();
 void restoreConversationStateFromStorage();
 
 bindSettingsEvents({
@@ -3346,6 +3425,10 @@ bindSettingsEvents({
   showThinkingToggle,
   enableToolCallingToggle,
   toolSettingsList,
+  skillPackageForm,
+  skillPackageInput,
+  addSkillPackageButton,
+  skillsList,
   corsProxyForm,
   corsProxyInput,
   saveCorsProxyButton,
@@ -3382,6 +3465,9 @@ bindSettingsEvents({
   applyShowThinkingPreference,
   applyToolCallingPreference,
   applyToolEnabledPreference,
+  clearSkillPackageFeedback,
+  importSkillPackageFile,
+  removeSkillPackagePreference,
   saveCorsProxyPreference,
   clearCorsProxyPreference,
   setCorsProxyFeedback,
@@ -3405,6 +3491,7 @@ bindSettingsEvents({
   refreshConversationSystemPromptPreview: updateConversationSystemPromptPreview,
   refreshMcpServerPreference,
   removeMcpServerPreference,
+  setSkillPackageFeedback,
   setMcpServerFeedback,
   syncModelSelectionForCurrentEnvironment,
   syncConversationLanguageAndThinkingControls,

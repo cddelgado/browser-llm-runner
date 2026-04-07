@@ -45,6 +45,10 @@ Student-facing browser chat UI with local model inference.
   - imported servers start disabled, and every discovered command starts disabled
   - per-server accordions with metadata, refresh/remove actions, and per-command toggles
   - disabled MCP servers and disabled MCP commands are omitted from the computed system prompt and rejected by the local tool-execution loop
+- `Settings -> Skills` includes:
+  - uploading local `.zip` skill packages into dedicated browser-local skills storage that is separate from `/workspace`, conversations, and MCP settings
+  - per-package accordions with stored metadata, the exact `SKILL.md` preview, and remove actions
+  - only packages containing a single `SKILL.md` file are exposed to the model
 - `Settings -> Conversation` includes:
   - `Render MathML from LaTeX` to control transcript math rendering and the matching math-formatting prompt hint
   - `Enable single-key transcript shortcuts` to disable focused transcript shortcuts like `E`, `B`, `R`, `F`, and `C`
@@ -153,10 +157,12 @@ Student-facing browser chat UI with local model inference.
 - When prompt-driven feature guidance is enabled, the effective system prompt appends that guidance before any tool-calling instructions.
 - The effective system prompt also appends conversation-level language steering when a response language is selected and model-specific thinking-mode switch instructions when the selected model exposes them.
 - When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt and any enabled feature guidance.
+- When one or more usable uploaded skill packages exist, that tool-calling block also includes `read_skill` plus an `Available Agent Skills` section listing each skill name and description.
 - When one or more configured MCP servers are enabled and have enabled commands, that tool-calling block includes `list_mcp_server_commands` and `call_mcp_server_command` in the model-specific tool inventory, with the enabled MCP server inventory rendered in that same model-specific list style.
 - Those MCP helper tools run through the same tool harness as built-in tools and are not user-toggled in `Settings -> Tools`; their availability is derived from enabled MCP servers and enabled commands.
-- Tool-calling behavior, transcript presentation, export semantics, the current built-in and MCP tool surfaces, and the remaining `SKILL.md` planning are documented in `docs/tools.md`.
+- Tool-calling behavior, transcript presentation, export semantics, the current built-in, skill, and MCP tool surfaces are documented in `docs/tools.md`.
 - The current built-in tool catalog exposed to models includes date/time lookup, user location lookup, the `web_lookup` URL/search tool, a `tasklist` planner whose latest state is derived from inline tasklist tool results on the visible conversation branch, a `write_python_file` tool for longer `/workspace/*.py` scripts, and a browser-local `run_shell_command` tool that exposes a documented GNU/Linux-like command subset over `/workspace`.
+- When one or more usable uploaded skill packages exist, the model also gets the implicit `read_skill` tool, which returns the stored `SKILL.md` markdown for one named skill.
 - When enabled MCP servers exist, the model also gets the MCP helper tools `list_mcp_server_commands` and `call_mcp_server_command`; those helpers expose only enabled servers and enabled commands.
 - The preferred MCP path remains `list_mcp_server_commands` then `call_mcp_server_command`; if a model emits a direct enabled MCP command name anyway, the runtime treats it as an alias only when exactly one enabled server exposes that command name.
 - The fetch-backed `web_lookup` page/search tool is exposed to models when enabled in `Settings -> Tools`.

@@ -38,6 +38,7 @@ export const ORCHESTRATION_KINDS = Object.freeze({
  *   defaultSystemPrompt?: string;
  *   enableToolCalling?: boolean;
  *   enabledToolNames?: string[];
+ *   skillPackages?: any[];
  *   mcpServers?: any[];
  *   renderMathMl?: boolean;
  *   corsProxyUrl?: string;
@@ -49,6 +50,7 @@ export function createAppState({
   defaultSystemPrompt = '',
   enableToolCalling = true,
   enabledToolNames = [],
+  skillPackages = [],
   mcpServers = [],
   renderMathMl = true,
   corsProxyUrl = '',
@@ -79,6 +81,7 @@ export function createAppState({
     showThinkingByDefault: false,
     enableToolCalling: Boolean(enableToolCalling),
     enabledToolNames: Array.isArray(enabledToolNames) ? [...enabledToolNames] : [],
+    skillPackages: Array.isArray(skillPackages) ? [...skillPackages] : [],
     mcpServers: Array.isArray(mcpServers) ? [...mcpServers] : [],
     renderMathMl: Boolean(renderMathMl),
     enableSingleKeyShortcuts: true,

@@ -8,9 +8,11 @@ import {
   getEnabledMcpServerConfigs,
   summarizeMcpInputSchema,
 } from './mcp-client.js';
+import { findUsableSkillPackageByName, getUsableSkillPackages } from '../skills/skill-packages.js';
 
 export const MCP_SERVER_COMMAND_LIST_TOOL = 'list_mcp_server_commands';
 export const MCP_SERVER_COMMAND_CALL_TOOL = 'call_mcp_server_command';
+export const READ_SKILL_TOOL = 'read_skill';
 
 export const TOOL_DEFINITIONS = Object.freeze([
   {
@@ -162,6 +164,24 @@ export const MCP_TOOL_DEFINITIONS = Object.freeze([
   },
 ]);
 
+export const SKILL_TOOL_DEFINITIONS = Object.freeze([
+  {
+    name: READ_SKILL_TOOL,
+    displayName: 'Read Skill',
+    description: 'Returns the full SKILL.md markdown for one available uploaded skill.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+        },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  },
+]);
+
 const reverseGeocodeCache = new Map();
 const WEB_LOOKUP_FAILURE_MESSAGE =
   'Use a direct https URL and retry with a simpler page if the request or extraction fails.';
@@ -254,6 +274,7 @@ export function getToolDefinitionByName(toolName) {
   return (
     TOOL_DEFINITIONS.find((tool) => tool?.name === normalizedName) ||
     MCP_TOOL_DEFINITIONS.find((tool) => tool?.name === normalizedName) ||
+    SKILL_TOOL_DEFINITIONS.find((tool) => tool?.name === normalizedName) ||
     null
   );
 }
@@ -292,14 +313,22 @@ export function getEnabledToolNames(requestedToolNames = null) {
     .filter(Boolean);
 }
 
-export function getImplicitlyEnabledToolNames(configuredMcpServers = []) {
-  return getEnabledMcpServerConfigs(configuredMcpServers).length
-    ? MCP_TOOL_DEFINITIONS.map((tool) => tool.name)
-    : [];
+export function getImplicitlyEnabledToolNames(configuredMcpServers = [], skillPackages = []) {
+  return [
+    ...(getEnabledMcpServerConfigs(configuredMcpServers).length
+      ? MCP_TOOL_DEFINITIONS.map((tool) => tool.name)
+      : []),
+    ...(getUsableSkillPackages(skillPackages).length
+      ? SKILL_TOOL_DEFINITIONS.map((tool) => tool.name)
+      : []),
+  ];
 }
 
-export function getImplicitlyEnabledToolDefinitions(configuredMcpServers = []) {
-  return getEnabledMcpServerConfigs(configuredMcpServers).length ? [...MCP_TOOL_DEFINITIONS] : [];
+export function getImplicitlyEnabledToolDefinitions(configuredMcpServers = [], skillPackages = []) {
+  return [
+    ...(getEnabledMcpServerConfigs(configuredMcpServers).length ? [...MCP_TOOL_DEFINITIONS] : []),
+    ...(getUsableSkillPackages(skillPackages).length ? [...SKILL_TOOL_DEFINITIONS] : []),
+  ];
 }
 
 function getNormalizedToolList(enabledToolNames = []) {
@@ -405,6 +434,23 @@ function buildMcpServerInventoryLines(enabledMcpServers = []) {
         ? ` Enabled commands: ${enabledCommands.join(', ')}.`
         : ' Enabled commands: none.';
       return `- ${identifier}${description}${commandSummary}`;
+    }),
+  ];
+}
+
+function buildAvailableSkillLines(skillPackages = []) {
+  const availableSkills = getUsableSkillPackages(skillPackages);
+  if (!availableSkills.length) {
+    return [];
+  }
+  return [
+    '**Available Agent Skills:**',
+    ...availableSkills.map((skillPackage) => {
+      const description =
+        typeof skillPackage?.description === 'string' && skillPackage.description.trim()
+          ? `: ${skillPackage.description.trim()}`
+          : '';
+      return `- ${skillPackage.name}${description}`;
     }),
   ];
 }
@@ -558,6 +604,16 @@ function getToolInstructionNotes(name) {
       bulleted: true,
     });
   }
+  if (normalizedName === READ_SKILL_TOOL) {
+    notes.push({
+      text: 'Use this when one of the listed agent skills would help.',
+      bulleted: true,
+    });
+    notes.push({
+      text: 'Call with {"name":"Skill Name"}. The response body is the SKILL.md markdown.',
+      bulleted: true,
+    });
+  }
   if (normalizedName === MCP_SERVER_COMMAND_LIST_TOOL) {
     notes.push({
       text: 'Use this first when you need to inspect one enabled MCP server.',
@@ -609,7 +665,8 @@ function buildResolvedToolDefinitions(toolList = [], enabledTools = []) {
 function buildJsonToolListLines(
   resolvedToolDefinitions = [],
   enabledMcpServers = [],
-  toolCallingConfig = {}
+  toolCallingConfig = {},
+  availableSkills = []
 ) {
   if (!Array.isArray(resolvedToolDefinitions) || !resolvedToolDefinitions.length) {
     return [];
@@ -632,6 +689,10 @@ function buildJsonToolListLines(
     };
   });
   const lines = [`List of tools: ${JSON.stringify(serializedTools)}`];
+  if (Array.isArray(availableSkills) && availableSkills.length) {
+    lines.push('');
+    lines.push(...buildAvailableSkillLines(availableSkills));
+  }
   if (Array.isArray(enabledMcpServers) && enabledMcpServers.length) {
     lines.push('');
     lines.push(...buildMcpServerInventoryLines(enabledMcpServers));
@@ -645,9 +706,10 @@ export function buildToolCallingSystemPrompt(
   toolCallingConfig,
   enabledToolNames = [],
   enabledTools = [],
-  { mcpServers = [] } = {}
+  { skills = [], mcpServers = [] } = {}
 ) {
   const enabledMcpServers = getEnabledMcpServerConfigs(mcpServers);
+  const availableSkills = getUsableSkillPackages(skills);
   const toolList = getNormalizedToolList(enabledToolNames).filter(
     (toolName) => toolName !== 'none'
   );
@@ -658,10 +720,16 @@ export function buildToolCallingSystemPrompt(
   const toolListFormat = toolCallingConfig?.toolListFormat === 'json' ? 'json' : 'markdown';
   const toolLines =
     toolListFormat === 'json'
-      ? buildJsonToolListLines(resolvedToolDefinitions, enabledMcpServers, toolCallingConfig)
+      ? buildJsonToolListLines(
+          resolvedToolDefinitions,
+          enabledMcpServers,
+          toolCallingConfig,
+          availableSkills
+        )
       : [
           '**Tools available in this conversation:**\nThese are the tools you can call.',
           ...buildEnabledToolInstructions(resolvedToolDefinitions),
+          ...(availableSkills.length ? ['', ...buildAvailableSkillLines(availableSkills)] : []),
           ...(enabledMcpServers.length ? ['', ...buildMcpServerInventoryLines(enabledMcpServers)] : []),
           ...(enabledMcpServers.length
             ? ['', ...buildMcpServerExampleLines(toolCallingConfig, enabledMcpServers)]
@@ -1806,6 +1874,40 @@ function buildMcpCommandListResult(server) {
   };
 }
 
+function getValidatedReadSkillArguments(argumentsValue = {}) {
+  if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
+    throw new Error(`${READ_SKILL_TOOL} arguments must be an object.`);
+  }
+  const skillArguments = /** @type {{name?: unknown}} */ (argumentsValue);
+  const supportedKeys = new Set(['name']);
+  const unexpectedKeys = Object.keys(argumentsValue).filter((key) => !supportedKeys.has(key));
+  if (unexpectedKeys.length) {
+    throw new Error(`${READ_SKILL_TOOL} does not accept: ${unexpectedKeys.join(', ')}.`);
+  }
+  const skillName = typeof skillArguments.name === 'string' ? skillArguments.name.trim() : '';
+  if (!skillName) {
+    throw new Error(`${READ_SKILL_TOOL} requires name.`);
+  }
+  return {
+    name: skillName,
+  };
+}
+
+function executeReadSkill(argumentsValue = {}, runtimeContext = {}) {
+  const { name } = getValidatedReadSkillArguments(argumentsValue);
+  const resolvedSkillPackage = findUsableSkillPackageByName(runtimeContext.skills, name);
+  if (!resolvedSkillPackage) {
+    throw new Error(`Unknown skill: ${name}`);
+  }
+  if (resolvedSkillPackage?.ambiguous) {
+    throw new Error(`Skill name is ambiguous: ${name}`);
+  }
+  return {
+    status: 'success',
+    body: typeof resolvedSkillPackage.skillMarkdown === 'string' ? resolvedSkillPackage.skillMarkdown : '',
+  };
+}
+
 function executeListMcpServerCommands(argumentsValue = {}, runtimeContext = {}) {
   const { server: serverSelector } = getValidatedMcpServerListArguments(argumentsValue);
   const configuredServer = findMcpServerConfig(runtimeContext.mcpServers, serverSelector, {
@@ -1855,9 +1957,11 @@ function getAllowedToolNamesForRuntime(runtimeContext = {}) {
       ? getEnabledToolNames(runtimeContext.enabledToolNames)
       : []
   );
-  getImplicitlyEnabledToolNames(runtimeContext.mcpServers).forEach((toolName) => {
-    allowedToolNames.add(toolName);
-  });
+  getImplicitlyEnabledToolNames(runtimeContext.mcpServers, runtimeContext.skills).forEach(
+    (toolName) => {
+      allowedToolNames.add(toolName);
+    }
+  );
   return allowedToolNames;
 }
 
@@ -1921,6 +2025,15 @@ const TOOL_EXECUTORS = Object.freeze({
           ? result.responseEnvelope
           : buildShellToolResponseEnvelope(result)
       ),
+  },
+  [READ_SKILL_TOOL]: {
+    execute: (argumentsValue, runtimeContext) => executeReadSkill(argumentsValue, runtimeContext),
+    serializeResult: (result) =>
+      JSON.stringify({
+        status: result?.status === 'failed' ? 'failed' : 'success',
+        body: typeof result?.body === 'string' ? result.body : '',
+      }),
+    serializeError: (error) => buildFailedToolEnvelope(error),
   },
   [MCP_SERVER_COMMAND_LIST_TOOL]: {
     execute: (argumentsValue, runtimeContext) =>

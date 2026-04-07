@@ -1,4 +1,5 @@
 import { normalizeMcpServerConfigs, summarizeMcpInputSchema } from '../llm/mcp-client.js';
+import { normalizeSkillPackages } from '../skills/skill-packages.js';
 
 /**
  * @param {{
@@ -13,6 +14,11 @@ import { normalizeMcpServerConfigs, summarizeMcpInputSchema } from '../llm/mcp-c
  *   enabledToolMigrations?: Array<{id?: string; toolName?: string}>;
  *   enableToolCallingToggle?: HTMLInputElement | null;
  *   toolSettingsList?: HTMLElement | null;
+ *   skillPackageInput?: HTMLInputElement | null;
+ *   skillPackageAddFeedback?: HTMLElement | null;
+ *   skillsList?: HTMLElement | null;
+ *   importSkillPackage?: ((file: File, options?: any) => Promise<any>) | null;
+ *   removeSkillPackage?: ((skillPackageId: string, options?: any) => Promise<boolean>) | null;
  *   mcpServerEndpointInput?: HTMLInputElement | null;
  *   mcpServerAddFeedback?: HTMLElement | null;
  *   mcpServersList?: HTMLElement | null;
@@ -31,6 +37,11 @@ export function createToolingPreferencesController({
   enabledToolMigrations = [],
   enableToolCallingToggle,
   toolSettingsList,
+  skillPackageInput,
+  skillPackageAddFeedback,
+  skillsList,
+  importSkillPackage = null,
+  removeSkillPackage = null,
   mcpServerEndpointInput,
   mcpServerAddFeedback,
   mcpServersList,
@@ -217,6 +228,11 @@ export function createToolingPreferencesController({
     }
   }
 
+  function applySkillPackagesPreference(value) {
+    appState.skillPackages = normalizeSkillPackages(value);
+    renderSkillPackagePreferences();
+  }
+
   function applyToolEnabledPreference(toolName, value, { persist = false } = {}) {
     const normalizedToolName = typeof toolName === 'string' ? toolName.trim() : '';
     if (!availableToolNameSet.has(normalizedToolName)) {
@@ -229,6 +245,43 @@ export function createToolingPreferencesController({
       nextEnabledToolNames.delete(normalizedToolName);
     }
     applyEnabledToolNamesPreference([...nextEnabledToolNames], { persist });
+  }
+
+  async function importSkillPackageFile(file, { persist = true } = {}) {
+    if (typeof importSkillPackage !== 'function') {
+      throw new Error('Skill package import is unavailable.');
+    }
+    const importedSkillPackage = await importSkillPackage(file, {
+      persist,
+      existingSkillPackages: normalizeSkillPackages(appState.skillPackages),
+    });
+    const nextSkillPackages = normalizeSkillPackages([
+      ...normalizeSkillPackages(appState.skillPackages),
+      importedSkillPackage,
+    ]);
+    applySkillPackagesPreference(nextSkillPackages);
+    if (skillPackageInput instanceof HTMLInputElement) {
+      skillPackageInput.value = '';
+    }
+    clearSkillPackageFeedback();
+    return importedSkillPackage;
+  }
+
+  async function removeSkillPackagePreference(skillPackageId, { persist = true } = {}) {
+    const normalizedSkillPackageId =
+      typeof skillPackageId === 'string' ? skillPackageId.trim() : '';
+    if (!normalizedSkillPackageId) {
+      return false;
+    }
+    if (typeof removeSkillPackage === 'function') {
+      await removeSkillPackage(normalizedSkillPackageId, { persist });
+    }
+    const nextSkillPackages = normalizeSkillPackages(appState.skillPackages).filter(
+      (skillPackage) => skillPackage.id !== normalizedSkillPackageId
+    );
+    applySkillPackagesPreference(nextSkillPackages);
+    clearSkillPackageFeedback();
+    return true;
   }
 
   function getStoredMcpServersPreference() {
@@ -278,6 +331,87 @@ export function createToolingPreferencesController({
     setMcpServerFeedback('');
   }
 
+  function setSkillPackageFeedback(message = '', variant = 'info') {
+    if (!(skillPackageAddFeedback instanceof HTMLElement)) {
+      return;
+    }
+    const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+    skillPackageAddFeedback.className = '';
+    skillPackageAddFeedback.replaceChildren();
+    if (!normalizedMessage) {
+      skillPackageAddFeedback.classList.add('d-none');
+      skillPackageAddFeedback.removeAttribute('role');
+      return;
+    }
+    skillPackageAddFeedback.classList.remove('d-none');
+    skillPackageAddFeedback.setAttribute('role', variant === 'danger' ? 'alert' : 'status');
+    skillPackageAddFeedback.classList.add(
+      'alert',
+      variant === 'danger'
+        ? 'alert-danger'
+        : variant === 'success'
+          ? 'alert-success'
+          : 'alert-secondary',
+      'py-2',
+      'px-3',
+      'mb-0'
+    );
+    skillPackageAddFeedback.textContent = normalizedMessage;
+  }
+
+  function clearSkillPackageFeedback() {
+    setSkillPackageFeedback('');
+  }
+
+  function captureAccordionUiState(container) {
+    if (!(container instanceof HTMLElement)) {
+      return {
+        expandedPanelIds: new Set(),
+        focusedElementId: '',
+        scrollTop: 0,
+      };
+    }
+    const expandedPanelIds = new Set(
+      Array.from(container.querySelectorAll('.accordion-collapse.show'))
+        .map((panel) => (panel instanceof HTMLElement ? panel.id : ''))
+        .filter(Boolean)
+    );
+    const activeElement =
+      documentRef.activeElement instanceof HTMLElement && container.contains(documentRef.activeElement)
+        ? documentRef.activeElement
+        : null;
+    return {
+      expandedPanelIds,
+      focusedElementId: activeElement?.id || '',
+      scrollTop: container.scrollTop,
+    };
+  }
+
+  function restoreAccordionUiState(container, { expandedPanelIds, focusedElementId, scrollTop }) {
+    if (!(container instanceof HTMLElement)) {
+      return;
+    }
+    expandedPanelIds.forEach((panelId) => {
+      const panel = documentRef.getElementById(panelId);
+      if (!(panel instanceof HTMLElement)) {
+        return;
+      }
+      panel.classList.add('show');
+      const headerButton = container.querySelector(`[data-bs-target="#${panelId}"]`);
+      if (headerButton instanceof HTMLElement) {
+        headerButton.classList.remove('collapsed');
+        headerButton.setAttribute('aria-expanded', 'true');
+      }
+    });
+    container.scrollTop = typeof scrollTop === 'number' ? scrollTop : 0;
+    if (focusedElementId) {
+      const nextFocusTarget = documentRef.getElementById(focusedElementId);
+      if (nextFocusTarget instanceof HTMLElement) {
+        nextFocusTarget.focus({ preventScroll: true });
+      }
+    }
+  }
+
   function buildMcpServerToggleId(serverIdentifier) {
     return `mcpServerToggle-${serverIdentifier.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
   }
@@ -294,6 +428,41 @@ export function createToolingPreferencesController({
       return server.endpoint;
     }
     return 'Configured MCP server.';
+  }
+
+  function buildSkillPackagePanelId(skillPackageId) {
+    return `skillPackagePanel-${skillPackageId.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+  }
+
+  function buildSkillPackageHeadingId(skillPackageId) {
+    return `skillPackageHeading-${skillPackageId.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+  }
+
+  function buildSkillPackageRemoveButtonId(skillPackageId) {
+    return `skillPackageRemove-${skillPackageId.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+  }
+
+  function buildSkillPackageStatusText(skillPackage) {
+    if (skillPackage?.isUsable) {
+      return 'Ready';
+    }
+    if (skillPackage?.hasSkillMarkdown) {
+      return 'Not exposed to model';
+    }
+    return 'Missing SKILL.md';
+  }
+
+  function buildSkillPackageSummaryText(skillPackage) {
+    if (skillPackage?.description) {
+      return skillPackage.description;
+    }
+    if (skillPackage?.issue) {
+      return skillPackage.issue;
+    }
+    if (skillPackage?.packageName) {
+      return skillPackage.packageName;
+    }
+    return 'Uploaded skill package.';
   }
 
   function appendMetadataEntry(list, label, value) {
@@ -314,61 +483,150 @@ export function createToolingPreferencesController({
     list.appendChild(description);
   }
 
-  function captureMcpServerListUiState() {
-    if (!(mcpServersList instanceof HTMLElement)) {
-      return {
-        expandedPanelIds: new Set(),
-        focusedElementId: '',
-        scrollTop: 0,
-      };
-    }
-    const expandedPanelIds = new Set(
-      Array.from(mcpServersList.querySelectorAll('.accordion-collapse.show'))
-        .map((panel) => (panel instanceof HTMLElement ? panel.id : ''))
-        .filter(Boolean)
-    );
-    const activeElement =
-      documentRef.activeElement instanceof HTMLElement &&
-      mcpServersList.contains(documentRef.activeElement)
-        ? documentRef.activeElement
-        : null;
-    return {
-      expandedPanelIds,
-      focusedElementId: activeElement?.id || '',
-      scrollTop: mcpServersList.scrollTop,
-    };
-  }
-
-  function restoreMcpServerListUiState({ expandedPanelIds, focusedElementId, scrollTop }) {
-    if (!(mcpServersList instanceof HTMLElement)) {
+  function renderSkillPackagePreferences() {
+    if (!(skillsList instanceof HTMLElement)) {
       return;
     }
-    expandedPanelIds.forEach((panelId) => {
-      const panel = documentRef.getElementById(panelId);
-      if (!(panel instanceof HTMLElement)) {
-        return;
-      }
-      panel.classList.add('show');
-      const headerButton = mcpServersList.querySelector(`[data-bs-target="#${panelId}"]`);
-      if (headerButton instanceof HTMLElement) {
-        headerButton.classList.remove('collapsed');
-        headerButton.setAttribute('aria-expanded', 'true');
-      }
-    });
-    mcpServersList.scrollTop = typeof scrollTop === 'number' ? scrollTop : 0;
-    if (focusedElementId) {
-      const nextFocusTarget = documentRef.getElementById(focusedElementId);
-      if (nextFocusTarget instanceof HTMLElement) {
-        nextFocusTarget.focus({ preventScroll: true });
-      }
+    const uiState = captureAccordionUiState(skillsList);
+    const skillPackages = normalizeSkillPackages(appState.skillPackages);
+    skillsList.replaceChildren();
+    if (!skillPackages.length) {
+      const emptyState = documentRef.createElement('p');
+      emptyState.className = 'text-body-secondary mb-0';
+      emptyState.textContent = 'No skill packages added yet.';
+      skillsList.appendChild(emptyState);
+      return;
     }
+
+    skillPackages.forEach((skillPackage) => {
+      const skillPackageId = skillPackage.id || skillPackage.lookupName || skillPackage.name;
+      const headingId = buildSkillPackageHeadingId(skillPackageId);
+      const panelId = buildSkillPackagePanelId(skillPackageId);
+      const accordionItem = documentRef.createElement('div');
+      accordionItem.className = 'accordion-item';
+
+      const header = documentRef.createElement('h4');
+      header.className = 'accordion-header';
+      header.id = headingId;
+
+      const headerButton = documentRef.createElement('button');
+      headerButton.className = 'accordion-button collapsed';
+      headerButton.type = 'button';
+      headerButton.setAttribute('data-bs-toggle', 'collapse');
+      headerButton.setAttribute('data-bs-target', `#${panelId}`);
+      headerButton.setAttribute('aria-expanded', 'false');
+      headerButton.setAttribute('aria-controls', panelId);
+
+      const headerSummary = documentRef.createElement('span');
+      headerSummary.className = 'mcp-server-summary';
+      const headerTitle = documentRef.createElement('span');
+      headerTitle.textContent = skillPackage.name;
+      headerSummary.appendChild(headerTitle);
+      const headerDescription = documentRef.createElement('small');
+      headerDescription.textContent = buildSkillPackageSummaryText(skillPackage);
+      headerSummary.appendChild(headerDescription);
+      headerButton.appendChild(headerSummary);
+      header.appendChild(headerButton);
+      accordionItem.appendChild(header);
+
+      const collapse = documentRef.createElement('div');
+      collapse.id = panelId;
+      collapse.className = 'accordion-collapse collapse';
+      collapse.setAttribute('aria-labelledby', headingId);
+
+      const body = documentRef.createElement('div');
+      body.className = 'accordion-body d-flex flex-column gap-3';
+
+      const controls = documentRef.createElement('div');
+      controls.className = 'd-flex flex-wrap align-items-start justify-content-between gap-3';
+      const statusBlock = documentRef.createElement('div');
+      const statusHeading = documentRef.createElement('p');
+      statusHeading.className = 'form-label mb-1';
+      statusHeading.textContent = 'Package status';
+      statusBlock.appendChild(statusHeading);
+      const statusValue = documentRef.createElement('p');
+      statusValue.className = 'mb-0';
+      statusValue.textContent = buildSkillPackageStatusText(skillPackage);
+      statusBlock.appendChild(statusValue);
+      controls.appendChild(statusBlock);
+
+      const actionGroup = documentRef.createElement('div');
+      actionGroup.className = 'd-flex flex-wrap gap-2';
+      const removeButton = documentRef.createElement('button');
+      removeButton.type = 'button';
+      removeButton.id = buildSkillPackageRemoveButtonId(skillPackageId);
+      removeButton.className = 'btn btn-outline-danger btn-sm';
+      removeButton.textContent = 'Remove package';
+      removeButton.dataset.skillPackageRemove = 'true';
+      removeButton.dataset.skillPackageId = skillPackage.id;
+      removeButton.dataset.skillPackageName = skillPackage.name;
+      actionGroup.appendChild(removeButton);
+      controls.appendChild(actionGroup);
+      body.appendChild(controls);
+
+      const metadata = documentRef.createElement('dl');
+      metadata.className = 'mcp-server-metadata mb-0';
+      appendMetadataEntry(metadata, 'Name', skillPackage.name);
+      appendMetadataEntry(metadata, 'Lookup name', skillPackage.lookupName);
+      appendMetadataEntry(metadata, 'Package file', skillPackage.packageName);
+      appendMetadataEntry(metadata, 'Status', buildSkillPackageStatusText(skillPackage));
+      appendMetadataEntry(metadata, 'Description', skillPackage.description);
+      appendMetadataEntry(metadata, 'SKILL.md path', skillPackage.skillFilePath);
+      appendMetadataEntry(
+        metadata,
+        'Files',
+        Array.isArray(skillPackage.filePaths) && skillPackage.filePaths.length
+          ? skillPackage.filePaths.join(', ')
+          : ''
+      );
+      body.appendChild(metadata);
+
+      if (skillPackage.issue) {
+        const issue = documentRef.createElement('div');
+        issue.className = skillPackage.isUsable
+          ? 'alert alert-secondary py-2 px-3 mb-0'
+          : 'alert alert-warning py-2 px-3 mb-0';
+        issue.textContent = skillPackage.issue;
+        body.appendChild(issue);
+      }
+
+      const markdownGroup = documentRef.createElement('div');
+      const markdownHeading = documentRef.createElement('p');
+      markdownHeading.className = 'form-label mb-1';
+      markdownHeading.textContent = 'SKILL.md';
+      markdownGroup.appendChild(markdownHeading);
+      const markdownHelp = documentRef.createElement('p');
+      markdownHelp.className = 'form-text mt-0 mb-2';
+      markdownHelp.textContent =
+        'This preview shows the exact stored markdown returned by read_skill.';
+      markdownGroup.appendChild(markdownHelp);
+
+      if (skillPackage.skillMarkdown) {
+        const markdownPreview = documentRef.createElement('pre');
+        markdownPreview.className = 'skill-markdown-preview mb-0';
+        markdownPreview.textContent = skillPackage.skillMarkdown;
+        markdownGroup.appendChild(markdownPreview);
+      } else {
+        const emptyState = documentRef.createElement('p');
+        emptyState.className = 'text-body-secondary mb-0';
+        emptyState.textContent = 'This package does not include a readable SKILL.md file.';
+        markdownGroup.appendChild(emptyState);
+      }
+
+      body.appendChild(markdownGroup);
+      collapse.appendChild(body);
+      accordionItem.appendChild(collapse);
+      skillsList.appendChild(accordionItem);
+    });
+
+    restoreAccordionUiState(skillsList, uiState);
   }
 
   function renderMcpServerPreferences() {
     if (!(mcpServersList instanceof HTMLElement)) {
       return;
     }
-    const uiState = captureMcpServerListUiState();
+    const uiState = captureAccordionUiState(mcpServersList);
     const servers = normalizeMcpServerConfigs(appState.mcpServers);
     mcpServersList.replaceChildren();
     if (!servers.length) {
@@ -537,7 +795,7 @@ export function createToolingPreferencesController({
       accordionItem.appendChild(collapse);
       mcpServersList.appendChild(accordionItem);
     });
-    restoreMcpServerListUiState(uiState);
+    restoreAccordionUiState(mcpServersList, uiState);
   }
 
   function applyMcpServersPreference(value, { persist = false } = {}) {
@@ -667,24 +925,31 @@ export function createToolingPreferencesController({
   }
 
   renderToolAvailabilityPreferences();
+  renderSkillPackagePreferences();
   renderMcpServerPreferences();
+  clearSkillPackageFeedback();
   clearMcpServerFeedback();
 
   return {
     applyEnabledToolNamesPreference,
+    applySkillPackagesPreference,
     applyMcpServerCommandEnabledPreference,
     applyMcpServerEnabledPreference,
     applyMcpServersPreference,
     applyToolCallingPreference,
     applyToolEnabledPreference,
+    clearSkillPackageFeedback,
     clearMcpServerFeedback,
     getStoredEnabledToolNamesPreference,
     migrateStoredEnabledToolNamesPreference,
     getStoredMcpServersPreference,
     getStoredToolCallingPreference,
+    importSkillPackageFile,
     importMcpServerEndpoint,
+    removeSkillPackagePreference,
     refreshMcpServerPreference,
     removeMcpServerPreference,
+    setSkillPackageFeedback,
     setMcpServerFeedback,
   };
 }

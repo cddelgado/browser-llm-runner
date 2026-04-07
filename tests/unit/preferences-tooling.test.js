@@ -20,17 +20,29 @@ function createHarness({
       description: 'Read the local clock.',
     },
   ],
-  appState = {
-    enableToolCalling: true,
-    enabledToolNames: ['run_shell_command', 'get_current_date_time'],
-    mcpServers: [],
-  },
+  appState = {},
   inspectMcpServerEndpoint = vi.fn(),
+  importSkillPackage = vi.fn(async () => ({
+    id: 'skill-1',
+    packageName: 'lesson-planner.zip',
+    name: 'Lesson Planner',
+    lookupName: 'lesson planner',
+    description: 'Plan lessons with objectives.',
+    hasSkillMarkdown: true,
+    isUsable: true,
+    skillFilePath: 'lesson-planner/SKILL.md',
+    skillMarkdown: '# Lesson Planner\n\nPlan lessons with objectives.',
+    filePaths: ['lesson-planner/SKILL.md'],
+  })),
+  removeSkillPackage = vi.fn(async () => true),
 } = {}) {
   const dom = new JSDOM(
     `
       <input id="enableToolCallingToggle" type="checkbox" />
       <div id="toolSettingsList"></div>
+      <input id="skillPackageInput" type="file" />
+      <div id="skillPackageAddFeedback"></div>
+      <div id="skillsList"></div>
       <input id="mcpServerEndpointInput" type="url" />
       <div id="mcpServerAddFeedback"></div>
       <div id="mcpServersList"></div>
@@ -42,13 +54,20 @@ function createHarness({
   globalThis.window = dom.window;
   globalThis.HTMLElement = dom.window.HTMLElement;
   globalThis.HTMLInputElement = dom.window.HTMLInputElement;
+  const normalizedAppState = {
+    enableToolCalling: true,
+    enabledToolNames: ['run_shell_command', 'get_current_date_time'],
+    skillPackages: [],
+    mcpServers: [],
+    ...appState,
+  };
 
   return {
-    appState,
+    appState: normalizedAppState,
     document,
     storage: dom.window.localStorage,
     controller: createToolingPreferencesController({
-      appState,
+      appState: normalizedAppState,
       storage: dom.window.localStorage,
       documentRef: document,
       enableToolCallingStorageKey: 'tool-calling',
@@ -64,12 +83,19 @@ function createHarness({
       ],
       enableToolCallingToggle: document.getElementById('enableToolCallingToggle'),
       toolSettingsList: document.getElementById('toolSettingsList'),
+      skillPackageInput: document.getElementById('skillPackageInput'),
+      skillPackageAddFeedback: document.getElementById('skillPackageAddFeedback'),
+      skillsList: document.getElementById('skillsList'),
+      importSkillPackage,
+      removeSkillPackage,
       mcpServerEndpointInput: document.getElementById('mcpServerEndpointInput'),
       mcpServerAddFeedback: document.getElementById('mcpServerAddFeedback'),
       mcpServersList: document.getElementById('mcpServersList'),
       inspectMcpServerEndpoint,
     }),
     inspectMcpServerEndpoint,
+    importSkillPackage,
+    removeSkillPackage,
   };
 }
 
@@ -143,6 +169,42 @@ describe('preferences-tooling', () => {
       'run_shell_command',
     ]);
     expect(harness.storage.getItem('enabled-tools')).toBe(JSON.stringify(['run_shell_command']));
+  });
+
+  test('renders imported skill packages and removes them from state', async () => {
+    const harness = createHarness();
+
+    await harness.controller.importSkillPackageFile({ name: 'lesson-planner.zip' }, { persist: true });
+
+    expect(harness.importSkillPackage).toHaveBeenCalledWith(
+      { name: 'lesson-planner.zip' },
+      {
+        persist: true,
+        existingSkillPackages: [],
+      }
+    );
+    expect(harness.appState.skillPackages).toEqual([
+      expect.objectContaining({
+        id: 'skill-1',
+        name: 'Lesson Planner',
+        isUsable: true,
+      }),
+    ]);
+    expect(harness.document.getElementById('skillsList')?.textContent).toContain('Lesson Planner');
+    expect(harness.document.getElementById('skillsList')?.textContent).toContain(
+      'Plan lessons with objectives.'
+    );
+    expect(harness.document.getElementById('skillsList')?.textContent).toContain(
+      '# Lesson Planner'
+    );
+
+    await harness.controller.removeSkillPackagePreference('skill-1', { persist: true });
+
+    expect(harness.removeSkillPackage).toHaveBeenCalledWith('skill-1', { persist: true });
+    expect(harness.appState.skillPackages).toEqual([]);
+    expect(harness.document.getElementById('skillsList')?.textContent).toContain(
+      'No skill packages added yet.'
+    );
   });
 
   test('imports a new MCP server, persists it, and clears the endpoint input', async () => {

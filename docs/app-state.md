@@ -31,6 +31,8 @@ That keeps the app in the pre-chat model-selection view without creating or pers
 Another is the pending attachment-operation counter.
 That lets the shell disable send and attachment controls while uploads are still being normalized, hashed, or written into `/workspace`, so a message cannot be submitted before its selected files are actually ready.
 
+The same centralized state also now carries uploaded skill-package metadata so the settings UI, prompt builder, and local tool harness all resolve the same browser-local skill inventory.
+
 ## Current boundary
 
 - `src/state/app-state.js`

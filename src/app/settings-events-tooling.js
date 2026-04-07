@@ -7,6 +7,10 @@ function refreshPromptPreview(refreshConversationSystemPromptPreview) {
 export function bindToolingSettingsEvents({
   enableToolCallingToggle,
   toolSettingsList,
+  skillPackageForm,
+  skillPackageInput,
+  addSkillPackageButton,
+  skillsList,
   corsProxyForm,
   corsProxyInput,
   saveCorsProxyButton,
@@ -17,6 +21,9 @@ export function bindToolingSettingsEvents({
   mcpServersList,
   applyToolCallingPreference,
   applyToolEnabledPreference,
+  clearSkillPackageFeedback,
+  importSkillPackageFile,
+  removeSkillPackagePreference,
   saveCorsProxyPreference,
   clearCorsProxyPreference,
   setCorsProxyFeedback,
@@ -28,6 +35,7 @@ export function bindToolingSettingsEvents({
   refreshConversationSystemPromptPreview,
   refreshMcpServerPreference,
   removeMcpServerPreference,
+  setSkillPackageFeedback,
   setMcpServerFeedback,
   setStatus,
 }) {
@@ -58,6 +66,113 @@ export function bindToolingSettingsEvents({
           ? `${toolLabel} enabled for tool calling.`
           : `${toolLabel} disabled for tool calling.`
       );
+    });
+  }
+
+  async function handleSkillPackageImport() {
+    const file =
+      skillPackageInput instanceof HTMLInputElement && skillPackageInput.files?.length
+        ? skillPackageInput.files[0]
+        : null;
+    if (!file) {
+      if (typeof setSkillPackageFeedback === 'function') {
+        setSkillPackageFeedback('Choose a skill zip before uploading.', 'danger');
+      }
+      setStatus('Choose a skill zip before uploading.');
+      return;
+    }
+    if (addSkillPackageButton instanceof HTMLButtonElement) {
+      addSkillPackageButton.disabled = true;
+    }
+    if (typeof setSkillPackageFeedback === 'function') {
+      setSkillPackageFeedback('Importing skill package...', 'info');
+    }
+    try {
+      const importedSkillPackage = await importSkillPackageFile(file, { persist: true });
+      refreshPromptPreview(refreshConversationSystemPromptPreview);
+      const statusMessage = importedSkillPackage.isUsable
+        ? `${importedSkillPackage.name} uploaded and exposed to the model.`
+        : `${importedSkillPackage.name} uploaded. Only single-file SKILL.md packages are exposed to the model.`;
+      if (typeof setSkillPackageFeedback === 'function') {
+        setSkillPackageFeedback(statusMessage, importedSkillPackage.isUsable ? 'success' : 'info');
+      }
+      setStatus(statusMessage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (typeof setSkillPackageFeedback === 'function') {
+        setSkillPackageFeedback(message, 'danger');
+      }
+      setStatus(message);
+    } finally {
+      if (addSkillPackageButton instanceof HTMLButtonElement) {
+        addSkillPackageButton.disabled = false;
+      }
+    }
+  }
+
+  if (
+    skillPackageForm instanceof HTMLElement &&
+    skillPackageForm.tagName === 'FORM'
+  ) {
+    skillPackageForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      void handleSkillPackageImport();
+    });
+  }
+
+  if (skillPackageInput instanceof HTMLInputElement) {
+    skillPackageInput.addEventListener('input', () => {
+      if (typeof clearSkillPackageFeedback === 'function') {
+        clearSkillPackageFeedback();
+      }
+    });
+    skillPackageInput.addEventListener('change', () => {
+      if (typeof clearSkillPackageFeedback === 'function') {
+        clearSkillPackageFeedback();
+      }
+    });
+  }
+
+  if (skillsList instanceof HTMLElement) {
+    skillsList.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      const removeButton = target.closest('button[data-skill-package-remove="true"]');
+      if (!(removeButton instanceof HTMLButtonElement)) {
+        return;
+      }
+      const skillPackageId =
+        typeof removeButton.dataset.skillPackageId === 'string'
+          ? removeButton.dataset.skillPackageId
+          : '';
+      const skillPackageName =
+        typeof removeButton.dataset.skillPackageName === 'string' &&
+        removeButton.dataset.skillPackageName.trim()
+          ? removeButton.dataset.skillPackageName.trim()
+          : 'Skill package';
+      removeButton.disabled = true;
+      void removeSkillPackagePreference(skillPackageId, { persist: true })
+        .then(
+          () => {
+            refreshPromptPreview(refreshConversationSystemPromptPreview);
+            if (typeof clearSkillPackageFeedback === 'function') {
+              clearSkillPackageFeedback();
+            }
+            setStatus(`${skillPackageName} removed.`);
+          },
+          (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            if (typeof setSkillPackageFeedback === 'function') {
+              setSkillPackageFeedback(message, 'danger');
+            }
+            setStatus(message);
+          }
+        )
+        .finally(() => {
+          removeButton.disabled = false;
+        });
     });
   }
 

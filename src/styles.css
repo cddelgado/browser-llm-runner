@@ -2196,6 +2196,23 @@
   max-width: 52rem;
 }
 
+.skill-markdown-preview {
+  max-width: 52rem;
+  max-height: 24rem;
+  padding: 0.9rem 1rem;
+  overflow: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--card-radius);
+  background: color-mix(in srgb, var(--surface-elevated) 78%, var(--surface-subtle));
+  color: var(--ink-strong);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .settings-page .form-select,
 .settings-page .form-check-input {
   background-color: var(--control-bg);

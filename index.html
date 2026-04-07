@@ -604,6 +604,17 @@
                     <button
                       type="button"
                       class="nav-link"
+                      id="settingsTabSkills"
+                      role="tab"
+                      data-settings-tab="skills"
+                      aria-controls="settingsSkillsPanel"
+                      aria-selected="false"
+                    >
+                      Skills
+                    </button>
+                    <button
+                      type="button"
+                      class="nav-link"
                       id="settingsTabProxy"
                       role="tab"
                       data-settings-tab="proxy"
@@ -973,6 +984,52 @@
                         id="toolSettingsList"
                         class="d-flex flex-column gap-3"
                         aria-labelledby="availableToolsLabel"
+                      ></div>
+                    </div>
+                  </section>
+
+                  <section
+                    id="settingsSkillsPanel"
+                    class="settings-tab-panel d-none"
+                    role="tabpanel"
+                    data-settings-tab-panel="skills"
+                    aria-labelledby="settingsTabSkills"
+                  >
+                    <h3 class="h6 mb-0" id="settingsSkillsHeading">Skills</h3>
+                    <div class="settings-control-group">
+                      <form id="skillPackageForm" class="mcp-server-form">
+                        <label class="form-label" for="skillPackageInput">Skill package</label>
+                        <div class="input-group">
+                          <input
+                            id="skillPackageInput"
+                            class="form-control"
+                            type="file"
+                            accept=".zip,application/zip"
+                            aria-describedby="skillPackageHelp skillPackageAddFeedback"
+                          />
+                          <button id="addSkillPackageButton" type="submit" class="btn btn-primary">
+                            Upload package
+                          </button>
+                        </div>
+                        <p id="skillPackageHelp" class="form-text mb-0">
+                          Upload zip packages that contain only one <code>SKILL.md</code> file.
+                          Skill packages stay local to this browser in dedicated skills storage.
+                          Packages with extra files can still be reviewed here, but only single-file
+                          <code>SKILL.md</code> packages are exposed to the model.
+                        </p>
+                        <div id="skillPackageAddFeedback" class="d-none" aria-live="polite"></div>
+                      </form>
+                    </div>
+                    <div class="settings-control-group">
+                      <p class="form-label mb-1" id="skillsListLabel">Uploaded skill packages</p>
+                      <p class="form-text mt-0">
+                        Browse the stored <code>SKILL.md</code> content for each package or remove a
+                        package from this browser.
+                      </p>
+                      <div
+                        id="skillsList"
+                        class="accordion settings-accordion"
+                        aria-labelledby="skillsListLabel"
                       ></div>
                     </div>
                   </section>

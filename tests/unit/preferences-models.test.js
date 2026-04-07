@@ -75,7 +75,7 @@ describe('preferences-models', () => {
     harness.controller.populateModelSelect();
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
-    expect(cards.length).toBe(5);
+    expect(cards.length).toBe(modelSelect.querySelectorAll('option').length);
 
     const gemmaCard = cards.find((card) => card.textContent?.includes('Gemma 4 E2B'));
     expect(gemmaCard?.textContent).toContain('131,072 tokens');
