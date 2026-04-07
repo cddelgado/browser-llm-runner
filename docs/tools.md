@@ -332,7 +332,7 @@ The MCP helper tools are not user-toggled. They become available automatically w
   - sends the provided `arguments` object to the configured MCP endpoint only when invoked
 - Model-facing syntax:
   - `{"server":"server_identifier","command":"command_name","arguments":{...}}`
-  - Large MCP response bodies are trimmed in the stored tool-result text to 6% of the active `maxContextTokens` setting, with a follow-up note telling the model it can make another request if needed.
+  - Large MCP response bodies first collapse repeated blank-line runs to one newline, then trim in the stored tool-result text to 7.5% of the active `maxContextTokens` setting, with a follow-up note telling the model it can make another request if needed.
 
 ## Capability model
 

@@ -165,11 +165,17 @@ export const MCP_TOOL_DEFINITIONS = Object.freeze([
 const reverseGeocodeCache = new Map();
 const WEB_LOOKUP_FAILURE_MESSAGE =
   'Use a direct https URL and retry with a simpler page if the request or extraction fails.';
-const MCP_TOOL_BODY_FRACTION_OF_CONTEXT = 0.06;
+const MCP_TOOL_BODY_FRACTION_OF_CONTEXT = 0.075;
 const DEFAULT_MCP_TOOL_BODY_LENGTH = 500;
 
+function collapseExtraNewlines(text) {
+  return text.replace(/\r\n?/g, '\n').replace(/\n[\t \f\v]*\n+/g, '\n');
+}
+
 function trimToolBody(text, maxLength) {
-  const normalizedText = typeof text === 'string' ? text : String(text ?? '');
+  const normalizedText = collapseExtraNewlines(
+    typeof text === 'string' ? text : String(text ?? '')
+  );
   if (!Number.isFinite(maxLength) || maxLength <= 0 || normalizedText.length <= maxLength) {
     return {
       text: normalizedText,

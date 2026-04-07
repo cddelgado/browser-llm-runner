@@ -794,7 +794,7 @@ describe('tool-calling prompt builder', () => {
   });
 
   test('trims long MCP command responses in the serialized tool result', async () => {
-    const longBody = 'A'.repeat(700);
+    const longBody = `${'A'.repeat(300)}\n\n\n${'B'.repeat(400)}`;
     const fetchRef = vi
       .fn()
       .mockResolvedValueOnce(
@@ -895,15 +895,15 @@ describe('tool-calling prompt builder', () => {
         status: 'success',
         server: 'docs',
         command: 'search_docs',
-        body: longBody.slice(0, 491),
+        body: `${'A'.repeat(300)}\n${'B'.repeat(313)}`,
         message:
-          'This response was too long, so it was trimmed to 491 characters. Feel free to make another request if necessary.',
+          'This response was too long, so it was trimmed to 614 characters. Feel free to make another request if necessary.',
       })
     );
   });
 
   test('trims long MCP command failures in the serialized tool result', async () => {
-    const longError = `Server error: ${'B'.repeat(700)}`;
+    const longError = `Server error:\n\n\n${'B'.repeat(700)}`;
 
     const result = await executeToolCall(
       {
@@ -946,9 +946,9 @@ describe('tool-calling prompt builder', () => {
     expect(result.resultText).toBe(
       JSON.stringify({
         status: 'failed',
-        body: longError.slice(0, 491),
+        body: `Server error:\n${'B'.repeat(600)}`,
         message:
-          'This response was too long, so it was trimmed to 491 characters. Feel free to make another request if necessary.',
+          'This response was too long, so it was trimmed to 614 characters. Feel free to make another request if necessary.',
       })
     );
   });
