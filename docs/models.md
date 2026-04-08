@@ -26,7 +26,8 @@ Model support is configured in `src/config/models.json`:
   - `requiresWebGpu` (`true` to disable the model unless WebGPU can be used)
   - `multimodalGeneration` (`true` only when the worker has a real multimodal execution path for image/audio/video inputs)
   - `useExternalDataFormat` (`true`/number to enable loading `.onnx_data` sidecar files)
-  - `modelAssetPath` (pinned LiteRT `.task` asset URL for engines that fetch a specific artifact directly)
+  - `modelAssetPath` (pinned LiteRT artifact URL for engines that fetch a specific artifact directly)
+  - `promptFormat` (worker-side prompt flattening profile for LiteRT models that do not use tokenizer `apply_chat_template()`)
 - `models[].thinkingControl`: optional model-specific reasoning control metadata:
   - `defaultEnabled` (`false` only when the model should default to non-thinking mode in this app)
   - `runtimeParameter` (currently `enable_thinking` when the worker should pass a runtime switch)
@@ -173,7 +174,9 @@ Normalized in `src/config/model-settings.js` via `MODEL_FEATURE_FLAGS`.
 - `useExternalDataFormat`
   Enables `.onnx_data` sidecar loading for exported ONNX packages.
 - `modelAssetPath`
-  Used by engines such as `mediapipe-genai` to fetch a pinned `.task` asset directly.
+  Used by engines such as `mediapipe-genai` to fetch a pinned LiteRT artifact directly.
+- `promptFormat`
+  Used by LiteRT worker paths to select the right flattened chat wrapper. Current values are `gemma-turns` and `qwen-im`.
 
 ### Thinking-control fields
 
@@ -276,6 +279,12 @@ Current selectable models in Settings:
   - Uses `thinkingControl` with runtime `enable_thinking`.
   - Uses Gemma's channel-style thought markers via `thinkingTags { open: "<|channel>", close: "<channel|>", stripLeadingText: "thought" }`.
   - Uses the Gemma special-token tool-call format.
+- `Yoursmiling/Qwen3.5-2B-LiteRT`
+  - Uses the `mediapipe-genai` engine with a pinned `model_multimodal.litertlm` asset URL.
+  - Supports both WebGPU and CPU in this app, but remains text-only in the current LiteRT worker path even though the upstream package is multimodal.
+  - Uses `thinkingControl` with runtime `enable_thinking`.
+  - Uses Qwen's `<think>` / `</think>` reasoning tags plus the XML tool-call format already supported elsewhere in the app.
+  - Uses `runtime.promptFormat: "qwen-im"` so the LiteRT worker emits Qwen's ChatML-style `<|im_start|>...<|im_end|>` turns instead of Gemma's turn wrappers.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses `q4f16` on WebGPU and `int8` on CPU, and loads external ONNX data sidecars.
@@ -323,7 +332,7 @@ Notes:
 - Transformers.js and MediaPipe Tasks GenAI are loaded from locally installed packages and bundled into the app build.
 - Model assets are downloaded at runtime and cached in-browser through the engine-specific path.
 - Model assets are not committed to this repository.
-- The default LiteRT Gemma 4 asset is revision-pinned to a specific Hugging Face commit via `runtime.modelAssetPath`.
+- The LiteRT Gemma 4 and LiteRT Qwen 3.5 2B assets are revision-pinned to specific Hugging Face commits via `runtime.modelAssetPath`.
 - Other model artifacts are not uniformly revision-pinned yet; this remains a documented accepted risk.
 - The pre-chat picker presents each model as a single-select horizontal row with capability chips, language tags, and short-term memory shown as tokens plus a rough word estimate rounded to the nearest 100.
 - Model capability flags describe what a model can support; the image/audio/video UI is only enabled when the runtime also declares `multimodalGeneration: true`.
@@ -347,9 +356,10 @@ Per-model limits and defaults:
 - All listed Llama entries enable `useExternalDataFormat: true` where required for `.onnx_data` loading.
 - `onnx-community/Qwen3.5-0.8B-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: q8 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, max context `262144`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, and `imageInput`, input limit `maxImageInputs: 1`, tool call format `xml-tool-call`, thinking tags `<think>` / `</think>`, thinking control `{ defaultEnabled: false, runtimeParameter: "enable_thinking" }`
 - `onnx-community/Qwen3.5-2B-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: q8 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, max context `262144`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, and `imageInput`, input limit `maxImageInputs: 1`, tool call format `xml-tool-call`, thinking tags `<think>` / `</think>`, thinking control `{ defaultEnabled: false, runtimeParameter: "enable_thinking" }`
+- `Yoursmiling/Qwen3.5-2B-LiteRT`: engine `mediapipe-genai`, pinned `modelAssetPath` to `model_multimodal.litertlm`, `promptFormat: "qwen-im"`, max context `262144`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, text-only in the current app worker path, tool call format `xml-tool-call`, thinking tags `<think>` / `</think>`, thinking control `{ defaultEnabled: false, runtimeParameter: "enable_thinking" }`
 - `LiquidAI/LFM2.5-350M-ONNX`: runtime dtypes `{ webgpu: q4f16 }`, `requiresWebGpu: true`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default output `512`, default temperature `0.1`, default top-k `50`, default top-p `1.0`, default repetition penalty `1.05`, feature flag `toolCalling`, tool list format `json`, tool call format `<|tool_call_start|>[tool_name(arg="value")]<|tool_call_end|>`, no thinking tags
 - `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`: runtime dtypes `{ webgpu: q4f16 }`, `requiresWebGpu: true`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default output `512`, default temperature `0.1`, default top-k `50`, default top-p `1.0`, default repetition penalty `1.05`, feature flag `toolCalling`, tool list format `json`, tool call format `<|tool_call_start|>[tool_name(arg="value")]<|tool_call_end|>`, no thinking tags
-- `litert-community/gemma-4-E4B-it-litert-lm`: engine `mediapipe-genai`, `requiresWebGpu: true`, pinned `modelAssetPath` to `gemma-4-E4B-it-web.task`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
+- `litert-community/gemma-4-E4B-it-litert-lm`: engine `mediapipe-genai`, `requiresWebGpu: true`, pinned `modelAssetPath` to `gemma-4-E4B-it-web.task`, `promptFormat: "gemma-turns"`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
 - `onnx-community/gemma-4-E2B-it-ONNX`: hidden legacy replacement, runtime dtypes `{ webgpu: q4f16, cpu: q8 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, `imageInput`, and `audioInput`, input limit `maxAudioInputs: 1`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`: runtime dtypes `{ webgpu: q4f16 }`, `requiresWebGpu: true`, `useExternalDataFormat: true`, max context `32768`, default context `8192`, default temperature `0.1` (rounded from the card's `0.05` to match this app's 0.1 temperature step), default top-k `50`, default top-p `1.0`, default repetition penalty `1.05`, feature flags `thinking` and `toolCalling`, tool list format `json`, tool call format `<|tool_call_start|>[tool_name(arg="value")]<|tool_call_end|>`, thinking tags `<think>` / `</think>`
 - `onnx-community/gemma-3n-E2B-it-ONNX`: runtime dtypes `{ webgpu: q8, cpu: q8 }`, `multimodalGeneration: true`, max context `32768`, default context `8192`, default temperature `0.6`, default top-k `65`, default top-p `0.95`, feature flags `toolCalling`, `imageInput`, and `audioInput`, tool call format `{"name":"tool_name","arguments":{...}}`

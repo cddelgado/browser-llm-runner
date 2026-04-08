@@ -416,7 +416,8 @@
       "repositoryUrl": "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm",
       "runtime": {
         "requiresWebGpu": true,
-        "modelAssetPath": "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/439779041cf1a165146a3ee1f9a7653b2f047975/gemma-4-E4B-it-web.task"
+        "modelAssetPath": "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/439779041cf1a165146a3ee1f9a7653b2f047975/gemma-4-E4B-it-web.task",
+        "promptFormat": "gemma-turns"
       },
       "thinkingControl": {
         "runtimeParameter": "enable_thinking"
@@ -438,6 +439,62 @@
         "maxTemperature": 2.0,
         "defaultTemperature": 1.0,
         "defaultTopK": 64,
+        "defaultTopP": 0.95,
+        "defaultRepetitionPenalty": 1.0
+      },
+      "features": {
+        "streaming": true,
+        "thinking": true,
+        "toolCalling": true,
+        "imageInput": false,
+        "audioInput": false,
+        "videoInput": false
+      }
+    },
+    {
+      "id": "Yoursmiling/Qwen3.5-2B-LiteRT",
+      "label": "Yoursmiling/Qwen3.5-2B-LiteRT",
+      "displayName": "Qwen3.5 2B LiteRT",
+      "engine": {
+        "type": "mediapipe-genai"
+      },
+      "languageSupport": {
+        "tags": [
+          { "code": "en", "name": "English" },
+          { "code": "zh", "name": "Chinese" },
+          { "code": "es", "name": "Spanish" },
+          { "code": "fr", "name": "French" },
+          { "code": "de", "name": "German" },
+          { "code": "ja", "name": "Japanese" }
+        ],
+        "hasMore": true,
+        "sourceUrl": "https://huggingface.co/Qwen/Qwen3.5-2B"
+      },
+      "repositoryUrl": "https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT",
+      "runtime": {
+        "modelAssetPath": "https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/4d942a539e4ffd2ecb298f1198450051a06123a9/model_multimodal.litertlm",
+        "promptFormat": "qwen-im"
+      },
+      "toolCalling": {
+        "format": "xml-tool-call"
+      },
+      "thinkingControl": {
+        "defaultEnabled": false,
+        "runtimeParameter": "enable_thinking"
+      },
+      "thinkingTags": {
+        "open": "<think>",
+        "close": "</think>"
+      },
+      "generation": {
+        "defaultMaxOutputTokens": 1024,
+        "maxOutputTokens": 262144,
+        "defaultMaxContextTokens": 8192,
+        "maxContextTokens": 262144,
+        "minTemperature": 0.1,
+        "maxTemperature": 2.0,
+        "defaultTemperature": 0.6,
+        "defaultTopK": 20,
         "defaultTopP": 0.95,
         "defaultRepetitionPenalty": 1.0
       },

@@ -50,6 +50,7 @@ export const MODEL_FEATURE_FLAGS = Object.freeze([
 export const ALLOWED_RUNTIME_DTYPES = Object.freeze(
   new Set(['q4', 'q8', 'fp32', 'fp16', 'int8', 'uint8', 'bnb4', 'q4f16'])
 );
+export const ALLOWED_RUNTIME_PROMPT_FORMATS = Object.freeze(new Set(['gemma-turns', 'qwen-im']));
 export const WEBGPU_COMPATIBLE_BACKEND_PREFERENCES = Object.freeze(new Set(['webgpu']));
 export const ALLOWED_TOOL_CALLING_FORMATS = Object.freeze(
   new Set([
@@ -116,6 +117,11 @@ function normalizeRuntime(rawRuntime) {
     typeof rawRuntime?.modelAssetPath === 'string' && rawRuntime.modelAssetPath.trim()
       ? rawRuntime.modelAssetPath.trim()
       : '';
+  const promptFormat =
+    typeof rawRuntime?.promptFormat === 'string' &&
+    ALLOWED_RUNTIME_PROMPT_FORMATS.has(rawRuntime.promptFormat.trim())
+      ? rawRuntime.promptFormat.trim()
+      : '';
   const enableThinking = rawRuntime?.enableThinking === true;
   const requiresWebGpu = rawRuntime?.requiresWebGpu === true;
   const multimodalGeneration = rawRuntime?.multimodalGeneration === true;
@@ -128,6 +134,7 @@ function normalizeRuntime(rawRuntime) {
     ...(dtype ? { dtype } : {}),
     ...(dtypes ? { dtypes } : {}),
     ...(modelAssetPath ? { modelAssetPath } : {}),
+    ...(promptFormat ? { promptFormat } : {}),
     ...(enableThinking ? { enableThinking: true } : {}),
     ...(requiresWebGpu ? { requiresWebGpu: true } : {}),
     ...(multimodalGeneration ? { multimodalGeneration: true } : {}),

@@ -27,11 +27,14 @@ const TOOL_STRING_DELIMITER = '<|"|>';
 const TURN_OPEN = '<|turn>';
 const TURN_CLOSE = '<turn|>';
 const MODEL_TURN_PREFIX = `${TURN_OPEN}model\n`;
+const PROMPT_FORMAT_GEMMA = 'gemma-turns';
+const PROMPT_FORMAT_QWEN = 'qwen-im';
 
 let llmInference = null;
 let loadedModelId = null;
 let loadedModelAssetPath = '';
-let generationConfig = normalizeGenerationConfig(null);
+let loadedBackend = null;
+let loadedInitConfigKey = '';
 let activeGenerationState = null;
 
 function resolveModuleFactoryExport(moduleNamespace) {
@@ -179,10 +182,18 @@ function normalizeBackendPreference(preference) {
   return 'webgpu';
 }
 
+function normalizePromptFormat(promptFormat) {
+  if (promptFormat === PROMPT_FORMAT_QWEN) {
+    return PROMPT_FORMAT_QWEN;
+  }
+  return PROMPT_FORMAT_GEMMA;
+}
+
 function normalizeRuntimeConfig(rawRuntime) {
   const modelAssetPath =
     typeof rawRuntime?.modelAssetPath === 'string' ? rawRuntime.modelAssetPath.trim() : '';
   const requiresWebGpu = rawRuntime?.requiresWebGpu === true;
+  const promptFormat = normalizePromptFormat(rawRuntime?.promptFormat);
   const enableThinking =
     rawRuntime?.enableThinking === true
       ? true
@@ -192,8 +203,46 @@ function normalizeRuntimeConfig(rawRuntime) {
   return {
     ...(modelAssetPath ? { modelAssetPath } : {}),
     ...(requiresWebGpu ? { requiresWebGpu: true } : {}),
+    ...(promptFormat ? { promptFormat } : {}),
     ...(enableThinking === true || enableThinking === false ? { enableThinking } : {}),
   };
+}
+
+function getBackendAttemptOrder(preference, runtime = {}) {
+  const normalizedPreference = normalizeBackendPreference(preference);
+  if (runtime.requiresWebGpu) {
+    if (normalizedPreference === 'cpu') {
+      return [];
+    }
+    return ['webgpu'];
+  }
+  if (normalizedPreference === 'cpu') {
+    return ['cpu'];
+  }
+  return ['webgpu', 'cpu'];
+}
+
+function buildInitConfigKey({ backend, modelId, runtime, generationConfig: nextGenerationConfig }) {
+  return JSON.stringify({
+    backend,
+    modelId,
+    modelAssetPath: runtime?.modelAssetPath || '',
+    promptFormat: runtime?.promptFormat || PROMPT_FORMAT_GEMMA,
+    generationConfig: nextGenerationConfig || {},
+  });
+}
+
+function resetLoadedState() {
+  loadedModelId = null;
+  loadedModelAssetPath = '';
+  loadedBackend = null;
+  loadedInitConfigKey = '';
+}
+
+function disposeLoadedInference() {
+  llmInference?.close?.();
+  llmInference = null;
+  resetLoadedState();
 }
 
 function createGenerationState(requestId) {
@@ -373,6 +422,50 @@ function formatGemmaPrompt(messages, runtime = {}) {
   return promptParts.join('');
 }
 
+function formatQwenToolResponse(content) {
+  const normalizedContent = formatPromptContent(content).trim();
+  return `<tool_response>\n${normalizedContent}\n</tool_response>`;
+}
+
+function formatQwenPrompt(messages, runtime = {}) {
+  const promptParts = [];
+  const normalizedMessages = Array.isArray(messages) ? messages.filter(Boolean) : [];
+  const firstSystemMessage = normalizedMessages[0]?.role === 'system' ? normalizedMessages[0] : null;
+  if (firstSystemMessage) {
+    const systemContent = formatPromptContent(firstSystemMessage.content).trim();
+    promptParts.push(`<|im_start|>system\n${systemContent}<|im_end|>\n`);
+  }
+
+  normalizedMessages.forEach((message) => {
+    if (!message || message.role === 'system') {
+      return;
+    }
+    if (message.role === 'user') {
+      promptParts.push(
+        `<|im_start|>user\n${formatPromptContent(message.content).trimEnd()}<|im_end|>\n`
+      );
+      return;
+    }
+    if (message.role === 'tool') {
+      promptParts.push(
+        `<|im_start|>user\n${formatQwenToolResponse(message.content)}<|im_end|>\n`
+      );
+      return;
+    }
+    promptParts.push(
+      `<|im_start|>assistant\n${formatPromptContent(message.content).trimEnd()}<|im_end|>\n`
+    );
+  });
+
+  promptParts.push('<|im_start|>assistant\n');
+  if (runtime.enableThinking === true) {
+    promptParts.push('<think>\n');
+  } else {
+    promptParts.push('<think>\n\n</think>\n\n');
+  }
+  return promptParts.join('');
+}
+
 function resolvePrompt(rawPrompt, runtime = {}) {
   if (Array.isArray(rawPrompt)) {
     const normalizedMessages = rawPrompt
@@ -397,17 +490,109 @@ function resolvePrompt(rawPrompt, runtime = {}) {
         };
       })
       .filter(Boolean);
-    return formatGemmaPrompt(normalizedMessages, runtime);
+    return runtime.promptFormat === PROMPT_FORMAT_QWEN
+      ? formatQwenPrompt(normalizedMessages, runtime)
+      : formatGemmaPrompt(normalizedMessages, runtime);
   }
   const flatPrompt = typeof rawPrompt === 'string' ? rawPrompt : String(rawPrompt || '');
+  if (runtime.promptFormat === PROMPT_FORMAT_QWEN) {
+    return `<|im_start|>user\n${flatPrompt}<|im_end|>\n${formatQwenPrompt([], runtime)}`;
+  }
   return `${TURN_OPEN}user\n${flatPrompt}${TURN_CLOSE}\n${MODEL_TURN_PREFIX}`;
+}
+
+async function probeWebGpuAvailability() {
+  const navigatorLike = typeof navigator !== 'undefined' ? navigator : null;
+  const gpuNavigator = /** @type {{ gpu?: { requestAdapter?: () => Promise<any> } }} */ (
+    navigatorLike
+  );
+  if (!gpuNavigator?.gpu || typeof gpuNavigator.gpu.requestAdapter !== 'function') {
+    return {
+      available: false,
+      reason: 'WebGPU unavailable in this browser.',
+    };
+  }
+  try {
+    const adapter = await gpuNavigator.gpu.requestAdapter();
+    if (!adapter) {
+      return {
+        available: false,
+        reason: 'No usable WebGPU adapter was found.',
+      };
+    }
+    return {
+      available: true,
+      reason: '',
+    };
+  } catch (error) {
+    return {
+      available: false,
+      reason: extractErrorMessage(error),
+    };
+  }
+}
+
+/**
+ * @param {{
+ *   backend: 'cpu' | 'webgpu',
+ *   modelAssetBuffer: ReadableStreamDefaultReader,
+ *   generationConfig: ReturnType<typeof normalizeGenerationConfig>,
+ * }} options
+ * @returns {import('@mediapipe/tasks-genai').LlmInferenceOptions}
+ */
+function buildInferenceOptions({ backend, modelAssetBuffer, generationConfig: nextGenerationConfig }) {
+  const delegate = backend === 'cpu' ? 'CPU' : 'GPU';
+  return {
+    baseOptions: {
+      modelAssetBuffer,
+      delegate,
+    },
+    maxTokens: nextGenerationConfig.maxContextTokens,
+    topK: nextGenerationConfig.topK,
+    temperature: nextGenerationConfig.temperature,
+    randomSeed: 0,
+  };
+}
+
+async function initializeInference({ backend, runtime, nextGenerationConfig }) {
+  const response = await fetch(runtime.modelAssetPath, {
+    cache: 'force-cache',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch model: ${runtime.modelAssetPath} (${response.status})`);
+  }
+  const wasmFileset = await getWasmFileset();
+  const modelAssetBuffer = buildProgressReader(response, runtime.modelAssetPath);
+  postProgress({
+    percent: 96,
+    message: 'Initializing LiteRT model...',
+    file: runtime.modelAssetPath,
+    status: 'initializing',
+  });
+  const options = buildInferenceOptions({
+    backend,
+    modelAssetBuffer,
+    generationConfig: nextGenerationConfig,
+  });
+  if (backend === 'cpu') {
+    const LlmInferenceCtor = /** @type {any} */ (LlmInference);
+    const inference = new LlmInferenceCtor(wasmFileset);
+    try {
+      await inference.setOptions(options);
+      return inference;
+    } catch (error) {
+      inference.close?.();
+      throw error;
+    }
+  }
+  return LlmInference.createFromOptions(wasmFileset, options);
 }
 
 async function initialize(payload) {
   const modelId = payload.modelId || '';
   const backendPreference = normalizeBackendPreference(payload.backendPreference || 'webgpu');
   const runtime = normalizeRuntimeConfig(payload.runtime);
-  generationConfig = normalizeGenerationConfig(payload.generationConfig);
+  const nextGenerationConfig = normalizeGenerationConfig(payload.generationConfig);
 
   if (!runtime.modelAssetPath) {
     self.postMessage({
@@ -421,7 +606,8 @@ async function initialize(payload) {
     return;
   }
 
-  if (backendPreference !== 'webgpu') {
+  let attempts = getBackendAttemptOrder(backendPreference, runtime);
+  if (!attempts.length) {
     self.postMessage({
       type: 'init-error',
       payload: {
@@ -433,118 +619,104 @@ async function initialize(payload) {
     return;
   }
 
-  const navigatorLike = typeof navigator !== 'undefined' ? navigator : null;
-  const gpuNavigator = /** @type {{ gpu?: { requestAdapter?: () => Promise<any> } }} */ (
-    navigatorLike
-  );
-  if (!gpuNavigator?.gpu || typeof gpuNavigator.gpu.requestAdapter !== 'function') {
-    self.postMessage({
-      type: 'init-error',
-      payload: {
-        message: `Failed to initialize model. ${modelId} requires WebGPU, but no WebGPU adapter API is available in this browser.`,
-      },
-    });
-    postProgress({ percent: 0, message: 'Model load failed.' });
-    postStatus('Error initializing model');
-    return;
+  const webGpuProbe = attempts.includes('webgpu') ? await probeWebGpuAvailability() : null;
+  if (webGpuProbe && !webGpuProbe.available) {
+    if (runtime.requiresWebGpu) {
+      const message =
+        webGpuProbe.reason === 'WebGPU unavailable in this browser.'
+          ? `Failed to initialize model. ${modelId} requires WebGPU, but no WebGPU adapter API is available in this browser.`
+          : `Failed to initialize model. ${webGpuProbe.reason}`;
+      self.postMessage({
+        type: 'init-error',
+        payload: { message },
+      });
+      postProgress({ percent: 0, message: 'Model load failed.' });
+      postStatus('Error initializing model');
+      return;
+    }
+    attempts = attempts.filter((backend) => backend !== 'webgpu');
   }
 
-  try {
-    const adapter = await gpuNavigator.gpu.requestAdapter();
-    if (!adapter) {
-      throw new Error('No usable WebGPU adapter was found.');
-    }
-  } catch (error) {
-    self.postMessage({
-      type: 'init-error',
-      payload: {
-        message: `Failed to initialize model. ${extractErrorMessage(error)}`,
-      },
-    });
-    postProgress({ percent: 0, message: 'Model load failed.' });
-    postStatus('Error initializing model');
-    return;
-  }
+  const preferredBackend = attempts[0] || null;
+  const preferredInitConfigKey = buildInitConfigKey({
+    backend: preferredBackend,
+    modelId,
+    runtime,
+    generationConfig: nextGenerationConfig,
+  });
 
   if (
     llmInference &&
     loadedModelId === modelId &&
-    loadedModelAssetPath === runtime.modelAssetPath
+    loadedModelAssetPath === runtime.modelAssetPath &&
+    loadedBackend === preferredBackend &&
+    loadedInitConfigKey === preferredInitConfigKey
   ) {
     self.postMessage({
       type: 'init-success',
       payload: {
-        backend: 'webgpu',
+        backend: loadedBackend,
         modelId,
         engineType: MEDIAPIPE_GENAI_ENGINE_TYPE,
       },
     });
-    postStatus('Ready (WEBGPU)');
+    postStatus(`Ready (${loadedBackend.toUpperCase()})`);
     return;
   }
 
-  llmInference?.close?.();
-  llmInference = null;
-  loadedModelId = null;
-  loadedModelAssetPath = '';
+  disposeLoadedInference();
 
-  try {
-    postStatus(`Loading ${modelId} with WEBGPU...`);
-    postProgress({ percent: 2, message: 'Preparing LiteRT runtime...' });
-    const response = await fetch(runtime.modelAssetPath, {
-      cache: 'force-cache',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch model: ${runtime.modelAssetPath} (${response.status})`);
-    }
-    const wasmFileset = await getWasmFileset();
-    const modelAssetBuffer = buildProgressReader(response, runtime.modelAssetPath);
-    postProgress({
-      percent: 96,
-      message: 'Initializing LiteRT model...',
-      file: runtime.modelAssetPath,
-      status: 'initializing',
-    });
-    llmInference = await LlmInference.createFromOptions(wasmFileset, {
-      baseOptions: {
-        modelAssetBuffer,
-      },
-      maxTokens: generationConfig.maxContextTokens,
-      topK: generationConfig.topK,
-      temperature: generationConfig.temperature,
-      randomSeed: 0,
-    });
-    loadedModelId = modelId;
-    loadedModelAssetPath = runtime.modelAssetPath;
-    postProgress({
-      percent: 100,
-      message: `Loaded ${modelId} (WEBGPU).`,
-      file: runtime.modelAssetPath,
-      status: 'ready',
-    });
-    self.postMessage({
-      type: 'init-success',
-      payload: {
-        backend: 'webgpu',
+  const errors = [];
+  for (const backend of attempts) {
+    try {
+      postStatus(`Loading ${modelId} with ${backend.toUpperCase()}...`);
+      postProgress({ percent: 2, message: 'Preparing LiteRT runtime...' });
+      llmInference = await initializeInference({
+        backend,
+        runtime,
+        nextGenerationConfig,
+      });
+      loadedModelId = modelId;
+      loadedModelAssetPath = runtime.modelAssetPath;
+      loadedBackend = backend;
+      loadedInitConfigKey = buildInitConfigKey({
+        backend,
         modelId,
-        engineType: MEDIAPIPE_GENAI_ENGINE_TYPE,
-      },
-    });
-    postStatus('Ready (WEBGPU)');
-  } catch (error) {
-    llmInference?.close?.();
-    llmInference = null;
-    loadedModelId = null;
-    loadedModelAssetPath = '';
-    self.postMessage({
-      type: 'init-error',
-      payload: {
-        message: `Failed to initialize model. ${extractErrorMessage(error)}`,
-      },
-    });
-    postProgress({ percent: 0, message: 'Model load failed.' });
-    postStatus('Error initializing model');
+        runtime,
+        generationConfig: nextGenerationConfig,
+      });
+      postProgress({
+        percent: 100,
+        message: `Loaded ${modelId} (${backend.toUpperCase()}).`,
+        file: runtime.modelAssetPath,
+        status: 'ready',
+      });
+      self.postMessage({
+        type: 'init-success',
+        payload: {
+          backend,
+          modelId,
+          engineType: MEDIAPIPE_GENAI_ENGINE_TYPE,
+        },
+      });
+      postStatus(`Ready (${backend.toUpperCase()})`);
+      return;
+    } catch (error) {
+      llmInference?.close?.();
+      llmInference = null;
+      errors.push(`${backend.toUpperCase()}: ${extractErrorMessage(error)}`);
+    }
   }
+
+  resetLoadedState();
+  self.postMessage({
+    type: 'init-error',
+    payload: {
+      message: `Failed to initialize model. ${errors.join(' | ') || 'No usable backend is available.'}`,
+    },
+  });
+  postProgress({ percent: 0, message: 'Model load failed.' });
+  postStatus('Error initializing model');
 }
 
 async function generate(payload) {
@@ -558,7 +730,9 @@ async function generate(payload) {
     return;
   }
 
-  postStatus('Generating (WEBGPU)...');
+  const backendStatusLabel =
+    typeof loadedBackend === 'string' && loadedBackend ? loadedBackend.toUpperCase() : 'UNKNOWN';
+  postStatus(`Generating (${backendStatusLabel})...`);
   const generationState = createGenerationState(requestId);
   try {
     // LiteRT generation runs with the sampler/context settings applied during initialization.
@@ -597,7 +771,7 @@ async function generate(payload) {
       type: 'complete',
       payload: { requestId, text: String(finalText || '') },
     });
-    postStatus('Complete (WEBGPU)');
+    postStatus(`Complete (${backendStatusLabel})`);
   } catch (error) {
     if (generationState.cancelRequested) {
       self.postMessage({

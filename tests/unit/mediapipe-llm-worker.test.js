@@ -2,13 +2,34 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const isSimdSupportedMock = vi.fn();
 const createFromOptionsMock = vi.fn();
+const inferenceConstructorMock = vi.fn();
+const setOptionsMock = vi.fn();
+const clearCancelSignalsMock = vi.fn();
+const generateResponseMock = vi.fn();
+const closeMock = vi.fn();
+
+function buildInferenceInstance() {
+  return {
+    close: closeMock,
+    clearCancelSignals: clearCancelSignalsMock,
+    setOptions: setOptionsMock,
+    generateResponse: generateResponseMock,
+  };
+}
 
 vi.mock('@mediapipe/tasks-genai', () => ({
   FilesetResolver: {
     isSimdSupported: isSimdSupportedMock,
   },
-  LlmInference: {
-    createFromOptions: createFromOptionsMock,
+  LlmInference: class MockLlmInference {
+    constructor(...args) {
+      inferenceConstructorMock(...args);
+      Object.assign(this, buildInferenceInstance());
+    }
+
+    static createFromOptions(...args) {
+      return createFromOptionsMock(...args);
+    }
   },
 }));
 
@@ -35,8 +56,12 @@ describe('mediapipe-llm.worker', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+
     isSimdSupportedMock.mockResolvedValue(true);
-    createFromOptionsMock.mockReset();
+    createFromOptionsMock.mockResolvedValue(buildInferenceInstance());
+    setOptionsMock.mockResolvedValue(undefined);
+    generateResponseMock.mockResolvedValue('');
+
     importTargetHref = new URL('./fixtures/mediapipe-import-shim-target.js', import.meta.url).href;
 
     globalThis.self = /** @type {any} */ ({
@@ -86,6 +111,7 @@ describe('mediapipe-llm.worker', () => {
       expect(options).toMatchObject({
         baseOptions: {
           modelAssetBuffer: expect.any(Object),
+          delegate: 'GPU',
         },
         maxTokens: 8192,
         topK: 64,
@@ -93,9 +119,7 @@ describe('mediapipe-llm.worker', () => {
         randomSeed: 0,
       });
 
-      return {
-        close: vi.fn(),
-      };
+      return buildInferenceInstance();
     });
 
     await import('../../src/workers/mediapipe-llm.worker.js');
@@ -110,6 +134,7 @@ describe('mediapipe-llm.worker', () => {
             backendPreference: 'webgpu',
             runtime: {
               requiresWebGpu: true,
+              promptFormat: 'gemma-turns',
               modelAssetPath:
                 'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/test/gemma-4-E4B-it-web.task',
             },
@@ -176,22 +201,148 @@ if (typeof exports === 'object' && typeof module === 'object') {
     });
   });
 
+  test('initializes the LiteRT worker on cpu without requiring WebGPU', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {},
+    });
+
+    await import('../../src/workers/mediapipe-llm.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'init',
+          payload: {
+            modelId: 'Yoursmiling/Qwen3.5-2B-LiteRT',
+            backendPreference: 'cpu',
+            generationConfig: {
+              maxOutputTokens: 1024,
+              maxContextTokens: 8192,
+              temperature: 0.6,
+              topK: 20,
+            },
+            runtime: {
+              promptFormat: 'qwen-im',
+              modelAssetPath:
+                'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/test/model_multimodal.litertlm',
+            },
+          },
+        },
+      })
+    );
+
+    expect(createFromOptionsMock).not.toHaveBeenCalled();
+    expect(inferenceConstructorMock).toHaveBeenCalledWith({
+      wasmLoaderPath: '/mock/genai_wasm_module_internal.js',
+      wasmBinaryPath: '/mock/genai_wasm_module_internal.wasm',
+    });
+    expect(setOptionsMock).toHaveBeenCalledWith({
+      baseOptions: {
+        modelAssetBuffer: expect.any(Object),
+        delegate: 'CPU',
+      },
+      maxTokens: 8192,
+      topK: 20,
+      temperature: 0.6,
+      randomSeed: 0,
+    });
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'init-success',
+      payload: {
+        backend: 'cpu',
+        modelId: 'Yoursmiling/Qwen3.5-2B-LiteRT',
+        engineType: 'mediapipe-genai',
+      },
+    });
+  });
+
+  test('formats Qwen LiteRT prompts with the expected chat tags and thinking preamble', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {},
+    });
+
+    generateResponseMock.mockImplementation(async (prompt, progressListener) => {
+      expect(prompt).toBe(
+        '<|im_start|>system\nBe concise.<|im_end|>\n' +
+          '<|im_start|>user\nCheck the tool result.<|im_end|>\n' +
+          '<|im_start|>assistant\n<tool_call>\n<function=web_lookup>\n<parameter=input>cats</parameter>\n</function>\n</tool_call><|im_end|>\n' +
+          '<|im_start|>user\n<tool_response>\n{"status":"success","body":"Cats are mammals."}\n</tool_response><|im_end|>\n' +
+          '<|im_start|>assistant\n<think>\n\n</think>\n\n'
+      );
+      progressListener?.('Cats are mammals.', true);
+      return 'Cats are mammals.';
+    });
+
+    await import('../../src/workers/mediapipe-llm.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'init',
+          payload: {
+            modelId: 'Yoursmiling/Qwen3.5-2B-LiteRT',
+            backendPreference: 'cpu',
+            runtime: {
+              promptFormat: 'qwen-im',
+              modelAssetPath:
+                'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/test/model_multimodal.litertlm',
+            },
+          },
+        },
+      })
+    );
+
+    workerSelf.postMessage.mockClear();
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'generate',
+          payload: {
+            requestId: 'request-qwen',
+            prompt: [
+              { role: 'system', content: 'Be concise.' },
+              { role: 'user', content: 'Check the tool result.' },
+              {
+                role: 'assistant',
+                content:
+                  '<tool_call>\n<function=web_lookup>\n<parameter=input>cats</parameter>\n</function>\n</tool_call>',
+              },
+              {
+                role: 'tool',
+                content: '{"status":"success","body":"Cats are mammals."}',
+              },
+            ],
+            runtime: {
+              promptFormat: 'qwen-im',
+              enableThinking: false,
+            },
+          },
+        },
+      })
+    );
+
+    expect(clearCancelSignalsMock).toHaveBeenCalledTimes(1);
+    expect(generateResponseMock).toHaveBeenCalledTimes(1);
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'complete',
+      payload: {
+        requestId: 'request-qwen',
+        text: 'Cats are mammals.',
+      },
+    });
+  });
+
   test('generates responses without reloading the LiteRT model asset', async () => {
-    const closeMock = vi.fn();
-    const clearCancelSignalsMock = vi.fn();
-    const setOptionsMock = vi.fn();
-    const generateResponseMock = vi.fn(async (prompt, progressListener) => {
+    generateResponseMock.mockImplementation(async (prompt, progressListener) => {
       expect(prompt).toBe('<|turn>user\nWhat time is it.<turn|>\n<|turn>model\n');
       progressListener?.('It is ', false);
       progressListener?.('It is 11:25 PM.', true);
       return 'It is 11:25 PM.';
-    });
-
-    createFromOptionsMock.mockResolvedValue({
-      close: closeMock,
-      clearCancelSignals: clearCancelSignalsMock,
-      setOptions: setOptionsMock,
-      generateResponse: generateResponseMock,
     });
 
     await import('../../src/workers/mediapipe-llm.worker.js');
@@ -212,6 +363,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
             },
             runtime: {
               requiresWebGpu: true,
+              promptFormat: 'gemma-turns',
               modelAssetPath:
                 'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/test/gemma-4-E4B-it-web.task',
             },
@@ -229,12 +381,6 @@ if (typeof exports === 'object' && typeof module === 'object') {
           payload: {
             requestId: 'request-1',
             prompt: 'What time is it.',
-            generationConfig: {
-              maxOutputTokens: 64,
-              maxContextTokens: 4096,
-              temperature: 0.4,
-              topK: 20,
-            },
             runtime: {},
           },
         },

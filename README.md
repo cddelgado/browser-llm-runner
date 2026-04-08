@@ -65,9 +65,10 @@ Student-facing browser chat UI with local model inference.
   - `WebGPU`
   - `CPU`
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
-- CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and leaves ONNX thread selection on ORT auto (`onnx.wasm.numThreads = 0`).
+- `WebGPU` mode also lets CPU-capable LiteRT models fall back to the LiteRT CPU delegate when they do not require WebGPU.
+- CPU mode runs CPU-capable ONNX models through the browser WASM path and CPU-capable LiteRT models through the LiteRT CPU delegate. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and leaves ONNX thread selection on ORT auto (`onnx.wasm.numThreads = 0`).
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
-- LiteRT-backed models are WebGPU-only in this app and require `WebGPU`.
+- LiteRT-backed models may require WebGPU or support CPU depending on the selected model. The bundled Gemma 4 LiteRT entry still requires `WebGPU`.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
   - Values are constrained by per-model limits from `src/config/models.json` and use `step=8`.
@@ -95,7 +96,7 @@ Student-facing browser chat UI with local model inference.
 - The selected backend and model are stored in `localStorage`.
 - Model files are downloaded on first load and cached in-browser for reuse.
   - Transformers.js-backed models use the Transformers.js browser cache.
-  - LiteRT-backed models fetch a pinned `.task` asset at runtime and rely on the browser HTTP cache.
+  - LiteRT-backed models fetch a pinned LiteRT artifact (`.task` or `.litertlm`) at runtime and rely on the browser HTTP cache.
 - `Settings -> Debug` shows a paginated debug log (20 entries per page, newest first) with CSV export, including proxy validation, MCP transport diagnostics, and one complete raw model-output blob per visible model turn, preserved before transcript parsing or tool-call folding.
 - Conversation list and transcript are state-driven (no placeholder messages).
 - On desktop widths, the conversation list can be collapsed from a border-mounted toggle to give the active chat more space; the preference is saved locally.
@@ -220,6 +221,11 @@ Student-facing browser chat UI with local model inference.
   - Loads the pinned `gemma-4-E4B-it-web.task` artifact from the model repository at runtime.
   - Uses runtime `enable_thinking` and parses Gemma's `<|channel>...<channel|>` reasoning into the transcript thinking section.
   - Uses Gemma's special-token tool-call format supported by this app.
+- `Yoursmiling/Qwen3.5-2B-LiteRT`
+  - Uses the LiteRT/MediaPipe GenAI worker path in this app.
+  - Supports both `WebGPU` and `CPU` in this app and currently exposes text-only generation.
+  - Loads the pinned `model_multimodal.litertlm` artifact from the model repository at runtime.
+  - Uses Qwen's ChatML-style `<|im_start|>...<|im_end|>` prompt format in the LiteRT worker, `<think>...</think>` reasoning tags, and the app's XML tool-call format support.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - Uses `q4f16` on WebGPU and `q4` on CPU in this app.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
@@ -263,7 +269,7 @@ For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` r
 - `models[].languageSupport`: user-facing language tags shown on the card, with a publisher-linked `and more` suffix when needed
 - `models[].repositoryUrl`: model details link used from the card footer
   - `models[].features`: normalized capability flags (`streaming`, `thinking`, `imageInput`, `audioInput`, `videoInput`)
-  - `models[].runtime`: per-model runtime hints (optional `dtypes.webgpu`, optional `dtypes.cpu`, optional `enableThinking`, optional `requiresWebGpu`, optional `multimodalGeneration`, optional `useExternalDataFormat`)
+  - `models[].runtime`: per-model runtime hints (optional `dtypes.webgpu`, optional `dtypes.cpu`, optional `enableThinking`, optional `requiresWebGpu`, optional `multimodalGeneration`, optional `useExternalDataFormat`, optional `modelAssetPath`, optional `promptFormat`)
   - `models[].inputLimits`: optional per-media limits such as `maxImageInputs` and `maxAudioInputs`
   - `models[].thinkingControl`: optional model-specific reasoning control metadata (`defaultEnabled`, optional `runtimeParameter`, optional `enabledInstruction`, optional `disabledInstruction`)
   - `models[].generation`: per-model defaults and limits for output/context tokens, temperature, `defaultTopK`, `defaultTopP`, and optional runtime-supported defaults such as `defaultRepetitionPenalty`
@@ -295,7 +301,7 @@ For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` r
 - Audio input is upload-only. The app does not expose live recording.
 - Video input is not currently exposed because the supported browser runtime paths are not reliable enough yet.
 - The app still does not ship with a CSP. This is a documented hardening gap for a future pass.
-- Most model artifacts are still fetched from upstream repositories at runtime and are not revision-pinned yet. The default LiteRT Gemma 4 asset is pinned to a specific Hugging Face revision, but the app does not yet apply a uniform integrity-verification policy across all models.
+- Most model artifacts are still fetched from upstream repositories at runtime and are not revision-pinned yet. The LiteRT Gemma 4 and LiteRT Qwen 3.5 2B assets are pinned to specific Hugging Face revisions, but the app does not yet apply a uniform integrity-verification policy across all models.
 
 See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 

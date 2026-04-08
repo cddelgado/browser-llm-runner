@@ -17,6 +17,7 @@ const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 const LLAMA_1B_MODEL_ID = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
 const QWEN_SMALL_MODEL_ID = 'onnx-community/Qwen3.5-0.8B-ONNX';
 const QWEN_MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX';
+const QWEN_LITERT_MODEL_ID = 'Yoursmiling/Qwen3.5-2B-LiteRT';
 const GEMMA_4_MODEL_ID = 'litert-community/gemma-4-E4B-it-litert-lm';
 const LEGACY_GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
 const GEMMA_MODEL_ID = 'onnx-community/gemma-3n-E2B-it-ONNX';
@@ -162,6 +163,7 @@ describe('model-settings availability', () => {
   test('keeps hidden replacement models addressable while removing them from the visible catalog', () => {
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.hidden).toBe(true);
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.hidden).toBe(false);
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(LEGACY_GEMMA_4_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.hidden).toBe(false);
@@ -179,6 +181,7 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS.some((model) => model.id === QWEN_SMALL_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === QWEN_MODEL_ID)).toBe(false);
+    expect(MODEL_OPTIONS.some((model) => model.id === QWEN_LITERT_MODEL_ID)).toBe(true);
     expect(MODEL_OPTIONS.some((model) => model.id === GEMMA_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === LEGACY_GEMMA_4_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === LIQUID_MODEL_ID)).toBe(true);
@@ -192,6 +195,18 @@ describe('model-settings availability', () => {
   test('keeps the Gemma multimodal ONNX model available in cpu mode without WebGPU', () => {
     expect(
       getModelAvailability(GEMMA_MODEL_ID, {
+        backendPreference: 'cpu',
+        webGpuAvailable: false,
+      })
+    ).toEqual({
+      available: true,
+      reason: '',
+    });
+  });
+
+  test('keeps the LiteRT Qwen model available in cpu mode without WebGPU', () => {
+    expect(
+      getModelAvailability(QWEN_LITERT_MODEL_ID, {
         backendPreference: 'cpu',
         webGpuAvailable: false,
       })
@@ -269,6 +284,14 @@ describe('model-settings availability', () => {
       audioInput: false,
       videoInput: false,
     });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.features).toMatchObject({
+      streaming: true,
+      thinking: true,
+      toolCalling: true,
+      imageInput: false,
+      audioInput: false,
+      videoInput: false,
+    });
     expect(MODEL_OPTIONS_BY_ID.get(LEGACY_GEMMA_4_MODEL_ID)?.features).toMatchObject({
       streaming: true,
       thinking: true,
@@ -313,6 +336,9 @@ describe('model-settings availability', () => {
       type: 'transformers-js',
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.engine).toEqual({
+      type: 'mediapipe-genai',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.engine).toEqual({
       type: 'mediapipe-genai',
     });
     expect(MODEL_OPTIONS_BY_ID.get(LEGACY_GEMMA_4_MODEL_ID)?.engine).toEqual({
@@ -377,6 +403,12 @@ describe('model-settings availability', () => {
       requiresWebGpu: true,
       modelAssetPath:
         'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/439779041cf1a165146a3ee1f9a7653b2f047975/gemma-4-E4B-it-web.task',
+      promptFormat: 'gemma-turns',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.runtime).toMatchObject({
+      modelAssetPath:
+        'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/4d942a539e4ffd2ecb298f1198450051a06123a9/model_multimodal.litertlm',
+      promptFormat: 'qwen-im',
     });
     expect(MODEL_OPTIONS_BY_ID.get(LEGACY_GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
       dtypes: {
@@ -424,11 +456,18 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.toolCalling).toEqual({
       format: 'xml-tool-call',
     });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.toolCalling).toEqual({
+      format: 'xml-tool-call',
+    });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.thinkingControl).toEqual({
       defaultEnabled: false,
       runtimeParameter: 'enable_thinking',
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.thinkingControl).toEqual({
+      defaultEnabled: false,
+      runtimeParameter: 'enable_thinking',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.thinkingControl).toEqual({
       defaultEnabled: false,
       runtimeParameter: 'enable_thinking',
     });
@@ -440,6 +479,10 @@ describe('model-settings availability', () => {
       open: '<|channel>',
       close: '<channel|>',
       stripLeadingText: 'thought',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.thinkingTags).toEqual({
+      open: '<think>',
+      close: '</think>',
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.toolCalling).toEqual({
       toolListFormat: 'json',
@@ -488,6 +531,10 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)).toMatchObject({
       displayName: 'Qwen3.5 2B',
       repositoryUrl: 'https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)).toMatchObject({
+      displayName: 'Qwen3.5 2B LiteRT',
+      repositoryUrl: 'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT',
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)).toMatchObject({
       displayName: 'Gemma 4 E4B',
