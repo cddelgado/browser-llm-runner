@@ -2,8 +2,8 @@
   "defaultModelId": "litert-community/gemma-4-E4B-it-litert-lm",
   "models": [
     {
-      "id": "onnx-community/Llama-3.2-3B-Instruct-ONNX",
-      "label": "onnx-community/Llama-3.2-3B-Instruct-ONNX",
+      "id": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
+      "label": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
       "displayName": "Llama 3.2 3B Instruct",
       "engine": {
         "type": "transformers-js"
@@ -19,9 +19,9 @@
           { "code": "es", "name": "Spanish" },
           { "code": "th", "name": "Thai" }
         ],
-        "sourceUrl": "https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct"
+        "sourceUrl": "https://huggingface.co/onnx-community/Llama-3.2-3B-Instruct-onnx-web"
       },
-      "repositoryUrl": "https://huggingface.co/onnx-community/Llama-3.2-3B-Instruct-ONNX",
+      "repositoryUrl": "https://huggingface.co/onnx-community/Llama-3.2-3B-Instruct-onnx-web",
       "runtime": {
         "dtypes": {
           "webgpu": "q4f16",
@@ -629,11 +629,11 @@
     }
   ],
   "legacyAliases": {
-    "onnx-community/Llama-3.2-3B-Instruct-onnx-web": "onnx-community/Llama-3.2-3B-Instruct-ONNX",
+    "onnx-community/Llama-3.2-3B-Instruct-ONNX": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
     "onnx-community/Qwen3-0.6B-ONNX": "onnx-community/Qwen3.5-0.8B-ONNX",
     "huggingworld/gemma-3-1b-it-ONNX-GQA": "onnx-community/gemma-3n-E2B-it-ONNX",
     "onnx-community/gemma-3-1b-it-ONNX-GQA": "onnx-community/gemma-3n-E2B-it-ONNX",
     "onnx-community/gemma-3-1b-ONNX-GQA": "onnx-community/gemma-3n-E2B-it-ONNX",
-    "Xenova/distilgpt2": "onnx-community/Llama-3.2-3B-Instruct-ONNX"
+    "Xenova/distilgpt2": "onnx-community/Llama-3.2-3B-Instruct-onnx-web"
   }
 }

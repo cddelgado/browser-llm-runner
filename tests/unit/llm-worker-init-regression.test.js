@@ -106,7 +106,7 @@ describe('llm.worker init regression', () => {
         data: {
           type: 'init',
           payload: {
-            modelId: 'onnx-community/Llama-3.2-3B-Instruct-ONNX',
+            modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
             backendPreference: 'webgpu',
             runtime: {
               dtypes: {
@@ -123,7 +123,7 @@ describe('llm.worker init regression', () => {
     expect(pipelineFactory).toHaveBeenCalledTimes(1);
     expect(pipelineFactory).toHaveBeenCalledWith(
       'text-generation',
-      'onnx-community/Llama-3.2-3B-Instruct-ONNX',
+      'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
       expect.objectContaining({
         device: 'wasm',
         dtype: 'q4',
@@ -135,7 +135,7 @@ describe('llm.worker init regression', () => {
       payload: {
         backend: 'cpu',
         backendDevice: 'wasm',
-        modelId: 'onnx-community/Llama-3.2-3B-Instruct-ONNX',
+        modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
       },
     });
   });
@@ -200,7 +200,7 @@ describe('llm.worker init regression', () => {
         data: {
           type: 'init',
           payload: {
-            modelId: 'onnx-community/Llama-3.2-3B-Instruct-ONNX',
+            modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
             backendPreference: 'webgpu',
             runtime: {
               dtypes: {
@@ -230,7 +230,7 @@ describe('llm.worker init regression', () => {
       payload: {
         backend: 'cpu',
         backendDevice: 'default',
-        modelId: 'onnx-community/Llama-3.2-3B-Instruct-ONNX',
+        modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
       },
     });
   });

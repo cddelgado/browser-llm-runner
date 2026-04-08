@@ -427,7 +427,7 @@ const configuredDefaultModel =
 export const DEFAULT_MODEL =
   configuredDefaultModel ||
   configuredModels[0]?.id ||
-  'onnx-community/Llama-3.2-3B-Instruct-ONNX';
+  'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 
 if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
   configuredModels.unshift({

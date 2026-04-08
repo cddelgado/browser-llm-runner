@@ -276,7 +276,7 @@ Current selectable models in Settings:
   - Uses `thinkingControl` with runtime `enable_thinking`.
   - Uses Gemma's channel-style thought markers via `thinkingTags { open: "<|channel>", close: "<channel|>", stripLeadingText: "thought" }`.
   - Uses the Gemma special-token tool-call format.
-- `onnx-community/Llama-3.2-3B-Instruct-ONNX`
+- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses `q4f16` on WebGPU and `int8` on CPU, and loads external ONNX data sidecars.
   - Uses the same app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
@@ -310,12 +310,12 @@ Current selectable models in Settings:
   - Video remains disabled in config because the current browser runtime path is not reliable enough yet.
   - The app uses a dedicated multimodal worker path for this model and currently resolves `q8` in both WebGPU and CPU modes because the full repo does not expose a complete q4/q4f16 multimodal set.
 - Legacy aliases remapped automatically at runtime:
-  - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
+  - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `onnx-community/Qwen3-0.6B-ONNX` -> `onnx-community/Qwen3.5-0.8B-ONNX`
   - `huggingworld/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
-  - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
+  - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 
 Notes:
 
@@ -340,8 +340,8 @@ Notes:
 
 Per-model limits and defaults:
 
-- `onnx-community/Llama-3.2-3B-Instruct-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: q4 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"cmd":"..."}` inside `parameters`, no thinking tags
-- `Llama 3.2 3B` keeps the full ONNX repo id for browser use, but CPU avoids the published `int8` artifact because that package is shipped as a single multi-gigabyte external-data blob that can fail browser `ArrayBuffer` allocation during load.
+- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: runtime dtypes `{ webgpu: q4f16, cpu: q4 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"cmd":"..."}` inside `parameters`, no thinking tags
+- `Llama 3.2 3B` keeps the browser-oriented `onnx-web` repo id as its canonical model in this app. The full ONNX repo remains a legacy alias because its browser load path was not reliable here: the `int8` package could fail with `Array buffer allocation failed`, and the `q4` package could fail to preload required `.onnx_data` shards.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: int8 }`, `useExternalDataFormat: true`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
 - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`: runtime dtypes `{ webgpu: q4f16, cpu: q4f16 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
 - All listed Llama entries enable `useExternalDataFormat: true` where required for `.onnx_data` loading.
