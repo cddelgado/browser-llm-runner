@@ -224,18 +224,19 @@ function configureOnnxWasmBackend(env, backend = 'wasm') {
   if (!env?.backends?.onnx?.wasm) {
     return null;
   }
-  const shouldProxy = backend === 'webgpu';
-  const existingNumThreads = env.backends.onnx.wasm.numThreads;
+  const numThreads = 0;
+  const shouldProxy = true;
+  env.backends.onnx.wasm.numThreads = numThreads;
   env.backends.onnx.wasm.proxy = shouldProxy;
   const result = {
     backend,
     proxy: shouldProxy,
-    ...(existingNumThreads !== undefined ? { numThreads: existingNumThreads } : {}),
+    numThreads,
   };
   logWorkerDebug('onnx-wasm-config', {
     backend,
     proxy: env.backends.onnx.wasm.proxy,
-    numThreads: existingNumThreads ?? '(runtime default)',
+    numThreads: env.backends.onnx.wasm.numThreads,
   });
   return result;
 }

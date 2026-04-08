@@ -20,8 +20,8 @@ Inference is selected through the engine client boundary and executes through a 
   - `wasm` -> `cpu`
 - ONNX worker defaults keep browser cache support enabled for both modes and now log the exact backend device used for each load/generation attempt:
   - `env.useWasmCache = true`
-  - `onnx.wasm.proxy = true` on `webgpu` attempts
-  - `onnx.wasm.proxy = false` on CPU `wasm`/`default` attempts
+  - `onnx.wasm.proxy = true`
+  - `onnx.wasm.numThreads = 0`
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
 - `mediapipe-genai` models currently require WebGPU and reject CPU mode.
 - Models with `multimodalGeneration: true` use a processor/model execution path in the worker instead of the text-generation pipeline.

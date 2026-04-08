@@ -302,7 +302,7 @@ describe('llm.worker backend selection', () => {
 });
 
 describe('llm.worker wasm backend config', () => {
-  test('disables proxying on CPU wasm attempts without forcing a thread override', () => {
+  test('enables proxying and automatic thread selection on CPU wasm attempts', () => {
     const env = {
       backends: {
         onnx: {
@@ -312,11 +312,12 @@ describe('llm.worker wasm backend config', () => {
     };
 
     const result = configureOnnxWasmBackend(env, 'wasm');
-    expect(env.backends.onnx.wasm.proxy).toBe(false);
-    expect(env.backends.onnx.wasm.numThreads).toBeUndefined();
+    expect(env.backends.onnx.wasm.proxy).toBe(true);
+    expect(env.backends.onnx.wasm.numThreads).toBe(0);
     expect(result).toEqual({
       backend: 'wasm',
-      proxy: false,
+      proxy: true,
+      numThreads: 0,
     });
   });
 
@@ -331,9 +332,11 @@ describe('llm.worker wasm backend config', () => {
 
     const result = configureOnnxWasmBackend(env, 'webgpu');
     expect(env.backends.onnx.wasm.proxy).toBe(true);
+    expect(env.backends.onnx.wasm.numThreads).toBe(0);
     expect(result).toEqual({
       backend: 'webgpu',
       proxy: true,
+      numThreads: 0,
     });
   });
 

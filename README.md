@@ -65,7 +65,7 @@ Student-facing browser chat UI with local model inference.
   - `WebGPU`
   - `CPU`
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
-- CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying for WebGPU attempts, and leaves CPU attempts on the direct WASM/default path for cleaner diagnostics and recovery.
+- CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and leaves ONNX thread selection on ORT auto (`onnx.wasm.numThreads = 0`).
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
 - LiteRT-backed models are WebGPU-only in this app and require `WebGPU`.
 - Token controls in Settings:
