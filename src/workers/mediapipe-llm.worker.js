@@ -175,6 +175,30 @@ function extractErrorMessage(error) {
   return 'Unknown initialization error';
 }
 
+function buildFetchFailureError({ requestedUrl, response }) {
+  const status = Number.isFinite(response?.status) ? response.status : 0;
+  const resolvedUrl =
+    typeof response?.url === 'string' && response.url.trim() ? response.url.trim() : requestedUrl;
+  const statusText =
+    typeof response?.statusText === 'string' && response.statusText.trim()
+      ? response.statusText.trim()
+      : '';
+  const summary = `Failed to fetch model: ${requestedUrl} (${status || 'unknown'})`;
+  const error = new Error(
+    `${summary}${statusText ? ` ${statusText}` : ''}${resolvedUrl ? ` -> ${resolvedUrl}` : ''}`
+  );
+  error.name = 'ModelFetchError';
+  error.fetchDetails = {
+    requestedUrl,
+    resolvedUrl,
+    status,
+    statusText,
+    redirected: Boolean(response?.redirected),
+    responseType: typeof response?.type === 'string' ? response.type : '',
+  };
+  return error;
+}
+
 function normalizeBackendPreference(preference) {
   if (preference === 'cpu' || preference === 'wasm') {
     return 'cpu';
@@ -559,7 +583,10 @@ async function initializeInference({ backend, runtime, nextGenerationConfig }) {
     cache: 'force-cache',
   });
   if (!response.ok) {
-    throw new Error(`Failed to fetch model: ${runtime.modelAssetPath} (${response.status})`);
+    throw buildFetchFailureError({
+      requestedUrl: runtime.modelAssetPath,
+      response,
+    });
   }
   const wasmFileset = await getWasmFileset();
   const modelAssetBuffer = buildProgressReader(response, runtime.modelAssetPath);
@@ -666,7 +693,7 @@ async function initialize(payload) {
 
   disposeLoadedInference();
 
-  const errors = [];
+  const attemptErrors = [];
   for (const backend of attempts) {
     try {
       postStatus(`Loading ${modelId} with ${backend.toUpperCase()}...`);
@@ -704,7 +731,14 @@ async function initialize(payload) {
     } catch (error) {
       llmInference?.close?.();
       llmInference = null;
-      errors.push(`${backend.toUpperCase()}: ${extractErrorMessage(error)}`);
+      attemptErrors.push({
+        backend,
+        message: extractErrorMessage(error),
+        fetchDetails:
+          error && typeof error === 'object' && error.fetchDetails && typeof error.fetchDetails === 'object'
+            ? error.fetchDetails
+            : null,
+      });
     }
   }
 
@@ -712,7 +746,15 @@ async function initialize(payload) {
   self.postMessage({
     type: 'init-error',
     payload: {
-      message: `Failed to initialize model. ${errors.join(' | ') || 'No usable backend is available.'}`,
+      message: `Failed to initialize model. ${
+        attemptErrors.map((entry) => `${entry.backend.toUpperCase()}: ${entry.message}`).join(' | ') ||
+        'No usable backend is available.'
+      }`,
+      details: {
+        modelId,
+        modelAssetPath: runtime.modelAssetPath,
+        attempts: attemptErrors,
+      },
     },
   });
   postProgress({ percent: 0, message: 'Model load failed.' });

@@ -282,6 +282,13 @@ export class LLMEngineClient {
           clearTimeout(timeout);
           this.#clearPendingInitState();
           this.worker.removeEventListener('message', onMessage);
+          logEngineError('init-error', {
+            message: data.payload?.message || '',
+            details: data.payload?.details || null,
+            loadedModelId: this.loadedModelId,
+            loadedBackend: this.loadedBackend,
+            loadedBackendDevice: this.loadedBackendDevice,
+          });
           reject(new Error(data.payload.message));
         }
       };
