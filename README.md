@@ -167,7 +167,7 @@ Student-facing browser chat UI with local model inference.
 - Those MCP helper tools run through the same tool harness as built-in tools and are not user-toggled in `Settings -> Tools`; their availability is derived from enabled MCP servers and enabled commands.
 - Tool-calling behavior, transcript presentation, export semantics, the current built-in, skill, and MCP tool surfaces are documented in `docs/tools.md`.
 - The current built-in tool catalog exposed to models includes date/time lookup, user location lookup, the `web_lookup` URL/search tool, a `tasklist` planner whose latest state is derived from inline tasklist tool results on the visible conversation branch, a `write_python_file` tool for longer `/workspace/*.py` scripts, and a browser-local `run_shell_command` tool that exposes a documented GNU/Linux-like command subset over `/workspace`.
-- When one or more enabled uploaded skill packages exist, the model also gets the implicit `read_skill` tool, which returns the stored `SKILL.md` markdown for one named skill.
+- When one or more enabled uploaded skill packages exist, the model also gets the implicit `read_skill` tool, which returns the stored `SKILL.md` content wrapped with an explicit "this is the skill information" cue plus a follow-up prompt to apply it.
 - When enabled MCP servers exist, the model also gets the MCP helper tools `list_mcp_server_commands` and `call_mcp_server_command`; those helpers expose only enabled servers and enabled commands.
 - The preferred MCP path remains `list_mcp_server_commands` then `call_mcp_server_command`; if a model emits a direct enabled MCP command name anyway, the runtime treats it as an alias only when exactly one enabled server exposes that command name.
 - The fetch-backed `web_lookup` page/search tool is exposed to models when enabled in `Settings -> Tools`.
@@ -179,7 +179,7 @@ Student-facing browser chat UI with local model inference.
   - The shell tool keeps a conversation-local current working directory, defaults it to `/workspace`, and resolves relative paths from that pointer.
   - `run_shell_command` now documents `cmd` as its preferred shell-text argument and still accepts legacy `command` for compatibility.
   - Shell-command input is sanitized before execution: oversized commands, control characters, fenced blocks, and nested tool-call payloads are rejected.
-  - Shell-tool responses exposed to the model and transcript use a compact `{"status":"success"|"failed","body":"..."}` envelope, and the `body` is plain human-readable text rather than a schema dump.
+  - Shell-tool responses exposed to the model and transcript use a compact `{"status":"successful"|"failed","body":"...","message?"}` envelope, and the `body` is plain human-readable text rather than a schema dump.
   - When `run_shell_command` is invoked, an embedded read-only xterm terminal opens on the right side of the chat workspace, shows the shell prompt plus command/output, and can be manually closed until the next shell command reopens it.
   - The conversation sidebar auto-collapses while that terminal is open, and switching to a conversation with no shell terminal history closes the terminal automatically.
   - `docs/tools.md` also defines the implementation standard future shell commands must meet before they are added to this subset.

@@ -315,7 +315,7 @@ export function buildShellToolResponseEnvelope(
   const hasCommand = typeof result?.command === 'string' && result.command.trim();
   if (!hasCommand) {
     return {
-      status: 'success',
+      status: 'successful',
       body: formatShellCommandUsageBody(currentWorkingDirectory),
     };
   }
@@ -323,13 +323,13 @@ export function buildShellToolResponseEnvelope(
   const bodyInfo = getShellPreviewText(getShellExecutionBody(result));
   if (bodyInfo.truncated) {
     return {
-      status: 'incomplete',
+      status: exitCode === 0 ? 'successful' : 'failed',
       body: bodyInfo.text,
       message: buildShellOutputTruncationMessage(bodyInfo.returnedLength, bodyInfo.totalLength),
     };
   }
   return {
-    status: exitCode === 0 ? 'success' : 'failed',
+    status: exitCode === 0 ? 'successful' : 'failed',
     body: bodyInfo.text,
   };
 }

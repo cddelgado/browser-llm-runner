@@ -159,7 +159,11 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Arguments:
   - required `path`
   - required `source`
-- Result fields:
+- Model-facing result shape:
+  - `status: "successful"`
+  - `body`: markdown summary with path, size, line count, and a preview block when available
+  - `message`: follow-up guidance for running the script through `run_shell_command`
+- Internal app metadata preserved for the terminal/session UI:
   - `path`
   - `bytes`
   - `lines`
@@ -187,7 +191,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Tool-call payload returned to the model:
   - `status`
   - `body`
-  - optional `message` when output is truncated and `status` becomes `incomplete`
+  - optional `message` when output is truncated
 - Internal app metadata preserved for the terminal/session UI:
   - `shellFlavor`
   - `currentWorkingDirectory`
@@ -258,7 +262,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `;`, `&&`, redirection, substitution, and globbing are not implemented
   - unsupported commands/syntax return shell-style `stderr` text with a non-zero `exitCode`
   - oversized shell output is truncated only in the model-facing tool response; the terminal/session history keeps the natural shell output
-  - when that model-facing truncation happens, the model receives `{"status":"incomplete","body":"...","message":"..."}` so it can retry with a narrower command
+  - when that model-facing truncation happens, the model still receives `status: "successful"` plus a truncation note in `message` so it can retry with a narrower command
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js), [src/llm/shell-command-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/shell-command-tool.js), [src/llm/python-tool.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/python-tool.js), [src/llm/python-runtime-client.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/python-runtime-client.js), and [src/workers/python.worker.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/workers/python.worker.js).
 
@@ -272,8 +276,9 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Arguments:
   - required `name`
 - Success result shape:
-  - `status: "success"`
-  - `body`: the stored `SKILL.md` markdown
+  - `status: "successful"`
+  - `body`: a markdown block starting with an explicit skill-information cue, followed by the stored `SKILL.md` content, then a short prompt to apply it
+  - `message`: follow-up instruction to act on the skill
 - Failure result shape:
   - `status: "failed"`
   - `body`: error detail such as an unknown skill name
@@ -319,15 +324,11 @@ The MCP helper tools are not user-toggled. They become available automatically w
 - Arguments:
   - required `server`
 - Result fields:
-  - `server`
-  - `name`
-  - optional `description`
-  - `commands`
-- `commands[]` fields:
+  - `tools`
+- `tools[]` fields:
   - `name`
   - optional `description`
   - optional `inputSchema`
-  - `inputSummary`
 - Scope:
   - returns only enabled commands
   - requires the selected server to be enabled and to have at least one enabled command
@@ -342,19 +343,15 @@ The MCP helper tools are not user-toggled. They become available automatically w
   - required `command`
   - optional `arguments` object
 - Result fields:
-  - `status`
-  - `server`
-  - `command`
-  - `body`
+  - `content`
   - optional `structuredContent`
-  - optional `content`
-  - optional `message` when the model-facing `body` is trimmed for length
+  - optional `isError`
 - Scope:
   - requires both the selected server and the selected command to be enabled
   - sends the provided `arguments` object to the configured MCP endpoint only when invoked
 - Model-facing syntax:
   - `{"server":"server_identifier","command":"command_name","arguments":{...}}`
-  - Large MCP response bodies first collapse repeated blank-line runs to one newline, then trim in the stored tool-result text to 7.5% of the active `maxContextTokens` setting, with a follow-up note telling the model it can make another request if needed.
+  - Large MCP text payloads are trimmed in the stored tool-result text to 7.5% of the active `maxContextTokens` setting, and a follow-up text content item notes that the response was truncated.
 
 ## Capability model
 

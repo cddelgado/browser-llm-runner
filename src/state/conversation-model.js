@@ -1125,6 +1125,9 @@ function getTaskListItemsFromToolMessage(message) {
   if (message?.role !== 'tool' || message.toolName !== 'tasklist') {
     return null;
   }
+  if (Array.isArray(message?.toolResultData?.items)) {
+    return normalizeTaskListItems(message.toolResultData.items);
+  }
   try {
     const parsed = JSON.parse(String(message.toolResult || message.text || ''));
     return Array.isArray(parsed?.items) ? normalizeTaskListItems(parsed.items) : null;

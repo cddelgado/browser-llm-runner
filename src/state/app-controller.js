@@ -363,7 +363,9 @@ export function createAppController(dependencies) {
           toolName: executionResult.toolName,
           toolArguments: executionResult.arguments,
           toolResultData:
-            executionResult.toolName === 'run_shell_command' &&
+            (executionResult.toolName === 'run_shell_command' ||
+              executionResult.toolName === 'write_python_file' ||
+              executionResult.toolName === 'tasklist') &&
             executionResult.result &&
             typeof executionResult.result === 'object'
               ? executionResult.result

@@ -393,23 +393,6 @@ function normalizeToolContentItem(item) {
   return null;
 }
 
-function buildCommandResultBody(content, structuredContent) {
-  const textContent = (Array.isArray(content) ? content : [])
-    .filter((item) => item?.type === 'text' && typeof item.text === 'string' && item.text.trim())
-    .map((item) => item.text.trim());
-  if (textContent.length) {
-    return textContent.join('\n\n');
-  }
-  if (structuredContent && typeof structuredContent === 'object') {
-    try {
-      return JSON.stringify(structuredContent);
-    } catch {
-      return '';
-    }
-  }
-  return '';
-}
-
 /**
  * @param {any} server
  * @param {string} commandName
@@ -453,12 +436,9 @@ export async function executeMcpServerCommand(
       ? result.structuredContent
       : null;
   return {
-    status: result.isError === true ? 'failed' : 'success',
-    server: normalizedServer.identifier,
-    command: normalizedCommandName,
-    body: buildCommandResultBody(content, structuredContent),
-    structuredContent,
     content,
+    ...(structuredContent ? { structuredContent } : {}),
+    ...(result.isError === true ? { isError: true } : {}),
   };
 }
 

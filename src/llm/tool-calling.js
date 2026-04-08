@@ -6,7 +6,6 @@ import {
   findMcpServerCommand,
   findMcpServerConfig,
   getEnabledMcpServerConfigs,
-  summarizeMcpInputSchema,
 } from './mcp-client.js';
 import {
   findEnabledSkillPackageByName,
@@ -223,23 +222,88 @@ function buildMcpToolTruncationMessage(maxLength) {
   return `This response was too long, so it was trimmed to ${maxLength} characters. Feel free to make another request if necessary.`;
 }
 
+function buildSuccessfulToolEnvelope(body, message = '') {
+  const normalizedBody = typeof body === 'string' ? body : String(body ?? '');
+  const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+  return {
+    status: 'successful',
+    body: normalizedBody,
+    ...(normalizedMessage ? { message: normalizedMessage } : {}),
+  };
+}
+
+function stringifyToolEnvelope(body, message = '') {
+  return JSON.stringify(buildSuccessfulToolEnvelope(body, message));
+}
+
+function buildMcpTextContentItem(text) {
+  return {
+    type: 'text',
+    text: typeof text === 'string' ? text : String(text ?? ''),
+  };
+}
+
+function trimMcpContentItems(content, maxLength) {
+  const normalizedContent = Array.isArray(content) ? content : [];
+  let remainingLength = Number.isFinite(maxLength) && maxLength > 0 ? Math.floor(maxLength) : 0;
+  let trimmed = false;
+  const trimmedContent = [];
+
+  normalizedContent.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+    if (item.type !== 'text' || typeof item.text !== 'string') {
+      if (!trimmed) {
+        trimmedContent.push(item);
+      }
+      return;
+    }
+    if (trimmed || remainingLength <= 0) {
+      trimmed = true;
+      return;
+    }
+    const preview = trimToolBody(item.text, remainingLength);
+    trimmedContent.push({
+      ...item,
+      text: preview.text,
+    });
+    remainingLength -= preview.text.length;
+    if (preview.trimmed) {
+      trimmed = true;
+    }
+  });
+
+  return {
+    content: trimmedContent,
+    trimmed,
+  };
+}
+
 function serializeMcpCommandCallResult(result, runtimeContext = {}) {
   const normalizedResult = result && typeof result === 'object' ? result : {};
   const maxLength = getMcpToolBodyLimit(runtimeContext);
-  const trimmedBody = trimToolBody(normalizedResult.body, maxLength);
-  return JSON.stringify({
-    status: normalizedResult.status === 'failed' ? 'failed' : 'success',
-    server:
-      typeof normalizedResult.server === 'string' && normalizedResult.server.trim()
-        ? normalizedResult.server.trim()
-        : undefined,
-    command:
-      typeof normalizedResult.command === 'string' && normalizedResult.command.trim()
-        ? normalizedResult.command.trim()
-        : undefined,
-    body: trimmedBody.text,
-    ...(trimmedBody.trimmed ? { message: buildMcpToolTruncationMessage(maxLength) } : {}),
-  });
+  const rawContent = Array.isArray(normalizedResult.content)
+    ? normalizedResult.content
+    : typeof normalizedResult.body === 'string'
+      ? [buildMcpTextContentItem(normalizedResult.body)]
+      : [];
+  const trimmedContent = trimMcpContentItems(rawContent, maxLength);
+  const serializedResult = {
+    content: trimmedContent.content.length
+      ? trimmedContent.content
+      : [buildMcpTextContentItem('')],
+    ...(normalizedResult.structuredContent &&
+    typeof normalizedResult.structuredContent === 'object' &&
+    !trimmedContent.trimmed
+      ? { structuredContent: normalizedResult.structuredContent }
+      : {}),
+    ...(normalizedResult.isError === true ? { isError: true } : {}),
+  };
+  if (trimmedContent.trimmed) {
+    serializedResult.content.push(buildMcpTextContentItem(buildMcpToolTruncationMessage(maxLength)));
+  }
+  return JSON.stringify(serializedResult);
 }
 
 /**
@@ -1349,6 +1413,98 @@ function buildTaskListUsageResult() {
   };
 }
 
+function buildDateTimeToolBody(result = {}) {
+  return [
+    '## Current date and time',
+    `- Local date: ${typeof result.localDate === 'string' ? result.localDate : 'Unknown'}`,
+    `- Local time: ${typeof result.localTime === 'string' ? result.localTime : 'Unknown'}`,
+    `- Time zone: ${typeof result.timeZone === 'string' ? result.timeZone : 'UTC'}`,
+    `- ISO timestamp: ${typeof result.iso === 'string' ? result.iso : ''}`,
+    `- Unix milliseconds: ${Number.isFinite(result.unixMs) ? String(result.unixMs) : ''}`,
+  ].join('\n');
+}
+
+function buildUserLocationToolBody(result = {}) {
+  const lines = [
+    '## User location',
+    `- Location: ${typeof result.location === 'string' && result.location.trim() ? result.location.trim() : 'Unknown'}`,
+  ];
+  if (
+    result.coordinate &&
+    typeof result.coordinate === 'object' &&
+    Number.isFinite(result.coordinate.latitude) &&
+    Number.isFinite(result.coordinate.longitude)
+  ) {
+    lines.push(`- Latitude: ${result.coordinate.latitude}`);
+    lines.push(`- Longitude: ${result.coordinate.longitude}`);
+  } else {
+    lines.push('- Coordinates: unavailable');
+  }
+  return lines.join('\n');
+}
+
+function buildTaskListToolBody(result = {}) {
+  if (Array.isArray(result.examples)) {
+    return [
+      '## Tasklist usage',
+      typeof result.message === 'string' ? result.message : '',
+      '',
+      ...result.examples.map((example) => `- \`${example}\``),
+      '',
+      typeof result.note === 'string' ? result.note : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+  const items = Array.isArray(result.items) ? result.items : [];
+  return [
+    '## Tasklist',
+    ...(items.length
+      ? items.map((entry) => {
+          const index = Number.isFinite(entry?.index) ? entry.index : 0;
+          const text = typeof entry?.text === 'string' ? entry.text : '';
+          const status = entry?.status === 1 || entry?.status === true ? 'done' : 'undone';
+          return `- [${status}] ${index}: ${text}`;
+        })
+      : ['- No tasks.']),
+  ].join('\n');
+}
+
+function buildWritePythonFileToolBody(result = {}) {
+  const path = typeof result.path === 'string' && result.path.trim() ? result.path.trim() : '/workspace/script.py';
+  const lines = [
+    '## Python file written',
+    `- Path: ${path}`,
+    `- Size: ${Number.isFinite(result.bytes) ? result.bytes : 0} bytes`,
+    `- Lines: ${Number.isFinite(result.lines) ? result.lines : 0}`,
+  ];
+  if (typeof result.preview === 'string' && result.preview.trim()) {
+    lines.push('');
+    lines.push('### Preview');
+    lines.push('```python');
+    lines.push(result.preview);
+    lines.push('```');
+  }
+  return lines.join('\n');
+}
+
+function buildReadSkillToolResult(result = {}) {
+  const skillName = typeof result.name === 'string' && result.name.trim() ? result.name.trim() : 'Requested Skill';
+  const skillMarkdown =
+    typeof result.skillMarkdown === 'string' ? result.skillMarkdown : '';
+  return {
+    status: 'successful',
+    body: [
+      `This is the skill information for "${skillName}".`,
+      '',
+      skillMarkdown,
+      '',
+      'Apply this skill information to the current task and continue.',
+    ].join('\n'),
+    message: 'Act on this skill information now.',
+  };
+}
+
 function buildTaskListSnapshot(entries = []) {
   return entries.map((entry, index) => ({
     index,
@@ -1377,6 +1533,23 @@ function getConversationPathMessages(
 function parseTaskListItemsFromToolMessage(message) {
   if (message?.role !== 'tool' || message.toolName !== 'tasklist') {
     return null;
+  }
+  if (Array.isArray(message?.toolResultData?.items)) {
+    return message.toolResultData.items
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return null;
+        }
+        const text = typeof entry.text === 'string' ? entry.text.trim() : '';
+        if (!text) {
+          return null;
+        }
+        return {
+          text,
+          status: entry.status === 1 || entry.status === true ? 1 : 0,
+        };
+      })
+      .filter(Boolean);
   }
   try {
     const parsed = JSON.parse(String(message.toolResult || message.text || ''));
@@ -1863,16 +2036,12 @@ function getValidatedMcpServerCallArguments(argumentsValue = {}) {
 
 function buildMcpCommandListResult(server) {
   return {
-    server: server.identifier,
-    name: server.displayName,
-    description: server.description || undefined,
-    commands: server.commands
+    tools: server.commands
       .filter((command) => command.enabled)
       .map((command) => ({
         name: command.name,
         description: command.description || undefined,
         inputSchema: command.inputSchema || undefined,
-        inputSummary: summarizeMcpInputSchema(command.inputSchema),
       })),
   };
 }
@@ -1906,8 +2075,9 @@ function executeReadSkill(argumentsValue = {}, runtimeContext = {}) {
     throw new Error(`Skill name is ambiguous: ${name}`);
   }
   return {
-    status: 'success',
-    body: typeof resolvedSkillPackage.skillMarkdown === 'string' ? resolvedSkillPackage.skillMarkdown : '',
+    name,
+    skillMarkdown:
+      typeof resolvedSkillPackage.skillMarkdown === 'string' ? resolvedSkillPackage.skillMarkdown : '',
   };
 }
 
@@ -1992,17 +2162,31 @@ function findEnabledMcpCommandAlias(mcpServers = [], toolName = '') {
 const TOOL_EXECUTORS = Object.freeze({
   get_current_date_time: {
     execute: (argumentsValue) => executeGetCurrentDateTime(argumentsValue),
+    serializeResult: (result) => stringifyToolEnvelope(buildDateTimeToolBody(result)),
+    serializeError: (error) => buildFailedToolEnvelope(error),
   },
   get_user_location: {
     execute: (argumentsValue, runtimeContext) =>
       executeGetUserLocation(argumentsValue, runtimeContext),
+    serializeResult: (result) => stringifyToolEnvelope(buildUserLocationToolBody(result)),
+    serializeError: (error) => buildFailedToolEnvelope(error),
   },
   tasklist: {
     execute: (argumentsValue, runtimeContext) => executeTaskList(argumentsValue, runtimeContext),
+    serializeResult: (result) => stringifyToolEnvelope(buildTaskListToolBody(result)),
+    serializeError: (error) => buildFailedToolEnvelope(error),
   },
   web_lookup: {
     execute: (argumentsValue, runtimeContext) =>
       executeWebLookupTool(argumentsValue, runtimeContext),
+    serializeResult: (result) =>
+      JSON.stringify({
+        status: result?.status === 'failed' ? 'failed' : 'successful',
+        body: typeof result?.body === 'string' ? result.body : '',
+        ...(typeof result?.message === 'string' && result.message.trim()
+          ? { message: result.message.trim() }
+          : {}),
+      }),
     serializeError: (error) =>
       buildFailedToolEnvelope(error, {
         message: WEB_LOOKUP_FAILURE_MESSAGE,
@@ -2012,11 +2196,10 @@ const TOOL_EXECUTORS = Object.freeze({
     execute: (argumentsValue, runtimeContext) =>
       executeWritePythonFileTool(argumentsValue, runtimeContext),
     serializeResult: (result) =>
-      JSON.stringify({
-        status: 'success',
-        body: `Script successfully written to ${result?.path || '/workspace/script.py'}.`,
-        message: `To execute the script, use {"name":"run_shell_command","parameters":{"cmd":"python ${result?.path || '/workspace/script.py'}"}}`,
-      }),
+      stringifyToolEnvelope(
+        buildWritePythonFileToolBody(result),
+        `To execute the script, use {"name":"run_shell_command","parameters":{"cmd":"python ${result?.path || '/workspace/script.py'}"}}`
+      ),
     serializeError: (error) => buildFailedToolEnvelope(error),
   },
   run_shell_command: {
@@ -2031,17 +2214,19 @@ const TOOL_EXECUTORS = Object.freeze({
   },
   [READ_SKILL_TOOL]: {
     execute: (argumentsValue, runtimeContext) => executeReadSkill(argumentsValue, runtimeContext),
-    serializeResult: (result) =>
-      JSON.stringify({
-        status: result?.status === 'failed' ? 'failed' : 'success',
-        body: typeof result?.body === 'string' ? result.body : '',
-      }),
+    serializeResult: (result) => JSON.stringify(buildReadSkillToolResult(result)),
     serializeError: (error) => buildFailedToolEnvelope(error),
   },
   [MCP_SERVER_COMMAND_LIST_TOOL]: {
     execute: (argumentsValue, runtimeContext) =>
       executeListMcpServerCommands(argumentsValue, runtimeContext),
-    serializeError: (error) => buildFailedToolEnvelope(error),
+    serializeResult: (result) => JSON.stringify(result && typeof result === 'object' ? result : {}),
+    serializeError: (error) =>
+      JSON.stringify({
+        tools: [],
+        isError: true,
+        content: [buildMcpTextContentItem(error instanceof Error ? error.message : String(error))],
+      }),
   },
   [MCP_SERVER_COMMAND_CALL_TOOL]: {
     execute: (argumentsValue, runtimeContext) =>
@@ -2049,7 +2234,7 @@ const TOOL_EXECUTORS = Object.freeze({
     serializeResult: (result, runtimeContext) => serializeMcpCommandCallResult(result, runtimeContext),
     serializeError: (error, runtimeContext) =>
       serializeMcpCommandCallResult({
-        status: 'failed',
+        isError: true,
         body: error instanceof Error ? error.message : String(error),
       }, runtimeContext),
   },

@@ -710,10 +710,7 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(result.result).toEqual({
-      server: 'docs',
-      name: 'Docs',
-      description: 'Project documentation lookup.',
-      commands: [
+      tools: [
         {
           name: 'search_docs',
           description: 'Search documentation pages.',
@@ -726,7 +723,6 @@ describe('tool-calling prompt builder', () => {
               },
             },
           },
-          inputSummary: 'Required: query. Fields: query (string).',
         },
       ],
     });
@@ -830,10 +826,6 @@ describe('tool-calling prompt builder', () => {
     expect(fetchRef).toHaveBeenCalledTimes(3);
     expect(fetchRef.mock.calls[2][1].body).toContain('"method":"tools/call"');
     expect(result.result).toEqual({
-      status: 'success',
-      server: 'docs',
-      command: 'search_docs',
-      body: 'Result from MCP.',
       structuredContent: {
         answer: 'Result from MCP.',
       },
@@ -846,10 +838,15 @@ describe('tool-calling prompt builder', () => {
     });
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'success',
-        server: 'docs',
-        command: 'search_docs',
-        body: 'Result from MCP.',
+        content: [
+          {
+            type: 'text',
+            text: 'Result from MCP.',
+          },
+        ],
+        structuredContent: {
+          answer: 'Result from MCP.',
+        },
       })
     );
   });
@@ -950,15 +947,24 @@ describe('tool-calling prompt builder', () => {
       }
     );
 
-    expect(result.result.body).toBe(longBody);
+    expect(result.result.content).toEqual([
+      {
+        type: 'text',
+        text: longBody,
+      },
+    ]);
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'success',
-        server: 'docs',
-        command: 'search_docs',
-        body: `${'A'.repeat(300)}\n${'B'.repeat(313)}`,
-        message:
-          'This response was too long, so it was trimmed to 614 characters. Feel free to make another request if necessary.',
+        content: [
+          {
+            type: 'text',
+            text: `${'A'.repeat(300)}\n${'B'.repeat(313)}`,
+          },
+          {
+            type: 'text',
+            text: 'This response was too long, so it was trimmed to 614 characters. Feel free to make another request if necessary.',
+          },
+        ],
       })
     );
   });
@@ -1006,10 +1012,17 @@ describe('tool-calling prompt builder', () => {
     expect(result.result).toBeNull();
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'failed',
-        body: `Server error:\n${'B'.repeat(600)}`,
-        message:
-          'This response was too long, so it was trimmed to 614 characters. Feel free to make another request if necessary.',
+        content: [
+          {
+            type: 'text',
+            text: `Server error:\n${'B'.repeat(600)}`,
+          },
+          {
+            type: 'text',
+            text: 'This response was too long, so it was trimmed to 614 characters. Feel free to make another request if necessary.',
+          },
+        ],
+        isError: true,
       })
     );
   });
@@ -1115,11 +1128,6 @@ describe('tool-calling prompt builder', () => {
       },
     });
     expect(result.result).toEqual({
-      status: 'success',
-      server: 'docs',
-      command: 'search_docs',
-      body: 'Alias result.',
-      structuredContent: null,
       content: [
         {
           type: 'text',
@@ -1703,8 +1711,8 @@ describe('tool-calling prompt builder', () => {
       timeZone: expect.any(String),
     });
     expect(JSON.parse(result.resultText)).toMatchObject({
-      iso: expect.any(String),
-      unixMs: expect.any(Number),
+      status: 'successful',
+      body: expect.stringContaining('## Current date and time'),
     });
   });
 
@@ -1737,12 +1745,14 @@ describe('tool-calling prompt builder', () => {
     expect(result.toolName).toBe('read_skill');
     expect(result.arguments).toEqual({ name: 'Lesson Planner' });
     expect(result.result).toEqual({
-      status: 'success',
-      body: '# Lesson Planner\n\nPlan lessons with objectives.',
+      name: 'Lesson Planner',
+      skillMarkdown: '# Lesson Planner\n\nPlan lessons with objectives.',
     });
     expect(JSON.parse(result.resultText)).toEqual({
-      status: 'success',
-      body: '# Lesson Planner\n\nPlan lessons with objectives.',
+      status: 'successful',
+      body:
+        'This is the skill information for "Lesson Planner".\n\n# Lesson Planner\n\nPlan lessons with objectives.\n\nApply this skill information to the current task and continue.',
+      message: 'Act on this skill information now.',
     });
   });
 
@@ -2122,8 +2132,9 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.path).toBe('/workspace/tools/script.py');
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'success',
-        body: 'Script successfully written to /workspace/tools/script.py.',
+        status: 'successful',
+        body:
+          '## Python file written\n- Path: /workspace/tools/script.py\n- Size: 15 bytes\n- Lines: 2\n\n### Preview\n```python\nprint("hello")\n\n```',
         message:
           'To execute the script, use {"name":"run_shell_command","parameters":{"cmd":"python /workspace/tools/script.py"}}',
       })
@@ -2195,7 +2206,7 @@ describe('tool-calling prompt builder', () => {
 
   test('puts the preferred cmd usage first in empty-argument shell discovery responses', () => {
     expect(buildShellToolResponseEnvelope()).toEqual({
-      status: 'success',
+      status: 'successful',
       body: 'Call again with {"cmd":"..."}\nCurrent working directory: /workspace\nSupported commands: pwd, basename, dirname, printf, true, false, cd, ls, cat, head, tail, wc, sort, uniq, cut, paste, join, column, tr, nl, rmdir, mkdir, mktemp, touch, cp, mv, rm, find, grep, sed, file, diff, curl, python, echo, set, unset, which',
     });
   });
@@ -2216,7 +2227,7 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.stdout).toBe('hello');
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'success',
+        status: 'successful',
         body: 'hello',
       })
     );
@@ -2234,7 +2245,7 @@ describe('tool-calling prompt builder', () => {
         currentWorkingDirectory: '/workspace',
       })
     ).toEqual({
-      status: 'incomplete',
+      status: 'successful',
       body: oversizedOutput.slice(0, MAX_SHELL_TOOL_OUTPUT_LENGTH),
       message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results.`,
     });
@@ -2323,7 +2334,7 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.stderr).toBe('');
     expect(result.resultText).toBe(
       JSON.stringify({
-        status: 'incomplete',
+        status: 'successful',
         body: oversizedOutput.slice(0, MAX_SHELL_TOOL_OUTPUT_LENGTH),
         message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results.`,
       })
@@ -4780,36 +4791,48 @@ describe('tool-calling prompt builder', () => {
   });
 
   test('rejects fenced code blocks in tasklist items', async () => {
-    await expect(
-      executeToolCall(
-        {
-          name: 'tasklist',
-          arguments: {
-            command: 'new',
-            item: '```js const x = 1; ```',
-          },
+    const result = await executeToolCall(
+      {
+        name: 'tasklist',
+        arguments: {
+          command: 'new',
+          item: '```js const x = 1; ```',
         },
-        {
-          conversation: taskListConversation,
-        }
-      )
-    ).rejects.toThrow('tasklist item must be plain language, not a fenced code block.');
+      },
+      {
+        conversation: taskListConversation,
+      }
+    );
+
+    expect(result.result).toBeNull();
+    expect(result.resultText).toBe(
+      JSON.stringify({
+        status: 'failed',
+        body: 'tasklist item must be plain language, not a fenced code block.',
+      })
+    );
   });
 
   test('rejects json-style tool calls in tasklist items', async () => {
-    await expect(
-      executeToolCall(
-        {
-          name: 'tasklist',
-          arguments: {
-            command: 'new',
-            item: '{"name":"get_current_date_time","parameters":{}}',
-          },
+    const result = await executeToolCall(
+      {
+        name: 'tasklist',
+        arguments: {
+          command: 'new',
+          item: '{"name":"get_current_date_time","parameters":{}}',
         },
-        {
-          conversation: taskListConversation,
-        }
-      )
-    ).rejects.toThrow('tasklist item must be plain language, not a JSON tool call.');
+      },
+      {
+        conversation: taskListConversation,
+      }
+    );
+
+    expect(result.result).toBeNull();
+    expect(result.resultText).toBe(
+      JSON.stringify({
+        status: 'failed',
+        body: 'tasklist item must be plain language, not a JSON tool call.',
+      })
+    );
   });
 });
