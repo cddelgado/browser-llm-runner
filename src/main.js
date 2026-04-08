@@ -2474,11 +2474,14 @@ function buildPromptForActiveConversation(
   conversation,
   leafMessageId = conversation?.activeLeafMessageId
 ) {
+  const systemPromptSuffix = getConversationSystemPromptSuffix(
+    getConversationModelId(conversation),
+    conversation
+  );
   return buildPromptForConversationLeaf(conversation, leafMessageId, {
-    systemPromptSuffix: getConversationSystemPromptSuffix(
-      getConversationModelId(conversation),
-      conversation
-    ),
+    systemPromptSuffix: [systemPromptSuffix, 'Below is your conversation with the user.']
+      .filter((part) => typeof part === 'string' && part.trim())
+      .join('\n\n'),
   });
 }
 
