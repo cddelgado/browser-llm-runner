@@ -52,7 +52,7 @@ describe('model-settings availability', () => {
     });
   });
 
-  test('keeps the visible LiquidAI models available only when WebGPU can be used', () => {
+  test('keeps the hidden LiquidAI compatibility models available only when WebGPU can be used', () => {
     [LIQUID_SMALL_MODEL_ID, LIQUID_INSTRUCT_MODEL_ID].forEach((modelId) => {
       expect(
         getModelAvailability(modelId, {
@@ -160,13 +160,15 @@ describe('model-settings availability', () => {
     });
   });
 
-  test('keeps hidden replacement models addressable while removing them from the visible catalog', () => {
+  test('keeps hidden replacement and retired models addressable while removing them from the visible catalog', () => {
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.hidden).toBe(false);
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_MODEL_ID)?.hidden).toBe(true);
     expect(MODEL_OPTIONS_BY_ID.get(LEGACY_GEMMA_4_MODEL_ID)?.hidden).toBe(true);
-    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.hidden).toBe(false);
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)?.hidden).toBe(true);
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)?.hidden).toBe(true);
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.hidden).toBe(true);
     expect(
       MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')?.hidden
     ).toBe(true);
@@ -184,7 +186,9 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS.some((model) => model.id === QWEN_LITERT_MODEL_ID)).toBe(true);
     expect(MODEL_OPTIONS.some((model) => model.id === GEMMA_MODEL_ID)).toBe(false);
     expect(MODEL_OPTIONS.some((model) => model.id === LEGACY_GEMMA_4_MODEL_ID)).toBe(false);
-    expect(MODEL_OPTIONS.some((model) => model.id === LIQUID_MODEL_ID)).toBe(true);
+    expect(MODEL_OPTIONS.some((model) => model.id === LIQUID_SMALL_MODEL_ID)).toBe(false);
+    expect(MODEL_OPTIONS.some((model) => model.id === LIQUID_INSTRUCT_MODEL_ID)).toBe(false);
+    expect(MODEL_OPTIONS.some((model) => model.id === LIQUID_MODEL_ID)).toBe(false);
     expect(
       MODEL_OPTIONS.some(
         (model) => model.id === 'onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa'
@@ -204,15 +208,26 @@ describe('model-settings availability', () => {
     });
   });
 
-  test('keeps the LiteRT Qwen model available in cpu mode without WebGPU', () => {
+  test('keeps the LiteRT Qwen model visible but unavailable until a compatible browser runtime exists', () => {
     expect(
       getModelAvailability(QWEN_LITERT_MODEL_ID, {
         backendPreference: 'cpu',
         webGpuAvailable: false,
       })
     ).toEqual({
-      available: true,
-      reason: '',
+      available: false,
+      reason:
+        'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.',
+    });
+    expect(
+      getModelAvailability(QWEN_LITERT_MODEL_ID, {
+        backendPreference: 'webgpu',
+        webGpuAvailable: true,
+      })
+    ).toEqual({
+      available: false,
+      reason:
+        'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.',
     });
   });
 
@@ -410,6 +425,9 @@ describe('model-settings availability', () => {
         'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/4d942a539e4ffd2ecb298f1198450051a06123a9/model_multimodal.litertlm',
       promptFormat: 'qwen-im',
     });
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.unavailableReason).toBe(
+      'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.'
+    );
     expect(MODEL_OPTIONS_BY_ID.get(LEGACY_GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
       dtypes: {
         webgpu: 'q4f16',

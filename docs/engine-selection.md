@@ -14,8 +14,7 @@ Inference is selected through the engine client boundary and executes through a 
 ## Backends
 
 - `webgpu`: prefer WebGPU execution and fall back to CPU/WASM for ONNX models that do not require WebGPU
-- `webgpu`: CPU-capable LiteRT models can also fall back from the LiteRT GPU delegate to the LiteRT CPU delegate when they do not set `requiresWebGpu: true`
-- `cpu`: CPU execution through the ONNX browser WASM backend or the LiteRT CPU delegate, depending on the selected engine
+- `cpu`: CPU execution through the ONNX browser WASM backend
 - Legacy stored preferences are normalized into those two modes:
   - `auto` -> `webgpu`
   - `wasm` -> `cpu`
@@ -24,9 +23,9 @@ Inference is selected through the engine client boundary and executes through a 
   - `onnx.wasm.proxy = true`
   - `onnx.wasm.numThreads = 0`
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
-- `mediapipe-genai` models follow the same config rule:
-  - the bundled Gemma 4 LiteRT entry still requires WebGPU
-  - CPU-capable LiteRT entries such as `Yoursmiling/Qwen3.5-2B-LiteRT` can initialize the LiteRT CPU delegate instead
+- `mediapipe-genai` models currently use the browser WebGPU path in this app:
+  - the bundled Gemma 4 LiteRT entry is supported on WebGPU
+  - `Yoursmiling/Qwen3.5-2B-LiteRT` remains visible but disabled because its LiteRT export does not initialize correctly in the browser MediaPipe runtime used here
 - Models with `multimodalGeneration: true` use a processor/model execution path in the worker instead of the text-generation pipeline.
 - For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests.
 - ONNX models may provide mode-specific runtime hints such as `runtime.dtypes.webgpu` and `runtime.dtypes.cpu`.

@@ -87,6 +87,23 @@ describe('preferences-models', () => {
       'Supported languages: English (EN), Spanish (ES), French (FR), Chinese (ZH), Hindi (HI), Japanese (JA), and more.'
     );
 
+    const qwenLiteRtCard = cards.find((card) => card.textContent?.includes('Qwen3.5 2B LiteRT'));
+    expect(qwenLiteRtCard?.textContent).toContain('Unavailable');
+    expect(qwenLiteRtCard?.textContent).toContain('Unavailable in this app.');
+    expect(qwenLiteRtCard?.textContent).toContain(
+      'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.'
+    );
+    expect(
+      qwenLiteRtCard?.querySelector('.model-card-button')?.getAttribute('title')
+    ).toContain('This LiteRT export is not currently compatible');
+    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 350M'))).toBe(false);
+    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Instruct'))).toBe(
+      false
+    );
+    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Thinking'))).toBe(
+      false
+    );
+
     const gemmaButton = /** @type {HTMLButtonElement | null} */ (
       gemmaCard?.querySelector('.model-card-button')
     );
@@ -126,6 +143,29 @@ describe('preferences-models', () => {
     expect(selectedModel).not.toBe('litert-community/gemma-4-E4B-it-litert-lm');
     expect(modelSelect.value).toBe(selectedModel);
     expect(harness.deps.setStatus).toHaveBeenCalledWith(expect.stringContaining('CPU'));
+  });
+
+  test('restores a stored hidden model as the first visible available model', () => {
+    const harness = createHarness();
+    const modelSelect = /** @type {HTMLSelectElement} */ (
+      harness.document.getElementById('modelSelect')
+    );
+
+    harness.storage.setItem('model', 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX');
+    harness.storage.setItem('backend', 'webgpu');
+
+    harness.controller.restoreInferencePreferences();
+
+    expect(
+      harness.controller.getAvailableModelId('LiquidAI/LFM2.5-1.2B-Thinking-ONNX', 'webgpu')
+    ).toBe('litert-community/gemma-4-E4B-it-litert-lm');
+    expect(modelSelect.value).toBe('litert-community/gemma-4-E4B-it-litert-lm');
+    expect(harness.storage.getItem('model')).toBe('litert-community/gemma-4-E4B-it-litert-lm');
+    expect(harness.storage.getItem('backend')).toBe('webgpu');
+    expect(harness.deps.syncGenerationSettingsFromModel).toHaveBeenCalledWith(
+      'litert-community/gemma-4-E4B-it-litert-lm',
+      true
+    );
   });
 
   test('reads and persists inference preferences through the engine-facing contract', () => {

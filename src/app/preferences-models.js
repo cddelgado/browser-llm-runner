@@ -136,9 +136,19 @@ export function createModelPreferencesController({
     return browserSupportsWebGpu(navigatorRef);
   }
 
+  function isVisibleModelId(modelId) {
+    return MODEL_OPTIONS.some((model) => model.id === modelId);
+  }
+
   function getAvailableModelId(modelId, backendPreference = getSelectedBackendPreference()) {
     const normalizedModelId = normalizeModelId(modelId);
     const webGpuAvailable = getWebGpuAvailability();
+    if (!isVisibleModelId(normalizedModelId)) {
+      return getFirstAvailableModelId({
+        backendPreference,
+        webGpuAvailable,
+      });
+    }
     const availability = getModelAvailability(normalizedModelId, {
       backendPreference,
       webGpuAvailable,
@@ -303,6 +313,17 @@ export function createModelPreferencesController({
         badge.textContent = 'Default';
         titleMeta.appendChild(badge);
       }
+      if (!availability.available) {
+        const unavailableBadge = documentRef.createElement('span');
+        unavailableBadge.className = 'badge model-card-badge model-card-badge-unavailable';
+        unavailableBadge.textContent = 'Unavailable';
+        titleMeta.appendChild(unavailableBadge);
+        selectButton.title = availability.reason;
+        selectButton.setAttribute(
+          'aria-label',
+          `${model.displayName || model.label}. Unavailable. ${availability.reason}`
+        );
+      }
 
       const featureList = documentRef.createElement('ul');
       featureList.className = 'model-card-features';
@@ -333,7 +354,7 @@ export function createModelPreferencesController({
       if (!availability.available) {
         const availabilityNote = documentRef.createElement('p');
         availabilityNote.className = 'model-card-note';
-        availabilityNote.textContent = availability.reason;
+        availabilityNote.textContent = `Unavailable in this app. ${availability.reason}`;
         content.appendChild(availabilityNote);
       } else if (model.runtime?.requiresWebGpu) {
         const requirement = documentRef.createElement('p');
@@ -395,9 +416,11 @@ export function createModelPreferencesController({
       });
       option.disabled = !availability.available;
       option.textContent =
-        model.runtime?.requiresWebGpu && !availability.available
+        !availability.available && model.runtime?.requiresWebGpu
           ? `${model.label}${webGpuRequiredModelSuffix}`
-          : model.label;
+          : !availability.available
+            ? `${model.label} (Unavailable)`
+            : model.label;
       modelSelect.appendChild(option);
     });
 
@@ -424,9 +447,11 @@ export function createModelPreferencesController({
         backendPreference: selectedBackend,
         webGpuAvailable: getWebGpuAvailability(),
       });
-      if (requestedModel?.runtime?.requiresWebGpu) {
+      if (requestedModel) {
         setStatus(
-          `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`
+          requestedModel.runtime?.requiresWebGpu
+            ? `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`
+            : `${requestedModel.label} is unavailable. ${availability.reason} Switched to ${selectedModelId}.`
         );
       }
     }
@@ -490,6 +515,7 @@ export function createModelPreferencesController({
     }
 
     const selectedModel = syncModelSelectionForCurrentEnvironment();
+    storage.setItem(modelStorageKey, selectedModel);
     syncGenerationSettingsFromModel(selectedModel, true);
   }
 

@@ -150,6 +150,10 @@ function normalizeModelCardText(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : '';
 }
 
+function normalizeUnavailableReason(value) {
+  return normalizeModelCardText(value);
+}
+
 function normalizeRepositoryUrl(rawUrl, fallbackId) {
   const fallback = fallbackId ? `https://huggingface.co/${fallbackId}` : '';
   if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
@@ -397,6 +401,7 @@ const configuredModels = Array.isArray(modelCatalog?.models)
         const engine = normalizeEngine(model?.engine);
         const languageSupport = normalizeLanguageSupport(model?.languageSupport);
         const repositoryUrl = normalizeRepositoryUrl(model?.repositoryUrl, id);
+        const unavailableReason = normalizeUnavailableReason(model?.unavailableReason);
         const thinkingTags = normalizeThinkingTags(model?.thinkingTags);
         const generation = normalizeGenerationLimits(model?.generation);
         const runtime = normalizeRuntime(model?.runtime);
@@ -415,6 +420,7 @@ const configuredModels = Array.isArray(modelCatalog?.models)
           engine,
           languageSupport,
           repositoryUrl,
+          ...(unavailableReason ? { unavailableReason } : {}),
           features,
           thinkingControl,
           toolCalling,
@@ -497,6 +503,13 @@ export function getModelAvailability(
     return {
       available: false,
       reason: 'This model is not supported in this app.',
+    };
+  }
+
+  if (model.unavailableReason) {
+    return {
+      available: false,
+      reason: model.unavailableReason,
     };
   }
 

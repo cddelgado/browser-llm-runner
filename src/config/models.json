@@ -286,6 +286,7 @@
       "id": "LiquidAI/LFM2.5-350M-ONNX",
       "label": "LiquidAI/LFM2.5-350M-ONNX",
       "displayName": "Liquid LFM 2.5 350M",
+      "hidden": true,
       "engine": {
         "type": "transformers-js"
       },
@@ -342,6 +343,7 @@
       "id": "LiquidAI/LFM2.5-1.2B-Instruct-ONNX",
       "label": "LiquidAI/LFM2.5-1.2B-Instruct-ONNX",
       "displayName": "Liquid LFM 2.5 1.2B Instruct",
+      "hidden": true,
       "engine": {
         "type": "transformers-js"
       },
@@ -455,6 +457,7 @@
       "id": "Yoursmiling/Qwen3.5-2B-LiteRT",
       "label": "Yoursmiling/Qwen3.5-2B-LiteRT",
       "displayName": "Qwen3.5 2B LiteRT",
+      "unavailableReason": "This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.",
       "engine": {
         "type": "mediapipe-genai"
       },
@@ -575,6 +578,7 @@
       "id": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
       "label": "LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
       "displayName": "Liquid LFM 2.5 1.2B Thinking",
+      "hidden": true,
       "engine": {
         "type": "transformers-js"
       },

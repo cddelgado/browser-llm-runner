@@ -423,28 +423,13 @@ describe('preferences controller', () => {
       /** @type {HTMLAnchorElement | null} */ (llama1BCard?.querySelector('.model-card-link'))?.href
     ).toBe('https://huggingface.co/onnx-community/Llama-3.2-1B-Instruct-ONNX');
 
-    const liquidSmallCard = cards.find((card) => card.textContent?.includes('Liquid LFM 2.5 350M'));
-    expect(liquidSmallCard?.textContent).toContain('32,768 tokens');
-    expect(liquidSmallCard?.textContent).not.toContain('Temp 0.1');
-    expect(liquidSmallCard?.textContent).not.toContain('Top P 1.00');
-    expect(liquidSmallCard?.textContent).toContain('This model requires WebGPU.');
-    expect(
-      /** @type {HTMLAnchorElement | null} */ (liquidSmallCard?.querySelector('.model-card-link'))
-        ?.href
-    ).toBe('https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX');
-
-    const liquidInstructCard = cards.find((card) =>
-      card.textContent?.includes('Liquid LFM 2.5 1.2B Instruct')
+    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 350M'))).toBe(false);
+    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Instruct'))).toBe(
+      false
     );
-    expect(liquidInstructCard?.textContent).toContain('32,768 tokens');
-    expect(liquidInstructCard?.textContent).not.toContain('Temp 0.1');
-    expect(liquidInstructCard?.textContent).not.toContain('Top P 1.00');
-    expect(liquidInstructCard?.textContent).toContain('This model requires WebGPU.');
-    expect(
-      /** @type {HTMLAnchorElement | null} */ (
-        liquidInstructCard?.querySelector('.model-card-link')
-      )?.href
-    ).toBe('https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-ONNX');
+    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Thinking'))).toBe(
+      false
+    );
 
     const gemmaCard = cards.find((card) => card.textContent?.includes('Gemma 4 E4B'));
     expect(gemmaCard?.textContent).toContain('131,072 tokens');
@@ -515,8 +500,6 @@ describe('preferences controller', () => {
 
     expect(getFeatureLabels('Llama 3.2 3B Instruct')).toEqual(['Can use built-in tools']);
     expect(getFeatureLabels('Llama 3.2 1B Instruct')).toEqual([]);
-    expect(getFeatureLabels('Liquid LFM 2.5 350M')).toEqual(['Can use built-in tools']);
-    expect(getFeatureLabels('Liquid LFM 2.5 1.2B Instruct')).toEqual(['Can use built-in tools']);
     expect(getFeatureLabels('Gemma 4 E4B')).toEqual([
       'Shows a thinking section',
       'Can use built-in tools',

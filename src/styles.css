@@ -841,6 +841,11 @@
   flex: 0 0 auto;
 }
 
+.model-card-badge-unavailable {
+  background: color-mix(in srgb, #8a1e24 84%, var(--surface));
+  color: #fff6f6;
+}
+
 .model-card-context,
 .model-card-languages,
 .model-card-note {

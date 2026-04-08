@@ -65,10 +65,9 @@ Student-facing browser chat UI with local model inference.
   - `WebGPU`
   - `CPU`
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
-- `WebGPU` mode also lets CPU-capable LiteRT models fall back to the LiteRT CPU delegate when they do not require WebGPU.
-- CPU mode runs CPU-capable ONNX models through the browser WASM path and CPU-capable LiteRT models through the LiteRT CPU delegate. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and leaves ONNX thread selection on ORT auto (`onnx.wasm.numThreads = 0`).
+- CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and leaves ONNX thread selection on ORT auto (`onnx.wasm.numThreads = 0`).
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
-- LiteRT-backed models may require WebGPU or support CPU depending on the selected model. The bundled Gemma 4 LiteRT entry still requires `WebGPU`.
+- LiteRT-backed models in the current browser app path require WebGPU. The bundled Gemma 4 LiteRT entry is supported; the separate Qwen LiteRT entry is shown as unavailable until a compatible browser runtime path exists.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
   - Values are constrained by per-model limits from `src/config/models.json` and use `step=8`.
@@ -223,7 +222,7 @@ Student-facing browser chat UI with local model inference.
   - Uses Gemma's special-token tool-call format supported by this app.
 - `Yoursmiling/Qwen3.5-2B-LiteRT`
   - Uses the LiteRT/MediaPipe GenAI worker path in this app.
-  - Supports both `WebGPU` and `CPU` in this app and currently exposes text-only generation.
+  - Is shown separately in the picker, but currently disabled because this LiteRT export is not compatible with the browser MediaPipe runtime used by this app.
   - Loads the pinned `model_multimodal.litertlm` artifact from the model repository at runtime.
   - Uses Qwen's ChatML-style `<|im_start|>...<|im_end|>` prompt format in the LiteRT worker, `<think>...</think>` reasoning tags, and the app's XML tool-call format support.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
@@ -231,28 +230,13 @@ Student-facing browser chat UI with local model inference.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses `q4f16` on WebGPU and `int8` on CPU in this app, with external data loading.
   - Uses the same conservative app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
-- `LiquidAI/LFM2.5-350M-ONNX`
-  - Requires WebGPU in this app and uses `q4f16`, with external data loading.
-  - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
-  - Uses a JSON-formatted `List of tools: [...]` block in the system prompt.
-  - Uses Liquid's special-token tool-call format supported by this app.
-- `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`
-  - Requires WebGPU in this app and uses `q4f16`, with external data loading.
-  - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
-  - Uses a JSON-formatted `List of tools: [...]` block in the system prompt.
-  - Uses Liquid's special-token tool-call format supported by this app.
-- `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
-  - Requires WebGPU in this app and uses `q4f16`, with external data loading.
-  - Uses `<think>...</think>` tags for reasoning output.
-  - Uses the upstream tokenizer chat template from the ONNX export: ChatML-style `<|im_start|>...<|im_end|>` turns plus a JSON-formatted `List of tools: [...]` block when tools are enabled.
-  - The upstream model card recommends `temperature: 0.05`, `top_k: 50`, and `repetition_penalty: 1.05`; this app rounds temperature to its nearest supported step (`0.1`) and leaves top-p open at `1.0` because the card does not publish a nucleus cutoff.
-  - Uses Liquid's special-token tool-call format supported by this app.
 - Hidden legacy/replacement model definitions remain in config so stored conversations and model-specific behaviors still resolve correctly:
   - `onnx-community/gemma-4-E2B-it-ONNX`
   - `onnx-community/Qwen3.5-0.8B-ONNX`
   - `onnx-community/Qwen3.5-2B-ONNX`
   - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
   - `onnx-community/gemma-3n-E2B-it-ONNX`
+  - `LiquidAI/LFM2.5-350M-ONNX`, `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`, `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
 - Legacy stored IDs are automatically remapped to the supported model:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `onnx-community/Qwen3-0.6B-ONNX` -> `onnx-community/Qwen3.5-0.8B-ONNX`
@@ -268,6 +252,7 @@ For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` r
 - `models[].displayName`: friendly name shown on the card
 - `models[].languageSupport`: user-facing language tags shown on the card, with a publisher-linked `and more` suffix when needed
 - `models[].repositoryUrl`: model details link used from the card footer
+- `models[].unavailableReason`: optional fixed reason that keeps a model visible in the picker but disabled in this app
   - `models[].features`: normalized capability flags (`streaming`, `thinking`, `imageInput`, `audioInput`, `videoInput`)
   - `models[].runtime`: per-model runtime hints (optional `dtypes.webgpu`, optional `dtypes.cpu`, optional `enableThinking`, optional `requiresWebGpu`, optional `multimodalGeneration`, optional `useExternalDataFormat`, optional `modelAssetPath`, optional `promptFormat`)
   - `models[].inputLimits`: optional per-media limits such as `maxImageInputs` and `maxAudioInputs`

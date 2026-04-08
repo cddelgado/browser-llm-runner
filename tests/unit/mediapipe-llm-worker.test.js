@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const isSimdSupportedMock = vi.fn();
 const createFromOptionsMock = vi.fn();
-const inferenceConstructorMock = vi.fn();
-const setOptionsMock = vi.fn();
 const clearCancelSignalsMock = vi.fn();
 const generateResponseMock = vi.fn();
 const closeMock = vi.fn();
@@ -12,7 +10,6 @@ function buildInferenceInstance() {
   return {
     close: closeMock,
     clearCancelSignals: clearCancelSignalsMock,
-    setOptions: setOptionsMock,
     generateResponse: generateResponseMock,
   };
 }
@@ -22,8 +19,7 @@ vi.mock('@mediapipe/tasks-genai', () => ({
     isSimdSupported: isSimdSupportedMock,
   },
   LlmInference: class MockLlmInference {
-    constructor(...args) {
-      inferenceConstructorMock(...args);
+    constructor() {
       Object.assign(this, buildInferenceInstance());
     }
 
@@ -59,7 +55,6 @@ describe('mediapipe-llm.worker', () => {
 
     isSimdSupportedMock.mockResolvedValue(true);
     createFromOptionsMock.mockResolvedValue(buildInferenceInstance());
-    setOptionsMock.mockResolvedValue(undefined);
     generateResponseMock.mockResolvedValue('');
 
     importTargetHref = new URL('./fixtures/mediapipe-import-shim-target.js', import.meta.url).href;
@@ -201,69 +196,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
     });
   });
 
-  test('initializes the LiteRT worker on cpu without requiring WebGPU', async () => {
-    Object.defineProperty(globalThis, 'navigator', {
-      configurable: true,
-      value: {},
-    });
-
-    await import('../../src/workers/mediapipe-llm.worker.js');
-    const workerSelf = /** @type {any} */ (globalThis.self);
-
-    await workerSelf.onmessage(
-      /** @type {any} */ ({
-        data: {
-          type: 'init',
-          payload: {
-            modelId: 'Yoursmiling/Qwen3.5-2B-LiteRT',
-            backendPreference: 'cpu',
-            generationConfig: {
-              maxOutputTokens: 1024,
-              maxContextTokens: 8192,
-              temperature: 0.6,
-              topK: 20,
-            },
-            runtime: {
-              promptFormat: 'qwen-im',
-              modelAssetPath:
-                'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/test/model_multimodal.litertlm',
-            },
-          },
-        },
-      })
-    );
-
-    expect(createFromOptionsMock).not.toHaveBeenCalled();
-    expect(inferenceConstructorMock).toHaveBeenCalledWith({
-      wasmLoaderPath: '/mock/genai_wasm_module_internal.js',
-      wasmBinaryPath: '/mock/genai_wasm_module_internal.wasm',
-    });
-    expect(setOptionsMock).toHaveBeenCalledWith({
-      baseOptions: {
-        modelAssetBuffer: expect.any(Object),
-        delegate: 'CPU',
-      },
-      maxTokens: 8192,
-      topK: 20,
-      temperature: 0.6,
-      randomSeed: 0,
-    });
-    expect(workerSelf.postMessage).toHaveBeenCalledWith({
-      type: 'init-success',
-      payload: {
-        backend: 'cpu',
-        modelId: 'Yoursmiling/Qwen3.5-2B-LiteRT',
-        engineType: 'mediapipe-genai',
-      },
-    });
-  });
-
   test('formats Qwen LiteRT prompts with the expected chat tags and thinking preamble', async () => {
-    Object.defineProperty(globalThis, 'navigator', {
-      configurable: true,
-      value: {},
-    });
-
     generateResponseMock.mockImplementation(async (prompt, progressListener) => {
       expect(prompt).toBe(
         '<|im_start|>system\nBe concise.<|im_end|>\n' +
@@ -285,7 +218,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
           type: 'init',
           payload: {
             modelId: 'Yoursmiling/Qwen3.5-2B-LiteRT',
-            backendPreference: 'cpu',
+            backendPreference: 'webgpu',
             runtime: {
               promptFormat: 'qwen-im',
               modelAssetPath:
@@ -387,7 +320,7 @@ if (typeof exports === 'object' && typeof module === 'object') {
       })
     );
 
-    expect(setOptionsMock).not.toHaveBeenCalled();
+    expect(createFromOptionsMock).toHaveBeenCalledTimes(1);
     expect(clearCancelSignalsMock).toHaveBeenCalledTimes(1);
     expect(generateResponseMock).toHaveBeenCalledTimes(1);
     expect(workerSelf.postMessage).toHaveBeenCalledWith({

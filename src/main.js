@@ -2096,9 +2096,11 @@ function syncConversationModelSelection(
       backendPreference: selectedBackend,
       webGpuAvailable: getWebGpuAvailability(),
     });
-    if (requestedModel?.runtime?.requiresWebGpu) {
+    if (requestedModel) {
       setStatus(
-        `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`
+        requestedModel.runtime?.requiresWebGpu
+          ? `${requestedModel.label} is unavailable with ${formatBackendPreferenceLabel(selectedBackend)}. ${availability.reason} Switched to ${selectedModelId}.`
+          : `${requestedModel.label} is unavailable. ${availability.reason} Switched to ${selectedModelId}.`
       );
     }
   }
