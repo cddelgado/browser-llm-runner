@@ -2,8 +2,13 @@ import { DEFAULT_ENGINE_TYPE, getEngineDescriptor, normalizeEngineType } from '.
 
 const ENGINE_DEBUG_PREFIX = '[LLMEngineClient]';
 const GENERATION_INACTIVITY_TIMEOUT_MS = 90000;
+const ENABLE_ENGINE_DEBUG_CONSOLE_LOGS = false;
+const ENABLE_ENGINE_WARN_CONSOLE_LOGS = false;
 
 function logEngineDebug(event, details = undefined) {
+  if (!ENABLE_ENGINE_DEBUG_CONSOLE_LOGS) {
+    return;
+  }
   try {
     if (details === undefined) {
       console.debug(ENGINE_DEBUG_PREFIX, event);
@@ -16,6 +21,9 @@ function logEngineDebug(event, details = undefined) {
 }
 
 function logEngineWarn(event, details = undefined) {
+  if (!ENABLE_ENGINE_WARN_CONSOLE_LOGS) {
+    return;
+  }
   try {
     if (details === undefined) {
       console.warn(ENGINE_DEBUG_PREFIX, event);

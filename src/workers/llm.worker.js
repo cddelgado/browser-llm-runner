@@ -17,6 +17,10 @@ const WORKER_GENERATION_LIMITS = {
 };
 const WORKER_STREAM_UPDATE_INTERVAL_MS = 100;
 const WORKER_DEBUG_PREFIX = '[llm.worker]';
+const ENABLE_WORKER_DEBUG_CONSOLE_LOGS = false;
+const ENABLE_WORKER_WARN_CONSOLE_LOGS = false;
+const ONNX_WASM_PROXY_ENABLED = true;
+const ONNX_WASM_NUM_THREADS = 0;
 
 let model = null;
 let tokenizer = null;
@@ -33,6 +37,9 @@ let generationConfig = buildDefaultGenerationConfig(WORKER_GENERATION_LIMITS);
 let activeGenerationState = null;
 
 function logWorkerDebug(event, details = undefined) {
+  if (!ENABLE_WORKER_DEBUG_CONSOLE_LOGS) {
+    return;
+  }
   try {
     if (details === undefined) {
       console.debug(WORKER_DEBUG_PREFIX, event);
@@ -45,6 +52,9 @@ function logWorkerDebug(event, details = undefined) {
 }
 
 function logWorkerWarn(event, details = undefined) {
+  if (!ENABLE_WORKER_WARN_CONSOLE_LOGS) {
+    return;
+  }
   try {
     if (details === undefined) {
       console.warn(WORKER_DEBUG_PREFIX, event);
@@ -224,14 +234,12 @@ function configureOnnxWasmBackend(env, backend = 'wasm') {
   if (!env?.backends?.onnx?.wasm) {
     return null;
   }
-  const numThreads = 0;
-  const shouldProxy = true;
-  env.backends.onnx.wasm.numThreads = numThreads;
-  env.backends.onnx.wasm.proxy = shouldProxy;
+  env.backends.onnx.wasm.numThreads = ONNX_WASM_NUM_THREADS;
+  env.backends.onnx.wasm.proxy = ONNX_WASM_PROXY_ENABLED;
   const result = {
     backend,
-    proxy: shouldProxy,
-    numThreads,
+    proxy: ONNX_WASM_PROXY_ENABLED,
+    numThreads: ONNX_WASM_NUM_THREADS,
   };
   logWorkerDebug('onnx-wasm-config', {
     backend,
@@ -242,6 +250,7 @@ function configureOnnxWasmBackend(env, backend = 'wasm') {
 }
 
 export { configureOnnxWasmBackend };
+export { ONNX_WASM_PROXY_ENABLED, ONNX_WASM_NUM_THREADS };
 
 async function ensureMultimodalProcessor(modelId, progressCallback = null) {
   if (processor) {

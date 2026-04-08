@@ -18,7 +18,7 @@ Inference is selected through the engine client boundary and executes through a 
 - Legacy stored preferences are normalized into those two modes:
   - `auto` -> `webgpu`
   - `wasm` -> `cpu`
-- ONNX worker defaults keep browser cache support enabled for both modes and now log the exact backend device used for each load/generation attempt:
+- ONNX worker defaults keep browser cache support enabled for both modes:
   - `env.useWasmCache = true`
   - `onnx.wasm.proxy = true`
   - `onnx.wasm.numThreads = 0`
