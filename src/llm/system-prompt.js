@@ -9,16 +9,16 @@ export function buildOptionalFeaturePromptSection(instructions = []) {
   if (!normalizedInstructions.length) {
     return '';
   }
-  return ['**Rules:**', ...normalizedInstructions.map((instruction) => `- ${instruction}`)].join(
+  return ['**Behavior:**', ...normalizedInstructions.map((instruction) => `- ${instruction}`)].join(
     '\n'
   );
 }
 
-export function buildFactCheckingPrompt({ webLookupEnabled = false } = {}) {
-  if (!webLookupEnabled) {
+export function buildFactCheckingPrompt({ toolUseAvailable = false, webLookupEnabled = false } = {}) {
+  if (!toolUseAvailable && !webLookupEnabled) {
     return '';
   }
-  return 'Use web_lookup to confirm facts before responding.';
+  return 'Use the appropriate tool to confirm facts before responding.';
 }
 
 export function buildMathRenderingFeaturePrompt({ renderMathMl = false } = {}) {

@@ -355,13 +355,17 @@ function buildWebLookupFailure(body, message = WEB_LOOKUP_RETRY_MESSAGE) {
 function buildWebLookupSuccessBody({ contentType = '', title = '', description = '', content = '' }) {
   const mimeType = collapseWhitespace(contentType) || 'unknown';
   const normalizedTitle = collapseWhitespace(title) || 'Untitled';
-  const summaryParts = [collapseWhitespace(description), String(content || '').trim()].filter(Boolean);
-  const summary = summaryParts.length
-    ? summaryParts.join('\n\n')
-    : 'No readable summary was extracted.';
-  return [`- MIME type: ${mimeType}`, `- Title: ${normalizedTitle}`, '', '## Summary', summary].join(
-    '\n'
-  );
+  const contentParts = [collapseWhitespace(description), String(content || '').trim()].filter(Boolean);
+  const extractedContent = contentParts.length
+    ? contentParts.join('\n\n')
+    : 'No readable content was extracted.';
+  return [
+    `- MIME type: ${mimeType}`,
+    `- Title: ${normalizedTitle}`,
+    '',
+    '## Extracted content',
+    extractedContent,
+  ].join('\n');
 }
 
 function decodeHtmlEntities(value) {

@@ -267,17 +267,11 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain('**Tools available in this conversation:**');
+    expect(prompt).toContain('These are the tools you can call.');
     expect(prompt).toContain('- get_current_date_time: Returns the current local date and time.');
-    expect(prompt).toContain('\n\n**Tool behavior:**');
-    expect(prompt).toContain('\n\n**Tool call format:**');
-    expect(prompt).toContain('After a tool result, continue the work and answer naturally.');
-    expect(prompt).toContain(
-      'When you call a tool, output exactly one JSON object and nothing else.'
-    );
-    expect(prompt).toContain('Shape: {"name":"<tool-name>","parameters":{...}}.');
-    expect(prompt).toContain(
-      'Use an empty "parameters" object ({"parameters":{}}) only when the tool takes no inputs'
-    );
+    expect(prompt).toContain('- Example: {"name":"get_current_date_time","parameters":{}}');
+    expect(prompt).not.toContain('**Tool behavior:**');
+    expect(prompt).not.toContain('**Tool call format:**');
   });
 
   test('builds the Qwen tagged-json tool-calling prompt', () => {
@@ -347,11 +341,11 @@ describe('tool-calling prompt builder', () => {
       [
         {
           name: 'list_mcp_server_commands',
-          description: 'Lists the enabled commands for one configured MCP server.',
+          description: 'Lists the commands for one configured MCP server.',
         },
         {
           name: 'call_mcp_server_command',
-          description: 'Calls one enabled command on one configured MCP server.',
+          description: 'Calls one command on one configured MCP server.',
         },
       ],
       {
@@ -374,7 +368,7 @@ describe('tool-calling prompt builder', () => {
 
     expect(prompt).toContain('\n\n**Available MCP servers:**\n');
     expect(prompt).toContain(
-      '\nUse call_mcp_server_command with a server identifier and one of that server\'s enabled command names.\n- docs: Project documentation lookup. Enabled commands: search_docs.\n'
+      '\nUse call_mcp_server_command with a server identifier and one of that server\'s command names.\n- docs: Project documentation lookup. Commands: search_docs.\n'
     );
     expect(prompt).toContain('**Example MCP Server Tool Calls:**');
     expect(prompt).toContain(
@@ -412,7 +406,14 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain('read_skill');
-    expect(prompt).toContain('Available Agent Skills');
+    expect(prompt).toContain('- read_skill: Reads one Agent Skill (SKILL.md file).');
+    expect(prompt).toContain(
+      '- Example: {"name":"read_skill","arguments":{"name":"Lesson Planner"}}'
+    );
+    expect(prompt.indexOf('- read_skill:')).toBeLessThan(
+      prompt.indexOf('**Available Agent Skills (SKILL.md Files)**:')
+    );
+    expect(prompt).toContain('**Available Agent Skills (SKILL.md Files)**:');
     expect(prompt).toContain('Lesson Planner: Plan lessons with objectives and quick checks.');
   });
 
@@ -445,7 +446,7 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toBe('');
   });
 
-  test('adds a terminal-use instruction for get_user_location', () => {
+  test('adds a get_user_location example for the general json prompt template', () => {
     const prompt = buildToolCallingSystemPrompt(
       {
         format: 'json',
@@ -455,10 +456,11 @@ describe('tool-calling prompt builder', () => {
       ['get_user_location']
     );
 
-    expect(prompt).toContain('Use the returned location and coordinate directly in the answer.');
-    expect(prompt).not.toContain(
-      '**Tool behavior:**\n- Use the returned location and coordinate directly in the answer.'
+    expect(prompt).toContain(
+      '- get_user_location: Returns the user\'s location based on browser settings.'
     );
+    expect(prompt).toContain('- Example: {"name":"get_user_location","parameters":{}}');
+    expect(prompt).not.toContain('**Tool behavior:**');
   });
 
   test('adds a tasklist planning instruction', () => {
@@ -471,10 +473,9 @@ describe('tool-calling prompt builder', () => {
       ['tasklist']
     );
 
-    expect(prompt).toContain(
-      '- tasklist: Manage a task list for multi-step work. Call with an empty arguments object to get tool syntax.'
-    );
-    expect(prompt).toContain('- Call with an empty arguments object to get tool syntax.');
+    expect(prompt).toContain('- tasklist: Manage a task list for multi-step work.');
+    expect(prompt).toContain('- Call with empty arguments to get tool syntax.');
+    expect(prompt).toContain('- Example: {"name":"tasklist","parameters":{}}');
   });
 
   test('adds a web lookup instruction', () => {
@@ -487,10 +488,14 @@ describe('tool-calling prompt builder', () => {
       ['web_lookup']
     );
 
-    expect(prompt).toContain('- web_lookup: Interact with the web by calling {"input":"..."}.');
-    expect(prompt).toContain('- When input is a URL, fetch a page preview');
+    expect(prompt).toContain('- web_lookup: Interact with the web.');
+    expect(prompt).toContain('- When input is a URL, page content is returned.');
     expect(prompt).toContain(
-      '- When input is search terms, DuckDuckgo is used to return search results.'
+      '- Example: {"name":"web_lookup","parameters":{"input":"https://example.com"}}'
+    );
+    expect(prompt).toContain('- When input is search terms, search results are returned.');
+    expect(prompt).toContain(
+      '- Example: {"name":"web_lookup","parameters":{"input":"latest news about europa"}}'
     );
   });
 
@@ -505,12 +510,17 @@ describe('tool-calling prompt builder', () => {
     );
 
     expect(prompt).toContain(
-      '- run_shell_command: Passes a shell command to an emulated Linux shell starting in /workspace. Call with an empty arguments object to get syntax and supported commands. Files are in /workspace.'
+      '- run_shell_command: Passes a shell command to an emulated Linux shell starting in /workspace.'
+    );
+    expect(prompt).toContain('Save and access files in /workspace');
+    expect(prompt).toContain('- Call with empty arguments to get syntax and supported commands.');
+    expect(prompt).toContain('- Example: {"name":"run_shell_command","parameters":{}}');
+    expect(prompt).toContain(
+      '- Example: {"name":"run_shell_command","parameters":{"cmd":"ls -l /workspace"}}'
     );
     expect(prompt).toContain(
-      '- Call with an empty arguments object to get syntax and supported commands.'
+      '- Example: {"name":"run_shell_command","parameters":{"cmd":"python /workspace/script.py"}}'
     );
-    expect(prompt).toContain('- The shell includes python.');
     expect(prompt).toContain('- Prefer write_python_file for larger scripts.');
   });
 
@@ -527,9 +537,11 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toContain(
       '- write_python_file: Writes Python source code to a .py file under /workspace.'
     );
-    expect(prompt).toContain('Use this for longer Python scripts.');
     expect(prompt).toContain(
-      'Call with {"path":"/workspace/script.py","source":"print(\\"hello\\")\\n"}.'
+      '- Use this for longer Python scripts. Run script using run_shell_command.'
+    );
+    expect(prompt).toContain(
+      '- Example: {"name":"write_python_file","parameters":{"path":"/workspace/script.py","source":"print(\\"hello\\")\\n"}}'
     );
   });
 
@@ -544,11 +556,11 @@ describe('tool-calling prompt builder', () => {
       [
         {
           name: 'list_mcp_server_commands',
-          description: 'Lists the enabled commands for one configured MCP server.',
+          description: 'Lists the commands for one configured MCP server.',
         },
         {
           name: 'call_mcp_server_command',
-          description: 'Calls one enabled command on one configured MCP server.',
+          description: 'Calls one command on one configured MCP server.',
         },
       ],
       {
@@ -581,36 +593,26 @@ describe('tool-calling prompt builder', () => {
 
     expect(prompt).toContain('**Tools available in this conversation:**');
     expect(prompt).toContain(
-      '- list_mcp_server_commands: Lists the enabled commands for one configured MCP server.'
+      '- list_mcp_server_commands: Lists the commands and full descriptions for an MCP (Model Context Protocol) Server.'
     );
     expect(prompt).toContain(
-      '- Use this first when you need to inspect one enabled MCP server.'
-    );
-    expect(prompt).toContain('- Call with {"server":"server_identifier"}.');
-    expect(prompt).toContain(
-      '- call_mcp_server_command: Calls one enabled command on one configured MCP server.'
+      '- Example: {"name":"list_mcp_server_commands","parameters":{"server":"docs"}}'
     );
     expect(prompt).toContain(
-      '- Use this after discovery to call one enabled MCP command.'
+      '- call_mcp_server_command: Calls one command for an MCP server.'
     );
+    expect(prompt).toContain('- Use this after discovery to call one MCP command.');
     expect(prompt).toContain(
-      '- Call with {"server":"server_identifier","command":"command_name","arguments":{...}}.'
+      '- Example: {"name":"call_mcp_server_command","parameters":{"server":"docs","command":"search_docs","arguments":{"query":"example query"}}}'
     );
     expect(prompt).toContain('**Available MCP servers:**');
     expect(prompt).toContain(
-      'Use call_mcp_server_command with a server identifier and one of that server\'s enabled command names.'
+      'These are the server names and descriptions for available MCP servers.'
     );
-    expect(prompt).toContain(
-      '- docs: Project documentation lookup. Enabled commands: search_docs.'
-    );
-    expect(prompt).toContain('**Example MCP Server Tool Calls:**');
-    expect(prompt).toContain(
-      '```text\n{"name":"list_mcp_server_commands","parameters":{"server":"demo_mcp_server"}}\n```'
-    );
-    expect(prompt).toContain(
-      '```text\n{"name":"call_mcp_server_command","parameters":{"server":"demo_mcp_server","command":"get_status"}}\n```'
-    );
-    expect(prompt).toContain('**Tool call format:**');
+    expect(prompt).toContain('- docs: Project documentation lookup.');
+    expect(prompt).toContain('  - search_docs');
+    expect(prompt).not.toContain('**Example MCP Server Tool Calls:**');
+    expect(prompt).not.toContain('**Tool call format:**');
   });
 
   test('notifies shell callbacks when run_shell_command executes', async () => {
@@ -1255,7 +1257,7 @@ describe('tool-calling prompt builder', () => {
       [
         {
           name: 'list_mcp_server_commands',
-          description: 'Lists the enabled commands for one configured MCP server.',
+          description: 'Lists the commands for one configured MCP server.',
           parameters: {
             type: 'object',
             properties: {
@@ -1269,7 +1271,7 @@ describe('tool-calling prompt builder', () => {
         },
         {
           name: 'call_mcp_server_command',
-          description: 'Calls one enabled command on one configured MCP server.',
+          description: 'Calls one command on one configured MCP server.',
           parameters: {
             type: 'object',
             properties: {
@@ -1310,9 +1312,7 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toContain('List of tools: [{"name":"list_mcp_server_commands"');
     expect(prompt).toContain('"name":"call_mcp_server_command"');
     expect(prompt).toContain('**Available MCP servers:**');
-    expect(prompt).toContain(
-      '- docs: Project documentation lookup. Enabled commands: search_docs.'
-    );
+    expect(prompt).toContain('- docs: Project documentation lookup. Commands: search_docs.');
     expect(prompt).toContain('**Example MCP Server Tool Calls:**');
     expect(prompt).toContain(
       '```text\n<|tool_call_start|>[list_mcp_server_commands(server="demo_mcp_server")]<|tool_call_end|>\n```'
@@ -4307,7 +4307,7 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.status).toBe('successful');
     expect(result.result.body).toContain('- MIME type: text/html; charset=utf-8');
     expect(result.result.body).toContain('- Title: Example Lesson');
-    expect(result.result.body).toContain('## Summary');
+    expect(result.result.body).toContain('## Extracted content');
     expect(result.result.body).toContain('Student-facing lesson page.');
     expect(result.result.body).toContain('First paragraph.');
     expect(result.result.body).toContain('Second paragraph.');

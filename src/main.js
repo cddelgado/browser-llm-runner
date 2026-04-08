@@ -1610,9 +1610,10 @@ function getSelectedLanguageMetadata(languagePreference) {
 function getOptionalFeatureSystemPromptSection(modelId, conversation = null) {
   const languagePreference = getConversationLanguagePreference(conversation);
   const thinkingControl = getThinkingControlForModel(modelId);
+  const toolContext = getToolCallingContext(modelId);
   return buildOptionalFeaturePromptSection([
     buildFactCheckingPrompt({
-      webLookupEnabled: getConfiguredEnabledToolNames().includes('web_lookup'),
+      toolUseAvailable: toolContext.supported && toolContext.exposedToolNames.length > 0,
     }),
     buildMathRenderingFeaturePrompt({ renderMathMl: appState.renderMathMl }),
     buildLanguagePreferencePrompt({

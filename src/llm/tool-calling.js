@@ -131,7 +131,7 @@ export const MCP_TOOL_DEFINITIONS = Object.freeze([
   {
     name: MCP_SERVER_COMMAND_LIST_TOOL,
     displayName: 'List MCP Server Commands',
-    description: 'Lists the enabled commands for one configured MCP server.',
+    description: 'Lists the commands for one configured MCP server.',
     parameters: {
       type: 'object',
       properties: {
@@ -146,7 +146,7 @@ export const MCP_TOOL_DEFINITIONS = Object.freeze([
   {
     name: MCP_SERVER_COMMAND_CALL_TOOL,
     displayName: 'Call MCP Server Command',
-    description: 'Calls one enabled command on one configured MCP server.',
+    description: 'Calls one command on one configured MCP server.',
     parameters: {
       type: 'object',
       properties: {
@@ -170,7 +170,7 @@ export const SKILL_TOOL_DEFINITIONS = Object.freeze([
   {
     name: READ_SKILL_TOOL,
     displayName: 'Read Skill',
-    description: 'Returns the full SKILL.md markdown for one enabled uploaded skill.',
+    description: 'Returns the full SKILL.md markdown for one uploaded skill.',
     parameters: {
       type: 'object',
       properties: {
@@ -524,7 +524,7 @@ function buildMcpServerInventoryLines(enabledMcpServers = []) {
   }
   return [
     '**Available MCP servers:**',
-    'Use call_mcp_server_command with a server identifier and one of that server\'s enabled command names.',
+    'Use call_mcp_server_command with a server identifier and one of that server\'s command names.',
     ...enabledMcpServers.map((server) => {
       const identifier =
         typeof server?.identifier === 'string' && server.identifier.trim()
@@ -541,8 +541,8 @@ function buildMcpServerInventoryLines(enabledMcpServers = []) {
             .filter((commandName) => typeof commandName === 'string' && commandName.trim())
         : [];
       const commandSummary = enabledCommands.length
-        ? ` Enabled commands: ${enabledCommands.join(', ')}.`
-        : ' Enabled commands: none.';
+        ? ` Commands: ${enabledCommands.join(', ')}.`
+        : ' Commands: none.';
       return `- ${identifier}${description}${commandSummary}`;
     }),
   ];
@@ -642,7 +642,7 @@ function buildMcpServerExampleLines(toolCallingConfig, enabledMcpServers = []) {
   }
   return [
     '**Example MCP Server Tool Calls:**',
-    'These examples use a fake server and fake command names. Replace them with enabled values from this conversation.',
+    'These examples use a fake server and fake command names. Replace them with names from this conversation.',
     'Example: inspect one MCP server',
     '```text',
     listExample,
@@ -651,6 +651,265 @@ function buildMcpServerExampleLines(toolCallingConfig, enabledMcpServers = []) {
     '```text',
     callExample,
     '```',
+  ];
+}
+
+const WORKSPACE_TOOL_NAMES = new Set(['run_shell_command', 'write_python_file']);
+
+function getPromptToolSummary(name, fallbackDescription = '') {
+  const normalizedName = typeof name === 'string' ? name.trim() : '';
+  switch (normalizedName) {
+    case 'get_current_date_time':
+      return 'Returns the current local date and time.';
+    case 'get_user_location':
+      return "Returns the user's location based on browser settings.";
+    case 'web_lookup':
+      return 'Interact with the web.';
+    case 'tasklist':
+      return 'Manage a task list for multi-step work.';
+    case 'run_shell_command':
+      return 'Passes a shell command to an emulated Linux shell starting in /workspace.';
+    case 'write_python_file':
+      return 'Writes Python source code to a .py file under /workspace.';
+    case MCP_SERVER_COMMAND_LIST_TOOL:
+      return 'Lists the commands and full descriptions for an MCP (Model Context Protocol) Server.';
+    case MCP_SERVER_COMMAND_CALL_TOOL:
+      return 'Calls one command for an MCP server.';
+    case READ_SKILL_TOOL:
+      return 'Reads one Agent Skill (SKILL.md file).';
+    default:
+      return typeof fallbackDescription === 'string' && fallbackDescription.trim()
+        ? fallbackDescription.trim()
+        : 'No description provided.';
+  }
+}
+
+function buildExampleValueFromSchema(schema, propertyName = '') {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return 'example';
+  }
+  if (Array.isArray(schema.enum) && schema.enum.length) {
+    return schema.enum[0];
+  }
+  switch (schema.type) {
+    case 'string':
+      if (propertyName === 'query') {
+        return 'example query';
+      }
+      if (propertyName === 'url') {
+        return 'https://example.com';
+      }
+      return 'example';
+    case 'integer':
+      return Number.isFinite(schema.minimum) ? schema.minimum : 1;
+    case 'number':
+      return Number.isFinite(schema.minimum) ? schema.minimum : 1;
+    case 'boolean':
+      return true;
+    case 'array':
+      return [buildExampleValueFromSchema(schema.items, propertyName)];
+    case 'object':
+      return buildExampleObjectFromSchema(schema);
+    default:
+      return 'example';
+  }
+}
+
+function buildExampleObjectFromSchema(schema) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return {};
+  }
+  const properties =
+    schema.properties && typeof schema.properties === 'object' && !Array.isArray(schema.properties)
+      ? schema.properties
+      : {};
+  const required = Array.isArray(schema.required)
+    ? schema.required.filter((key) => typeof key === 'string' && key.trim())
+    : [];
+  const keys = required.length ? required : Object.keys(properties).slice(0, 2);
+  return keys.reduce((result, key) => {
+    result[key] = buildExampleValueFromSchema(properties[key], key);
+    return result;
+  }, {});
+}
+
+function buildPromptToolExample(toolCallingConfig, toolName, argumentsValue = {}) {
+  const example = buildExampleToolCallText(toolCallingConfig, toolName, argumentsValue);
+  return example ? `Example: ${example}` : '';
+}
+
+function getFirstEnabledMcpCommand(server) {
+  return Array.isArray(server?.commands)
+    ? server.commands.find((command) => command?.enabled && typeof command?.name === 'string')
+    : null;
+}
+
+function buildJsonToolInstructionLines(
+  tool,
+  toolCallingConfig,
+  { skills = [], mcpServers = [] } = {}
+) {
+  const name = typeof tool?.name === 'string' ? tool.name.trim() : 'unknown_tool';
+  const lines = [`- ${name}: ${getPromptToolSummary(name, tool?.description)}`];
+  const firstSkill = Array.isArray(skills) ? skills[0] : null;
+  const firstServer = Array.isArray(mcpServers) ? mcpServers[0] : null;
+  const firstCommand = getFirstEnabledMcpCommand(firstServer);
+
+  switch (name) {
+    case 'get_current_date_time':
+      lines.push(`  - ${buildPromptToolExample(toolCallingConfig, name, {})}`);
+      break;
+    case 'get_user_location':
+      lines.push(`  - ${buildPromptToolExample(toolCallingConfig, name, {})}`);
+      break;
+    case 'web_lookup':
+      lines.push('  - When input is a URL, page content is returned.');
+      lines.push(
+        `    - ${buildPromptToolExample(toolCallingConfig, name, {
+          input: 'https://example.com',
+        })}`
+      );
+      lines.push('  - When input is search terms, search results are returned.');
+      lines.push(
+        `    - ${buildPromptToolExample(toolCallingConfig, name, {
+          input: 'latest news about europa',
+        })}`
+      );
+      break;
+    case 'tasklist':
+      lines.push('  - Call with empty arguments to get tool syntax.');
+      lines.push(`    - ${buildPromptToolExample(toolCallingConfig, name, {})}`);
+      break;
+    case 'run_shell_command':
+      lines.push('  - Call with empty arguments to get syntax and supported commands.');
+      lines.push(`    - ${buildPromptToolExample(toolCallingConfig, name, {})}`);
+      lines.push(
+        `    - ${buildPromptToolExample(toolCallingConfig, name, {
+          cmd: 'ls -l /workspace',
+        })}`
+      );
+      lines.push(
+        `    - ${buildPromptToolExample(toolCallingConfig, name, {
+          cmd: 'python /workspace/script.py',
+        })}`
+      );
+      lines.push('  - Prefer write_python_file for larger scripts.');
+      break;
+    case 'write_python_file':
+      lines.push('  - Use this for longer Python scripts. Run script using run_shell_command.');
+      lines.push(
+        `  - ${buildPromptToolExample(toolCallingConfig, name, {
+          path: '/workspace/script.py',
+          source: 'print("hello")\n',
+        })}`
+      );
+      break;
+    case MCP_SERVER_COMMAND_LIST_TOOL:
+      lines.push(
+        `  - ${buildPromptToolExample(toolCallingConfig, name, {
+          server:
+            typeof firstServer?.identifier === 'string' && firstServer.identifier.trim()
+              ? firstServer.identifier.trim()
+              : 'server_identifier',
+        })}`
+      );
+      break;
+    case MCP_SERVER_COMMAND_CALL_TOOL:
+      lines.push('  - Use this after discovery to call one MCP command.');
+      lines.push(
+        `  - ${buildPromptToolExample(toolCallingConfig, name, {
+          server:
+            typeof firstServer?.identifier === 'string' && firstServer.identifier.trim()
+              ? firstServer.identifier.trim()
+              : 'server_identifier',
+          command:
+            typeof firstCommand?.name === 'string' && firstCommand.name.trim()
+              ? firstCommand.name.trim()
+              : 'command_name',
+          arguments: buildExampleObjectFromSchema(firstCommand?.inputSchema),
+        })}`
+      );
+      break;
+    case READ_SKILL_TOOL:
+      lines.push(
+        `  - ${buildPromptToolExample(toolCallingConfig, name, {
+          name:
+            typeof firstSkill?.name === 'string' && firstSkill.name.trim()
+              ? firstSkill.name.trim()
+              : 'Skill Name',
+        })}`
+      );
+      break;
+    default:
+      break;
+  }
+  return lines;
+}
+
+function buildJsonFormatToolInventoryLines(
+  resolvedToolDefinitions = [],
+  toolCallingConfig = {},
+  { skills = [], mcpServers = [] } = {}
+) {
+  if (!Array.isArray(resolvedToolDefinitions) || !resolvedToolDefinitions.length) {
+    return [];
+  }
+  const lines = ['**Tools available in this conversation:**', 'These are the tools you can call.'];
+  const hasWorkspaceTools = resolvedToolDefinitions.some((tool) =>
+    WORKSPACE_TOOL_NAMES.has(typeof tool?.name === 'string' ? tool.name.trim() : '')
+  );
+  if (hasWorkspaceTools) {
+    lines.push('Save and access files in /workspace');
+  }
+  resolvedToolDefinitions.forEach((tool) => {
+    lines.push(...buildJsonToolInstructionLines(tool, toolCallingConfig, { skills, mcpServers }));
+  });
+  return lines;
+}
+
+function buildJsonFormatMcpServerLines(enabledMcpServers = []) {
+  if (!Array.isArray(enabledMcpServers) || !enabledMcpServers.length) {
+    return [];
+  }
+  return [
+    '**Available MCP servers:**',
+    'These are the server names and descriptions for available MCP servers.',
+    ...enabledMcpServers.map((server) => {
+      const identifier =
+        typeof server?.identifier === 'string' && server.identifier.trim()
+          ? server.identifier.trim()
+          : 'mcp-server';
+      const description =
+        typeof server?.description === 'string' && server.description.trim()
+          ? server.description.trim()
+          : 'No description provided.';
+      const enabledCommands = Array.isArray(server?.commands)
+        ? server.commands
+            .filter((command) => command?.enabled)
+            .map((command) => command?.name)
+            .filter((commandName) => typeof commandName === 'string' && commandName.trim())
+        : [];
+      return [`- ${identifier}: ${description}`, `  - ${enabledCommands.join(', ') || 'none'}`];
+    }).flat(),
+  ];
+}
+
+function buildJsonFormatSkillLines(skillPackages = []) {
+  const availableSkills = getEnabledSkillPackages(skillPackages);
+  if (!availableSkills.length) {
+    return [];
+  }
+  return [
+    '**Available Agent Skills (SKILL.md Files)**:',
+    'These are the names and descriptions for available Agent Skills',
+    ...availableSkills.map((skillPackage) => {
+      const name = typeof skillPackage?.name === 'string' ? skillPackage.name.trim() : 'Unnamed Skill';
+      const description =
+        typeof skillPackage?.description === 'string' && skillPackage.description.trim()
+          ? skillPackage.description.trim()
+          : 'No description provided.';
+      return `- ${name}: ${description}`;
+    }),
   ];
 }
 
@@ -692,11 +951,15 @@ function getToolInstructionNotes(name) {
   }
   if (normalizedName === 'web_lookup') {
     notes.push({
-      text: 'When input is a URL, fetch a page preview',
+      text: 'When input is a URL, extracted page content is returned.',
       bulleted: true,
     });
     notes.push({
-      text: 'When input is search terms, DuckDuckgo is used to return search results.',
+      text: 'If the page is too large, the tool returns a smaller extracted subset and the message says so.',
+      bulleted: true,
+    });
+    notes.push({
+      text: 'When input is search terms, search results are returned.',
       bulleted: true,
     });
   }
@@ -720,13 +983,13 @@ function getToolInstructionNotes(name) {
       bulleted: true,
     });
     notes.push({
-      text: 'Call with {"name":"Skill Name"}. The response body is the SKILL.md markdown.',
+      text: 'Example: {"name":"Lesson Planner"}. The response body is the SKILL.md markdown.',
       bulleted: true,
     });
   }
   if (normalizedName === MCP_SERVER_COMMAND_LIST_TOOL) {
     notes.push({
-      text: 'Use this first when you need to inspect one enabled MCP server.',
+      text: 'Use this first when you need to inspect one MCP server.',
       bulleted: true,
     });
     notes.push({
@@ -736,7 +999,7 @@ function getToolInstructionNotes(name) {
   }
   if (normalizedName === MCP_SERVER_COMMAND_CALL_TOOL) {
     notes.push({
-      text: 'Use this after discovery to call one enabled MCP command.',
+      text: 'Use this after discovery to call one MCP command.',
       bulleted: true,
     });
     notes.push({
@@ -828,6 +1091,7 @@ export function buildToolCallingSystemPrompt(
   }
   const resolvedToolDefinitions = buildResolvedToolDefinitions(toolList, enabledTools);
   const toolListFormat = toolCallingConfig?.toolListFormat === 'json' ? 'json' : 'markdown';
+  const useJsonPromptTemplate = toolListFormat === 'markdown' && toolCallingConfig?.format === 'json';
   const toolLines =
     toolListFormat === 'json'
       ? buildJsonToolListLines(
@@ -836,6 +1100,15 @@ export function buildToolCallingSystemPrompt(
           toolCallingConfig,
           availableSkills
         )
+      : useJsonPromptTemplate
+        ? [
+            ...buildJsonFormatToolInventoryLines(resolvedToolDefinitions, toolCallingConfig, {
+              skills: availableSkills,
+              mcpServers: enabledMcpServers,
+            }),
+            ...(enabledMcpServers.length ? ['', ...buildJsonFormatMcpServerLines(enabledMcpServers)] : []),
+            ...(availableSkills.length ? ['', ...buildJsonFormatSkillLines(availableSkills)] : []),
+          ]
       : [
           '**Tools available in this conversation:**\nThese are the tools you can call.',
           ...buildEnabledToolInstructions(resolvedToolDefinitions),
@@ -845,6 +1118,9 @@ export function buildToolCallingSystemPrompt(
             ? ['', ...buildMcpServerExampleLines(toolCallingConfig, enabledMcpServers)]
             : []),
         ];
+  if (useJsonPromptTemplate) {
+    return toolLines.join('\n');
+  }
   const toolBehaviorLines = ['After a tool result, continue the work and answer naturally.'].filter(
     Boolean
   );
