@@ -1,5 +1,5 @@
 {
-  "defaultModelId": "litert-community/gemma-4-E4B-it-litert-lm",
+  "defaultModelId": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
   "models": [
     {
       "id": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
@@ -162,12 +162,11 @@
       }
     },
     {
-      "id": "Yoursmiling/Qwen3.5-2B-LiteRT",
-      "label": "Yoursmiling/Qwen3.5-2B-LiteRT",
-      "displayName": "Qwen3.5 2B LiteRT",
-      "unavailableReason": "This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.",
+      "id": "onnx-community/Qwen3.5-2B-ONNX",
+      "label": "onnx-community/Qwen3.5-2B-ONNX",
+      "displayName": "Qwen3.5 2B Instruct",
       "engine": {
-        "type": "mediapipe-genai"
+        "type": "transformers-js"
       },
       "languageSupport": {
         "tags": [
@@ -181,10 +180,14 @@
         "hasMore": true,
         "sourceUrl": "https://huggingface.co/Qwen/Qwen3.5-2B"
       },
-      "repositoryUrl": "https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT",
+      "repositoryUrl": "https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX",
       "runtime": {
-        "modelAssetPath": "https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/4d942a539e4ffd2ecb298f1198450051a06123a9/model_multimodal.litertlm",
-        "promptFormat": "qwen-im"
+        "dtypes": {
+          "webgpu": "q4f16",
+          "cpu": "q4"
+        },
+        "multimodalGeneration": true,
+        "useExternalDataFormat": true
       },
       "toolCalling": {
         "format": "xml-tool-call"
@@ -213,14 +216,18 @@
         "streaming": true,
         "thinking": true,
         "toolCalling": true,
-        "imageInput": false,
+        "imageInput": true,
         "audioInput": false,
         "videoInput": false
+      },
+      "inputLimits": {
+        "maxImageInputs": 1
       }
     }
   ],
   "legacyAliases": {
     "onnx-community/Llama-3.2-3B-Instruct-ONNX": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
-    "Xenova/distilgpt2": "onnx-community/Llama-3.2-3B-Instruct-onnx-web"
+    "Xenova/distilgpt2": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
+    "Yoursmiling/Qwen3.5-2B-LiteRT": "onnx-community/Qwen3.5-2B-ONNX"
   }
 }

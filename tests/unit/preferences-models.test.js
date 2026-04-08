@@ -87,15 +87,18 @@ describe('preferences-models', () => {
       'Supported languages: English (EN), Spanish (ES), French (FR), Chinese (ZH), Hindi (HI), Japanese (JA), and more.'
     );
 
-    const qwenLiteRtCard = cards.find((card) => card.textContent?.includes('Qwen3.5 2B LiteRT'));
-    expect(qwenLiteRtCard?.textContent).toContain('Unavailable');
-    expect(qwenLiteRtCard?.textContent).toContain('Unavailable in this app.');
-    expect(qwenLiteRtCard?.textContent).toContain(
-      'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.'
-    );
+    const qwenCard = cards.find((card) => card.textContent?.includes('Qwen3.5 2B Instruct'));
+    expect(qwenCard?.textContent).toContain('262,144 tokens');
+    expect(qwenCard?.textContent).not.toContain('Unavailable');
     expect(
-      qwenLiteRtCard?.querySelector('.model-card-button')?.getAttribute('title')
-    ).toContain('This LiteRT export is not currently compatible');
+      Array.from(qwenCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
+        node.getAttribute('aria-label')
+      )
+    ).toEqual([
+      'Shows a thinking section',
+      'Can use built-in tools',
+      'Accepts image input',
+    ]);
     expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 350M'))).toBe(false);
     expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Instruct'))).toBe(
       false
@@ -158,12 +161,12 @@ describe('preferences-models', () => {
 
     expect(
       harness.controller.getAvailableModelId('LiquidAI/LFM2.5-1.2B-Thinking-ONNX', 'webgpu')
-    ).toBe('litert-community/gemma-4-E4B-it-litert-lm');
-    expect(modelSelect.value).toBe('litert-community/gemma-4-E4B-it-litert-lm');
-    expect(harness.storage.getItem('model')).toBe('litert-community/gemma-4-E4B-it-litert-lm');
+    ).toBe('onnx-community/Llama-3.2-3B-Instruct-onnx-web');
+    expect(modelSelect.value).toBe('onnx-community/Llama-3.2-3B-Instruct-onnx-web');
+    expect(harness.storage.getItem('model')).toBe('onnx-community/Llama-3.2-3B-Instruct-onnx-web');
     expect(harness.storage.getItem('backend')).toBe('webgpu');
     expect(harness.deps.syncGenerationSettingsFromModel).toHaveBeenCalledWith(
-      'litert-community/gemma-4-E4B-it-litert-lm',
+      'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
       true
     );
   });

@@ -188,7 +188,7 @@ function buildFetchFailureError({ requestedUrl, response }) {
     `${summary}${statusText ? ` ${statusText}` : ''}${resolvedUrl ? ` -> ${resolvedUrl}` : ''}`
   );
   error.name = 'ModelFetchError';
-  error.fetchDetails = {
+  /** @type {any} */ (error).fetchDetails = {
     requestedUrl,
     resolvedUrl,
     status,

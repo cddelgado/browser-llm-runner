@@ -500,6 +500,11 @@ describe('preferences controller', () => {
 
     expect(getFeatureLabels('Llama 3.2 3B Instruct')).toEqual(['Can use built-in tools']);
     expect(getFeatureLabels('Llama 3.2 1B Instruct')).toEqual([]);
+    expect(getFeatureLabels('Qwen3.5 2B Instruct')).toEqual([
+      'Shows a thinking section',
+      'Can use built-in tools',
+      'Accepts image input',
+    ]);
     expect(getFeatureLabels('Gemma 4 E4B')).toEqual([
       'Shows a thinking section',
       'Can use built-in tools',
@@ -518,7 +523,7 @@ describe('preferences controller', () => {
     const firstCardTitle = modelCardList.querySelector(
       '.model-card .model-card-title'
     )?.textContent;
-    expect(firstCardTitle).toBe('Gemma 4 E4B');
-    expect(modelSelect.options[0]?.value).toBe('litert-community/gemma-4-E4B-it-litert-lm');
+    expect(firstCardTitle).toBe('Llama 3.2 3B Instruct');
+    expect(modelSelect.options[0]?.value).toBe('onnx-community/Llama-3.2-3B-Instruct-onnx-web');
   });
 });

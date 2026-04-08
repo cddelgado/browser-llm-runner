@@ -255,25 +255,30 @@ Do not mark a capability on the card just because the upstream model card advert
 
 Current models in Settings:
 
-- `litert-community/gemma-4-E4B-it-litert-lm` (default)
+- `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
+  - Uses the `transformers-js` engine.
+  - Uses runtime dtypes `{ webgpu: q4f16, cpu: q4 }`.
+  - Keeps the browser-oriented `onnx-web` repo id as the canonical Llama 3.2 3B model in this app.
+- `onnx-community/Qwen3.5-2B-ONNX`
+  - Uses the `transformers-js` engine.
+  - Uses runtime dtypes `{ webgpu: q4f16, cpu: q4 }` and `useExternalDataFormat: true`.
+  - Enables `multimodalGeneration: true` for the current image-input worker path.
+  - Uses `thinkingControl` with runtime `enable_thinking`.
+  - Uses Qwen's `<think>` / `</think>` reasoning tags plus the XML tool-call format already supported elsewhere in the app.
+  - Keeps image input enabled in the app with `inputLimits.maxImageInputs = 1`.
+- `litert-community/gemma-4-E4B-it-litert-lm`
   - Uses the `mediapipe-genai` engine with a pinned `gemma-4-E4B-it-web.task` asset URL.
   - Requires WebGPU and currently exposes text-only generation in this app.
   - Uses `thinkingControl` with runtime `enable_thinking`.
   - Uses Gemma's channel-style thought markers via `thinkingTags { open: "<|channel>", close: "<channel|>", stripLeadingText: "thought" }`.
   - Uses the Gemma special-token tool-call format.
-- `Yoursmiling/Qwen3.5-2B-LiteRT`
-  - Uses the `mediapipe-genai` engine with a pinned `model_multimodal.litertlm` asset URL.
-  - Remains visible as a separate LiteRT entry, but is currently disabled because this export does not initialize correctly in the browser MediaPipe runtime used by this app.
-  - Uses `thinkingControl` with runtime `enable_thinking`.
-  - Uses Qwen's `<think>` / `</think>` reasoning tags plus the XML tool-call format already supported elsewhere in the app.
-  - Uses `runtime.promptFormat: "qwen-im"` so the LiteRT worker emits Qwen's ChatML-style `<|im_start|>...<|im_end|>` turns instead of Gemma's turn wrappers.
-- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses `q4f16` on WebGPU and `int8` on CPU, and loads external ONNX data sidecars.
   - Uses the same app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
 - Legacy aliases remapped automatically at runtime:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
+  - `Yoursmiling/Qwen3.5-2B-LiteRT` -> `onnx-community/Qwen3.5-2B-ONNX`
 
 Notes:
 
@@ -281,7 +286,7 @@ Notes:
 - Transformers.js and MediaPipe Tasks GenAI are loaded from locally installed packages and bundled into the app build.
 - Model assets are downloaded at runtime and cached in-browser through the engine-specific path.
 - Model assets are not committed to this repository.
-- The LiteRT Gemma 4 and LiteRT Qwen 3.5 2B assets are revision-pinned to specific Hugging Face commits via `runtime.modelAssetPath`.
+- The LiteRT Gemma 4 asset is revision-pinned to a specific Hugging Face commit via `runtime.modelAssetPath`.
 - Other model artifacts are not uniformly revision-pinned yet; this remains a documented accepted risk.
 - The pre-chat picker presents each model as a single-select horizontal row with capability chips, language tags, and short-term memory shown as tokens plus a rough word estimate rounded to the nearest 100.
 - Model capability flags describe what a model can support; the image/audio/video UI is only enabled when the runtime also declares `multimodalGeneration: true`.
@@ -302,5 +307,5 @@ Per-model limits and defaults:
 - `Llama 3.2 3B` keeps the browser-oriented `onnx-web` repo id as its canonical model in this app. The full ONNX repo remains a legacy alias because its browser load path was not reliable here: the `int8` package could fail with `Array buffer allocation failed`, and the `q4` package could fail to preload required `.onnx_data` shards.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: int8 }`, `useExternalDataFormat: true`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
 - All listed Llama entries enable `useExternalDataFormat: true` where required for `.onnx_data` loading.
-- `Yoursmiling/Qwen3.5-2B-LiteRT`: engine `mediapipe-genai`, `unavailableReason: "This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app."`, pinned `modelAssetPath` to `model_multimodal.litertlm`, `promptFormat: "qwen-im"`, max context `262144`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, text-only in the current app worker path, tool call format `xml-tool-call`, thinking tags `<think>` / `</think>`, thinking control `{ defaultEnabled: false, runtimeParameter: "enable_thinking" }`
+- `onnx-community/Qwen3.5-2B-ONNX`: engine `transformers-js`, runtime dtypes `{ webgpu: q4f16, cpu: q4 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, `inputLimits.maxImageInputs: 1`, max context `262144`, default context `8192`, default temperature `0.6`, default top-k `20`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, and `imageInput`, tool call format `xml-tool-call`, thinking tags `<think>` / `</think>`, thinking control `{ defaultEnabled: false, runtimeParameter: "enable_thinking" }`
 - `litert-community/gemma-4-E4B-it-litert-lm`: engine `mediapipe-genai`, `requiresWebGpu: true`, pinned `modelAssetPath` to `gemma-4-E4B-it-web.task`, `promptFormat: "gemma-turns"`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`

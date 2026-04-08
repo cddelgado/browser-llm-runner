@@ -391,28 +391,29 @@ export function browserSupportsWebGpu(navigatorLike = globalThis.navigator) {
 const configuredModels = Array.isArray(modelCatalog?.models)
   ? modelCatalog.models
       .map((model) => {
-        const id = typeof model?.id === 'string' ? model.id.trim() : '';
+        const rawModel = /** @type {any} */ (model);
+        const id = typeof rawModel?.id === 'string' ? rawModel.id.trim() : '';
         if (!id) {
           return null;
         }
         const label =
-          typeof model?.label === 'string' && model.label.trim() ? model.label.trim() : id;
-        const displayName = normalizeModelCardText(model?.displayName) || label;
-        const engine = normalizeEngine(model?.engine);
-        const languageSupport = normalizeLanguageSupport(model?.languageSupport);
-        const repositoryUrl = normalizeRepositoryUrl(model?.repositoryUrl, id);
-        const unavailableReason = normalizeUnavailableReason(model?.unavailableReason);
-        const thinkingTags = normalizeThinkingTags(model?.thinkingTags);
-        const generation = normalizeGenerationLimits(model?.generation);
-        const runtime = normalizeRuntime(model?.runtime);
-        const features = normalizeFeatures(model?.features, { thinkingTags });
-        const thinkingControl = normalizeThinkingControl(model?.thinkingControl, {
+          typeof rawModel?.label === 'string' && rawModel.label.trim() ? rawModel.label.trim() : id;
+        const displayName = normalizeModelCardText(rawModel?.displayName) || label;
+        const engine = normalizeEngine(rawModel?.engine);
+        const languageSupport = normalizeLanguageSupport(rawModel?.languageSupport);
+        const repositoryUrl = normalizeRepositoryUrl(rawModel?.repositoryUrl, id);
+        const unavailableReason = normalizeUnavailableReason(rawModel?.unavailableReason);
+        const thinkingTags = normalizeThinkingTags(rawModel?.thinkingTags);
+        const generation = normalizeGenerationLimits(rawModel?.generation);
+        const runtime = normalizeRuntime(rawModel?.runtime);
+        const features = normalizeFeatures(rawModel?.features, { thinkingTags });
+        const thinkingControl = normalizeThinkingControl(rawModel?.thinkingControl, {
           enabled: features.thinking,
         });
-        const toolCalling = normalizeToolCalling(model?.toolCalling, {
+        const toolCalling = normalizeToolCalling(rawModel?.toolCalling, {
           enabled: features.toolCalling,
         });
-        const inputLimits = normalizeInputLimits(/** @type {any} */ (model)?.inputLimits);
+        const inputLimits = normalizeInputLimits(rawModel?.inputLimits);
         return {
           id,
           label,

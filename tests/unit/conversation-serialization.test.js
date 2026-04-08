@@ -183,7 +183,7 @@ describe('conversation-serialization', () => {
     expect(appState.conversationIdCounter).toBe(2);
     expect(appState.activeConversationId).toBeNull();
     expect(appState.conversations[0]?.name).toBe('New Conversation');
-    expect(appState.conversations[0]?.modelId).toBe('litert-community/gemma-4-E4B-it-litert-lm');
+    expect(appState.conversations[0]?.modelId).toBe('onnx-community/Llama-3.2-3B-Instruct-onnx-web');
     expect(appState.conversations[0]?.languagePreference).toBe('fr');
     expect(appState.conversations[0]?.thinkingEnabled).toBe(false);
     expect(appState.conversations[0]?.currentWorkingDirectory).toBe('/workspace/saved');

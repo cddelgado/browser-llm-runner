@@ -25,9 +25,9 @@ Inference is selected through the engine client boundary and executes through a 
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
 - `mediapipe-genai` models currently use the browser WebGPU path in this app:
   - the bundled Gemma 4 LiteRT entry is supported on WebGPU
-  - `Yoursmiling/Qwen3.5-2B-LiteRT` remains visible but disabled because its LiteRT export does not initialize correctly in the browser MediaPipe runtime used here
+- `onnx-community/Qwen3.5-2B-ONNX` now runs through the `transformers-js` worker with `q4f16` on WebGPU and `q4` on CPU.
 - Models with `multimodalGeneration: true` use a processor/model execution path in the worker instead of the text-generation pipeline.
-- For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests.
+- For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests, so multimodal preprocessing assets are not fetched during initial model load.
 - ONNX models may provide mode-specific runtime hints such as `runtime.dtypes.webgpu` and `runtime.dtypes.cpu`.
 - LiteRT-backed models may use engine-specific runtime hints such as `runtime.modelAssetPath` and `runtime.promptFormat` instead of Transformers.js-specific dtype settings.
 

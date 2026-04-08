@@ -67,7 +67,7 @@ Student-facing browser chat UI with local model inference.
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
 - CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and leaves ONNX thread selection on ORT auto (`onnx.wasm.numThreads = 0`).
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
-- LiteRT-backed models in the current browser app path require WebGPU. The bundled Gemma 4 LiteRT entry is supported; the separate Qwen LiteRT entry is shown as unavailable until a compatible browser runtime path exists.
+- LiteRT-backed models in the current browser app path require WebGPU. The bundled Gemma 4 LiteRT entry is supported.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
   - Values are constrained by per-model limits from `src/config/models.json` and use `step=8`.
@@ -214,25 +214,28 @@ Student-facing browser chat UI with local model inference.
 
 ## Supported models
 
-- `litert-community/gemma-4-E4B-it-litert-lm` (default)
+- `onnx-community/Llama-3.2-3B-Instruct-onnx-web` (default)
+  - Uses `q4f16` on WebGPU and `q4` on CPU in this app.
+  - Remains the canonical Llama 3.2 3B entry for this browser app because the full ONNX repo was not reliable here.
+- `onnx-community/Qwen3.5-2B-ONNX`
+  - Uses the Transformers.js worker path in this app.
+  - Uses `q4f16` on WebGPU and `q4` on CPU, with external ONNX data loading.
+  - Enables multimodal generation for image input in the current worker path.
+  - Reuses the existing lazy multimodal processor load path so preprocessing assets are not pulled during initial model load.
+  - Uses `<think>...</think>` reasoning tags and the app's XML tool-call format support.
+- `litert-community/gemma-4-E4B-it-litert-lm`
   - Uses the LiteRT/MediaPipe GenAI worker path in this app.
   - Requires WebGPU in-browser and is text-only in the current app path.
   - Loads the pinned `gemma-4-E4B-it-web.task` artifact from the model repository at runtime.
   - Uses runtime `enable_thinking` and parses Gemma's `<|channel>...<channel|>` reasoning into the transcript thinking section.
   - Uses Gemma's special-token tool-call format supported by this app.
-- `Yoursmiling/Qwen3.5-2B-LiteRT`
-  - Uses the LiteRT/MediaPipe GenAI worker path in this app.
-  - Is shown separately in the picker, but currently disabled because this LiteRT export is not compatible with the browser MediaPipe runtime used by this app.
-  - Loads the pinned `model_multimodal.litertlm` artifact from the model repository at runtime.
-  - Uses Qwen's ChatML-style `<|im_start|>...<|im_end|>` prompt format in the LiteRT worker, `<think>...</think>` reasoning tags, and the app's XML tool-call format support.
-- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-  - Uses `q4f16` on WebGPU and `q4` on CPU in this app.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`
   - Uses `q4f16` on WebGPU and `int8` on CPU in this app, with external data loading.
   - Uses the same conservative app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
 - Legacy stored IDs are automatically remapped to the supported model:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
+  - `Yoursmiling/Qwen3.5-2B-LiteRT` -> `onnx-community/Qwen3.5-2B-ONNX`
 
 For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` repo id as the canonical model. The full ONNX repo remains a legacy alias only because its browser load path was not reliable in this app: the `int8` package hit `Array buffer allocation failed`, and the `q4` package failed to preload required `.onnx_data` shards in-browser.
 - Model support configuration lives in `src/config/models.json`:
@@ -274,7 +277,7 @@ For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` r
 - Audio input is upload-only. The app does not expose live recording.
 - Video input is not currently exposed because the supported browser runtime paths are not reliable enough yet.
 - The app still does not ship with a CSP. This is a documented hardening gap for a future pass.
-- Most model artifacts are still fetched from upstream repositories at runtime and are not revision-pinned yet. The LiteRT Gemma 4 and LiteRT Qwen 3.5 2B assets are pinned to specific Hugging Face revisions, but the app does not yet apply a uniform integrity-verification policy across all models.
+- Most model artifacts are still fetched from upstream repositories at runtime and are not revision-pinned yet. The LiteRT Gemma 4 asset is pinned to a specific Hugging Face revision, but the app does not yet apply a uniform integrity-verification policy across all models.
 
 See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 

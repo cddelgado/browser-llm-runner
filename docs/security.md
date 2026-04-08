@@ -24,5 +24,5 @@ This document tracks security hardening decisions and known gaps that should sta
 
 ## Remaining accepted risk
 
-- Model artifacts are still fetched from upstream model repositories at runtime. The LiteRT Gemma 4 and LiteRT Qwen 3.5 2B assets are pinned to specific Hugging Face revisions, but the app does not yet apply a uniform revision-pinning or integrity-verification policy across all model downloads. This remains an accepted supply-chain risk for now and should stay documented until the app adopts pinned or self-hosted model artifacts consistently.
+- Model artifacts are still fetched from upstream model repositories at runtime. The LiteRT Gemma 4 asset is pinned to a specific Hugging Face revision, but the app does not yet apply a uniform revision-pinning or integrity-verification policy across all model downloads. This remains an accepted supply-chain risk for now and should stay documented until the app adopts pinned or self-hosted model artifacts consistently.
 - When an enabled MCP command is invoked, that command's arguments are sent to the configured remote MCP endpoint and its result comes back into the local conversation. This is expected behavior, but it is still an external network surface the user controls.

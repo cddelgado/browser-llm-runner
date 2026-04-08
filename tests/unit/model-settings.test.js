@@ -12,13 +12,13 @@ import {
 
 const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 const LLAMA_1B_MODEL_ID = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
-const QWEN_LITERT_MODEL_ID = 'Yoursmiling/Qwen3.5-2B-LiteRT';
+const QWEN_2B_MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX';
 const GEMMA_4_MODEL_ID = 'litert-community/gemma-4-E4B-it-litert-lm';
 
 describe('model-settings availability', () => {
-  test('uses Gemma 4 as the default model and keeps it first in the visible catalog', () => {
-    expect(DEFAULT_MODEL).toBe(GEMMA_4_MODEL_ID);
-    expect(MODEL_OPTIONS[0]?.id).toBe(GEMMA_4_MODEL_ID);
+  test('uses Llama 3.2 3B as the default model and keeps it first in the visible catalog', () => {
+    expect(DEFAULT_MODEL).toBe(LLAMA_3B_MODEL_ID);
+    expect(MODEL_OPTIONS[0]?.id).toBe(LLAMA_3B_MODEL_ID);
   });
 
   test('marks Gemma 4 unavailable in cpu mode without WebGPU', () => {
@@ -87,34 +87,31 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get('LiquidAI/LFM2.5-1.2B-Instruct-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('LiquidAI/LFM2.5-1.2B-Thinking-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3.5-0.8B-ONNX')).toBeUndefined();
-    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3.5-2B-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/gemma-4-E2B-it-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/gemma-3n-E2B-it-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')).toBeUndefined();
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.hidden).toBe(false);
-    expect(MODEL_OPTIONS.some((model) => model.id === QWEN_LITERT_MODEL_ID)).toBe(true);
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.hidden).toBe(false);
+    expect(MODEL_OPTIONS.some((model) => model.id === QWEN_2B_MODEL_ID)).toBe(true);
   });
 
-  test('keeps the LiteRT Qwen model visible but unavailable until a compatible browser runtime exists', () => {
+  test('keeps the ONNX Qwen model available on both cpu and webgpu paths', () => {
     expect(
-      getModelAvailability(QWEN_LITERT_MODEL_ID, {
+      getModelAvailability(QWEN_2B_MODEL_ID, {
         backendPreference: 'cpu',
         webGpuAvailable: false,
       })
     ).toEqual({
-      available: false,
-      reason:
-        'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.',
+      available: true,
+      reason: '',
     });
     expect(
-      getModelAvailability(QWEN_LITERT_MODEL_ID, {
+      getModelAvailability(QWEN_2B_MODEL_ID, {
         backendPreference: 'webgpu',
         webGpuAvailable: true,
       })
     ).toEqual({
-      available: false,
-      reason:
-        'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.',
+      available: true,
+      reason: '',
     });
   });
 
@@ -134,9 +131,13 @@ describe('model-settings availability', () => {
     expect(normalizeModelId('onnx-community/Llama-3.2-3B-Instruct-ONNX')).toBe(LLAMA_3B_MODEL_ID);
   });
 
+  test('maps the retired LiteRT Qwen id to the ONNX q4 model', () => {
+    expect(normalizeModelId('Yoursmiling/Qwen3.5-2B-LiteRT')).toBe(QWEN_2B_MODEL_ID);
+  });
+
   test('falls back to the default model for removed model ids', () => {
-    expect(normalizeModelId('onnx-community/Qwen3-0.6B-ONNX')).toBe(GEMMA_4_MODEL_ID);
-    expect(normalizeModelId('onnx-community/gemma-4-E2B-it-ONNX')).toBe(GEMMA_4_MODEL_ID);
+    expect(normalizeModelId('onnx-community/Qwen3-0.6B-ONNX')).toBe(LLAMA_3B_MODEL_ID);
+    expect(normalizeModelId('onnx-community/gemma-4-E2B-it-ONNX')).toBe(LLAMA_3B_MODEL_ID);
   });
 
   test('exposes model feature flags from config', () => {
@@ -166,11 +167,11 @@ describe('model-settings availability', () => {
       audioInput: false,
       videoInput: false,
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.features).toMatchObject({
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.features).toMatchObject({
       streaming: true,
       thinking: true,
       toolCalling: true,
-      imageInput: false,
+      imageInput: true,
       audioInput: false,
       videoInput: false,
     });
@@ -180,8 +181,8 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.engine).toEqual({
       type: 'mediapipe-genai',
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.engine).toEqual({
-      type: 'mediapipe-genai',
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.engine).toEqual({
+      type: 'transformers-js',
     });
     expect(
       MODEL_OPTIONS_BY_ID.get(LLAMA_3B_MODEL_ID)?.runtime
@@ -205,14 +206,17 @@ describe('model-settings availability', () => {
         'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/439779041cf1a165146a3ee1f9a7653b2f047975/gemma-4-E4B-it-web.task',
       promptFormat: 'gemma-turns',
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.runtime).toMatchObject({
-      modelAssetPath:
-        'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT/resolve/4d942a539e4ffd2ecb298f1198450051a06123a9/model_multimodal.litertlm',
-      promptFormat: 'qwen-im',
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.runtime).toMatchObject({
+      dtypes: {
+        webgpu: 'q4f16',
+        cpu: 'q4',
+      },
+      multimodalGeneration: true,
+      useExternalDataFormat: true,
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.unavailableReason).toBe(
-      'This LiteRT export is not currently compatible with the browser MediaPipe runtime used by this app.'
-    );
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.inputLimits).toMatchObject({
+      maxImageInputs: 1,
+    });
     expect(
       MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime?.multimodalGeneration
     ).toBeUndefined();
@@ -224,10 +228,10 @@ describe('model-settings availability', () => {
       argumentsKey: 'parameters',
     });
     expect(MODEL_OPTIONS_BY_ID.get(LLAMA_1B_MODEL_ID)?.toolCalling).toBeNull();
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.toolCalling).toEqual({
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.toolCalling).toEqual({
       format: 'xml-tool-call',
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.thinkingControl).toEqual({
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.thinkingControl).toEqual({
       defaultEnabled: false,
       runtimeParameter: 'enable_thinking',
     });
@@ -240,7 +244,7 @@ describe('model-settings availability', () => {
       close: '<channel|>',
       stripLeadingText: 'thought',
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)?.thinkingTags).toEqual({
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)?.thinkingTags).toEqual({
       open: '<think>',
       close: '</think>',
     });
@@ -251,9 +255,9 @@ describe('model-settings availability', () => {
       displayName: 'Llama 3.2 1B Instruct',
       repositoryUrl: 'https://huggingface.co/onnx-community/Llama-3.2-1B-Instruct-ONNX',
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_LITERT_MODEL_ID)).toMatchObject({
-      displayName: 'Qwen3.5 2B LiteRT',
-      repositoryUrl: 'https://huggingface.co/Yoursmiling/Qwen3.5-2B-LiteRT',
+    expect(MODEL_OPTIONS_BY_ID.get(QWEN_2B_MODEL_ID)).toMatchObject({
+      displayName: 'Qwen3.5 2B Instruct',
+      repositoryUrl: 'https://huggingface.co/onnx-community/Qwen3.5-2B-ONNX',
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)).toMatchObject({
       displayName: 'Gemma 4 E4B',
