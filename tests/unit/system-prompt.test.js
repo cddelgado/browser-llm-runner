@@ -23,9 +23,13 @@ describe('system prompt feature sections', () => {
       buildMathRenderingFeaturePrompt({ renderMathMl: true }),
     ]);
 
-    expect(prompt).toContain('**Behavior:**');
+    expect(prompt).toContain('**Assistant Behavior:**');
+    expect(prompt).toContain('- When possible, do the work instead of explain how.');
     expect(prompt).toContain('- Use the appropriate tool to confirm facts before responding.');
     expect(prompt).toContain('- Present mathematical notation in LaTeX');
+    expect(prompt.indexOf('- When possible, do the work instead of explain how.')).toBeLessThan(
+      prompt.indexOf('- Use the appropriate tool to confirm facts before responding.')
+    );
     expect(
       prompt.indexOf('- Use the appropriate tool to confirm facts before responding.')
     ).toBeLessThan(prompt.indexOf('- Present mathematical notation in LaTeX'));

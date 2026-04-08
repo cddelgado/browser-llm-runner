@@ -9,9 +9,11 @@ export function buildOptionalFeaturePromptSection(instructions = []) {
   if (!normalizedInstructions.length) {
     return '';
   }
-  return ['**Behavior:**', ...normalizedInstructions.map((instruction) => `- ${instruction}`)].join(
-    '\n'
-  );
+  return [
+    '**Assistant Behavior:**',
+    '- When possible, do the work instead of explain how.',
+    ...normalizedInstructions.map((instruction) => `- ${instruction}`),
+  ].join('\n');
 }
 
 export function buildFactCheckingPrompt({ toolUseAvailable = false, webLookupEnabled = false } = {}) {
