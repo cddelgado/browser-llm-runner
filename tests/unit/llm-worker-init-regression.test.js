@@ -85,4 +85,97 @@ describe('llm.worker init regression', () => {
       },
     });
   });
+
+  test('falls back to cpu before model loading when WebGPU has no usable adapter', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {
+        gpu: {
+          requestAdapter: vi.fn(async () => null),
+        },
+      },
+    });
+
+    await import('../../src/workers/llm.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'init',
+          payload: {
+            modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+            backendPreference: 'webgpu',
+            runtime: {
+              dtypes: {
+                webgpu: 'q4f16',
+                cpu: 'q4',
+              },
+              useExternalDataFormat: true,
+            },
+          },
+        },
+      })
+    );
+
+    expect(pipelineFactory).toHaveBeenCalledTimes(1);
+    expect(pipelineFactory).toHaveBeenCalledWith(
+      'text-generation',
+      'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+      expect.objectContaining({
+        device: 'wasm',
+        dtype: 'q4',
+        use_external_data_format: true,
+      })
+    );
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'init-success',
+      payload: {
+        backend: 'cpu',
+        modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+      },
+    });
+  });
+
+  test('stops before model loading when a WebGPU-required model has no usable adapter', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {
+        gpu: {
+          requestAdapter: vi.fn(async () => null),
+        },
+      },
+    });
+
+    await import('../../src/workers/llm.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'init',
+          payload: {
+            modelId: 'LiquidAI/LFM2.5-350M-ONNX',
+            backendPreference: 'webgpu',
+            runtime: {
+              dtypes: {
+                webgpu: 'q4f16',
+              },
+              requiresWebGpu: true,
+              useExternalDataFormat: true,
+            },
+          },
+        },
+      })
+    );
+
+    expect(pipelineFactory).not.toHaveBeenCalled();
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'init-error',
+      payload: {
+        message:
+          'Failed to initialize model. LiquidAI/LFM2.5-350M-ONNX requires WebGPU, but no usable WebGPU adapter was found.',
+      },
+    });
+  });
 });

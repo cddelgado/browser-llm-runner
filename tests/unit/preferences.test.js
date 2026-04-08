@@ -427,7 +427,7 @@ describe('preferences controller', () => {
     expect(liquidSmallCard?.textContent).toContain('32,768 tokens');
     expect(liquidSmallCard?.textContent).not.toContain('Temp 0.1');
     expect(liquidSmallCard?.textContent).not.toContain('Top P 1.00');
-    expect(liquidSmallCard?.textContent).not.toContain('This model requires WebGPU.');
+    expect(liquidSmallCard?.textContent).toContain('This model requires WebGPU.');
     expect(
       /** @type {HTMLAnchorElement | null} */ (liquidSmallCard?.querySelector('.model-card-link'))
         ?.href
@@ -439,7 +439,7 @@ describe('preferences controller', () => {
     expect(liquidInstructCard?.textContent).toContain('32,768 tokens');
     expect(liquidInstructCard?.textContent).not.toContain('Temp 0.1');
     expect(liquidInstructCard?.textContent).not.toContain('Top P 1.00');
-    expect(liquidInstructCard?.textContent).not.toContain('This model requires WebGPU.');
+    expect(liquidInstructCard?.textContent).toContain('This model requires WebGPU.');
     expect(
       /** @type {HTMLAnchorElement | null} */ (
         liquidInstructCard?.querySelector('.model-card-link')

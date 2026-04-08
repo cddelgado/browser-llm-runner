@@ -14,7 +14,7 @@ Inference is selected through the engine client boundary and executes through a 
 ## Backends
 
 - `webgpu`: prefer WebGPU execution and fall back to CPU/WASM for ONNX models that do not require WebGPU
-- `cpu`: CPU execution through the ONNX browser WASM backend
+- `cpu`: CPU execution through the ONNX browser WASM backend for models that support CPU
 - Legacy stored preferences are normalized into those two modes:
   - `auto` -> `webgpu`
   - `wasm` -> `cpu`

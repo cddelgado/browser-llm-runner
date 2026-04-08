@@ -306,9 +306,9 @@
       "repositoryUrl": "https://huggingface.co/LiquidAI/LFM2.5-350M-ONNX",
       "runtime": {
         "dtypes": {
-          "webgpu": "q4f16",
-          "cpu": "q8"
+          "webgpu": "q4f16"
         },
+        "requiresWebGpu": true,
         "useExternalDataFormat": true
       },
       "toolCalling": {
@@ -362,9 +362,9 @@
       "repositoryUrl": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-ONNX",
       "runtime": {
         "dtypes": {
-          "webgpu": "q4f16",
-          "cpu": "q8"
+          "webgpu": "q4f16"
         },
+        "requiresWebGpu": true,
         "useExternalDataFormat": true
       },
       "toolCalling": {
@@ -537,9 +537,9 @@
       "repositoryUrl": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-ONNX",
       "runtime": {
         "dtypes": {
-          "webgpu": "q4f16",
-          "cpu": "q8"
+          "webgpu": "q4f16"
         },
+        "requiresWebGpu": true,
         "useExternalDataFormat": true
       },
       "toolCalling": {

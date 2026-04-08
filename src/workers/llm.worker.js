@@ -276,6 +276,33 @@ function formatWebGpuInitializationError(error) {
   return rawMessage;
 }
 
+async function probeWebGpuAvailability(navigatorGpu) {
+  if (!(navigatorGpu && typeof navigatorGpu.requestAdapter === 'function')) {
+    return {
+      available: false,
+      reason: 'WebGPU unavailable in this browser.',
+    };
+  }
+  try {
+    const adapter = await navigatorGpu.requestAdapter();
+    if (!adapter) {
+      return {
+        available: false,
+        reason: 'No usable WebGPU adapter was found.',
+      };
+    }
+    return {
+      available: true,
+      reason: '',
+    };
+  } catch (error) {
+    return {
+      available: false,
+      reason: formatWebGpuInitializationError(error),
+    };
+  }
+}
+
 function normalizeRuntimeDtype(rawDtype) {
   if (typeof rawDtype === 'string') {
     const normalized = rawDtype.trim();
@@ -702,12 +729,15 @@ async function initialize(payload) {
   const backendPreference = normalizeBackendPreference(payload.backendPreference || 'webgpu');
   generationConfig = normalizeGenerationConfig(payload.generationConfig);
   const runtime = normalizeRuntimeConfig(payload.runtime);
-  const attempts = getBackendAttemptOrder(backendPreference, runtime);
+  let attempts = getBackendAttemptOrder(backendPreference, runtime);
   const errors = [];
   const navigatorLike = /** @type {any} */ (
     typeof navigator !== 'undefined' ? navigator : undefined
   );
   const navigatorGpu = navigatorLike?.gpu;
+  const webGpuProbe = attempts.includes('webgpu')
+    ? await probeWebGpuAvailability(navigatorGpu)
+    : { available: false, reason: '' };
 
   if (runtime.requiresWebGpu && attempts.length === 0) {
     self.postMessage({
@@ -722,7 +752,7 @@ async function initialize(payload) {
   }
 
   if (runtime.requiresWebGpu) {
-    if (!(navigatorGpu && typeof navigatorGpu.requestAdapter === 'function')) {
+    if (webGpuProbe.reason === 'WebGPU unavailable in this browser.') {
       self.postMessage({
         type: 'init-error',
         payload: {
@@ -733,31 +763,35 @@ async function initialize(payload) {
       postStatus('Error initializing model');
       return;
     }
-
-    try {
-      const adapter = await navigatorGpu.requestAdapter();
-      if (!adapter) {
-        self.postMessage({
-          type: 'init-error',
-          payload: {
-            message: `Failed to initialize model. ${modelId} requires WebGPU, but no usable WebGPU adapter was found.`,
-          },
-        });
-        postProgress({ percent: 0, message: 'Model load failed.' });
-        postStatus('Error initializing model');
-        return;
-      }
-    } catch (error) {
+    if (!webGpuProbe.available) {
+      const message =
+        webGpuProbe.reason === 'No usable WebGPU adapter was found.'
+          ? `Failed to initialize model. ${modelId} requires WebGPU, but no usable WebGPU adapter was found.`
+          : `Failed to initialize model. ${webGpuProbe.reason}`;
       self.postMessage({
         type: 'init-error',
         payload: {
-          message: `Failed to initialize model. ${formatWebGpuInitializationError(error)}`,
+          message,
         },
       });
       postProgress({ percent: 0, message: 'Model load failed.' });
       postStatus('Error initializing model');
       return;
     }
+  } else if (!webGpuProbe.available) {
+    attempts = attempts.filter((backend) => backend !== 'webgpu');
+  }
+
+  if (!attempts.length) {
+    self.postMessage({
+      type: 'init-error',
+      payload: {
+        message: `Failed to initialize model. ${errors.join(' | ') || 'No usable backend is available.'}`,
+      },
+    });
+    postProgress({ percent: 0, message: 'Model load failed.' });
+    postStatus('Error initializing model');
+    return;
   }
 
   const {
@@ -774,11 +808,6 @@ async function initialize(payload) {
   env.useWasmCache = true;
 
   for (const backend of attempts) {
-    if (backend === 'webgpu' && !(typeof navigator !== 'undefined' && 'gpu' in navigator)) {
-      errors.push('WebGPU unavailable in this browser.');
-      continue;
-    }
-
     try {
       const resolvedBackendLabel = resolveBackendLabel(backendPreference, backend);
       const runtimeDtype = resolveRuntimeDtype(runtime, backend);

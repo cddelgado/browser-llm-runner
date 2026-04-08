@@ -65,7 +65,7 @@ Student-facing browser chat UI with local model inference.
   - `WebGPU`
   - `CPU`
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
-- CPU mode runs ONNX models through the browser WASM path. The ONNX worker enables WASM proxying in both modes, sets `onnx.wasm.numThreads = 0` so onnxruntime-web can choose threading, and enables `useWasmCache`.
+- CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker enables WASM proxying in both modes, sets `onnx.wasm.numThreads = 0` so onnxruntime-web can choose threading, and enables `useWasmCache`.
 - LiteRT-backed models are WebGPU-only in this app and require `WebGPU`.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
@@ -224,17 +224,17 @@ Student-facing browser chat UI with local model inference.
   - Uses `q4f16` on WebGPU and `int8` on CPU in this app, with external data loading.
   - Uses the same conservative app defaults as the 3B Llama entry: temperature `0.6`, top-k `50`, top-p `0.9`.
 - `LiquidAI/LFM2.5-350M-ONNX`
-  - Uses `q4f16` on WebGPU and `q8` on CPU in this app, with external data loading.
+  - Requires WebGPU in this app and uses `q4f16`, with external data loading.
   - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
   - Uses a JSON-formatted `List of tools: [...]` block in the system prompt.
   - Uses Liquid's special-token tool-call format supported by this app.
 - `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`
-  - Uses `q4f16` on WebGPU and `q8` on CPU in this app, with external data loading.
+  - Requires WebGPU in this app and uses `q4f16`, with external data loading.
   - Uses the published low-temperature sampling profile in this app: temperature `0.1`, top-k `50`, repetition penalty `1.05`, with top-p left open at `1.0`.
   - Uses a JSON-formatted `List of tools: [...]` block in the system prompt.
   - Uses Liquid's special-token tool-call format supported by this app.
 - `LiquidAI/LFM2.5-1.2B-Thinking-ONNX`
-  - Uses `q4f16` on WebGPU and `q8` on CPU in this app, with external data loading.
+  - Requires WebGPU in this app and uses `q4f16`, with external data loading.
   - Uses `<think>...</think>` tags for reasoning output.
   - Uses the upstream tokenizer chat template from the ONNX export: ChatML-style `<|im_start|>...<|im_end|>` turns plus a JSON-formatted `List of tools: [...]` block when tools are enabled.
   - The upstream model card recommends `temperature: 0.05`, `top_k: 50`, and `repetition_penalty: 1.05`; this app rounds temperature to its nearest supported step (`0.1`) and leaves top-p open at `1.0` because the card does not publish a nucleus cutoff.

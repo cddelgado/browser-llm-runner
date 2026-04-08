@@ -25,15 +25,15 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS[0]?.id).toBe(GEMMA_4_MODEL_ID);
   });
 
-  test('keeps the LiquidAI thinking model available in cpu mode without WebGPU', () => {
+  test('marks the LiquidAI thinking model unavailable in cpu mode without WebGPU', () => {
     expect(
       getModelAvailability(LIQUID_MODEL_ID, {
         backendPreference: 'cpu',
         webGpuAvailable: false,
       })
     ).toEqual({
-      available: true,
-      reason: '',
+      available: false,
+      reason: 'This model requires WebGPU, which is not available in this browser.',
     });
   });
 
@@ -44,12 +44,12 @@ describe('model-settings availability', () => {
         webGpuAvailable: true,
       })
     ).toEqual({
-      available: true,
-      reason: '',
+      available: false,
+      reason: 'This model requires WebGPU. Switch to WebGPU mode.',
     });
   });
 
-  test('keeps the visible LiquidAI models available on cpu and webgpu backends', () => {
+  test('keeps the visible LiquidAI models available only when WebGPU can be used', () => {
     [LIQUID_SMALL_MODEL_ID, LIQUID_INSTRUCT_MODEL_ID].forEach((modelId) => {
       expect(
         getModelAvailability(modelId, {
@@ -57,8 +57,8 @@ describe('model-settings availability', () => {
           webGpuAvailable: false,
         })
       ).toEqual({
-        available: true,
-        reason: '',
+        available: false,
+        reason: 'This model requires WebGPU, which is not available in this browser.',
       });
 
       expect(
@@ -217,7 +217,7 @@ describe('model-settings availability', () => {
     ).toBe('int8');
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.runtime, 'cpu')
-    ).toBe('q8');
+    ).toBeNull();
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.runtime, 'webgpu')
     ).toBe('q4f16');
@@ -344,15 +344,15 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_SMALL_MODEL_ID)?.runtime).toMatchObject({
       dtypes: {
         webgpu: 'q4f16',
-        cpu: 'q8',
       },
+      requiresWebGpu: true,
       useExternalDataFormat: true,
     });
     expect(MODEL_OPTIONS_BY_ID.get(LIQUID_INSTRUCT_MODEL_ID)?.runtime).toMatchObject({
       dtypes: {
         webgpu: 'q4f16',
-        cpu: 'q8',
       },
+      requiresWebGpu: true,
       useExternalDataFormat: true,
     });
     expect(MODEL_OPTIONS_BY_ID.get(QWEN_SMALL_MODEL_ID)?.runtime).toMatchObject({
@@ -446,6 +446,13 @@ describe('model-settings availability', () => {
       format: 'special-token-call',
       callOpen: '<|tool_call_start|>[',
       callClose: ']<|tool_call_end|>',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(LIQUID_MODEL_ID)?.runtime).toMatchObject({
+      dtypes: {
+        webgpu: 'q4f16',
+      },
+      requiresWebGpu: true,
+      useExternalDataFormat: true,
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.toolCalling).toEqual({
       format: 'gemma-special-token-call',
