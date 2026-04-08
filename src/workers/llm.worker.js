@@ -16,6 +16,7 @@ const WORKER_GENERATION_LIMITS = {
   defaultRepetitionPenalty: 1.0,
 };
 const WORKER_STREAM_UPDATE_INTERVAL_MS = 100;
+const WORKER_DEBUG_PREFIX = '[llm.worker]';
 
 let model = null;
 let tokenizer = null;
@@ -29,6 +30,42 @@ let loadedBackendPreference = null;
 let cachedModule = null;
 let generationConfig = buildDefaultGenerationConfig(WORKER_GENERATION_LIMITS);
 let activeGenerationState = null;
+
+function logWorkerDebug(event, details = undefined) {
+  try {
+    if (details === undefined) {
+      console.debug(WORKER_DEBUG_PREFIX, event);
+      return;
+    }
+    console.debug(WORKER_DEBUG_PREFIX, event, details);
+  } catch {
+    // Ignore console failures in worker contexts.
+  }
+}
+
+function logWorkerWarn(event, details = undefined) {
+  try {
+    if (details === undefined) {
+      console.warn(WORKER_DEBUG_PREFIX, event);
+      return;
+    }
+    console.warn(WORKER_DEBUG_PREFIX, event, details);
+  } catch {
+    // Ignore console failures in worker contexts.
+  }
+}
+
+function logWorkerError(event, details = undefined) {
+  try {
+    if (details === undefined) {
+      console.error(WORKER_DEBUG_PREFIX, event);
+      return;
+    }
+    console.error(WORKER_DEBUG_PREFIX, event, details);
+  } catch {
+    // Ignore console failures in worker contexts.
+  }
+}
 
 function normalizeGenerationConfig(rawConfig) {
   return sanitizeGenerationConfig(rawConfig, WORKER_GENERATION_LIMITS);
@@ -151,6 +188,10 @@ function finishGenerationState(generationState) {
 }
 
 function requestGenerationCancel(requestId) {
+  logWorkerDebug('cancel-request', {
+    requestId: requestId || '',
+    activeRequestId: activeGenerationState?.requestId || '',
+  });
   const generationState = activeGenerationState;
   if (!generationState) {
     self.postMessage({
@@ -182,12 +223,17 @@ function configureOnnxWasmBackend(env) {
   if (!env?.backends?.onnx?.wasm) {
     return null;
   }
-  env.backends.onnx.wasm.numThreads = 0;
+  const existingNumThreads = env.backends.onnx.wasm.numThreads;
   env.backends.onnx.wasm.proxy = true;
-  return {
-    numThreads: 0,
+  const result = {
     proxy: true,
+    ...(existingNumThreads !== undefined ? { numThreads: existingNumThreads } : {}),
   };
+  logWorkerDebug('onnx-wasm-config', {
+    proxy: env.backends.onnx.wasm.proxy,
+    numThreads: existingNumThreads ?? '(runtime default)',
+  });
+  return result;
 }
 
 export { configureOnnxWasmBackend };
@@ -667,6 +713,19 @@ function countPromptParts(prompt, type) {
     : 0;
 }
 
+function summarizePromptForDebug(prompt) {
+  const messages = Array.isArray(prompt) ? prompt : [];
+  return {
+    messageCount: messages.length || (prompt ? 1 : 0),
+    roles: messages
+      .map((message) => (typeof message?.role === 'string' ? message.role : 'unknown'))
+      .filter(Boolean),
+    imageCount: countPromptParts(prompt, 'image'),
+    audioCount: countPromptParts(prompt, 'audio'),
+    videoCount: countPromptParts(prompt, 'video'),
+  };
+}
+
 export { resolvePrompt };
 export { getBackendAttemptOrder };
 export { prepareImageInputsFromPrompt };
@@ -738,9 +797,24 @@ async function initialize(payload) {
   const hasNavigatorGpuApi = Boolean(
     navigatorGpu && typeof navigatorGpu.requestAdapter === 'function'
   );
+  logWorkerDebug('init-start', {
+    modelId,
+    backendPreference,
+    runtime,
+    generationConfig,
+    hardwareConcurrency:
+      Number.isInteger(navigatorLike?.hardwareConcurrency) && navigatorLike.hardwareConcurrency > 0
+        ? navigatorLike.hardwareConcurrency
+        : '(unknown)',
+    hasSharedArrayBuffer: typeof globalThis.SharedArrayBuffer !== 'undefined',
+    crossOriginIsolated: globalThis.crossOriginIsolated === true,
+    hasNavigatorGpuApi,
+    attempts: [...attempts],
+  });
   const webGpuProbe = attempts.includes('webgpu')
     ? await probeWebGpuAvailability(navigatorGpu)
     : { available: false, reason: '' };
+  logWorkerDebug('webgpu-probe', webGpuProbe);
 
   if (runtime.requiresWebGpu && attempts.length === 0) {
     self.postMessage({
@@ -789,6 +863,11 @@ async function initialize(payload) {
       attempts.push('default');
     }
   }
+  logWorkerDebug('init-attempt-order', {
+    modelId,
+    backendPreference,
+    attempts: [...attempts],
+  });
 
   if (!attempts.length) {
     self.postMessage({
@@ -814,12 +893,24 @@ async function initialize(payload) {
   env.allowRemoteModels = true;
   env.useBrowserCache = true;
   env.useWasmCache = true;
+  logWorkerDebug('transformers-env-config', {
+    allowRemoteModels: env.allowRemoteModels,
+    useBrowserCache: env.useBrowserCache,
+    useWasmCache: env.useWasmCache,
+  });
 
   for (const backend of attempts) {
     try {
       const resolvedBackendLabel = resolveBackendLabel(backendPreference, backend);
       const runtimeDtype = resolveRuntimeDtype(runtime, backend);
       configureOnnxWasmBackend(env);
+      logWorkerDebug('init-backend-attempt', {
+        modelId,
+        backend,
+        resolvedBackendLabel,
+        runtimeDtype: runtimeDtype || '(default)',
+        executionMode: runtime.multimodalGeneration ? 'multimodal' : 'text',
+      });
       const backendStatusLabel = resolvedBackendLabel.toUpperCase();
       postStatus(`Loading ${modelId} with ${backendStatusLabel}...`);
       postProgress({ percent: 5, message: `Preparing ${backendStatusLabel} backend...` });
@@ -891,6 +982,12 @@ async function initialize(payload) {
       backendInUse = resolvedBackendLabel;
       loadedBackendPreference = backendPreference;
       loadedModelId = modelId;
+      logWorkerDebug('init-success', {
+        modelId,
+        backendInUse,
+        loadedBackendPreference,
+        loadedExecutionMode,
+      });
       postProgress({
         percent: 100,
         message: `Loaded ${modelId} (${resolvedBackendLabel.toUpperCase()}).`,
@@ -904,6 +1001,11 @@ async function initialize(payload) {
     } catch (error) {
       const rawMessage =
         backend === 'webgpu' ? formatWebGpuInitializationError(error) : extractErrorMessage(error);
+      logWorkerWarn('init-backend-failed', {
+        modelId,
+        backend,
+        message: rawMessage,
+      });
       const isUnauthorized = /unauthorized|401|403/i.test(rawMessage);
       if (isUnauthorized) {
         errors.push(
@@ -920,6 +1022,11 @@ async function initialize(payload) {
     payload: {
       message: `Failed to initialize model. ${errors.join(' | ')}`,
     },
+  });
+  logWorkerError('init-failed', {
+    modelId,
+    backendPreference,
+    errors: [...errors],
   });
   postProgress({ percent: 0, message: 'Model load failed.' });
   postStatus('Error initializing model');
@@ -939,6 +1046,12 @@ async function generate(payload) {
     self.postMessage({
       type: 'error',
       payload: { requestId, message: 'Model is not initialized.' },
+    });
+    logWorkerWarn('generate-blocked-not-initialized', {
+      requestId,
+      modelId: payload.modelId || loadedModelId || '',
+      backendInUse,
+      loadedExecutionMode,
     });
     return;
   }
@@ -961,6 +1074,15 @@ async function generate(payload) {
     const imageCount = countPromptParts(formattedPrompt, 'image');
     const audioCount = countPromptParts(formattedPrompt, 'audio');
     const videoCount = countPromptParts(formattedPrompt, 'video');
+    logWorkerDebug('generate-start', {
+      requestId,
+      modelId: loadedModelId || payload.modelId || '',
+      backendInUse,
+      loadedExecutionMode,
+      runtime,
+      generationConfig: requestGenerationConfig,
+      prompt: summarizePromptForDebug(formattedPrompt),
+    });
     if (promptContainsStructuredMedia(formattedPrompt) && !runtime.multimodalGeneration) {
       throw new Error(
         'Media attachments are not yet wired to the selected model runtime in this app.'
@@ -1095,6 +1217,12 @@ async function generate(payload) {
       type: 'complete',
       payload: { requestId, text: finalText },
     });
+    logWorkerDebug('generate-complete', {
+      requestId,
+      backendInUse,
+      outputLength: finalText.length,
+      canceled: false,
+    });
     postStatus(`Complete (${backendInUse.toUpperCase()})`);
   } catch (error) {
     flushBufferedTokens(generationState);
@@ -1103,14 +1231,28 @@ async function generate(payload) {
         type: 'canceled',
         payload: { requestId },
       });
+      logWorkerDebug('generate-canceled', {
+        requestId,
+        backendInUse,
+      });
       return;
     }
+    const errorMessage = error?.message || 'Text generation failed.';
     self.postMessage({
       type: 'error',
       payload: {
         requestId,
-        message: error?.message || 'Text generation failed.',
+        message: errorMessage,
       },
+    });
+    logWorkerError('generate-failed', {
+      requestId,
+      modelId: loadedModelId || payload.modelId || '',
+      backendInUse,
+      loadedExecutionMode,
+      message: errorMessage,
+      name: error?.name || '',
+      stack: typeof error?.stack === 'string' ? error.stack : '',
     });
     postStatus('Generation failed');
   } finally {
@@ -1120,6 +1262,12 @@ async function generate(payload) {
 
 self.onmessage = async (event) => {
   const { type, payload } = event.data || {};
+  logWorkerDebug('message-received', {
+    type,
+    modelId: payload?.modelId || '',
+    requestId: payload?.requestId || '',
+    backendPreference: payload?.backendPreference || '',
+  });
   if (type === 'init') {
     const requestedBackendPreference = normalizeBackendPreference(payload?.backendPreference);
     const requestedRuntime = normalizeRuntimeConfig(payload?.runtime);

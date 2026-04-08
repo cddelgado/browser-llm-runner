@@ -193,7 +193,7 @@ describe('llm.worker backend selection', () => {
 });
 
 describe('llm.worker wasm backend config', () => {
-  test('enables proxying and defers thread selection to onnxruntime-web', () => {
+  test('enables proxying without forcing a wasm thread count override', () => {
     const env = {
       backends: {
         onnx: {
@@ -204,9 +204,8 @@ describe('llm.worker wasm backend config', () => {
 
     const result = configureOnnxWasmBackend(env);
     expect(env.backends.onnx.wasm.proxy).toBe(true);
-    expect(env.backends.onnx.wasm.numThreads).toBe(0);
+    expect(env.backends.onnx.wasm.numThreads).toBeUndefined();
     expect(result).toEqual({
-      numThreads: 0,
       proxy: true,
     });
   });

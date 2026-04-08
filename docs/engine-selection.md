@@ -20,7 +20,6 @@ Inference is selected through the engine client boundary and executes through a 
   - `wasm` -> `cpu`
 - ONNX worker defaults now keep the WASM support path configured in both modes:
   - `onnx.wasm.proxy = true`
-  - `onnx.wasm.numThreads = 0` so onnxruntime-web selects the thread count
   - `env.useWasmCache = true`
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
 - `mediapipe-genai` models currently require WebGPU and reject CPU mode.

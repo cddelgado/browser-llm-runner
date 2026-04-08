@@ -1,5 +1,43 @@
 import { DEFAULT_ENGINE_TYPE, getEngineDescriptor, normalizeEngineType } from './engines/index.js';
 
+const ENGINE_DEBUG_PREFIX = '[LLMEngineClient]';
+
+function logEngineDebug(event, details = undefined) {
+  try {
+    if (details === undefined) {
+      console.debug(ENGINE_DEBUG_PREFIX, event);
+      return;
+    }
+    console.debug(ENGINE_DEBUG_PREFIX, event, details);
+  } catch {
+    // Ignore console failures.
+  }
+}
+
+function logEngineWarn(event, details = undefined) {
+  try {
+    if (details === undefined) {
+      console.warn(ENGINE_DEBUG_PREFIX, event);
+      return;
+    }
+    console.warn(ENGINE_DEBUG_PREFIX, event, details);
+  } catch {
+    // Ignore console failures.
+  }
+}
+
+function logEngineError(event, details = undefined) {
+  try {
+    if (details === undefined) {
+      console.error(ENGINE_DEBUG_PREFIX, event);
+      return;
+    }
+    console.error(ENGINE_DEBUG_PREFIX, event, details);
+  } catch {
+    // Ignore console failures.
+  }
+}
+
 /**
  * Browser-facing engine abstraction.
  * UI must depend on this client only, never runtime-specific APIs.
@@ -38,6 +76,11 @@ export class LLMEngineClient {
   async initialize(config = {}) {
     const engineType = normalizeEngineType(config.engineType || this.config.engineType);
     const modelId = config.modelId || this.config.modelId;
+    logEngineDebug('initialize-request', {
+      modelId,
+      engineType,
+      backendPreference: config.backendPreference || this.config.backendPreference,
+    });
     this.config = { ...this.config, ...config, engineType, modelId };
     if (this.#shouldReplaceWorker({ modelId, engineType })) {
       this.dispose();
@@ -69,6 +112,11 @@ export class LLMEngineClient {
       this.loadedModelId = result?.modelId || modelId;
       this.loadedBackend = result?.backend || null;
       this.loadedEngineType = result?.engineType || engineType;
+      logEngineDebug('initialize-success', {
+        modelId: this.loadedModelId,
+        backend: this.loadedBackend,
+        engineType: this.loadedEngineType,
+      });
       return result;
     } finally {
       this.pendingInit = null;
@@ -82,6 +130,11 @@ export class LLMEngineClient {
     }
 
     if (this.pendingGeneration) {
+      logEngineWarn('generate-rejected-pending', {
+        requestId: this.pendingGeneration.requestId,
+        loadedModelId: this.loadedModelId,
+        loadedBackend: this.loadedBackend,
+      });
       throw new Error('Generation is already in progress.');
     }
 
@@ -93,6 +146,14 @@ export class LLMEngineClient {
       onError: handlers.onError,
       onCancel: handlers.onCancel,
     };
+    logEngineDebug('generate-request', {
+      requestId,
+      loadedModelId: this.loadedModelId,
+      loadedBackend: this.loadedBackend,
+      runtimeKeys: Object.keys(
+        handlers.runtime && typeof handlers.runtime === 'object' ? handlers.runtime : {}
+      ),
+    });
 
     this.worker.postMessage({
       type: 'generate',
@@ -130,6 +191,11 @@ export class LLMEngineClient {
       return;
     }
     const requestId = this.pendingGeneration.requestId;
+    logEngineDebug('cancel-request', {
+      requestId,
+      loadedModelId: this.loadedModelId,
+      loadedBackend: this.loadedBackend,
+    });
     this.pendingCancelRequestId = requestId;
     this.pendingCancel = new Promise((resolve, reject) => {
       this.#pendingCancelResolve = resolve;
@@ -224,6 +290,9 @@ export class LLMEngineClient {
     }
 
     if (data.type === 'status') {
+      logEngineDebug('worker-status', {
+        message: data.payload.message,
+      });
       this.onStatus(data.payload.message);
       return;
     }
@@ -262,12 +331,20 @@ export class LLMEngineClient {
     }
 
     if (data.type === 'complete') {
+      logEngineDebug('generate-complete', {
+        requestId: data.payload?.requestId || '',
+        outputLength: typeof data.payload?.text === 'string' ? data.payload.text.length : 0,
+      });
       this.pendingGeneration.onComplete(data.payload.text);
       this.pendingGeneration = null;
       return;
     }
 
     if (data.type === 'error') {
+      logEngineWarn('generate-error', {
+        requestId: data.payload?.requestId || '',
+        message: data.payload?.message || '',
+      });
       if (data.payload?.requestId === this.pendingCancelRequestId) {
         if (typeof this.#pendingCancelReject === 'function') {
           this.#pendingCancelReject(new Error(data.payload.message));
@@ -281,6 +358,12 @@ export class LLMEngineClient {
 
   #handleWorkerFailure(eventOrError) {
     const error = this.#normalizeWorkerFailure(eventOrError);
+    logEngineError('worker-failure', {
+      message: error.message,
+      loadedModelId: this.loadedModelId,
+      loadedBackend: this.loadedBackend,
+      pendingGenerationRequestId: this.pendingGeneration?.requestId || '',
+    });
 
     if (typeof this.#pendingInitReject === 'function') {
       this.#pendingInitReject(error);
