@@ -64,6 +64,7 @@ Student-facing browser chat UI with local model inference.
 - Backend selection supports:
   - `WebGPU`
   - `CPU`
+- `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
 - CPU mode runs ONNX models through the browser WASM path. The ONNX worker enables WASM proxying in both modes, sets `onnx.wasm.numThreads = 0` so onnxruntime-web can choose threading, and enables `useWasmCache`.
 - LiteRT-backed models are WebGPU-only in this app and require `WebGPU`.
 - Token controls in Settings:

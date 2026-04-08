@@ -25,6 +25,7 @@ let InterruptableStoppingCriteriaClass = null;
 let backendInUse = null;
 let loadedModelId = null;
 let loadedExecutionMode = 'text';
+let loadedBackendPreference = null;
 let cachedModule = null;
 let generationConfig = buildDefaultGenerationConfig(WORKER_GENERATION_LIMITS);
 let activeGenerationState = null;
@@ -218,7 +219,7 @@ function getBackendAttemptOrder(preference, runtimeConfig = {}) {
   if (normalizedPreference === 'cpu') {
     return ['wasm'];
   }
-  return ['webgpu'];
+  return ['webgpu', 'wasm'];
 }
 
 function normalizeBackendPreference(preference) {
@@ -355,9 +356,8 @@ function normalizeRuntimeConfig(rawRuntime) {
   };
 }
 
-function resolveRuntimeDtype(runtime = {}, backendPreference = 'webgpu') {
-  const normalizedBackendPreference = normalizeBackendPreference(backendPreference);
-  const backendKey = normalizedBackendPreference === 'cpu' ? 'cpu' : 'webgpu';
+function resolveRuntimeDtype(runtime = {}, backend = 'webgpu') {
+  const backendKey = backend === 'wasm' ? 'cpu' : 'webgpu';
   return normalizeRuntimeDtype(runtime?.dtypes?.[backendKey] ?? runtime?.dtype);
 }
 
@@ -702,7 +702,6 @@ async function initialize(payload) {
   const backendPreference = normalizeBackendPreference(payload.backendPreference || 'webgpu');
   generationConfig = normalizeGenerationConfig(payload.generationConfig);
   const runtime = normalizeRuntimeConfig(payload.runtime);
-  const runtimeDtype = resolveRuntimeDtype(runtime, backendPreference);
   const attempts = getBackendAttemptOrder(backendPreference, runtime);
   const errors = [];
   const navigatorLike = /** @type {any} */ (
@@ -782,6 +781,7 @@ async function initialize(payload) {
 
     try {
       const resolvedBackendLabel = resolveBackendLabel(backendPreference, backend);
+      const runtimeDtype = resolveRuntimeDtype(runtime, backend);
       configureOnnxWasmBackend(env);
       const backendStatusLabel = resolvedBackendLabel.toUpperCase();
       postStatus(`Loading ${modelId} with ${backendStatusLabel}...`);
@@ -852,6 +852,7 @@ async function initialize(payload) {
         loadedExecutionMode = 'text';
       }
       backendInUse = resolvedBackendLabel;
+      loadedBackendPreference = backendPreference;
       loadedModelId = modelId;
       postProgress({
         percent: 100,
@@ -1091,7 +1092,7 @@ self.onmessage = async (event) => {
       payload.modelId !== loadedModelId ||
       (requestedRuntime.multimodalGeneration && loadedExecutionMode !== 'multimodal') ||
       (!requestedRuntime.multimodalGeneration && loadedExecutionMode !== 'text') ||
-      requestedBackendPreference !== backendInUse;
+      requestedBackendPreference !== loadedBackendPreference;
 
     if (!needsReinit) {
       self.postMessage({

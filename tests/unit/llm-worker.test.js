@@ -161,12 +161,12 @@ describe('llm.worker generation options', () => {
 });
 
 describe('llm.worker backend selection', () => {
-  test('webgpu preference loads only the webgpu backend in the browser worker', () => {
-    expect(getBackendAttemptOrder('webgpu', {})).toEqual(['webgpu']);
+  test('webgpu preference falls back from webgpu to wasm in the browser worker', () => {
+    expect(getBackendAttemptOrder('webgpu', {})).toEqual(['webgpu', 'wasm']);
   });
 
-  test('legacy auto preference maps to the new webgpu mode', () => {
-    expect(getBackendAttemptOrder('auto', {})).toEqual(['webgpu']);
+  test('legacy auto preference maps to webgpu mode with the same wasm fallback', () => {
+    expect(getBackendAttemptOrder('auto', {})).toEqual(['webgpu', 'wasm']);
   });
 
   test('cpu preference maps directly to the browser wasm backend', () => {
@@ -187,7 +187,7 @@ describe('llm.worker backend selection', () => {
     expect(getBackendAttemptOrder('cpu', { requiresWebGpu: true })).toEqual([]);
   });
 
-  test('webgpu-required models keep legacy auto mapped to webgpu mode', () => {
+  test('webgpu-required models keep legacy auto mapped to webgpu-only attempts', () => {
     expect(getBackendAttemptOrder('auto', { requiresWebGpu: true })).toEqual(['webgpu']);
   });
 });
