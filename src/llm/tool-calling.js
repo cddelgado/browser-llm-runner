@@ -189,7 +189,6 @@ const WEB_LOOKUP_FAILURE_MESSAGE =
   'Use a direct https URL and retry with a simpler page if the request or extraction fails.';
 const MCP_TOOL_BODY_FRACTION_OF_CONTEXT = 0.075;
 const DEFAULT_MCP_TOOL_BODY_LENGTH = 500;
-
 function collapseExtraNewlines(text) {
   return text.replace(/\r\n?/g, '\n').replace(/\n[\t \f\v]*\n+/g, '\n');
 }
@@ -222,18 +221,59 @@ function buildMcpToolTruncationMessage(maxLength) {
   return `This response was too long, so it was trimmed to ${maxLength} characters. Feel free to make another request if necessary.`;
 }
 
-function buildSuccessfulToolEnvelope(body, message = '') {
+function getStandardToolFollowUpMessage(toolName, { failed = false } = {}) {
+  const normalizedToolName = typeof toolName === 'string' ? toolName.trim() : '';
+  if (failed) {
+    switch (normalizedToolName) {
+      case 'get_current_date_time':
+        return 'Use this failure detail to continue without the date-and-time tool, or try again if the exact timestamp is still needed.';
+      case 'get_user_location':
+        return 'Use this failure detail to continue without the location tool, or try again only if location is still necessary.';
+      case 'tasklist':
+        return 'Use this planner error to adjust the next tasklist call or continue the task another way.';
+      case 'web_lookup':
+        return WEB_LOOKUP_FAILURE_MESSAGE;
+      case 'write_python_file':
+        return 'Use this file-write error to fix the path or source, then try again if a script is still needed.';
+      case 'run_shell_command':
+        return 'Use this shell result to adjust the command or continue another way.';
+      default:
+        return 'Use this result to choose the next step and continue.';
+    }
+  }
+  switch (normalizedToolName) {
+    case 'get_current_date_time':
+      return 'Use this timestamp directly in your response.';
+    case 'get_user_location':
+      return 'Use this location detail directly in your response.';
+    case 'tasklist':
+      return 'Use this planner state to decide the next step and continue.';
+    case 'web_lookup':
+      return 'Use this information to continue, or call web_lookup again if you still need another page.';
+    case 'write_python_file':
+      return 'Use this script summary to decide whether to run it or refine it next.';
+    case 'run_shell_command':
+      return 'Use this shell result to continue. Run another shell command only if it is necessary.';
+    default:
+      return 'Use this result to continue.';
+  }
+}
+
+function buildSuccessfulToolEnvelope(body, message = '', toolName = '') {
   const normalizedBody = typeof body === 'string' ? body : String(body ?? '');
-  const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+  const normalizedMessage =
+    typeof message === 'string' && message.trim()
+      ? message.trim()
+      : getStandardToolFollowUpMessage(toolName);
   return {
     status: 'successful',
     body: normalizedBody,
-    ...(normalizedMessage ? { message: normalizedMessage } : {}),
+    message: normalizedMessage,
   };
 }
 
-function stringifyToolEnvelope(body, message = '') {
-  return JSON.stringify(buildSuccessfulToolEnvelope(body, message));
+function stringifyToolEnvelope(body, message = '', toolName = '') {
+  return JSON.stringify(buildSuccessfulToolEnvelope(body, message, toolName));
 }
 
 function buildMcpTextContentItem(text) {
@@ -308,15 +348,18 @@ function serializeMcpCommandCallResult(result, runtimeContext = {}) {
 
 /**
  * @param {unknown} error
- * @param {{message?: string}} [options]
+ * @param {{message?: string; toolName?: string}} [options]
  */
 function buildFailedToolEnvelope(error, options = {}) {
-  const message = typeof options.message === 'string' ? options.message : '';
+  const message =
+    typeof options.message === 'string' && options.message.trim()
+      ? options.message.trim()
+      : getStandardToolFollowUpMessage(options.toolName, { failed: true });
   const body = error instanceof Error ? error.message : String(error);
   return JSON.stringify({
     status: 'failed',
     body,
-    ...(message.trim() ? { message: message.trim() } : {}),
+    message,
   });
 }
 
@@ -2162,19 +2205,21 @@ function findEnabledMcpCommandAlias(mcpServers = [], toolName = '') {
 const TOOL_EXECUTORS = Object.freeze({
   get_current_date_time: {
     execute: (argumentsValue) => executeGetCurrentDateTime(argumentsValue),
-    serializeResult: (result) => stringifyToolEnvelope(buildDateTimeToolBody(result)),
-    serializeError: (error) => buildFailedToolEnvelope(error),
+    serializeResult: (result) =>
+      stringifyToolEnvelope(buildDateTimeToolBody(result), '', 'get_current_date_time'),
+    serializeError: (error) => buildFailedToolEnvelope(error, { toolName: 'get_current_date_time' }),
   },
   get_user_location: {
     execute: (argumentsValue, runtimeContext) =>
       executeGetUserLocation(argumentsValue, runtimeContext),
-    serializeResult: (result) => stringifyToolEnvelope(buildUserLocationToolBody(result)),
-    serializeError: (error) => buildFailedToolEnvelope(error),
+    serializeResult: (result) =>
+      stringifyToolEnvelope(buildUserLocationToolBody(result), '', 'get_user_location'),
+    serializeError: (error) => buildFailedToolEnvelope(error, { toolName: 'get_user_location' }),
   },
   tasklist: {
     execute: (argumentsValue, runtimeContext) => executeTaskList(argumentsValue, runtimeContext),
-    serializeResult: (result) => stringifyToolEnvelope(buildTaskListToolBody(result)),
-    serializeError: (error) => buildFailedToolEnvelope(error),
+    serializeResult: (result) => stringifyToolEnvelope(buildTaskListToolBody(result), '', 'tasklist'),
+    serializeError: (error) => buildFailedToolEnvelope(error, { toolName: 'tasklist' }),
   },
   web_lookup: {
     execute: (argumentsValue, runtimeContext) =>
@@ -2183,13 +2228,17 @@ const TOOL_EXECUTORS = Object.freeze({
       JSON.stringify({
         status: result?.status === 'failed' ? 'failed' : 'successful',
         body: typeof result?.body === 'string' ? result.body : '',
-        ...(typeof result?.message === 'string' && result.message.trim()
-          ? { message: result.message.trim() }
-          : {}),
+        message:
+          typeof result?.message === 'string' && result.message.trim()
+            ? result.message.trim()
+            : getStandardToolFollowUpMessage('web_lookup', {
+                failed: result?.status === 'failed',
+              }),
       }),
     serializeError: (error) =>
       buildFailedToolEnvelope(error, {
         message: WEB_LOOKUP_FAILURE_MESSAGE,
+        toolName: 'web_lookup',
       }),
   },
   write_python_file: {
@@ -2198,9 +2247,10 @@ const TOOL_EXECUTORS = Object.freeze({
     serializeResult: (result) =>
       stringifyToolEnvelope(
         buildWritePythonFileToolBody(result),
-        `To execute the script, use {"name":"run_shell_command","parameters":{"cmd":"python ${result?.path || '/workspace/script.py'}"}}`
+        `To execute the script, use {"name":"run_shell_command","parameters":{"cmd":"python ${result?.path || '/workspace/script.py'}"}}`,
+        'write_python_file'
       ),
-    serializeError: (error) => buildFailedToolEnvelope(error),
+    serializeError: (error) => buildFailedToolEnvelope(error, { toolName: 'write_python_file' }),
   },
   run_shell_command: {
     execute: (argumentsValue, runtimeContext) =>
@@ -2215,7 +2265,7 @@ const TOOL_EXECUTORS = Object.freeze({
   [READ_SKILL_TOOL]: {
     execute: (argumentsValue, runtimeContext) => executeReadSkill(argumentsValue, runtimeContext),
     serializeResult: (result) => JSON.stringify(buildReadSkillToolResult(result)),
-    serializeError: (error) => buildFailedToolEnvelope(error),
+    serializeError: (error) => buildFailedToolEnvelope(error, { message: 'Use this skill error to choose another skill or continue without it.' }),
   },
   [MCP_SERVER_COMMAND_LIST_TOOL]: {
     execute: (argumentsValue, runtimeContext) =>

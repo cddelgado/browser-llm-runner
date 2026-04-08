@@ -171,7 +171,7 @@ Student-facing browser chat UI with local model inference.
 - When enabled MCP servers exist, the model also gets the MCP helper tools `list_mcp_server_commands` and `call_mcp_server_command`; those helpers expose only enabled servers and enabled commands.
 - The preferred MCP path remains `list_mcp_server_commands` then `call_mcp_server_command`; if a model emits a direct enabled MCP command name anyway, the runtime treats it as an alias only when exactly one enabled server exposes that command name.
 - The fetch-backed `web_lookup` page/search tool is exposed to models when enabled in `Settings -> Tools`.
-  - `web_lookup` accepts one `input` string and returns a compact `{"status","body","message?"}` envelope.
+  - `web_lookup` accepts one `input` string and returns a compact `{"status","body","message"}` envelope.
   - If `input` is a direct `https` URL, `web_lookup` returns MIME type, title, and a summary excerpt in markdown inside `body`.
   - If `input` is a search query, `web_lookup` opens a right-side lightweight DuckDuckGo HTML results panel in a portrait 9:16 phone-like frame for that query, then attempts an in-app DuckDuckGo fetch and returns concise search results in `body`.
   - Failed `web_lookup` responses use `status: "failed"` plus retry guidance in `message`.
@@ -179,7 +179,7 @@ Student-facing browser chat UI with local model inference.
   - The shell tool keeps a conversation-local current working directory, defaults it to `/workspace`, and resolves relative paths from that pointer.
   - `run_shell_command` now documents `cmd` as its preferred shell-text argument and still accepts legacy `command` for compatibility.
   - Shell-command input is sanitized before execution: oversized commands, control characters, fenced blocks, and nested tool-call payloads are rejected.
-  - Shell-tool responses exposed to the model and transcript use a compact `{"status":"successful"|"failed","body":"...","message?"}` envelope, and the `body` is plain human-readable text rather than a schema dump.
+  - Shell-tool responses exposed to the model and transcript use a compact `{"status":"successful"|"failed","body":"...","message":"..."}` envelope, and the `body` is plain human-readable text rather than a schema dump.
   - When `run_shell_command` is invoked, an embedded read-only xterm terminal opens on the right side of the chat workspace, shows the shell prompt plus command/output, and can be manually closed until the next shell command reopens it.
   - The conversation sidebar auto-collapses while that terminal is open, and switching to a conversation with no shell terminal history closes the terminal automatically.
   - `docs/tools.md` also defines the implementation standard future shell commands must meet before they are added to this subset.

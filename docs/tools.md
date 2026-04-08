@@ -80,6 +80,10 @@ Current MCP constraints:
   - `localDate`
   - `localTime`
   - `timeZone`
+- Model-facing envelope:
+  - `status: "successful"`
+  - `body`: markdown summary of the current time values
+  - `message`: short follow-up telling the model to use the timestamp directly
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js).
 
@@ -95,6 +99,10 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Result fields:
   - `location`
   - `coordinate`
+- Model-facing envelope:
+  - `status: "successful"` or `status: "failed"`
+  - `body`: markdown summary of the resolved location details
+  - `message`: short follow-up telling the model how to proceed with or without the location
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js).
 
@@ -116,6 +124,10 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Result shape:
   - `new`, `list`, `update` return `{ items: [...] }`
   - `clear` returns `{ items: [] }`
+- Model-facing envelope:
+  - `status: "successful"` or `status: "failed"`
+  - `body`: markdown showing either tasklist usage or the current task snapshot
+  - `message`: short follow-up telling the model to continue using the planner state
 - History behavior: each `tasklist` tool result includes the full list snapshot after that change; the active list is derived from the latest `tasklist` result on the visible branch
 - Input guardrails: task text is normalized and rejects raw code blocks or tool-call-shaped payloads so the planner stays plain-text
 
@@ -130,7 +142,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Success result shape:
   - `status: "successful"`
   - `body`: markdown containing either page preview text or concise search results
-  - optional `message` with follow-up guidance for the model
+  - `message` with follow-up guidance for the model
 - Failure result shape:
   - `status: "failed"`
   - `body`: error detail
@@ -191,7 +203,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
 - Tool-call payload returned to the model:
   - `status`
   - `body`
-  - optional `message` when output is truncated
+  - `message`
 - Internal app metadata preserved for the terminal/session UI:
   - `shellFlavor`
   - `currentWorkingDirectory`

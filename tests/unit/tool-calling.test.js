@@ -1195,6 +1195,7 @@ describe('tool-calling prompt builder', () => {
       JSON.stringify({
         status: 'failed',
         body: 'shell: unterminated escape or quote.\nThe shell command could not be parsed. Please try again with balanced quotes and escapes.',
+        message: 'Use this shell result to adjust the command or continue another way.',
       })
     );
   });
@@ -1787,6 +1788,7 @@ describe('tool-calling prompt builder', () => {
     expect(JSON.parse(result.resultText)).toEqual({
       status: 'failed',
       body: 'Unknown skill: Missing Skill',
+      message: 'Use this skill error to choose another skill or continue without it.',
     });
   });
 
@@ -2170,6 +2172,8 @@ describe('tool-calling prompt builder', () => {
       JSON.stringify({
         status: 'failed',
         body: 'write_python_file path must end in .py under /workspace.',
+        message:
+          'Use this file-write error to fix the path or source, then try again if a script is still needed.',
       })
     );
   });
@@ -2208,6 +2212,7 @@ describe('tool-calling prompt builder', () => {
     expect(buildShellToolResponseEnvelope()).toEqual({
       status: 'successful',
       body: 'Call again with {"cmd":"..."}\nCurrent working directory: /workspace\nSupported commands: pwd, basename, dirname, printf, true, false, cd, ls, cat, head, tail, wc, sort, uniq, cut, paste, join, column, tr, nl, rmdir, mkdir, mktemp, touch, cp, mv, rm, find, grep, sed, file, diff, curl, python, echo, set, unset, which',
+      message: 'Choose one supported command and call run_shell_command again if needed.',
     });
   });
 
@@ -2229,6 +2234,7 @@ describe('tool-calling prompt builder', () => {
       JSON.stringify({
         status: 'successful',
         body: 'hello',
+        message: 'Use this shell result to continue. Run another shell command only if it is necessary.',
       })
     );
   });
@@ -2247,7 +2253,7 @@ describe('tool-calling prompt builder', () => {
     ).toEqual({
       status: 'successful',
       body: oversizedOutput.slice(0, MAX_SHELL_TOOL_OUTPUT_LENGTH),
-      message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results.`,
+      message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results, or continue if this is already enough.`,
     });
   });
 
@@ -2336,7 +2342,7 @@ describe('tool-calling prompt builder', () => {
       JSON.stringify({
         status: 'successful',
         body: oversizedOutput.slice(0, MAX_SHELL_TOOL_OUTPUT_LENGTH),
-        message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results.`,
+        message: `Output was truncated to ${MAX_SHELL_TOOL_OUTPUT_LENGTH} of ${oversizedOutput.length} characters. Retry with a command which returns targeted results, or continue if this is already enough.`,
       })
     );
   });
@@ -4306,7 +4312,9 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.body).toContain('First paragraph.');
     expect(result.result.body).toContain('Second paragraph.');
     expect(result.result.body).not.toContain('console.log');
-    expect(result.result.message).toBeUndefined();
+    expect(result.result.message).toBe(
+      'Use this information to continue, or call web_lookup again if you still need another page.'
+    );
   });
 
   test('supports web_lookup page previews through the proxy-aware fetch helper', async () => {
@@ -4809,6 +4817,7 @@ describe('tool-calling prompt builder', () => {
       JSON.stringify({
         status: 'failed',
         body: 'tasklist item must be plain language, not a fenced code block.',
+        message: 'Use this planner error to adjust the next tasklist call or continue the task another way.',
       })
     );
   });
@@ -4832,6 +4841,7 @@ describe('tool-calling prompt builder', () => {
       JSON.stringify({
         status: 'failed',
         body: 'tasklist item must be plain language, not a JSON tool call.',
+        message: 'Use this planner error to adjust the next tasklist call or continue the task another way.',
       })
     );
   });

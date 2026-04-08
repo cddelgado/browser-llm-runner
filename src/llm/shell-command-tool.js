@@ -287,7 +287,7 @@ function getShellExecutionBody(result = {}) {
 }
 
 function buildShellOutputTruncationMessage(returnedLength, totalLength) {
-  return `Output was truncated to ${returnedLength} of ${totalLength} characters. Retry with a command which returns targeted results.`;
+  return `Output was truncated to ${returnedLength} of ${totalLength} characters. Retry with a command which returns targeted results, or continue if this is already enough.`;
 }
 
 function getShellPreviewText(text = '', maxLength = MAX_SHELL_TOOL_OUTPUT_LENGTH) {
@@ -317,6 +317,7 @@ export function buildShellToolResponseEnvelope(
     return {
       status: 'successful',
       body: formatShellCommandUsageBody(currentWorkingDirectory),
+      message: 'Choose one supported command and call run_shell_command again if needed.',
     };
   }
   const exitCode = Number.isFinite(result?.exitCode) ? Number(result.exitCode) : 1;
@@ -331,6 +332,10 @@ export function buildShellToolResponseEnvelope(
   return {
     status: exitCode === 0 ? 'successful' : 'failed',
     body: bodyInfo.text,
+    message:
+      exitCode === 0
+        ? 'Use this shell result to continue. Run another shell command only if it is necessary.'
+        : 'Use this shell result to adjust the command or continue another way.',
   };
 }
 

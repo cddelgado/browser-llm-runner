@@ -54,10 +54,25 @@ function buildFailedToolResultText(toolCall, error) {
   const result = {
     status: 'failed',
     body: toErrorMessage(error),
+    message: 'Use this failure detail to choose the next step and continue.',
   };
-  if (toolName === 'web_lookup') {
+  if (toolName === 'get_current_date_time') {
+    result.message =
+      'Use this failure detail to continue without the date-and-time tool, or try again if the exact timestamp is still needed.';
+  } else if (toolName === 'get_user_location') {
+    result.message =
+      'Use this failure detail to continue without the location tool, or try again only if location is still necessary.';
+  } else if (toolName === 'tasklist') {
+    result.message =
+      'Use this planner error to adjust the next tasklist call or continue the task another way.';
+  } else if (toolName === 'web_lookup') {
     result.message =
       'Use a direct https URL and retry with a simpler page if the request or extraction fails.';
+  } else if (toolName === 'write_python_file') {
+    result.message =
+      'Use this file-write error to fix the path or source, then try again if a script is still needed.';
+  } else if (toolName === 'run_shell_command') {
+    result.message = 'Use this shell result to adjust the command or continue another way.';
   }
   return JSON.stringify(result);
 }

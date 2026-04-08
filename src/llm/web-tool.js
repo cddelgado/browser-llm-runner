@@ -677,7 +677,9 @@ export async function executeWebLookupTool(argumentsValue = {}, runtimeContext =
     return {
       status: 'successful',
       body,
-      ...(notes.length ? { message: notes.join(' ') } : {}),
+      message: notes.length
+        ? notes.join(' ')
+        : 'Use this information to continue, or call web_lookup again if you still need another page.',
     };
   } catch (error) {
     return buildWebLookupFailure(error instanceof Error ? error.message : String(error));
