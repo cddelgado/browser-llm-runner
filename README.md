@@ -75,6 +75,7 @@ Student-facing browser chat UI with local model inference.
   - User overrides are saved per model in browser storage and restored when that model is selected again.
   - Fields are disabled until a model is loaded.
   - `Context size (short-term memory)` includes a `Reset to model default` link that applies the selected model default when clicked.
+  - On the Transformers.js engine path, `Context size` is enforced as a hard prompt-token budget by left-truncating the oldest conversation tokens before generation, and `Maximum output tokens` is enforced separately as the generation cap.
   - If changed during generation, updates are queued and applied after the current response finishes.
 - `Settings -> Model` also includes:
   - `Response language`, stored per conversation or pending pre-chat draft, with a warning when the selected language is not listed for the selected model in this app.

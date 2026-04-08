@@ -447,6 +447,15 @@ function buildMultimodalChatTemplateOptions(runtime = {}) {
   };
 }
 
+function buildTextChatTemplateOptions(runtime = {}) {
+  return {
+    add_generation_prompt: true,
+    ...(runtime.enableThinking === true || runtime.enableThinking === false
+      ? { enable_thinking: runtime.enableThinking }
+      : {}),
+  };
+}
+
 function shouldSkipSpecialTokensInMultimodalOutput(runtime = {}) {
   return runtime.enableThinking !== true;
 }
@@ -733,6 +742,7 @@ function summarizePromptForDebug(prompt) {
 export { resolvePrompt };
 export { getBackendAttemptOrder };
 export { prepareImageInputsFromPrompt };
+export { buildTextChatTemplateOptions };
 export { buildMultimodalChatTemplateOptions };
 export { shouldSkipSpecialTokensInMultimodalOutput };
 export { buildMultimodalStreamerOptions };
@@ -761,7 +771,6 @@ export { isRuntimeReadyForGeneration };
 function buildGenerationOptions(requestGenerationConfig, runtime = {}) {
   return {
     max_new_tokens: requestGenerationConfig.maxOutputTokens,
-    max_length: requestGenerationConfig.maxContextTokens,
     temperature: requestGenerationConfig.temperature,
     top_k: requestGenerationConfig.topK,
     top_p: requestGenerationConfig.topP,
@@ -774,6 +783,93 @@ function buildGenerationOptions(requestGenerationConfig, runtime = {}) {
 }
 
 export { buildGenerationOptions };
+
+function getPromptTokenCount(inputIds) {
+  if (!inputIds) {
+    return 0;
+  }
+  if (Array.isArray(inputIds?.dims)) {
+    return Number(inputIds.dims.at(-1)) || 0;
+  }
+  if (Array.isArray(inputIds)) {
+    if (!inputIds.length) {
+      return 0;
+    }
+    return Array.isArray(inputIds[0]) ? inputIds[0].length : inputIds.length;
+  }
+  return 0;
+}
+
+function leftTruncateEncodedValue(value, maxTokens) {
+  if (!value || !Number.isInteger(maxTokens) || maxTokens <= 0) {
+    return value;
+  }
+  if (Array.isArray(value?.dims) && typeof value.slice === 'function') {
+    const sequenceLength = getPromptTokenCount(value);
+    if (sequenceLength <= maxTokens) {
+      return value;
+    }
+    if (value.dims.length === 1) {
+      return value.slice([sequenceLength - maxTokens, null]);
+    }
+    if (value.dims.length === 2) {
+      return value.slice(null, [sequenceLength - maxTokens, null]);
+    }
+    return value;
+  }
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  if (!value.length) {
+    return value;
+  }
+  if (Array.isArray(value[0])) {
+    return value.map((entry) =>
+      Array.isArray(entry) ? entry.slice(Math.max(0, entry.length - maxTokens)) : entry
+    );
+  }
+  return value.slice(Math.max(0, value.length - maxTokens));
+}
+
+function prepareTextGenerationInputs(tokenizerInstance, prompt, requestGenerationConfig, runtime = {}) {
+  if (!tokenizerInstance || typeof tokenizerInstance.apply_chat_template !== 'function') {
+    throw new Error('Text-generation tokenizer is missing apply_chat_template().');
+  }
+  const requestedContextTokens =
+    Number.isInteger(requestGenerationConfig?.maxContextTokens) &&
+    requestGenerationConfig.maxContextTokens > 0
+      ? requestGenerationConfig.maxContextTokens
+      : 0;
+  const encodedInputs = tokenizerInstance.apply_chat_template(prompt, {
+    ...buildTextChatTemplateOptions(runtime),
+    tokenize: true,
+    truncation: false,
+    return_dict: true,
+  });
+  const originalPromptTokens = getPromptTokenCount(encodedInputs?.input_ids);
+  if (!requestedContextTokens || originalPromptTokens <= requestedContextTokens) {
+    return {
+      modelInputs: encodedInputs,
+      originalPromptTokens,
+      promptTokens: originalPromptTokens,
+      truncated: false,
+    };
+  }
+  const truncatedInputs = Object.fromEntries(
+    Object.entries(encodedInputs).map(([key, value]) => [
+      key,
+      leftTruncateEncodedValue(value, requestedContextTokens),
+    ])
+  );
+  return {
+    modelInputs: truncatedInputs,
+    originalPromptTokens,
+    promptTokens: getPromptTokenCount(truncatedInputs.input_ids),
+    truncated: true,
+  };
+}
+
+export { prepareTextGenerationInputs };
 
 function promptContainsStructuredMedia(prompt) {
   return Array.isArray(prompt)
@@ -1184,7 +1280,34 @@ async function generate(payload) {
         streamedText = decoded?.[0] || '';
         queueBufferedToken(generationState, streamedText);
       }
-    } else if (TextStreamer) {
+    } else {
+      const textModel = model?.model;
+      if (!textModel || typeof textModel.generate !== 'function') {
+        throw new Error('Text-generation model is not initialized correctly.');
+      }
+      const preparedTextInputs = prepareTextGenerationInputs(
+        tokenizer,
+        formattedPrompt,
+        requestGenerationConfig,
+        runtime
+      );
+      if (preparedTextInputs.truncated) {
+        logWorkerWarn('generate-prompt-truncated', {
+          requestId,
+          modelId: loadedModelId || payload.modelId || '',
+          originalPromptTokens: preparedTextInputs.originalPromptTokens,
+          promptTokens: preparedTextInputs.promptTokens,
+          maxContextTokens: requestGenerationConfig.maxContextTokens,
+        });
+      } else {
+        logWorkerDebug('generate-prompt-prepared', {
+          requestId,
+          modelId: loadedModelId || payload.modelId || '',
+          promptTokens: preparedTextInputs.promptTokens,
+          maxContextTokens: requestGenerationConfig.maxContextTokens,
+        });
+      }
+      if (TextStreamer) {
       const streamer = new TextStreamer(tokenizer, {
         skip_prompt: true,
         callback_function: (text) => {
@@ -1193,23 +1316,25 @@ async function generate(payload) {
         },
       });
 
-      await model(formattedPrompt, {
-        ...generationOptions,
-        return_full_text: false,
-        streamer,
-      });
-    } else {
-      const output = await model(formattedPrompt, {
-        ...generationOptions,
-        return_full_text: false,
-      });
-      const generated = output?.[0]?.generated_text;
-      if (Array.isArray(generated)) {
-        streamedText = generated[generated.length - 1]?.content || '';
+        await textModel.generate({
+          ...preparedTextInputs.modelInputs,
+          ...generationOptions,
+          streamer,
+        });
       } else {
-        streamedText = generated || '';
+        const output = await textModel.generate({
+          ...preparedTextInputs.modelInputs,
+          ...generationOptions,
+        });
+        const decoded = tokenizer.batch_decode(
+          output.slice(null, [preparedTextInputs.promptTokens, null]),
+          {
+            skip_special_tokens: true,
+          }
+        );
+        streamedText = decoded?.[0] || '';
+        queueBufferedToken(generationState, streamedText);
       }
-      queueBufferedToken(generationState, streamedText);
     }
 
     flushBufferedTokens(generationState);

@@ -34,6 +34,7 @@ Initialization is user-triggered on first message send in the chat workspace.
 If model/backend settings change, the next message triggers a fresh load with updated settings.
 If a backend change makes the current model unavailable, the UI switches to the first compatible model and announces that in the status region.
 Generation settings (`maximum output tokens`, `maximum context size`, `temperature`, `top k`, `top p`) apply immediately when idle, or after the current generation completes.
+On the Transformers.js path, `maximum context size` is enforced as a prompt-token budget by left-truncating the oldest prompt tokens before generation, and `maximum output tokens` is passed separately as the generation cap.
 If a generation request stops emitting worker activity for 90 seconds, the main-thread engine client terminates that worker and returns a recoverable timeout so the next request can reinitialize cleanly.
 
 ## UI boundary

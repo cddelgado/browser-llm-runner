@@ -1,12 +1,14 @@
-import { beforeAll, describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
 
 let resolvePrompt;
+let buildTextChatTemplateOptions;
 let buildMultimodalChatTemplateOptions;
 let buildGenerationOptions;
 let shouldSkipSpecialTokensInMultimodalOutput;
 let buildMultimodalDecodeOptions;
 let getBackendAttemptOrder;
 let configureOnnxWasmBackend;
+let prepareTextGenerationInputs;
 let resolveBackendLabel;
 
 beforeAll(async () => {
@@ -16,12 +18,14 @@ beforeAll(async () => {
   });
   ({
     resolvePrompt,
+    buildTextChatTemplateOptions,
     buildMultimodalChatTemplateOptions,
     buildGenerationOptions,
     shouldSkipSpecialTokensInMultimodalOutput,
     buildMultimodalDecodeOptions,
     getBackendAttemptOrder,
     configureOnnxWasmBackend,
+    prepareTextGenerationInputs,
     resolveBackendLabel,
   } = await import('../../src/workers/llm.worker.js'));
 });
@@ -79,6 +83,17 @@ describe('llm.worker resolvePrompt', () => {
 });
 
 describe('llm.worker multimodal chat template options', () => {
+  test('forwards the thinking flag for text chat template preparation', () => {
+    expect(buildTextChatTemplateOptions({ enableThinking: true })).toEqual({
+      add_generation_prompt: true,
+      enable_thinking: true,
+    });
+    expect(buildTextChatTemplateOptions({ enableThinking: false })).toEqual({
+      add_generation_prompt: true,
+      enable_thinking: false,
+    });
+  });
+
   test('forwards the thinking flag when runtime thinking is enabled', () => {
     expect(buildMultimodalChatTemplateOptions({ enableThinking: true })).toEqual({
       add_generation_prompt: true,
@@ -124,7 +139,6 @@ describe('llm.worker generation options', () => {
       )
     ).toEqual({
       max_new_tokens: 512,
-      max_length: 4096,
       temperature: 0.6,
       top_k: 20,
       top_p: 0.95,
@@ -149,7 +163,6 @@ describe('llm.worker generation options', () => {
       )
     ).toEqual({
       max_new_tokens: 256,
-      max_length: 2048,
       temperature: 0.6,
       top_k: 20,
       top_p: 0.95,
@@ -157,6 +170,71 @@ describe('llm.worker generation options', () => {
       do_sample: true,
       enable_thinking: false,
     });
+  });
+});
+
+describe('llm.worker text prompt preparation', () => {
+  test('left-truncates tokenized chat inputs to the configured context budget', () => {
+    const tokenizer = {
+      apply_chat_template: () => ({
+        input_ids: [[101, 102, 103, 104, 105]],
+        attention_mask: [[1, 1, 1, 1, 1]],
+      }),
+    };
+
+    const result = prepareTextGenerationInputs(
+      tokenizer,
+      [{ role: 'user', content: 'Hello there' }],
+      { maxContextTokens: 3 },
+      {}
+    );
+
+    expect(result).toEqual({
+      modelInputs: {
+        input_ids: [[103, 104, 105]],
+        attention_mask: [[1, 1, 1]],
+      },
+      originalPromptTokens: 5,
+      promptTokens: 3,
+      truncated: true,
+    });
+  });
+
+  test('preserves full tokenized chat inputs when they already fit the configured budget', () => {
+    const applyChatTemplate = vi.fn(() => ({
+        input_ids: [[11, 12, 13]],
+        attention_mask: [[1, 1, 1]],
+      }));
+    const tokenizer = {
+      apply_chat_template: applyChatTemplate,
+    };
+
+    const result = prepareTextGenerationInputs(
+      tokenizer,
+      [{ role: 'user', content: 'Hi' }],
+      { maxContextTokens: 8 },
+      { enableThinking: true }
+    );
+
+    expect(result).toEqual({
+      modelInputs: {
+        input_ids: [[11, 12, 13]],
+        attention_mask: [[1, 1, 1]],
+      },
+      originalPromptTokens: 3,
+      promptTokens: 3,
+      truncated: false,
+    });
+    expect(applyChatTemplate).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'Hi' }],
+      expect.objectContaining({
+        add_generation_prompt: true,
+        enable_thinking: true,
+        tokenize: true,
+        truncation: false,
+        return_dict: true,
+      })
+    );
   });
 });
 
