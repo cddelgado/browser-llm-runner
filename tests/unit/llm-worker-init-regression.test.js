@@ -111,7 +111,7 @@ describe('llm.worker init regression', () => {
             runtime: {
               dtypes: {
                 webgpu: 'q4f16',
-                cpu: 'int8',
+                cpu: 'q4',
               },
               useExternalDataFormat: true,
             },
@@ -126,7 +126,7 @@ describe('llm.worker init regression', () => {
       'onnx-community/Llama-3.2-3B-Instruct-ONNX',
       expect.objectContaining({
         device: 'wasm',
-        dtype: 'int8',
+        dtype: 'q4',
         use_external_data_format: true,
       })
     );
@@ -205,7 +205,7 @@ describe('llm.worker init regression', () => {
             runtime: {
               dtypes: {
                 webgpu: 'q4f16',
-                cpu: 'int8',
+                cpu: 'q4',
               },
               useExternalDataFormat: true,
             },
@@ -217,11 +217,11 @@ describe('llm.worker init regression', () => {
     expect(pipelineFactory).toHaveBeenCalledTimes(2);
     expect(pipelineFactory.mock.calls[0]?.[2]).toMatchObject({
       device: 'wasm',
-      dtype: 'int8',
+      dtype: 'q4',
       use_external_data_format: true,
     });
     expect(pipelineFactory.mock.calls[1]?.[2]).toMatchObject({
-      dtype: 'int8',
+      dtype: 'q4',
       use_external_data_format: true,
     });
     expect(pipelineFactory.mock.calls[1]?.[2]?.device).toBeUndefined();

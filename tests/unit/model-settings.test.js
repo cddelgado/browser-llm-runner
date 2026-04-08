@@ -207,7 +207,7 @@ describe('model-settings availability', () => {
     ).toBe('q4f16');
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(LLAMA_3B_MODEL_ID)?.runtime, 'cpu')
-    ).toBe('int8');
+    ).toBe('q4');
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(LLAMA_1B_MODEL_ID)?.runtime, 'cpu')
     ).toBe('int8');
@@ -332,7 +332,7 @@ describe('model-settings availability', () => {
     ).toMatchObject({
       dtypes: {
         webgpu: 'q4f16',
-        cpu: 'int8',
+        cpu: 'q4',
       },
       useExternalDataFormat: true,
     });

@@ -25,7 +25,7 @@
       "runtime": {
         "dtypes": {
           "webgpu": "q4f16",
-          "cpu": "int8"
+          "cpu": "q4"
         },
         "useExternalDataFormat": true
       },

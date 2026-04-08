@@ -254,6 +254,8 @@ Student-facing browser chat UI with local model inference.
   - `onnx-community/gemma-3-1b-it-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `onnx-community/gemma-3-1b-ONNX-GQA` -> `onnx-community/gemma-3n-E2B-it-ONNX`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-ONNX`
+
+For `Llama 3.2 3B` specifically, the app keeps the full ONNX repo id but uses `q4` on CPU. The upstream `int8` artifact exists, but it is packaged as a single browser-hostile external-data blob large enough to trigger `Array buffer allocation failed` during in-browser loading.
 - Model support configuration lives in `src/config/models.json`:
 - `models`: options shown in the pre-chat model card picker
 - `models[].hidden`: optional flag that keeps a model supported internally while removing its card and picker option

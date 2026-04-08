@@ -340,7 +340,8 @@ Notes:
 
 Per-model limits and defaults:
 
-- `onnx-community/Llama-3.2-3B-Instruct-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: int8 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"cmd":"..."}` inside `parameters`, no thinking tags
+- `onnx-community/Llama-3.2-3B-Instruct-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: q4 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"cmd":"..."}` inside `parameters`, no thinking tags
+- `Llama 3.2 3B` keeps the full ONNX repo id for browser use, but CPU avoids the published `int8` artifact because that package is shipped as a single multi-gigabyte external-data blob that can fail browser `ArrayBuffer` allocation during load.
 - `onnx-community/Llama-3.2-1B-Instruct-ONNX`: runtime dtypes `{ webgpu: q4f16, cpu: int8 }`, `useExternalDataFormat: true`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
 - `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`: runtime dtypes `{ webgpu: q4f16, cpu: q4f16 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, no thinking tags
 - All listed Llama entries enable `useExternalDataFormat: true` where required for `.onnx_data` loading.
