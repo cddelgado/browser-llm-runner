@@ -6,6 +6,9 @@ import genAiWasmModuleBinaryPath from '@mediapipe/tasks-genai/genai_wasm_module_
 import genAiWasmNoSimdLoaderPath from '@mediapipe/tasks-genai/genai_wasm_nosimd_internal.js?url';
 import genAiWasmNoSimdBinaryPath from '@mediapipe/tasks-genai/genai_wasm_nosimd_internal.wasm?url';
 
+/** @type {typeof self & { import?: (specifier: string) => Promise<unknown> }} */
+const workerGlobal = self;
+
 const WORKER_GENERATION_LIMITS = {
   defaultMaxOutputTokens: 1024,
   maxOutputTokens: Number.MAX_SAFE_INTEGER,
@@ -28,6 +31,16 @@ let loadedModelId = null;
 let loadedModelAssetPath = '';
 let generationConfig = normalizeGenerationConfig(null);
 let activeGenerationState = null;
+
+function ensureDynamicImportShim() {
+  if (typeof workerGlobal.import === 'function') {
+    return;
+  }
+  // MediaPipe's loader falls back to self.import(...) in module workers.
+  workerGlobal.import = (specifier) => import(/* @vite-ignore */ specifier);
+}
+
+ensureDynamicImportShim();
 
 function normalizeGenerationConfig(rawConfig) {
   return sanitizeGenerationConfig(rawConfig, WORKER_GENERATION_LIMITS);
