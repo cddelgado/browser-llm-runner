@@ -490,11 +490,33 @@ function parseDuckDuckGoSearchDataResponse(payloadText) {
 }
 
 function parseDuckDuckGoHtmlSearchResults(htmlText) {
+  const rawHtml = String(htmlText || '');
   if (typeof DOMParser !== 'function') {
-    return [];
+    const results = [];
+    const anchorPattern =
+      /<a\b[^>]*class=(['"])[^'"]*\bresult__a\b[^'"]*\1[^>]*href=(['"])([\s\S]*?)\2[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = anchorPattern.exec(rawHtml))) {
+      const lookaheadHtml = rawHtml.slice(match.index, match.index + 2_500);
+      const snippetMatch = lookaheadHtml.match(
+        /<(?:a|div)\b[^>]*class=(['"])[^'"]*\bresult__(?:snippet|body)\b[^'"]*\1[^>]*>([\s\S]*?)<\/(?:a|div)>/i
+      );
+      const normalizedResult = normalizeDuckDuckGoResult({
+        title: stripHtmlTags(match[4] || ''),
+        snippet: stripHtmlTags(snippetMatch?.[2] || ''),
+        url: decodeHtmlEntities(match[3] || ''),
+      });
+      if (normalizedResult) {
+        results.push(normalizedResult);
+      }
+      if (results.length >= MAX_WEB_SEARCH_RESULT_COUNT) {
+        break;
+      }
+    }
+    return results;
   }
   const parser = new DOMParser();
-  const documentRef = parser.parseFromString(String(htmlText || ''), 'text/html');
+  const documentRef = parser.parseFromString(rawHtml, 'text/html');
   return Array.from(documentRef.querySelectorAll('.result'))
     .map((element) => {
       const anchor = element.querySelector('.result__title a, a.result__a');
@@ -584,33 +606,51 @@ async function executeWebSearchLookup(query, runtimeContext = {}) {
   const headers = {
     Accept: 'text/html, application/xhtml+xml;q=0.9, text/plain;q=0.8, */*;q=0.1',
   };
-  const searchPageResponse = await fetchRef(searchPageUrl, {
-    method: 'GET',
-    body: null,
-    headers,
-  });
-  const searchPagePreview = await readResponseTextPreview(searchPageResponse);
-  const vqd = extractDuckDuckGoVqd(searchPagePreview.text);
-
-  let results = [];
-  if (vqd) {
-    const searchDataResponse = await fetchRef(buildDuckDuckGoDataUrl(query, vqd), {
+  let searchPagePreview = null;
+  let searchFailure = null;
+  try {
+    const searchPageResponse = await fetchRef(searchPageUrl, {
       method: 'GET',
       body: null,
       headers,
     });
-    const searchDataPreview = await readResponseTextPreview(searchDataResponse);
-    results = parseDuckDuckGoSearchDataResponse(searchDataPreview.text);
+    searchPagePreview = await readResponseTextPreview(searchPageResponse);
+  } catch (error) {
+    searchFailure = error;
+  }
+
+  let results = [];
+  const vqd = extractDuckDuckGoVqd(searchPagePreview?.text || '');
+  if (vqd) {
+    try {
+      const searchDataResponse = await fetchRef(buildDuckDuckGoDataUrl(query, vqd), {
+        method: 'GET',
+        body: null,
+        headers,
+      });
+      const searchDataPreview = await readResponseTextPreview(searchDataResponse);
+      results = parseDuckDuckGoSearchDataResponse(searchDataPreview.text);
+    } catch (error) {
+      searchFailure = error;
+    }
   }
 
   if (!results.length) {
-    const htmlResponse = await fetchRef(buildDuckDuckGoHtmlResultsUrl(query), {
-      method: 'GET',
-      body: null,
-      headers,
-    });
-    const htmlPreview = await readResponseTextPreview(htmlResponse);
-    results = parseDuckDuckGoHtmlSearchResults(htmlPreview.text);
+    try {
+      const htmlResponse = await fetchRef(buildDuckDuckGoHtmlResultsUrl(query), {
+        method: 'GET',
+        body: null,
+        headers,
+      });
+      const htmlPreview = await readResponseTextPreview(htmlResponse);
+      results = parseDuckDuckGoHtmlSearchResults(htmlPreview.text);
+    } catch (error) {
+      searchFailure = error;
+    }
+  }
+
+  if (!results.length && searchFailure) {
+    throw searchFailure;
   }
 
   if (typeof runtimeContext?.onWebLookupSearchComplete === 'function') {

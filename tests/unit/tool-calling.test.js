@@ -4513,6 +4513,144 @@ describe('tool-calling prompt builder', () => {
     );
   });
 
+  test('falls back to DuckDuckGo HTML results when the data endpoint fails', async () => {
+    const events = [];
+    const fetchRef = vi.fn(async (url) => {
+      events.push(`fetch:${url}`);
+      if (url === 'https://duckduckgo.com/?q=current+weather+in+Milwaukee%2C+Wisconsin&ia=web') {
+        return new globalThis.Response(
+          '<!doctype html><html><body>vqd="4-252955003016979900501044876317617689639"</body></html>',
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+            },
+          }
+        );
+      }
+      if (
+        String(url).startsWith(
+          'https://links.duckduckgo.com/d.js?q=current+weather+in+Milwaukee%2C+Wisconsin'
+        )
+      ) {
+        throw new TypeError('network error');
+      }
+      if (url === 'https://duckduckgo.com/html/?q=current+weather+in+Milwaukee%2C+Wisconsin&ia=web') {
+        return new globalThis.Response(
+          [
+            '<!doctype html>',
+            '<html>',
+            '<body>',
+            '<div class="result">',
+            '  <h2 class="result__title">',
+            '    <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fforecast.weather.gov%2Fzipcity.php%3Finputstring%3DMilwaukee%252CWI&amp;rut=123">',
+            '      Milwaukee forecast',
+            '    </a>',
+            '  </h2>',
+            '  <a class="result__snippet">National Weather Service forecast for Milwaukee.</a>',
+            '</div>',
+            '</body>',
+            '</html>',
+          ].join(''),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+            },
+          }
+        );
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'web_lookup',
+        arguments: {
+          input: 'current weather in Milwaukee, Wisconsin',
+        },
+      },
+      {
+        fetchRef,
+      }
+    );
+
+    expect(result.result).toEqual({
+      status: 'successful',
+      body:
+        '## Search results\n' +
+        'Query: current weather in Milwaukee, Wisconsin\n' +
+        '\n' +
+        '1. Milwaukee forecast\n' +
+        '   URL: https://forecast.weather.gov/zipcity.php?inputstring=Milwaukee,WI\n' +
+        '   Source: forecast.weather.gov\n' +
+        '   Snippet: National Weather Service forecast for Milwaukee.',
+      message: 'Use web_lookup again with one of the result URLs to read the page.',
+    });
+    expect(events).toEqual([
+      'fetch:https://duckduckgo.com/?q=current+weather+in+Milwaukee%2C+Wisconsin&ia=web',
+      expect.stringMatching(
+        /^fetch:https:\/\/links\.duckduckgo\.com\/d\.js\?q=current\+weather\+in\+Milwaukee%2C\+Wisconsin/
+      ),
+      'fetch:https://duckduckgo.com/html/?q=current+weather+in+Milwaukee%2C+Wisconsin&ia=web',
+    ]);
+  });
+
+  test('falls back to DuckDuckGo HTML results when the search page fetch fails', async () => {
+    const fetchRef = vi.fn(async (url) => {
+      if (url === 'https://duckduckgo.com/?q=milwaukee+weather&ia=web') {
+        throw new TypeError('network error');
+      }
+      if (url === 'https://duckduckgo.com/html/?q=milwaukee+weather&ia=web') {
+        return new globalThis.Response(
+          [
+            '<!doctype html>',
+            '<html>',
+            '<body>',
+            '<div class="result">',
+            '  <a class="result__a" href="https://www.weather.gov/">weather.gov</a>',
+            '  <div class="result__snippet">Official National Weather Service homepage.</div>',
+            '</div>',
+            '</body>',
+            '</html>',
+          ].join(''),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+            },
+          }
+        );
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'web_lookup',
+        arguments: {
+          input: 'milwaukee weather',
+        },
+      },
+      {
+        fetchRef,
+      }
+    );
+
+    expect(result.result).toEqual({
+      status: 'successful',
+      body:
+        '## Search results\n' +
+        'Query: milwaukee weather\n' +
+        '\n' +
+        '1. weather.gov\n' +
+        '   URL: https://www.weather.gov/\n' +
+        '   Source: weather.gov\n' +
+        '   Snippet: Official National Weather Service homepage.',
+      message: 'Use web_lookup again with one of the result URLs to read the page.',
+    });
+  });
+
   test('rejects http input for web_lookup', async () => {
     const result = await executeToolCall({
       name: 'web_lookup',
