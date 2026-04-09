@@ -474,6 +474,26 @@ export function shouldShowNewConversationButton(state) {
   return Boolean(state?.hasStartedChatWorkspace);
 }
 
+export function shouldDisableNewConversationButton(state) {
+  return (
+    isProcessingAttachments(state) ||
+    isGeneratingResponse(state) ||
+    isBlockingOrchestrationState(state) ||
+    (Boolean(state?.isPreparingNewConversation) && state?.pendingConversationType !== 'agent') ||
+    !hasStartedWorkspace(state)
+  );
+}
+
+export function shouldDisableNewAgentButton(state) {
+  return (
+    isProcessingAttachments(state) ||
+    isGeneratingResponse(state) ||
+    isBlockingOrchestrationState(state) ||
+    (Boolean(state?.isPreparingNewConversation) && state?.pendingConversationType === 'agent') ||
+    !hasStartedWorkspace(state)
+  );
+}
+
 export function getCurrentViewRoute(state, { routeHome, routeChat, routeSettings }) {
   const workspaceView = deriveWorkspaceView(state);
   if (workspaceView === WORKSPACE_VIEWS.SETTINGS) {

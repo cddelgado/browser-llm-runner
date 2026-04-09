@@ -25,6 +25,7 @@ Student-facing browser chat UI with local model inference.
 - The URL hash reflects the visible screen and active conversation:
   - `#/` for setup/home
   - `#/chat` for the pre-chat workspace with no selected conversation
+  - `#/chat/new-agent` for the agent pre-chat workspace
   - `#/chat/<uuid>` for a selected conversation
   - `#/chat/settings` when Settings is open
   - `#/chat/<uuid>/system-prompt` while editing that conversation's custom prompt

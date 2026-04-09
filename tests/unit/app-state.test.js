@@ -32,6 +32,8 @@ import {
   setSwitchingVariant,
   setUserMessageEditState,
   shouldDisableConversationControls,
+  shouldDisableNewAgentButton,
+  shouldDisableNewConversationButton,
   shouldShowNewConversationButton,
   shouldDisableComposerForPreChatConversationSelection,
 } from '../../src/state/app-state.js';
@@ -147,6 +149,28 @@ describe('app-state', () => {
 
     state.isPreparingNewConversation = true;
     expect(shouldShowNewConversationButton(state)).toBe(true);
+  });
+
+  test('disables only the active pre-chat creation button', () => {
+    const state = createAppState({
+      activeGenerationConfig: {},
+    });
+
+    expect(shouldDisableNewConversationButton(state)).toBe(true);
+    expect(shouldDisableNewAgentButton(state)).toBe(true);
+
+    state.hasStartedChatWorkspace = true;
+    expect(shouldDisableNewConversationButton(state)).toBe(false);
+    expect(shouldDisableNewAgentButton(state)).toBe(false);
+
+    state.isPreparingNewConversation = true;
+    state.pendingConversationType = 'agent';
+    expect(shouldDisableNewConversationButton(state)).toBe(false);
+    expect(shouldDisableNewAgentButton(state)).toBe(true);
+
+    state.pendingConversationType = 'chat';
+    expect(shouldDisableNewConversationButton(state)).toBe(true);
+    expect(shouldDisableNewAgentButton(state)).toBe(false);
   });
 
   test('keeps conversation controls available during background orchestration', () => {

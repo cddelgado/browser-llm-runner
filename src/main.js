@@ -152,6 +152,8 @@ import {
   setChatWorkspaceStarted,
   setSwitchingVariant,
   setUserMessageEditState,
+  shouldDisableNewAgentButton,
+  shouldDisableNewConversationButton,
   shouldShowNewConversationButton as selectShouldShowNewConversationButton,
   shouldDisableConversationControls,
   shouldDisableComposerForPreChatConversationSelection as selectShouldDisableComposerForPreChatConversationSelection,
@@ -201,6 +203,7 @@ const DEBUG_LOG_PAGE_SIZE = 20;
 const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24;
 const MARKDOWN_LINK_REL = 'noopener noreferrer nofollow';
 const MATHJAX_TYPESET_DEBOUNCE_MS = 150;
+const ROUTE_NEW_AGENT = 'new-agent';
 const MATH_DELIMITER_PATTERN = /(^|[^\\])(\$\$|\$|\\\(|\\\[|\\begin\{)/;
 const MATH_BLOCK_LINE_PATTERN = /(^|\n)\[\s*\n([\s\S]*?)\n\](?=\n|$)/g;
 const MATH_DISPLAY_DELIMITER_PATTERN = /\\\[([\s\S]*?)\\\]/g;
@@ -2050,6 +2053,9 @@ function buildRouteHash(targetRoute) {
     if (activeConversation?.id && !appState.isPreparingNewConversation) {
       return `#/chat/${encodeURIComponent(activeConversation.id)}`;
     }
+    if (appState.isPreparingNewConversation && isPendingAgentConversation()) {
+      return `#/chat/${ROUTE_NEW_AGENT}`;
+    }
     return '#/chat';
   }
   return '#/';
@@ -2077,7 +2083,20 @@ function parseAppRouteFromHash(hashValue = window.location.hash) {
     return { route: ROUTE_HOME, conversationId: null, showSystemPrompt: false };
   }
   if (secondSegment === ROUTE_SETTINGS) {
-    return { route: ROUTE_SETTINGS, conversationId: null, showSystemPrompt: false };
+    return {
+      route: ROUTE_SETTINGS,
+      conversationId: null,
+      showSystemPrompt: false,
+      pendingConversationType: CONVERSATION_TYPES.CHAT,
+    };
+  }
+  if (secondSegment === ROUTE_NEW_AGENT) {
+    return {
+      route: ROUTE_CHAT,
+      conversationId: null,
+      showSystemPrompt: false,
+      pendingConversationType: CONVERSATION_TYPES.AGENT,
+    };
   }
 
   let conversationId = null;
@@ -2092,6 +2111,7 @@ function parseAppRouteFromHash(hashValue = window.location.hash) {
     route: ROUTE_CHAT,
     conversationId,
     showSystemPrompt: Boolean(conversationId) && thirdSegment === ROUTE_SYSTEM_PROMPT,
+    pendingConversationType: CONVERSATION_TYPES.CHAT,
   };
 }
 
@@ -2839,6 +2859,12 @@ function applyAppRouteFromHash() {
       }
     } else {
       setPreparingNewConversation(appState, true);
+      appState.pendingConversationType = normalizeConversationType(
+        routeState.pendingConversationType || CONVERSATION_TYPES.CHAT,
+      );
+      if (appState.pendingConversationType !== CONVERSATION_TYPES.AGENT) {
+        clearPendingAgentDraft();
+      }
       if (appState.activeConversationId !== null) {
         appState.activeConversationId = null;
         clearUserMessageEditSession();
@@ -3146,21 +3172,11 @@ function updateActionButtons() {
   }
   if (newConversationBtn) {
     newConversationBtn.classList.toggle('d-none', !shouldShowNewConversationButton());
-    newConversationBtn.disabled =
-      attachmentsAreProcessing ||
-      isGeneratingResponse(appState) ||
-      isBlockingOrchestrationState(appState) ||
-      appState.isPreparingNewConversation ||
-      !selectHasStartedWorkspace(appState);
+    newConversationBtn.disabled = shouldDisableNewConversationButton(appState);
   }
   if (newAgentBtn) {
     newAgentBtn.classList.toggle('d-none', !shouldShowNewConversationButton());
-    newAgentBtn.disabled =
-      attachmentsAreProcessing ||
-      isGeneratingResponse(appState) ||
-      isBlockingOrchestrationState(appState) ||
-      (appState.isPreparingNewConversation && isPendingAgentConversation()) ||
-      !selectHasStartedWorkspace(appState);
+    newAgentBtn.disabled = shouldDisableNewAgentButton(appState);
   }
   updateMessageInputPlaceholder();
   updateRegenerateButtons();
