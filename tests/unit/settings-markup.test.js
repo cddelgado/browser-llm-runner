@@ -22,4 +22,17 @@ describe('settings markup', () => {
       'debug',
     ]);
   });
+
+  test('includes the Transformers.js CPU thread control on the System tab', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    const dom = new JSDOM(html);
+    const cpuThreadsInput = dom.window.document.getElementById('cpuThreadsInput');
+
+    expect(cpuThreadsInput).not.toBeNull();
+    expect(cpuThreadsInput?.getAttribute('type')).toBe('number');
+    expect(cpuThreadsInput?.getAttribute('aria-describedby')).toBe('cpuThreadsHelp');
+    expect(dom.window.document.getElementById('cpuThreadsHelp')?.textContent).toContain(
+      'LiteRT runtime'
+    );
+  });
 });

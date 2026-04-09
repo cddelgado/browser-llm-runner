@@ -368,6 +368,25 @@ describe('llm.worker wasm backend config', () => {
     });
   });
 
+  test('applies an explicit user-selected cpu thread count when provided', () => {
+    const env = {
+      backends: {
+        onnx: {
+          wasm: {},
+        },
+      },
+    };
+
+    const result = configureOnnxWasmBackend(env, 'wasm', { cpuThreads: 3 });
+    expect(env.backends.onnx.wasm.proxy).toBe(true);
+    expect(env.backends.onnx.wasm.numThreads).toBe(3);
+    expect(result).toEqual({
+      backend: 'wasm',
+      proxy: true,
+      numThreads: 3,
+    });
+  });
+
   test('returns null when the onnx wasm backend is unavailable', () => {
     const env = {
       backends: {

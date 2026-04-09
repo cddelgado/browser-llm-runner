@@ -16,6 +16,7 @@ export function bindModelSettingsEvents({
   enableModelThinkingToggle,
   modelSelect,
   backendSelect,
+  cpuThreadsInput,
   maxOutputTokensInput,
   maxContextTokensInput,
   temperatureInput,
@@ -31,6 +32,7 @@ export function bindModelSettingsEvents({
   applyDefaultSystemPrompt,
   applyConversationLanguagePreference,
   applyConversationThinkingPreference,
+  applyCpuThreadsPreference,
   refreshMathRendering,
   refreshConversationSystemPromptPreview,
   syncModelSelectionForCurrentEnvironment,
@@ -136,6 +138,13 @@ export function bindModelSettingsEvents({
   if (backendSelect instanceof HTMLSelectElement) {
     backendSelect.addEventListener('change', () => {
       handleModelPreferenceChange({ announceFallback: true });
+    });
+  }
+
+  if (cpuThreadsInput instanceof HTMLInputElement) {
+    cpuThreadsInput.addEventListener('change', () => {
+      applyCpuThreadsPreference(cpuThreadsInput.value, { persist: true });
+      void reinitializeEngineFromSettings();
     });
   }
 

@@ -175,6 +175,7 @@ const CORS_PROXY_STORAGE_KEY = 'cors-proxy-url';
 const MCP_SERVERS_STORAGE_KEY = 'mcp-server-configurations';
 const MODEL_STORAGE_KEY = 'llm-model-preference';
 const BACKEND_STORAGE_KEY = 'llm-backend-preference';
+const CPU_THREADS_STORAGE_KEY = 'llm-cpu-threads-preference';
 const MODEL_GENERATION_SETTINGS_STORAGE_KEY = 'llm-model-generation-settings';
 const TOOL_CONSENT_STORAGE_KEY = 'tool-consents-v1';
 const UNTITLED_CONVERSATION_PREFIX = 'New Conversation';
@@ -245,6 +246,7 @@ const enableModelThinkingHelp = document.getElementById('enableModelThinkingHelp
 const modelSelect = document.getElementById('modelSelect');
 const modelCardList = document.getElementById('modelCardList');
 const backendSelect = document.getElementById('backendSelect');
+const cpuThreadsInput = document.getElementById('cpuThreadsInput');
 const maxOutputTokensInput = document.getElementById('maxOutputTokensInput');
 const maxContextTokensInput = document.getElementById('maxContextTokensInput');
 const temperatureInput = document.getElementById('temperatureInput');
@@ -3073,6 +3075,7 @@ const preferencesController = createPreferencesController({
   mcpServersStorageKey: MCP_SERVERS_STORAGE_KEY,
   modelStorageKey: MODEL_STORAGE_KEY,
   backendStorageKey: BACKEND_STORAGE_KEY,
+  cpuThreadsStorageKey: CPU_THREADS_STORAGE_KEY,
   supportedBackendPreferences: SUPPORTED_BACKEND_PREFERENCES,
   webGpuRequiredModelSuffix: WEBGPU_REQUIRED_MODEL_SUFFIX,
   availableToolDefinitions: getEnabledToolDefinitions(),
@@ -3101,6 +3104,7 @@ const preferencesController = createPreferencesController({
   modelSelect,
   modelCardList,
   backendSelect,
+  cpuThreadsInput,
   colorSchemeQuery,
   refreshModelThinkingVisibility,
   getRuntimeConfigForModel,
@@ -3137,6 +3141,7 @@ const {
   applyMcpServersPreference,
   applyTranscriptViewPreference,
   applyConversationPanelCollapsedPreference,
+  applyCpuThreadsPreference,
   applySingleKeyShortcutPreference,
   clearSkillPackageFeedback,
   clearCorsProxyFeedback,
@@ -3462,6 +3467,7 @@ bindSettingsEvents({
   enableModelThinkingToggle,
   modelSelect,
   backendSelect,
+  cpuThreadsInput,
   maxOutputTokensInput,
   maxContextTokensInput,
   temperatureInput,
@@ -3495,6 +3501,7 @@ bindSettingsEvents({
   applyDefaultSystemPrompt,
   applyConversationLanguagePreference,
   applyConversationThinkingPreference,
+  applyCpuThreadsPreference,
   clearMcpServerFeedback,
   importMcpServerEndpoint,
   refreshMathRendering: () => {

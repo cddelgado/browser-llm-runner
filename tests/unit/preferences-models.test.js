@@ -15,6 +15,7 @@ function createHarness({
         <option value="webgpu">WebGPU</option>
         <option value="cpu">CPU</option>
       </select>
+      <input id="cpuThreadsInput" type="number" />
     `,
     { url: 'https://example.test/' }
   );
@@ -25,6 +26,7 @@ function createHarness({
   globalThis.KeyboardEvent = dom.window.KeyboardEvent;
   globalThis.HTMLElement = dom.window.HTMLElement;
   globalThis.HTMLButtonElement = dom.window.HTMLButtonElement;
+  globalThis.HTMLInputElement = dom.window.HTMLInputElement;
   globalThis.HTMLSelectElement = dom.window.HTMLSelectElement;
 
   const appState = createAppState({ activeGenerationConfig: { maxOutputTokens: 256 } });
@@ -52,11 +54,13 @@ function createHarness({
       documentRef: document,
       modelStorageKey: 'model',
       backendStorageKey: 'backend',
+      cpuThreadsStorageKey: 'cpu-threads',
       supportedBackendPreferences: new Set(['webgpu', 'cpu']),
       webGpuRequiredModelSuffix: ' (WebGPU required)',
       modelSelect: document.getElementById('modelSelect'),
       modelCardList: document.getElementById('modelCardList'),
       backendSelect: document.getElementById('backendSelect'),
+      cpuThreadsInput: document.getElementById('cpuThreadsInput'),
       ...deps,
     }),
   };
@@ -179,11 +183,15 @@ describe('preferences-models', () => {
     const backendSelect = /** @type {HTMLSelectElement} */ (
       harness.document.getElementById('backendSelect')
     );
+    const cpuThreadsInput = /** @type {HTMLInputElement} */ (
+      harness.document.getElementById('cpuThreadsInput')
+    );
     const generationConfig = { maxOutputTokens: 512 };
 
     harness.controller.populateModelSelect();
     modelSelect.value = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
     backendSelect.value = 'cpu';
+    cpuThreadsInput.value = '3';
 
     const engineConfig = harness.controller.readEngineConfigFromUI(generationConfig);
 
@@ -191,7 +199,7 @@ describe('preferences-models', () => {
       engineType: 'transformers-js',
       modelId: 'onnx-community/Llama-3.2-1B-Instruct-ONNX',
       backendPreference: 'cpu',
-      runtime: { runtimeModelId: 'onnx-community/Llama-3.2-1B-Instruct-ONNX' },
+      runtime: { runtimeModelId: 'onnx-community/Llama-3.2-1B-Instruct-ONNX', cpuThreads: 3 },
       generationConfig,
     });
     expect(harness.deps.getRuntimeConfigForModel).toHaveBeenCalledWith(
@@ -206,10 +214,30 @@ describe('preferences-models', () => {
 
     expect(harness.storage.getItem('model')).toBe('onnx-community/Llama-3.2-1B-Instruct-ONNX');
     expect(harness.storage.getItem('backend')).toBe('cpu');
+    expect(harness.storage.getItem('cpu-threads')).toBe('3');
     expect(harness.deps.persistGenerationConfigForModel).toHaveBeenCalledWith(
       'onnx-community/Llama-3.2-1B-Instruct-ONNX',
       generationConfig
     );
+  });
+
+  test('restores the persisted cpu thread preference into the system control', () => {
+    const harness = createHarness({
+      navigatorRef: /** @type {any} */ ({
+        gpu: {},
+        hardwareConcurrency: 6,
+      }),
+    });
+    const cpuThreadsInput = /** @type {HTMLInputElement} */ (
+      harness.document.getElementById('cpuThreadsInput')
+    );
+
+    harness.storage.setItem('cpu-threads', '5');
+
+    harness.controller.restoreInferencePreferences();
+
+    expect(cpuThreadsInput.value).toBe('5');
+    expect(cpuThreadsInput.max).toBe('6');
   });
 
   test('probes WebGPU availability and falls back when no adapter is available', async () => {

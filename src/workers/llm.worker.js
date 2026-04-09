@@ -230,16 +230,17 @@ async function loadTransformers() {
   return cachedModule;
 }
 
-function configureOnnxWasmBackend(env, backend = 'wasm') {
+function configureOnnxWasmBackend(env, backend = 'wasm', runtime = {}) {
   if (!env?.backends?.onnx?.wasm) {
     return null;
   }
-  env.backends.onnx.wasm.numThreads = ONNX_WASM_NUM_THREADS;
+  const requestedCpuThreads = normalizeOnnxWasmThreadCount(runtime?.cpuThreads);
+  env.backends.onnx.wasm.numThreads = requestedCpuThreads;
   env.backends.onnx.wasm.proxy = ONNX_WASM_PROXY_ENABLED;
   const result = {
     backend,
     proxy: ONNX_WASM_PROXY_ENABLED,
-    numThreads: ONNX_WASM_NUM_THREADS,
+    numThreads: requestedCpuThreads,
   };
   logWorkerDebug('onnx-wasm-config', {
     backend,
@@ -251,6 +252,18 @@ function configureOnnxWasmBackend(env, backend = 'wasm') {
 
 export { configureOnnxWasmBackend };
 export { ONNX_WASM_PROXY_ENABLED, ONNX_WASM_NUM_THREADS };
+
+function normalizeOnnxWasmThreadCount(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return ONNX_WASM_NUM_THREADS;
+  }
+  const normalizedValue = Math.trunc(numericValue);
+  if (normalizedValue <= ONNX_WASM_NUM_THREADS) {
+    return ONNX_WASM_NUM_THREADS;
+  }
+  return normalizedValue;
+}
 
 async function ensureMultimodalProcessor(modelId, progressCallback = null) {
   if (processor) {
@@ -427,6 +440,7 @@ function normalizeRuntimeConfig(rawRuntime) {
     (Number.isInteger(rawRuntime?.useExternalDataFormat) && rawRuntime.useExternalDataFormat > 0)
       ? rawRuntime.useExternalDataFormat
       : false;
+  const cpuThreads = normalizeOnnxWasmThreadCount(rawRuntime?.cpuThreads);
   return {
     ...(dtype ? { dtype } : {}),
     ...(dtypes ? { dtypes } : {}),
@@ -440,6 +454,7 @@ function normalizeRuntimeConfig(rawRuntime) {
     ...(maxAudioInputs ? { maxAudioInputs } : {}),
     ...(maxVideoInputs ? { maxVideoInputs } : {}),
     ...(useExternalDataFormat ? { useExternalDataFormat } : {}),
+    ...(cpuThreads >= 0 ? { cpuThreads } : {}),
   };
 }
 
@@ -1049,7 +1064,7 @@ async function initialize(payload) {
     try {
       const resolvedBackendLabel = resolveBackendLabel(backendPreference, backend);
       const runtimeDtype = resolveRuntimeDtype(runtime, backend);
-      const onnxWasmConfig = configureOnnxWasmBackend(env, backend);
+      const onnxWasmConfig = configureOnnxWasmBackend(env, backend, runtime);
       logWorkerDebug('init-backend-attempt', {
         modelId,
         backend,

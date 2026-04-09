@@ -26,6 +26,7 @@ function createHarness() {
         <option value="webgpu">WebGPU</option>
         <option value="cpu">CPU</option>
       </select>
+      <input id="cpuThreadsInput" type="number" value="0" />
       <input id="maxOutputTokensInput" />
       <input id="maxContextTokensInput" />
       <input id="temperatureInput" />
@@ -68,6 +69,7 @@ function createHarness() {
     enableModelThinkingToggle: document.getElementById('enableModelThinkingToggle'),
     modelSelect: document.getElementById('modelSelect'),
     backendSelect: document.getElementById('backendSelect'),
+    cpuThreadsInput: document.getElementById('cpuThreadsInput'),
     maxOutputTokensInput: document.getElementById('maxOutputTokensInput'),
     maxContextTokensInput: document.getElementById('maxContextTokensInput'),
     temperatureInput: document.getElementById('temperatureInput'),
@@ -83,6 +85,7 @@ function createHarness() {
     applyDefaultSystemPrompt: vi.fn(),
     applyConversationLanguagePreference: vi.fn(),
     applyConversationThinkingPreference: vi.fn(),
+    applyCpuThreadsPreference: vi.fn(),
     refreshMathRendering: vi.fn(),
     refreshConversationSystemPromptPreview: vi.fn(),
     syncModelSelectionForCurrentEnvironment: vi.fn(() => 'model-b'),
@@ -119,6 +122,7 @@ function createHarness() {
       enableModelThinkingToggle: document.getElementById('enableModelThinkingToggle'),
       modelSelect: document.getElementById('modelSelect'),
       backendSelect: document.getElementById('backendSelect'),
+      cpuThreadsInput: document.getElementById('cpuThreadsInput'),
       maxContextTokensInput: document.getElementById('maxContextTokensInput'),
       temperatureInput: document.getElementById('temperatureInput'),
       topKInput: document.getElementById('topKInput'),
@@ -228,5 +232,20 @@ describe('settings-events-models', () => {
     expect(topPInput.value).toBe('0.95');
     expect(harness.deps.getModelGenerationLimits).toHaveBeenCalledWith('model-b');
     expect(harness.deps.onGenerationSettingInputChanged).toHaveBeenCalledTimes(4);
+  });
+
+  test('cpu thread changes persist the preference and reinitialize the engine', async () => {
+    const harness = createHarness();
+    const cpuThreadsInput = /** @type {HTMLInputElement} */ (harness.elements.cpuThreadsInput);
+
+    cpuThreadsInput.value = '4';
+    cpuThreadsInput.dispatchEvent(new harness.dom.window.Event('change', { bubbles: true }));
+    await Promise.resolve();
+
+    expect(harness.deps.applyCpuThreadsPreference).toHaveBeenCalledWith('4', {
+      persist: true,
+    });
+    expect(harness.deps.refreshConversationSystemPromptPreview).not.toHaveBeenCalled();
+    expect(harness.deps.reinitializeEngineFromSettings).toHaveBeenCalledTimes(1);
   });
 });

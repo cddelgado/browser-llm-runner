@@ -654,6 +654,27 @@
                       </select>
                     </div>
                     <div class="settings-control-group">
+                      <label class="form-label" for="cpuThreadsInput"
+                        >Transformers.js CPU threads</label
+                      >
+                      <input
+                        id="cpuThreadsInput"
+                        class="form-control"
+                        type="number"
+                        inputmode="numeric"
+                        min="0"
+                        step="1"
+                        value="0"
+                        aria-describedby="cpuThreadsHelp"
+                      />
+                      <p id="cpuThreadsHelp" class="form-text mb-0">
+                        Auto (`0`) uses ONNX Runtime Web thread auto-selection. Applies to the
+                        Transformers.js CPU/WASM path, including WebGPU fallback to WASM when
+                        used. The bundled LiteRT runtime in this app does not expose a matching
+                        CPU thread setting.
+                      </p>
+                    </div>
+                    <div class="settings-control-group">
                       <label class="form-label" for="themeSelect">Theme</label>
                       <select id="themeSelect" class="form-select">
                         <option value="light" selected>Light</option>

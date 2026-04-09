@@ -11,6 +11,8 @@ import {
 } from '../config/model-settings.js';
 
 const BACKEND_FALLBACK = 'webgpu';
+const CPU_THREAD_AUTO = 0;
+const DEFAULT_CPU_THREAD_MAX = 32;
 const DEFAULT_LANGUAGE_TAG_COUNT = 4;
 const INTEGER_FORMATTER = new Intl.NumberFormat('en-US');
 const MODEL_FEATURE_DEFINITIONS = Object.freeze([
@@ -71,11 +73,13 @@ function shouldShowLanguageOverflow(model, visibleTagCount = DEFAULT_LANGUAGE_TA
  * @param {Document} [options.documentRef]
  * @param {string} options.modelStorageKey
  * @param {string} options.backendStorageKey
+ * @param {string} [options.cpuThreadsStorageKey]
  * @param {Set<string>} [options.supportedBackendPreferences]
  * @param {string} [options.webGpuRequiredModelSuffix]
  * @param {HTMLSelectElement | null} [options.modelSelect]
  * @param {HTMLElement | null} [options.modelCardList]
  * @param {HTMLSelectElement | null} [options.backendSelect]
+ * @param {HTMLInputElement | null} [options.cpuThreadsInput]
  * @param {(modelId: string) => any} options.getRuntimeConfigForModel
  * @param {(modelId: string, resetQueuedValues: boolean) => void} options.syncGenerationSettingsFromModel
  * @param {(modelId: string, generationConfig: any) => void} options.persistGenerationConfigForModel
@@ -90,11 +94,13 @@ export function createModelPreferencesController({
   documentRef = document,
   modelStorageKey,
   backendStorageKey,
+  cpuThreadsStorageKey = '',
   supportedBackendPreferences = new Set([BACKEND_FALLBACK]),
   webGpuRequiredModelSuffix = '',
   modelSelect,
   modelCardList,
   backendSelect,
+  cpuThreadsInput,
   getRuntimeConfigForModel,
   syncGenerationSettingsFromModel,
   persistGenerationConfigForModel,
@@ -106,6 +112,36 @@ export function createModelPreferencesController({
     supportedBackendPreferences instanceof Set
       ? supportedBackendPreferences
       : new Set([BACKEND_FALLBACK]);
+
+  function getCpuThreadMax() {
+    const hardwareConcurrency = Number(navigatorRef?.hardwareConcurrency);
+    if (Number.isInteger(hardwareConcurrency) && hardwareConcurrency > 0) {
+      return Math.max(1, hardwareConcurrency);
+    }
+    return DEFAULT_CPU_THREAD_MAX;
+  }
+
+  function normalizeCpuThreadsPreference(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return CPU_THREAD_AUTO;
+    }
+    const normalizedValue = Math.trunc(numericValue);
+    if (normalizedValue <= CPU_THREAD_AUTO) {
+      return CPU_THREAD_AUTO;
+    }
+    return Math.min(normalizedValue, getCpuThreadMax());
+  }
+
+  function syncCpuThreadsInput(value = CPU_THREAD_AUTO) {
+    if (!(cpuThreadsInput instanceof HTMLInputElement)) {
+      return;
+    }
+    cpuThreadsInput.min = String(CPU_THREAD_AUTO);
+    cpuThreadsInput.step = '1';
+    cpuThreadsInput.max = String(getCpuThreadMax());
+    cpuThreadsInput.value = String(normalizeCpuThreadsPreference(value));
+  }
 
   function normalizeBackendPreference(value) {
     const normalized = normalizeSupportedBackendPreference(value);
@@ -119,6 +155,10 @@ export function createModelPreferencesController({
     return normalizeBackendPreference(backendSelect?.value || BACKEND_FALLBACK);
   }
 
+  function getSelectedCpuThreadsPreference() {
+    return normalizeCpuThreadsPreference(cpuThreadsInput?.value ?? CPU_THREAD_AUTO);
+  }
+
   function formatBackendPreferenceLabel(value) {
     if (value === 'webgpu') {
       return 'WebGPU';
@@ -127,6 +167,22 @@ export function createModelPreferencesController({
       return 'CPU';
     }
     return 'WebGPU';
+  }
+
+  function getStoredCpuThreadsPreference() {
+    if (!cpuThreadsStorageKey) {
+      return CPU_THREAD_AUTO;
+    }
+    return normalizeCpuThreadsPreference(storage.getItem(cpuThreadsStorageKey));
+  }
+
+  function applyCpuThreadsPreference(value, { persist = false } = {}) {
+    const normalizedValue = normalizeCpuThreadsPreference(value);
+    syncCpuThreadsInput(normalizedValue);
+    if (persist && cpuThreadsStorageKey) {
+      storage.setItem(cpuThreadsStorageKey, String(normalizedValue));
+    }
+    return normalizedValue;
   }
 
   function getWebGpuAvailability() {
@@ -501,6 +557,7 @@ export function createModelPreferencesController({
   function restoreInferencePreferences() {
     const storedModel = storage.getItem(modelStorageKey);
     const storedBackend = storage.getItem(backendStorageKey);
+    const storedCpuThreads = getStoredCpuThreadsPreference();
 
     if (modelSelect instanceof HTMLSelectElement && storedModel) {
       const normalizedModel = normalizeModelId(storedModel);
@@ -513,6 +570,8 @@ export function createModelPreferencesController({
       backendSelect.value = normalizedBackend;
       storage.setItem(backendStorageKey, normalizedBackend);
     }
+
+    applyCpuThreadsPreference(storedCpuThreads);
 
     const selectedModel = syncModelSelectionForCurrentEnvironment();
     storage.setItem(modelStorageKey, selectedModel);
@@ -531,7 +590,10 @@ export function createModelPreferencesController({
       engineType: getModelEngineType(selectedModel),
       modelId: selectedModel,
       backendPreference: selectedBackend,
-      runtime: getRuntimeConfigForModel(selectedModel),
+      runtime: {
+        ...(getRuntimeConfigForModel(selectedModel) || {}),
+        cpuThreads: getSelectedCpuThreadsPreference(),
+      },
       generationConfig: activeGenerationConfig,
     };
   }
@@ -545,8 +607,13 @@ export function createModelPreferencesController({
     }
     storage.setItem(modelStorageKey, selectedModel);
     storage.setItem(backendStorageKey, selectedBackend);
+    if (cpuThreadsStorageKey) {
+      storage.setItem(cpuThreadsStorageKey, String(getSelectedCpuThreadsPreference()));
+    }
     persistGenerationConfigForModel(selectedModel, activeGenerationConfig);
   }
+
+  syncCpuThreadsInput(getStoredCpuThreadsPreference());
 
   if (modelCardList instanceof HTMLElement) {
     modelCardList.addEventListener('keydown', (event) => {
@@ -619,6 +686,7 @@ export function createModelPreferencesController({
     readEngineConfigFromUI,
     persistInferencePreferences,
     restoreInferencePreferences,
+    applyCpuThreadsPreference,
     setSelectedModelId,
     syncModelSelectionForCurrentEnvironment,
   };

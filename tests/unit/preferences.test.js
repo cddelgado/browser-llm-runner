@@ -47,6 +47,7 @@ function createPreferencesHarness({
         <option value="webgpu">WebGPU</option>
         <option value="cpu">CPU</option>
       </select>
+      <input id="cpuThreadsInput" type="number" />
     `,
     { url: 'https://example.test/' }
   );
@@ -86,6 +87,7 @@ function createPreferencesHarness({
       mcpServersStorageKey: 'mcp-servers',
       modelStorageKey: 'model',
       backendStorageKey: 'backend',
+      cpuThreadsStorageKey: 'cpu-threads',
       supportedBackendPreferences: new Set(['webgpu', 'cpu']),
       webGpuRequiredModelSuffix: ' (WebGPU required)',
       availableToolDefinitions: getEnabledToolDefinitions(),
@@ -114,6 +116,7 @@ function createPreferencesHarness({
       modelSelect: document.getElementById('modelSelect'),
       modelCardList: document.getElementById('modelCardList'),
       backendSelect: document.getElementById('backendSelect'),
+      cpuThreadsInput: document.getElementById('cpuThreadsInput'),
       colorSchemeQuery: { matches: false },
       refreshModelThinkingVisibility: vi.fn(),
       getRuntimeConfigForModel: vi.fn(() => ({})),
