@@ -248,7 +248,6 @@ Student-facing browser chat UI with local model inference.
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Yoursmiling/Qwen3.5-2B-LiteRT` -> `onnx-community/Qwen3.5-2B-ONNX`
-  - `litert-community/gemma-4-E4B-it-litert-lm` -> `onnx-community/gemma-4-E2B-it-ONNX`
 
 For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` repo id as the canonical model. The full ONNX repo remains a legacy alias only because its browser load path was not reliable in this app: the `int8` package hit `Array buffer allocation failed`, and the `q4` package failed to preload required `.onnx_data` shards in-browser.
 - Model support configuration lives in `src/config/models.json`:

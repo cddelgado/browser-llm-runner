@@ -281,7 +281,6 @@ Current models in Settings:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Yoursmiling/Qwen3.5-2B-LiteRT` -> `onnx-community/Qwen3.5-2B-ONNX`
-  - `litert-community/gemma-4-E4B-it-litert-lm` -> `onnx-community/gemma-4-E2B-it-ONNX`
 
 Notes:
 

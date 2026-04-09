@@ -135,9 +135,9 @@ describe('model-settings availability', () => {
     expect(normalizeModelId('Yoursmiling/Qwen3.5-2B-LiteRT')).toBe(QWEN_2B_MODEL_ID);
   });
 
-  test('falls back to the default model for removed model ids and remaps retired Gemma LiteRT', () => {
+  test('falls back to the default model for removed model ids', () => {
     expect(normalizeModelId('onnx-community/Qwen3-0.6B-ONNX')).toBe(LLAMA_1B_MODEL_ID);
-    expect(normalizeModelId('litert-community/gemma-4-E4B-it-litert-lm')).toBe(GEMMA_4_MODEL_ID);
+    expect(normalizeModelId('litert-community/gemma-4-E4B-it-litert-lm')).toBe(LLAMA_1B_MODEL_ID);
   });
 
   test('exposes model feature flags from config', () => {
