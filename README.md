@@ -166,7 +166,7 @@ Student-facing browser chat UI with local model inference.
 - `Settings -> Conversation -> Default system prompt` sets an optional system prompt for newly created conversations only.
   - Existing conversations are not retroactively changed.
   - New generations in a conversation use that conversation's captured system prompt.
-- Agent conversations still use that captured default system prompt, but they ignore per-conversation custom prompt overrides and instead append agent identity/personality context plus any latest summary node.
+- Agent conversations still use that captured default system prompt, but they ignore per-conversation custom prompt overrides and instead append a fixed agent identity block (name, tool/tasklist behavior, privacy, destructive-action guardrails), personality context, and any latest summary node.
 - When prompt-driven feature guidance is enabled, the effective system prompt appends that guidance before any tool-calling instructions.
 - The effective system prompt also appends conversation-level language steering when a response language is selected and model-specific thinking-mode switch instructions when the selected model exposes them.
 - When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt and any enabled feature guidance.

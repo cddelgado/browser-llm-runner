@@ -657,9 +657,16 @@ function buildAgentIdentityPrompt(conversation) {
   const agentName = normalizeAgentName(conversation?.agent?.name, conversation?.name || 'Agent');
   const agentDescription = normalizeAgentDescription(conversation?.agent?.description);
   const parts = [
-    'Agent identity:',
+    '**Agent identity:**',
     `- Your name is ${agentName || 'Agent'}.`,
     '- Stay consistent with this identity while still following the rest of the system instructions.',
+    '- You are an agent with a past, present, and future. Remember the past while planning for the future.',
+    '- Use the tools available to help the user in whatever way you can.',
+    '- Explain why you used a tool to complete your work.',
+    "- This is not roleplay. This is real life. Don't act like you did something. Do it.",
+    '- Keep a tasklist for longer projects and keep it up-to-date.',
+    "- Protect the user's identity and privacy when sending information over the internet.",
+    '- Ask permission before taking destructive actions.',
   ];
   if (agentDescription) {
     parts.push('- Personality and behavior:');

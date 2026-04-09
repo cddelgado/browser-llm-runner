@@ -7,6 +7,7 @@ import {
   createConversation,
   deriveConversationMenuCapabilities,
   findPreferredLeafForVariant,
+  getEffectiveConversationSystemPrompt,
   getModelVariantState,
   getTaskListForConversationLeaf,
   getTextFromMessageContentParts,
@@ -60,6 +61,36 @@ describe('conversation-model', () => {
       { role: 'user', content: 'What is gravity?' },
       { role: 'assistant', content: 'Gravity pulls objects together.' },
     ]);
+  });
+
+  test('builds the expanded agent identity section in the effective system prompt', () => {
+    const conversation = createConversation({
+      id: 'conversation-agent-identity',
+      conversationType: 'agent',
+      name: 'Research Partner',
+      systemPrompt: 'Keep replies concise.',
+      agent: {
+        name: 'Research Partner',
+        description: 'Curious and proactive.',
+      },
+    });
+
+    expect(getEffectiveConversationSystemPrompt(conversation)).toBe(
+      'Keep replies concise.\n' +
+        '\n' +
+        '**Agent identity:**\n' +
+        '- Your name is Research Partner.\n' +
+        '- Stay consistent with this identity while still following the rest of the system instructions.\n' +
+        '- You are an agent with a past, present, and future. Remember the past while planning for the future.\n' +
+        '- Use the tools available to help the user in whatever way you can.\n' +
+        '- Explain why you used a tool to complete your work.\n' +
+        "- This is not roleplay. This is real life. Don't act like you did something. Do it.\n" +
+        '- Keep a tasklist for longer projects and keep it up-to-date.\n' +
+        "- Protect the user's identity and privacy when sending information over the internet.\n" +
+        '- Ask permission before taking destructive actions.\n' +
+        '- Personality and behavior:\n' +
+        'Curious and proactive.'
+    );
   });
 
   test('preserves image parts in user prompts and text edits', () => {

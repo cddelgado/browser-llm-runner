@@ -15,7 +15,7 @@ This module is the pure domain layer for:
 - preserving normalized attachment conversions and future memory-ingestion hints alongside the original attachment metadata
 - resolving the visible branch and variant navigation state
 - pruning descendants after user edits
-- building structured prompts for inference, including agent identity context and latest-summary carry-forward memory
+- building structured prompts for inference, including fixed agent identity steering, personality context, and latest-summary carry-forward memory
 - building conversation export payloads and Markdown output
 - preserving model-emitted tool calls and `tool` role execution results
 
@@ -40,7 +40,7 @@ Keeping this logic pure allows focused unit tests for:
 
 - branch selection and preferred-leaf resolution
 - edit pruning behavior
-- system prompt composition, including agent identity and summary carry-forward behavior
+- system prompt composition, including agent identity steering and summary carry-forward behavior
 - tool-calling prompt suffix composition
 - tool-call persistence and export payload generation
 - export payload generation
