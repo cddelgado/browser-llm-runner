@@ -84,6 +84,8 @@ function createDefaultTranscriptView(harness, overrides = {}) {
       canGoNext: false,
     }),
     isAgentConversation: (conversation) => conversation?.conversationType === 'agent',
+    getConversationModelDisplayName: () => 'Model',
+    getAgentDisplayName: () => 'Agent',
     renderModelMarkdown: (content) => `<p>${content}</p>`,
     scheduleMathTypeset: vi.fn(),
     getToolDisplayName: (toolName) => toolName,
@@ -223,6 +225,8 @@ describe('transcript-view', () => {
     expect(harness.container.querySelector('.user-message .message-file-card')?.textContent).toContain(
       'Embedded spreadsheet object omitted.'
     );
+    expect(harness.container.querySelector('.user-message .message-meta-line')).not.toBeNull();
+    expect(harness.container.querySelector('.user-message .message-meta-separator')).not.toBeNull();
     expect(harness.container.querySelector('.user-message .message-timestamp')?.textContent).toBeTruthy();
     expect(harness.container.querySelector('.model-message .message-timestamp')?.textContent).toBeTruthy();
     expect(
@@ -236,6 +240,53 @@ describe('transcript-view', () => {
     ).toContain('(C)');
     expect(harness.container.querySelector('.copy-mathml-btn')?.classList.contains('d-none')).toBe(
       true
+    );
+  });
+
+  test('renders the active model display name in standard chat message headers', () => {
+    const harness = createViewHarness();
+    const view = createDefaultTranscriptView(harness, {
+      getConversationModelDisplayName: () => 'Llama 3.2 1B Instruct',
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    expect(harness.container.querySelector('.user-message .message-speaker')?.textContent).toBe(
+      'User'
+    );
+    expect(harness.container.querySelector('.model-message .message-speaker')?.textContent).toBe(
+      'Llama 3.2 1B Instruct'
+    );
+  });
+
+  test('renders the agent name instead of the model name in agent conversations', () => {
+    const harness = createViewHarness();
+    harness.conversation.conversationType = 'agent';
+    const view = createDefaultTranscriptView(harness, {
+      getConversationModelDisplayName: () => 'Llama 3.2 1B Instruct',
+      getAgentDisplayName: () => 'Study Coach',
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    expect(harness.container.querySelector('.model-message .message-speaker')?.textContent).toBe(
+      'Study Coach'
+    );
+  });
+
+  test('preserves explicit non-default model speakers such as heartbeat messages', () => {
+    const harness = createViewHarness();
+    harness.conversation.conversationType = 'agent';
+    harness.conversation.messageNodes[1].speaker = 'Heartbeat';
+    const view = createDefaultTranscriptView(harness, {
+      getConversationModelDisplayName: () => 'Llama 3.2 1B Instruct',
+      getAgentDisplayName: () => 'Study Coach',
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    expect(harness.container.querySelector('.model-message .message-speaker')?.textContent).toBe(
+      'Heartbeat'
     );
   });
 

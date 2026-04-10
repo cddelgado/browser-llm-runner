@@ -8,6 +8,8 @@ export function createTranscriptView(dependencies) {
     getModelVariantState,
     getUserVariantState,
     isAgentConversation,
+    getConversationModelDisplayName,
+    getAgentDisplayName,
     renderModelMarkdown,
     scheduleMathTypeset,
     shouldShowMathMlCopyAction,
@@ -35,6 +37,12 @@ export function createTranscriptView(dependencies) {
     typeof shouldShowMathMlCopyAction === 'function' ? shouldShowMathMlCopyAction : () => false;
   const resolveIsAgentConversation =
     typeof isAgentConversation === 'function' ? isAgentConversation : () => false;
+  const resolveConversationModelDisplayName =
+    typeof getConversationModelDisplayName === 'function'
+      ? getConversationModelDisplayName
+      : () => 'Model';
+  const resolveAgentDisplayName =
+    typeof getAgentDisplayName === 'function' ? getAgentDisplayName : () => 'Agent';
   const resolveToolDisplayName =
     typeof getToolDisplayName === 'function'
       ? getToolDisplayName
@@ -46,6 +54,15 @@ export function createTranscriptView(dependencies) {
   const DEFAULT_MODEL_MESSAGE_HEIGHT = 260;
   const DEFAULT_USER_MESSAGE_HEIGHT = 160;
   const DEFAULT_ATTACHMENT_MESSAGE_HEIGHT = 220;
+  const transcriptDateFormatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  const transcriptTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
   const transcriptTimestampFormatter = new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
@@ -54,12 +71,49 @@ export function createTranscriptView(dependencies) {
     minute: '2-digit',
   });
 
+  function escapeHtml(value) {
+    return String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function getMessageSpeakerLabel(message, conversation = getActiveConversation()) {
+    const fallbackSpeaker =
+      typeof message?.speaker === 'string' && message.speaker.trim() ? message.speaker.trim() : '';
+    if (message?.role === 'user') {
+      return fallbackSpeaker || 'User';
+    }
+    if (message?.role !== 'model') {
+      return fallbackSpeaker;
+    }
+    if (fallbackSpeaker && fallbackSpeaker !== 'Model') {
+      return fallbackSpeaker;
+    }
+    if (resolveIsAgentConversation(conversation)) {
+      const agentName = String(resolveAgentDisplayName(conversation) || '').trim();
+      if (agentName) {
+        return agentName;
+      }
+    }
+    const modelName = String(resolveConversationModelDisplayName(conversation) || '').trim();
+    return modelName || fallbackSpeaker || 'Model';
+  }
+
   function formatTranscriptTimestamp(timestamp) {
     if (!Number.isFinite(timestamp) || timestamp <= 0) {
       return '';
     }
     try {
-      return transcriptTimestampFormatter.format(new Date(timestamp));
+      const date = new Date(timestamp);
+      const formattedDate = transcriptDateFormatter.format(date);
+      const formattedTime = transcriptTimeFormatter.format(date);
+      if (formattedDate && formattedTime) {
+        return `${formattedDate} ${formattedTime}`;
+      }
+      return transcriptTimestampFormatter.format(date);
     } catch {
       return '';
     }
@@ -385,15 +439,25 @@ export function createTranscriptView(dependencies) {
     }
   );
 
-  function buildMessageMetaMarkup(message) {
+  function buildMessageMetaMarkup(message, conversation = getActiveConversation()) {
+    const speakerLabel = escapeHtml(getMessageSpeakerLabel(message, conversation));
     const timestamp = formatTranscriptTimestamp(message?.createdAt);
     if (!timestamp) {
-      return `<p class="message-speaker">${message.speaker}</p>`;
+      return `
+        <div class="message-meta">
+          <p class="message-meta-line">
+            <span class="message-speaker">${speakerLabel}</span>
+          </p>
+        </div>
+      `;
     }
     return `
       <div class="message-meta">
-        <p class="message-timestamp">${timestamp}</p>
-        <p class="message-speaker">${message.speaker}</p>
+        <p class="message-meta-line">
+          <span class="message-speaker">${speakerLabel}</span>
+          <span class="message-meta-separator" aria-hidden="true">-</span>
+          <span class="message-timestamp">${escapeHtml(timestamp)}</span>
+        </p>
       </div>
     `;
   }
@@ -1129,7 +1193,7 @@ export function createTranscriptView(dependencies) {
       const variantLabel = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
-        ${buildMessageMetaMarkup(message)}
+        ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble">
           <div class="model-turn-timeline"></div>
         </div>
@@ -1260,7 +1324,7 @@ export function createTranscriptView(dependencies) {
       const isEditing = canMutateUserTurn && getActiveUserEditMessageId() === message.id;
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
-        ${buildMessageMetaMarkup(message)}
+        ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble mb-0"></div>
         <textarea
           class="form-control user-message-editor${isEditing ? '' : ' d-none'}"
@@ -1418,7 +1482,7 @@ export function createTranscriptView(dependencies) {
     } else if (message.role === 'summary') {
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
-        ${buildMessageMetaMarkup(message)}
+        ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble"></div>
       `;
       const bubble = item.querySelector('.message-bubble');
@@ -1428,7 +1492,7 @@ export function createTranscriptView(dependencies) {
     } else {
       item.innerHTML = `
         <h3 class="visually-hidden">${cardHeading}</h3>
-        ${buildMessageMetaMarkup(message)}
+        ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble">
           <section class="response-region">
             <h3 class="visually-hidden">Tool result</h3>

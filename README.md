@@ -108,7 +108,7 @@ Student-facing browser chat UI with local model inference.
 - Chat and setup status notices use Bootstrap alert patterns with headings so updates are announced in context.
 - The transcript includes helper links at both the start and end to jump to the transcript start, transcript end, or message input.
 - The transcript includes a note that each exchange has a heading so assistive technologies can index the conversation structure.
-- The transcript shows a simple local date/time stamp above each visible user and model exchange.
+- The transcript shows the speaker label and a simple local date/time stamp together above each visible user and model exchange.
 - Long transcripts use a spacer-backed sliding render window so older exchanges can scroll back into view without keeping the entire conversation mounted in the DOM.
 - Agent conversations can insert visible summary nodes into the transcript when older context is compacted; those nodes keep relisted uploaded files alongside the memory summary while prompt assembly drops older pre-summary turns.
 - Conversations are persisted locally in browser IndexedDB and restored on reload.

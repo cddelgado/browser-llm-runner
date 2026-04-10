@@ -1192,28 +1192,41 @@
   align-items: center;
 }
 
-.message-speaker {
-  margin: 0 0 0.25rem;
-  font-size: 0.8rem;
-  color: var(--ink-muted);
-}
-
 .message-meta {
   margin: 0 0 0.25rem;
 }
 
-.message-timestamp {
-  margin: 0 0 0.15rem;
-  font-size: 0.72rem;
+.message-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.78rem;
   color: var(--ink-muted);
 }
 
-.message-meta .message-speaker {
-  margin-bottom: 0;
+.message-speaker {
+  margin: 0;
+  font-weight: 600;
+}
+
+.message-meta-separator {
+  margin: 0;
+}
+
+.message-timestamp {
+  margin: 0;
+  font-size: inherit;
+  color: inherit;
 }
 
 .summary-message .message-meta {
   text-align: center;
+}
+
+.summary-message .message-meta-line {
+  justify-content: center;
 }
 
 .message-bubble {

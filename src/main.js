@@ -2201,6 +2201,21 @@ function getConversationModelId(conversation) {
   );
 }
 
+function getConversationModelDisplayName(conversation = getActiveConversation()) {
+  const modelId = getConversationModelId(conversation);
+  const model = MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId));
+  if (!model) {
+    return modelId || 'Model';
+  }
+  const displayName =
+    typeof model.displayName === 'string' && model.displayName.trim()
+      ? model.displayName.trim()
+      : typeof model.label === 'string' && model.label.trim()
+        ? model.label.trim()
+        : '';
+  return displayName || modelId || 'Model';
+}
+
 function assignConversationModelId(conversation, modelId) {
   if (!conversation) {
     return { changed: false, modelId: getAvailableModelId(modelId || DEFAULT_MODEL) };
@@ -2441,6 +2456,8 @@ const transcriptView = createTranscriptView({
   getModelVariantState,
   getUserVariantState,
   isAgentConversation,
+  getConversationModelDisplayName,
+  getAgentDisplayName,
   renderModelMarkdown,
   scheduleMathTypeset,
   shouldShowMathMlCopyAction: (content) => appState.renderMathMl && containsMathDelimiters(content),
