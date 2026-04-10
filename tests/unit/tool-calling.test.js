@@ -446,20 +446,20 @@ describe('tool-calling prompt builder', () => {
     expect(prompt).toBe('');
   });
 
-  test('adds a get_user_location example for the general json prompt template', () => {
+  test('adds a get_current_location example for the general json prompt template', () => {
     const prompt = buildToolCallingSystemPrompt(
       {
         format: 'json',
         nameKey: 'name',
         argumentsKey: 'parameters',
       },
-      ['get_user_location']
+      ['get_current_location']
     );
 
     expect(prompt).toContain(
-      '- get_user_location: Returns the user\'s location based on browser settings.'
+      '- get_current_location: Returns the user\'s current location based on browser settings.'
     );
-    expect(prompt).toContain('- Example: {"name":"get_user_location","parameters":{}}');
+    expect(prompt).toContain('- Example: {"name":"get_current_location","parameters":{}}');
     expect(prompt).not.toContain('**Tool behavior:**');
   });
 
@@ -1325,7 +1325,7 @@ describe('tool-calling prompt builder', () => {
 
   test('returns a friendly tool display name', () => {
     expect(getToolDisplayName('get_current_date_time')).toBe('Get Date and Time');
-    expect(getToolDisplayName('get_user_location')).toBe('Get User Location');
+    expect(getToolDisplayName('get_current_location')).toBe('Get Current Location');
     expect(getToolDisplayName('tasklist')).toBe('Task List Planner');
     expect(getToolDisplayName('web_lookup')).toBe('Web Lookup');
     expect(getToolDisplayName('write_python_file')).toBe('Write Python File');
@@ -1337,8 +1337,8 @@ describe('tool-calling prompt builder', () => {
     expect(getEnabledToolDefinitions()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: 'get_user_location',
-          displayName: 'Get User Location',
+          name: 'get_current_location',
+          displayName: 'Get Current Location',
         }),
         expect.objectContaining({
           name: 'tasklist',
@@ -1566,14 +1566,14 @@ describe('tool-calling prompt builder', () => {
 
   test('sniffs bare Gemma special-token tool calls without wrappers', () => {
     expect(
-      sniffToolCalls('call:get_user_location{}', {
+      sniffToolCalls('call:get_current_location{}', {
         format: 'gemma-special-token-call',
       })
     ).toEqual([
       {
-        name: 'get_user_location',
+        name: 'get_current_location',
         arguments: {},
-        rawText: 'call:get_user_location{}',
+        rawText: 'call:get_current_location{}',
         format: 'gemma-special-token-call',
       },
     ]);
@@ -1581,14 +1581,14 @@ describe('tool-calling prompt builder', () => {
 
   test('sniffs a leading bare Gemma tool call even with trailing prose', () => {
     expect(
-      sniffToolCalls('call:get_user_location{}\nI will answer after the tool result.', {
+      sniffToolCalls('call:get_current_location{}\nI will answer after the tool result.', {
         format: 'gemma-special-token-call',
       })
     ).toEqual([
       {
-        name: 'get_user_location',
+        name: 'get_current_location',
         arguments: {},
-        rawText: 'call:get_user_location{}',
+        rawText: 'call:get_current_location{}',
         format: 'gemma-special-token-call',
       },
     ]);
@@ -1793,10 +1793,10 @@ describe('tool-calling prompt builder', () => {
     });
   });
 
-  test('executes get_user_location with precise coordinates when geolocation succeeds', async () => {
+  test('executes get_current_location with precise coordinates when geolocation succeeds', async () => {
     const result = await executeToolCall(
       {
-        name: 'get_user_location',
+        name: 'get_current_location',
         arguments: {
           timeoutMs: 5000,
         },
@@ -1838,7 +1838,7 @@ describe('tool-calling prompt builder', () => {
       }
     );
 
-    expect(result.toolName).toBe('get_user_location');
+    expect(result.toolName).toBe('get_current_location');
     expect(result.result).toEqual({
       location: 'Milwaukee, Wisconsin, United States',
       coordinate: {
@@ -1857,7 +1857,7 @@ describe('tool-calling prompt builder', () => {
   test('falls back to an approximate location when geolocation permission is denied', async () => {
     const result = await executeToolCall(
       {
-        name: 'get_user_location',
+        name: 'get_current_location',
         arguments: {},
       },
       {
@@ -1875,7 +1875,7 @@ describe('tool-calling prompt builder', () => {
       }
     );
 
-    expect(result.toolName).toBe('get_user_location');
+    expect(result.toolName).toBe('get_current_location');
     expect(result.result.coordinate).toBeNull();
     expect(result.result.location).toEqual(expect.any(String));
     expect(result.result.location).toContain('US');
@@ -1887,7 +1887,7 @@ describe('tool-calling prompt builder', () => {
     const requestToolConsent = vi.fn(() => false);
     const result = await executeToolCall(
       {
-        name: 'get_user_location',
+        name: 'get_current_location',
         arguments: {},
       },
       {
@@ -1905,7 +1905,7 @@ describe('tool-calling prompt builder', () => {
 
     expect(requestToolConsent).toHaveBeenCalledWith(
       expect.objectContaining({
-        toolName: 'get_user_location',
+        toolName: 'get_current_location',
         scope: 'precise-location',
       })
     );
@@ -1918,7 +1918,7 @@ describe('tool-calling prompt builder', () => {
   test('keeps coordinates when reverse geocoding is unavailable', async () => {
     const result = await executeToolCall(
       {
-        name: 'get_user_location',
+        name: 'get_current_location',
         arguments: {},
       },
       {
@@ -1953,7 +1953,7 @@ describe('tool-calling prompt builder', () => {
   test('waits for the geolocation request outcome even without relying on the permissions api', async () => {
     const result = await executeToolCall(
       {
-        name: 'get_user_location',
+        name: 'get_current_location',
         arguments: {},
       },
       {

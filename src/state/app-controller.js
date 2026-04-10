@@ -59,7 +59,7 @@ function buildFailedToolResultText(toolCall, error) {
   if (toolName === 'get_current_date_time') {
     result.message =
       'Use this failure detail to continue without the date-and-time tool, or try again if the exact timestamp is still needed.';
-  } else if (toolName === 'get_user_location') {
+  } else if (toolName === 'get_current_location') {
     result.message =
       'Use this failure detail to continue without the location tool, or try again only if location is still necessary.';
   } else if (toolName === 'tasklist') {

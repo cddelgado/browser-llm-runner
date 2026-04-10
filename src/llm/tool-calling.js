@@ -29,10 +29,10 @@ export const TOOL_DEFINITIONS = Object.freeze([
     },
   },
   {
-    name: 'get_user_location',
-    displayName: 'Get User Location',
+    name: 'get_current_location',
+    displayName: 'Get Current Location',
     description:
-      "Returns the user's location label and coordinates, or a general location if permission unavailable.",
+      "Returns the user's current location label and coordinates, or a general location if permission unavailable.",
     enabled: true,
     parameters: {
       type: 'object',
@@ -227,7 +227,7 @@ function getStandardToolFollowUpMessage(toolName, { failed = false } = {}) {
     switch (normalizedToolName) {
       case 'get_current_date_time':
         return 'Use this failure detail to continue without the date-and-time tool, or try again if the exact timestamp is still needed.';
-      case 'get_user_location':
+      case 'get_current_location':
         return 'Use this failure detail to continue without the location tool, or try again only if location is still necessary.';
       case 'tasklist':
         return 'Use this planner error to adjust the next tasklist call or continue the task another way.';
@@ -244,7 +244,7 @@ function getStandardToolFollowUpMessage(toolName, { failed = false } = {}) {
   switch (normalizedToolName) {
     case 'get_current_date_time':
       return 'Present the time in a concise, useful way suitible for the conversation.';
-    case 'get_user_location':
+    case 'get_current_location':
       return "Present the user's reported location in a concise, useful way suitable for the conversation.";
     case 'tasklist':
       return 'Use this planner state to decide the next step and continue.';
@@ -661,8 +661,8 @@ function getPromptToolSummary(name, fallbackDescription = '') {
   switch (normalizedName) {
     case 'get_current_date_time':
       return 'Returns the current local date and time.';
-    case 'get_user_location':
-      return "Returns the user's location based on browser settings.";
+    case 'get_current_location':
+      return "Returns the user's current location based on browser settings.";
     case 'web_lookup':
       return 'Interact with the web.';
     case 'tasklist':
@@ -759,7 +759,7 @@ function buildJsonToolInstructionLines(
     case 'get_current_date_time':
       lines.push(`  - ${buildPromptToolExample(toolCallingConfig, name, {})}`);
       break;
-    case 'get_user_location':
+    case 'get_current_location':
       lines.push(`  - ${buildPromptToolExample(toolCallingConfig, name, {})}`);
       break;
     case 'web_lookup':
@@ -927,7 +927,7 @@ function buildToolInstructionLines(name, description = '') {
 function getToolInstructionNotes(name) {
   const normalizedName = typeof name === 'string' && name.trim() ? name.trim() : 'unknown_tool';
   const notes = [];
-  if (normalizedName === 'get_user_location') {
+  if (normalizedName === 'get_current_location') {
     notes.push({
       text: "Present the user's reported location concisely and only mention coordinates when they are relevant.",
       bulleted: false,
@@ -1743,7 +1743,7 @@ function buildDateTimeToolBody(result = {}) {
 
 function buildUserLocationToolBody(result = {}) {
   const lines = [
-    '## User location',
+    '## Current location',
     `- Location: ${typeof result.location === 'string' && result.location.trim() ? result.location.trim() : 'Unknown'}`,
   ];
   if (
@@ -2069,12 +2069,12 @@ function executeTaskList(argumentsValue = {}, runtimeContext = {}) {
 
 function getValidatedLocationArguments(argumentsValue = {}) {
   if (!argumentsValue || typeof argumentsValue !== 'object' || Array.isArray(argumentsValue)) {
-    throw new Error('get_user_location arguments must be an object.');
+    throw new Error('get_current_location arguments must be an object.');
   }
   const supportedKeys = new Set(['timeoutMs']);
   const unexpectedKeys = Object.keys(argumentsValue).filter((key) => !supportedKeys.has(key));
   if (unexpectedKeys.length) {
-    throw new Error(`get_user_location does not accept: ${unexpectedKeys.join(', ')}.`);
+    throw new Error(`get_current_location does not accept: ${unexpectedKeys.join(', ')}.`);
   }
   const locationArguments = /** @type {{timeoutMs?: unknown}} */ (argumentsValue);
   const timeoutCandidate = locationArguments.timeoutMs;
@@ -2089,7 +2089,7 @@ function getValidatedLocationArguments(argumentsValue = {}) {
     timeoutCandidate < 1000 ||
     timeoutCandidate > 30000
   ) {
-    throw new Error('get_user_location timeoutMs must be an integer between 1000 and 30000.');
+    throw new Error('get_current_location timeoutMs must be an integer between 1000 and 30000.');
   }
   return {
     timeoutMs: timeoutCandidate,
@@ -2231,7 +2231,7 @@ async function executeGetUserLocation(argumentsValue = {}, runtimeContext = {}) 
     runtimeContext.navigatorRef ||
     (typeof navigator !== 'undefined' && navigator ? navigator : null);
   const hasPreciseLocationConsent = await requestSensitiveToolConsent(
-    'get_user_location',
+    'get_current_location',
     runtimeContext,
     {
       scope: 'precise-location',
@@ -2483,12 +2483,12 @@ const TOOL_EXECUTORS = Object.freeze({
       stringifyToolEnvelope(buildDateTimeToolBody(result), '', 'get_current_date_time'),
     serializeError: (error) => buildFailedToolEnvelope(error, { toolName: 'get_current_date_time' }),
   },
-  get_user_location: {
+  get_current_location: {
     execute: (argumentsValue, runtimeContext) =>
       executeGetUserLocation(argumentsValue, runtimeContext),
     serializeResult: (result) =>
-      stringifyToolEnvelope(buildUserLocationToolBody(result), '', 'get_user_location'),
-    serializeError: (error) => buildFailedToolEnvelope(error, { toolName: 'get_user_location' }),
+      stringifyToolEnvelope(buildUserLocationToolBody(result), '', 'get_current_location'),
+    serializeError: (error) => buildFailedToolEnvelope(error, { toolName: 'get_current_location' }),
   },
   tasklist: {
     execute: (argumentsValue, runtimeContext) => executeTaskList(argumentsValue, runtimeContext),

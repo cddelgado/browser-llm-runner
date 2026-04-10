@@ -941,22 +941,22 @@ describe('app-controller', () => {
     harness.dependencies.detectToolCalls
       .mockReturnValueOnce([
         {
-          name: 'get_user_location',
+          name: 'get_current_location',
           arguments: {},
-          rawText: '{"name":"get_user_location","parameters":{}}',
+          rawText: '{"name":"get_current_location","parameters":{}}',
           format: 'json',
         },
       ])
       .mockReturnValueOnce([]);
     harness.dependencies.executeToolCall.mockResolvedValue({
-      toolName: 'get_user_location',
+      toolName: 'get_current_location',
       arguments: {},
       resultText: '{"location":"Milwaukee, Wisconsin, United States"}',
     });
 
     harness.engine.generate
       .mockImplementationOnce((_prompt, handlers) => {
-        handlers.onComplete('{"name":"get_user_location","parameters":{}}');
+        handlers.onComplete('{"name":"get_current_location","parameters":{}}');
       })
       .mockImplementationOnce((_prompt, handlers) => {
         handlers.onComplete('You are currently located in Milwaukee, Wisconsin, United States.');

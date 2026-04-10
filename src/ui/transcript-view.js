@@ -959,7 +959,7 @@ export function createTranscriptView(dependencies) {
     if (toolName === 'get_current_date_time') {
       return 'Checking date and time';
     }
-    if (toolName === 'get_user_location') {
+    if (toolName === 'get_current_location') {
       return 'Checking location';
     }
     if (toolName === 'run_shell_command') {

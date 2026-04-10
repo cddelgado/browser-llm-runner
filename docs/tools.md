@@ -87,9 +87,9 @@ Current MCP constraints:
 
 This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Development/browser-llm-runner/src/llm/tool-calling.js).
 
-### `get_user_location`
+### `get_current_location`
 
-- Display name: `Get User Location`
+- Display name: `Get Current Location`
 - Purpose: requests the browser's geolocation permission and waits for the browser prompt to be accepted, denied, or time out
 - First use awareness: before precise location is used for the first time in a browser, the app shows a one-time consent prompt explaining that the tool may use precise location, may reuse that location in later tool calls, and may send coordinates to OpenStreetMap Nominatim for reverse geocoding
 - Enrichment: when precise coordinates are available, the app also attempts reverse geocoding through OpenStreetMap Nominatim to return a human-readable location label
