@@ -150,6 +150,16 @@ export class LLMEngineClient {
       throw new Error('Generation is already in progress.');
     }
 
+    const requestRuntime = {
+      ...this.config.runtime,
+      ...(handlers.runtime && typeof handlers.runtime === 'object' ? handlers.runtime : {}),
+    };
+    if (this.#shouldReinitializeForRuntime(requestRuntime)) {
+      await this.initialize({
+        runtime: requestRuntime,
+      });
+    }
+
     const requestId = crypto.randomUUID();
     this.pendingGeneration = {
       requestId,
@@ -174,10 +184,7 @@ export class LLMEngineClient {
       payload: {
         requestId,
         prompt,
-        runtime: {
-          ...this.config.runtime,
-          ...(handlers.runtime && typeof handlers.runtime === 'object' ? handlers.runtime : {}),
-        },
+        runtime: requestRuntime,
         generationConfig: handlers.generationConfig || this.config.generationConfig,
       },
     });
@@ -505,6 +512,16 @@ export class LLMEngineClient {
       runtime: config?.runtime || {},
       generationConfig: config?.generationConfig || {},
     });
+  }
+
+  #shouldReinitializeForRuntime(nextRuntime) {
+    const currentRequiresMultimodal = this.#usesMultimodalExecution(this.config.runtime);
+    const nextRequiresMultimodal = this.#usesMultimodalExecution(nextRuntime);
+    return currentRequiresMultimodal !== nextRequiresMultimodal;
+  }
+
+  #usesMultimodalExecution(runtime) {
+    return runtime?.multimodalGeneration === true;
   }
 
   #shouldReplaceWorker({ modelId, engineType }) {

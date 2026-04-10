@@ -15,7 +15,7 @@ const WORKER_GENERATION_LIMITS = {
   defaultTopP: 0.9,
   defaultRepetitionPenalty: 1.0,
 };
-const WORKER_STREAM_UPDATE_INTERVAL_MS = 100;
+const WORKER_STREAM_UPDATE_INTERVAL_MS = 16;
 const WORKER_DEBUG_PREFIX = '[llm.worker]';
 const ENABLE_WORKER_DEBUG_CONSOLE_LOGS = false;
 const ENABLE_WORKER_WARN_CONSOLE_LOGS = false;

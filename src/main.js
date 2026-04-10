@@ -193,7 +193,7 @@ const WEBGPU_REQUIRED_MODEL_SUFFIX = ' (WebGPU required)';
 const FIX_RESPONSE_ORCHESTRATION = fixResponseOrchestration;
 const RENAME_CHAT_ORCHESTRATION = renameChatOrchestration;
 const CONVERSATION_SAVE_DEBOUNCE_MS = 300;
-const STREAM_UPDATE_INTERVAL_MS = 100;
+const STREAM_UPDATE_INTERVAL_MS = 16;
 const AGENT_FOLLOW_UP_INTERVAL_MS = 15 * 60 * 1000;
 const AGENT_FOLLOW_UP_BUSY_RETRY_MS = 30 * 1000;
 const AGENT_SUMMARY_TRIGGER_RATIO = 0.9;
@@ -1701,7 +1701,19 @@ function getConversationLanguageWarningText(modelId, languagePreference) {
   return `This app does not have published language support metadata for the selected model. ${selectedLanguage.name} may work, but cool and scary things can happen.`;
 }
 
-function buildConversationRuntimeConfig(conversation = null) {
+function promptContainsMultimodalInputs(prompt) {
+  if (!Array.isArray(prompt)) {
+    return false;
+  }
+  return prompt.some((message) => {
+    const contentParts = Array.isArray(message?.content) ? message.content : [];
+    return contentParts.some(
+      (part) => part?.type === 'image' || part?.type === 'audio' || part?.type === 'video'
+    );
+  });
+}
+
+function buildConversationRuntimeConfigForPrompt(conversation = null, prompt = null) {
   const modelId = conversation
     ? getConversationModelId(conversation)
     : normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
@@ -1709,11 +1721,15 @@ function buildConversationRuntimeConfig(conversation = null) {
   const runtime = model?.runtime || {};
   const features = model?.features || {};
   const inputLimits = model?.inputLimits || {};
-  const multimodalGeneration = runtime.multimodalGeneration === true;
+  const multimodalGeneration =
+    runtime.multimodalGeneration === true && promptContainsMultimodalInputs(prompt);
   const thinkingControl = model?.thinkingControl || null;
   const thinkingEnabled = getConversationThinkingEnabled(conversation);
+  const baseRuntime = { ...runtime };
+  delete baseRuntime.multimodalGeneration;
   return {
-    ...runtime,
+    ...baseRuntime,
+    ...(multimodalGeneration ? { multimodalGeneration: true } : {}),
     ...(multimodalGeneration && features.imageInput ? { imageInput: true } : {}),
     ...(multimodalGeneration && features.audioInput ? { audioInput: true } : {}),
     ...(multimodalGeneration && features.videoInput ? { videoInput: true } : {}),
@@ -3324,11 +3340,14 @@ function getThinkingTagsForModel(modelId) {
 }
 
 function getRuntimeConfigForModel(modelId) {
-  return buildConversationRuntimeConfig({
-    modelId: normalizeModelId(modelId),
-    languagePreference: appState.pendingConversationLanguagePreference,
-    thinkingEnabled: appState.pendingConversationThinkingEnabled,
-  });
+  return buildConversationRuntimeConfigForPrompt(
+    {
+      modelId: normalizeModelId(modelId),
+      languagePreference: appState.pendingConversationLanguagePreference,
+      thinkingEnabled: appState.pendingConversationThinkingEnabled,
+    },
+    null
+  );
 }
 
 const {
@@ -3751,7 +3770,8 @@ const appController = createAppController({
       workspaceFileSystem: getConversationWorkspaceFileSystem(),
     }),
   getSelectedModelId: () => modelSelect?.value || DEFAULT_MODEL,
-  getRuntimeConfigForConversation: (conversation) => buildConversationRuntimeConfig(conversation),
+  getRuntimeConfigForConversation: (conversation, prompt = null) =>
+    buildConversationRuntimeConfigForPrompt(conversation, prompt),
   isAgentConversation,
   addMessageToConversation,
   buildPromptForConversationLeaf: buildPromptForActiveConversation,

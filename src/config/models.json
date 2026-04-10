@@ -131,7 +131,7 @@
       "repositoryUrl": "https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX",
       "runtime": {
         "dtypes": {
-          "webgpu": "q4",
+          "webgpu": "q4f16",
           "cpu": "q4"
         },
         "multimodalGeneration": true,

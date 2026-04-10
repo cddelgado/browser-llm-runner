@@ -202,7 +202,7 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
       dtypes: {
-        webgpu: 'q4',
+        webgpu: 'q4f16',
         cpu: 'q4',
       },
       multimodalGeneration: true,

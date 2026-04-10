@@ -10,6 +10,7 @@ Student-facing browser chat UI with local model inference.
 - Clicking `Start a conversation` opens the chat workspace at `#/chat` with model selection, an empty composer, and no model load yet.
 - The selected model starts loading only after the first message is sent.
 - For multimodal models, the worker defers multimodal processor loading until the first generation request so image/audio preprocessing assets are not pulled in during initial model load.
+- Text-only chats on multimodal-capable models now initialize through the lighter text-generation path first; the worker reloads the multimodal sessions only when the prompt actually contains image or audio inputs.
 - Each conversation stores its own selected model.
 - Changing the model for the active conversation updates that conversation only.
 - Switching to a saved conversation with a different model keeps the current model loaded until the next send for that conversation.
@@ -240,7 +241,7 @@ Student-facing browser chat UI with local model inference.
   - Uses `<think>...</think>` reasoning tags and the app's XML tool-call format support.
 - `onnx-community/gemma-4-E2B-it-ONNX`
   - Uses the Transformers.js worker path in this app.
-  - Uses `q4` on WebGPU and `q4` on CPU, with external ONNX data loading.
+  - Uses `q4f16` on WebGPU and `q4` on CPU, with external ONNX data loading.
   - Enables multimodal generation for image and audio input in the current worker path.
   - Reuses the existing lazy multimodal processor load path so preprocessing assets are not pulled during initial model load.
   - Uses runtime `enable_thinking` and parses Gemma's `<|channel>...<channel|>` reasoning into the transcript thinking section.

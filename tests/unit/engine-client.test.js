@@ -207,6 +207,38 @@ describe('LLMEngineClient', () => {
     });
   });
 
+  test('reinitializes before generation when the request switches execution into multimodal mode', async () => {
+    const client = new LLMEngineClient();
+    await client.initialize({
+      modelId: 'example/model',
+      runtime: { multimodalGeneration: false },
+    });
+
+    await client.generate('prompt', {
+      runtime: { multimodalGeneration: true, imageInput: true, maxImageInputs: 1 },
+      onToken: () => {},
+      onComplete: () => {},
+      onError: () => {},
+    });
+
+    const initMessages = MockWorker.instances[0].messages.filter((message) => message.type === 'init');
+    expect(initMessages).toHaveLength(2);
+    expect(initMessages[1]?.payload?.runtime).toEqual({
+      multimodalGeneration: true,
+      imageInput: true,
+      maxImageInputs: 1,
+    });
+
+    const generateMessage = MockWorker.instances[0].messages.findLast(
+      (message) => message.type === 'generate'
+    );
+    expect(generateMessage?.payload?.runtime).toEqual({
+      multimodalGeneration: true,
+      imageInput: true,
+      maxImageInputs: 1,
+    });
+  });
+
   test('cancelGeneration sends a cancel request without reloading the worker', async () => {
     const client = new LLMEngineClient();
     await client.initialize({ modelId: 'example/model' });

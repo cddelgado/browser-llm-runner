@@ -95,7 +95,7 @@ function buildFailedToolResultText(toolCall, error) {
  *   detectToolCalls?: (rawText: string, modelId: string) => any[];
  *   executeToolCall?: (toolCall: any) => Promise<any>;
  *   getSelectedModelId: () => string;
- *   getRuntimeConfigForConversation?: (conversation: any) => any;
+ *   getRuntimeConfigForConversation?: (conversation: any, prompt?: any) => any;
  *   isAgentConversation?: (conversation: any) => boolean;
  *   addMessageToConversation: (conversation: any, role: string, text: string, options?: any) => any;
  *   buildPromptForConversationLeaf: (conversation: any, leafMessageId?: string) => any;
@@ -774,10 +774,10 @@ export function createAppController(dependencies) {
     dependencies.updateActionButtons();
 
     try {
-      dependencies.engine.generate(prompt, {
+      await dependencies.engine.generate(prompt, {
         runtime:
           typeof dependencies.getRuntimeConfigForConversation === 'function'
-            ? dependencies.getRuntimeConfigForConversation(activeConversation)
+            ? dependencies.getRuntimeConfigForConversation(activeConversation, prompt)
             : undefined,
         generationConfig: dependencies.state.activeGenerationConfig,
         onToken: (chunk) => {

@@ -385,7 +385,10 @@ describe('app-controller', () => {
       }
     );
 
-    expect(harness.dependencies.getRuntimeConfigForConversation).toHaveBeenCalledWith(conversation);
+    expect(harness.dependencies.getRuntimeConfigForConversation).toHaveBeenCalledWith(
+      conversation,
+      [{ role: 'user', content: 'Short answer please.' }]
+    );
     expect(harness.engine.generate.mock.calls[0][1]).toMatchObject({
       runtime: { enableThinking: false },
     });
