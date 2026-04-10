@@ -16,20 +16,23 @@ export function renderConversationListView({
     const item = documentRef.createElement('li');
     item.className = `conversation-item${conversation.id === activeConversationId ? ' is-active' : ''}`;
     item.dataset.conversationId = conversation.id;
-    item.dataset.conversationType =
-      conversation?.conversationType === 'agent' ? 'agent' : 'chat';
+    item.dataset.conversationType = conversation?.conversationType === 'agent' ? 'agent' : 'chat';
 
     const iconWrap = documentRef.createElement('span');
     iconWrap.className = 'conversation-item-icon';
     iconWrap.setAttribute('aria-hidden', 'true');
     iconWrap.innerHTML = `<i class="bi ${
-      conversation?.conversationType === 'agent' ? 'bi-person-fill' : 'bi-file-earmark'
+      conversation?.conversationType === 'agent' ? 'bi-person-fill' : 'bi-file-earmark-fill'
     }"></i>`;
+
+    const label = documentRef.createElement('span');
+    label.className = 'conversation-item-label';
+    label.textContent = conversation.name;
 
     const selectButton = documentRef.createElement('button');
     selectButton.type = 'button';
     selectButton.className = 'conversation-select';
-    selectButton.textContent = conversation.name;
+    selectButton.append(iconWrap, label);
     if (conversation.id === activeConversationId) {
       selectButton.setAttribute('aria-current', 'page');
     }
@@ -111,7 +114,7 @@ export function renderConversationListView({
     menu.append(editNameButton, editPromptButton, downloadGroup, deleteButton);
     menuWrap.append(menuToggle, menu);
 
-    item.append(iconWrap, selectButton, menuWrap);
+    item.append(selectButton, menuWrap);
     container.appendChild(item);
   });
 }

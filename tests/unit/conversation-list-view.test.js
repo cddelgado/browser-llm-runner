@@ -30,44 +30,55 @@ describe('conversation-list-view', () => {
     expect(
       container
         .querySelector('.conversation-item.is-active .conversation-select')
-        ?.getAttribute('aria-current'),
+        ?.getAttribute('aria-current')
     ).toBe('page');
-    expect(
-      container.querySelector('.conversation-menu-toggle')?.getAttribute('aria-label'),
-    ).toBe('Conversation options for First');
+    expect(container.querySelector('.conversation-menu-toggle')?.getAttribute('aria-label')).toBe(
+      'Conversation options for First'
+    );
     expect(
       container
         .querySelector('[data-conversation-id="conversation-1"] .conversation-edit-name')
-        ?.hasAttribute('disabled'),
+        ?.hasAttribute('disabled')
     ).toBe(true);
     expect(
-      container
-        .querySelector('[data-conversation-id="conversation-2"] .conversation-download-markdown')
-        ?.textContent,
+      container.querySelector(
+        '[data-conversation-id="conversation-2"] .conversation-download-markdown'
+      )?.textContent
     ).toBe('Markdown');
     expect(
       container
         .querySelector('[data-conversation-id="conversation-2"] .conversation-download-json')
-        ?.getAttribute('aria-keyshortcuts'),
+        ?.getAttribute('aria-keyshortcuts')
     ).toBe('Alt+Shift+J');
     expect(
       container.querySelector('[data-conversation-id="conversation-2"] .conversation-delete')
-        ?.textContent,
+        ?.textContent
     ).toBe('Delete');
     expect(
       container
-        .querySelector('[data-conversation-id="conversation-1"] .conversation-item-icon .bi')
-        ?.classList.contains('bi-file-earmark'),
+        .querySelector(
+          '[data-conversation-id="conversation-1"] .conversation-select .conversation-item-icon .bi'
+        )
+        ?.classList.contains('bi-file-earmark-fill')
     ).toBe(true);
     expect(
       container
-        .querySelector('[data-conversation-id="conversation-2"] .conversation-item-icon .bi')
-        ?.classList.contains('bi-person-fill'),
+        .querySelector(
+          '[data-conversation-id="conversation-2"] .conversation-select .conversation-item-icon .bi'
+        )
+        ?.classList.contains('bi-person-fill')
     ).toBe(true);
     expect(
-      container.querySelector('[data-conversation-id="conversation-2"]')?.getAttribute(
-        'data-conversation-type',
-      ),
+      container.querySelector('[data-conversation-id="conversation-1"] > .conversation-item-icon')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-conversation-id="conversation-1"] .conversation-item-label')
+        ?.textContent
+    ).toBe('First');
+    expect(
+      container
+        .querySelector('[data-conversation-id="conversation-2"]')
+        ?.getAttribute('data-conversation-type')
     ).toBe('agent');
   });
 });
