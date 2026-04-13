@@ -29,6 +29,7 @@ function createHarness() {
 
   const appState = {
     loadProgressFiles: new Map(),
+    loadProgressSequence: 0,
     maxObservedLoadPercent: 0,
   };
 
@@ -76,15 +77,56 @@ describe('model-load-feedback', () => {
     expect(harness.document.getElementById('modelLoadProgressLabel')?.textContent).toBe(
       'Downloading model...'
     );
-    expect(harness.document.getElementById('modelLoadProgressValue')?.textContent).toBe('0/1');
+    expect(harness.document.getElementById('modelLoadProgressValue')?.textContent).toBe(
+      '512 B / 2.0 KB'
+    );
     expect(harness.document.getElementById('modelLoadProgressSummary')?.textContent).toBe(
-      '0 of 1 model parts loaded'
+      '512 B of 2.0 KB downloaded across 1 file'
     );
     expect(harness.document.getElementById('modelLoadCurrentFileLabel')?.textContent).toBe(
       'mock-model.onnx'
     );
     expect(harness.document.getElementById('modelLoadCurrentFileValue')?.textContent).toBe(
       '512 B / 2.0 KB'
+    );
+    expect(harness.document.getElementById('modelLoadProgressBar')?.getAttribute('aria-valuetext')).toBe(
+      '512 B of 2.0 KB downloaded across 1 file'
+    );
+  });
+
+  test('weights the aggregate progress bar by total bytes across files', () => {
+    const harness = createHarness();
+
+    harness.controller.showProgressRegion(true);
+    harness.controller.setLoadProgress({
+      percent: 50,
+      message: 'Downloading model...',
+      file: 'models/first.onnx',
+      status: 'loading',
+      loadedBytes: 1024,
+      totalBytes: 2048,
+    });
+    harness.controller.setLoadProgress({
+      percent: 50,
+      message: 'Downloading model...',
+      file: 'models/second.onnx_data',
+      status: 'loading',
+      loadedBytes: 512,
+      totalBytes: 1024,
+    });
+
+    expect(harness.document.getElementById('modelLoadProgressValue')?.textContent).toBe(
+      '1.5 KB / 3.0 KB'
+    );
+    expect(harness.document.getElementById('modelLoadProgressSummary')?.textContent).toBe(
+      '1.5 KB of 3.0 KB downloaded across 2 files'
+    );
+    expect(harness.document.getElementById('modelLoadProgressBar')?.style.width).toBe('50%');
+    expect(harness.document.getElementById('modelLoadCurrentFileLabel')?.textContent).toBe(
+      'second.onnx_data'
+    );
+    expect(harness.document.getElementById('modelLoadCurrentFileValue')?.textContent).toBe(
+      '512 B / 1.0 KB'
     );
   });
 

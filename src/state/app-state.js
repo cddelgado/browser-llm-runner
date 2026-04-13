@@ -114,6 +114,7 @@ export function createAppState({
     currentWorkspaceView: 'home',
     ignoreNextHashChange: false,
     loadProgressFiles: new Map(),
+    loadProgressSequence: 0,
     maxObservedLoadPercent: 0,
     webGpuProbeCompleted: false,
     webGpuAdapterAvailable: false,
