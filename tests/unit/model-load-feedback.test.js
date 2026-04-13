@@ -83,6 +83,7 @@ describe('model-load-feedback', () => {
     expect(harness.document.getElementById('modelLoadProgressSummary')?.textContent).toBe(
       '512 B of 2.0 KB downloaded across 1 file'
     );
+    expect(harness.document.getElementById('modelLoadProgressBar')?.style.width).toBe('25%');
     expect(harness.document.getElementById('modelLoadCurrentFileLabel')?.textContent).toBe(
       'mock-model.onnx'
     );
@@ -90,11 +91,11 @@ describe('model-load-feedback', () => {
       '512 B / 2.0 KB'
     );
     expect(harness.document.getElementById('modelLoadProgressBar')?.getAttribute('aria-valuetext')).toBe(
-      '512 B of 2.0 KB downloaded across 1 file'
+      'mock-model.onnx: 512 B of 2.0 KB downloaded'
     );
   });
 
-  test('weights the aggregate progress bar by total bytes across files', () => {
+  test('keeps aggregate bytes in the summary while the visible bar follows the latest file', () => {
     const harness = createHarness();
 
     harness.controller.showProgressRegion(true);
@@ -116,17 +117,53 @@ describe('model-load-feedback', () => {
     });
 
     expect(harness.document.getElementById('modelLoadProgressValue')?.textContent).toBe(
-      '1.5 KB / 3.0 KB'
+      '512 B / 1.0 KB'
     );
     expect(harness.document.getElementById('modelLoadProgressSummary')?.textContent).toBe(
       '1.5 KB of 3.0 KB downloaded across 2 files'
     );
     expect(harness.document.getElementById('modelLoadProgressBar')?.style.width).toBe('50%');
+    expect(harness.document.getElementById('modelLoadProgressBar')?.getAttribute('aria-valuetext')).toBe(
+      'second.onnx_data: 512 B of 1.0 KB downloaded'
+    );
     expect(harness.document.getElementById('modelLoadCurrentFileLabel')?.textContent).toBe(
       'second.onnx_data'
     );
     expect(harness.document.getElementById('modelLoadCurrentFileValue')?.textContent).toBe(
       '512 B / 1.0 KB'
+    );
+  });
+
+  test('resets the visible progress bar when a new file starts downloading', () => {
+    const harness = createHarness();
+
+    harness.controller.showProgressRegion(true);
+    harness.controller.setLoadProgress({
+      percent: 100,
+      message: 'Downloading model...',
+      file: 'models/first.onnx',
+      status: 'loaded',
+      loadedBytes: 2048,
+      totalBytes: 2048,
+    });
+    harness.controller.setLoadProgress({
+      percent: 0,
+      message: 'Downloading model...',
+      file: 'models/second.onnx_data',
+      status: 'loading',
+      loadedBytes: 0,
+      totalBytes: 1024,
+    });
+
+    expect(harness.document.getElementById('modelLoadProgressBar')?.style.width).toBe('0%');
+    expect(harness.document.getElementById('modelLoadProgressValue')?.textContent).toBe(
+      '0 B / 1.0 KB'
+    );
+    expect(harness.document.getElementById('modelLoadProgressBar')?.getAttribute('aria-valuetext')).toBe(
+      'second.onnx_data: 0 B of 1.0 KB downloaded'
+    );
+    expect(harness.document.getElementById('modelLoadProgressSummary')?.textContent).toBe(
+      '2.0 KB of 3.0 KB downloaded across 2 files'
     );
   });
 

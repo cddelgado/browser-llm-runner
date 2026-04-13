@@ -38,6 +38,37 @@ export function createModelLoadFeedbackController({
     return `Preparing ${totalCount} model ${getTrackedFileNoun(totalCount)}...`;
   }
 
+  function getLatestTrackedEntry(entries) {
+    return [...entries].sort((a, b) => b.updatedAt - a.updatedAt)[0] || null;
+  }
+
+  function getCurrentFileValueText(entry) {
+    if (!entry) {
+      return 'Waiting...';
+    }
+    if (entry.hasKnownTotal && entry.totalBytes > 0) {
+      return `${formatBytes(entry.loadedBytes)} / ${formatBytes(entry.totalBytes)}`;
+    }
+    if (entry.loadedBytes > 0) {
+      return `${formatBytes(entry.loadedBytes)} downloaded`;
+    }
+    return 'Downloading...';
+  }
+
+  function getCurrentFileAriaText(entry, fallbackMessage = 'Loading model files...') {
+    if (!entry) {
+      return fallbackMessage;
+    }
+    const label = entry.label || 'Current file';
+    if (entry.hasKnownTotal && entry.totalBytes > 0) {
+      return `${label}: ${formatBytes(entry.loadedBytes)} of ${formatBytes(entry.totalBytes)} downloaded`;
+    }
+    if (entry.loadedBytes > 0) {
+      return `${label}: ${formatBytes(entry.loadedBytes)} downloaded`;
+    }
+    return `${label}: downloading`;
+  }
+
   function getLoadProgressStats() {
     const entries = [...appState.loadProgressFiles.values()];
     const totalLoadedBytes = entries.reduce((total, entry) => {
@@ -186,20 +217,8 @@ export function createModelLoadFeedbackController({
       return;
     }
     const { entries, totalCount, totalLoadedBytes, totalBytes } = getLoadProgressStats();
-    const sortedEntries = [...entries].sort((a, b) => b.updatedAt - a.updatedAt);
-    const latestEntry = sortedEntries[0] || null;
-    const hasAggregateTotal = totalBytes > 0;
+    const latestEntry = getLatestTrackedEntry(entries);
     const summaryText = getAggregateLoadSummary(totalCount, totalLoadedBytes, totalBytes);
-    if (modelLoadProgressValue) {
-      modelLoadProgressValue.textContent = hasAggregateTotal
-        ? `${formatBytes(totalLoadedBytes)} / ${formatBytes(totalBytes)}`
-        : totalLoadedBytes > 0
-          ? formatBytes(totalLoadedBytes)
-          : '0 B';
-    }
-    if (modelLoadProgressBar) {
-      modelLoadProgressBar.setAttribute('aria-valuetext', summaryText);
-    }
     if (modelLoadProgressSummary) {
       modelLoadProgressSummary.textContent = summaryText;
     }
@@ -218,13 +237,7 @@ export function createModelLoadFeedbackController({
       modelLoadCurrentFileLabel.textContent = latestEntry.label || 'Current file';
     }
     if (modelLoadCurrentFileValue) {
-      if (latestEntry.hasKnownTotal && latestEntry.totalBytes > 0) {
-        modelLoadCurrentFileValue.textContent = `${formatBytes(latestEntry.loadedBytes)} / ${formatBytes(latestEntry.totalBytes)}`;
-      } else if (latestEntry.loadedBytes > 0) {
-        modelLoadCurrentFileValue.textContent = `${formatBytes(latestEntry.loadedBytes)} downloaded`;
-      } else {
-        modelLoadCurrentFileValue.textContent = 'Downloading...';
-      }
+      modelLoadCurrentFileValue.textContent = getCurrentFileValueText(latestEntry);
     }
     setCurrentFileProgressBar({
       percent: latestEntry.percent,
@@ -307,21 +320,22 @@ export function createModelLoadFeedbackController({
       modelLoadProgressLabel.textContent = message;
     }
     trackLoadFileProgress(file, normalizedPercent, status || message, loadedBytes, totalBytes);
-    const { totalCount, totalLoadedBytes, totalBytes: aggregateTotalBytes } = getLoadProgressStats();
-    const hasAggregateTotal = aggregateTotalBytes > 0;
-    const aggregatePercent =
-      hasAggregateTotal && totalLoadedBytes > 0
-        ? Math.max(0, Math.min(100, (totalLoadedBytes / aggregateTotalBytes) * 100))
-        : 0;
-    const displayPercent = hasAggregateTotal && totalLoadedBytes > 0
-      ? aggregatePercent
-      : Math.max(appState.maxObservedLoadPercent, normalizedPercent);
+    const { entries } = getLoadProgressStats();
+    const latestEntry = getLatestTrackedEntry(entries);
+    const displayPercent = latestEntry ? latestEntry.percent : normalizedPercent;
     appState.maxObservedLoadPercent = displayPercent;
+    if (modelLoadProgressValue) {
+      modelLoadProgressValue.textContent = latestEntry
+        ? getCurrentFileValueText(latestEntry)
+        : `${Math.round(displayPercent)}%`;
+    }
     if (modelLoadProgressBar) {
       modelLoadProgressBar.style.width = `${displayPercent}%`;
       modelLoadProgressBar.setAttribute('aria-valuenow', `${Math.round(displayPercent)}`);
-      const summaryText = getAggregateLoadSummary(totalCount, totalLoadedBytes, aggregateTotalBytes);
-      modelLoadProgressBar.setAttribute('aria-valuetext', summaryText);
+      modelLoadProgressBar.setAttribute(
+        'aria-valuetext',
+        getCurrentFileAriaText(latestEntry, message)
+      );
       modelLoadProgressBar.classList.toggle('progress-bar-animated', displayPercent < 100);
     }
   }
