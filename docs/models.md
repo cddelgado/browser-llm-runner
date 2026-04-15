@@ -257,7 +257,7 @@ Current models in Settings:
 
 - `onnx-community/gemma-4-E2B-it-ONNX` (default)
   - Uses the `transformers-js` engine.
-  - Uses runtime dtypes `{ webgpu: q4f16, cpu: q4 }`, `multimodalGeneration: true`, and `useExternalDataFormat: true`.
+  - Uses runtime dtypes `{ webgpu: q4f16, cpu: q4f16 }`, `multimodalGeneration: true`, and `useExternalDataFormat: true`.
   - Uses `thinkingControl` with runtime `enable_thinking`.
   - Uses Gemma's channel-style thought markers via `thinkingTags { open: "<|channel>", close: "<channel|>", stripLeadingText: "thought" }`.
   - Uses the Gemma special-token tool-call format.
@@ -292,7 +292,7 @@ Notes:
 
 Per-model limits and defaults:
 
-- `onnx-community/gemma-4-E2B-it-ONNX`: engine `transformers-js`, runtime dtypes `{ webgpu: q4f16, cpu: q4 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, `inputLimits.maxImageInputs: 1`, `inputLimits.maxAudioInputs: 1`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, `imageInput`, and `audioInput`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
+- `onnx-community/gemma-4-E2B-it-ONNX`: engine `transformers-js`, runtime dtypes `{ webgpu: q4f16, cpu: q4f16 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, `inputLimits.maxImageInputs: 1`, `inputLimits.maxAudioInputs: 1`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, `imageInput`, and `audioInput`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: runtime dtypes `{ webgpu: q4f16, cpu: q4 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"shell":"..."}` inside `parameters`, no thinking tags
 - `Llama 3.2 3B` keeps the browser-oriented `onnx-web` repo id as its canonical model in this app. The full ONNX repo remains a legacy alias because its browser load path was not reliable here: the `int8` package could fail with `Array buffer allocation failed`, and the `q4` package could fail to preload required `.onnx_data` shards.
 - The remaining listed Llama entry enables `useExternalDataFormat: true` for `.onnx_data` loading.

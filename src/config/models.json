@@ -24,7 +24,7 @@
       "runtime": {
         "dtypes": {
           "webgpu": "q4f16",
-          "cpu": "q4"
+          "cpu": "q4f16"
         },
         "multimodalGeneration": true,
         "useExternalDataFormat": true

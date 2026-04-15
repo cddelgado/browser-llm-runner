@@ -168,8 +168,8 @@ describe('llm.worker init regression', () => {
             backendPreference: 'webgpu',
             runtime: {
               dtypes: {
-                webgpu: 'q4',
-                cpu: 'q4',
+                webgpu: 'q4f16',
+                cpu: 'q4f16',
               },
               multimodalGeneration: true,
               useExternalDataFormat: true,
@@ -184,7 +184,7 @@ describe('llm.worker init regression', () => {
       'onnx-community/gemma-4-E2B-it-ONNX',
       expect.objectContaining({
         device: 'wasm',
-        dtype: 'q4',
+        dtype: 'q4f16',
         use_external_data_format: true,
       })
     );
@@ -378,7 +378,7 @@ describe('llm.worker init regression', () => {
             backendPreference: 'cpu',
             runtime: {
               dtypes: {
-                cpu: 'q4',
+                cpu: 'q4f16',
               },
             },
           },

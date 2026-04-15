@@ -96,7 +96,7 @@ describe('model-settings availability', () => {
     ).toBe('q4');
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime, 'cpu')
-    ).toBe('q4');
+    ).toBe('q4f16');
   });
 
   test('maps the temporary llama 3.2 3B full ONNX repo id back to the browser repo id', () => {
@@ -144,7 +144,7 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
       dtypes: {
         webgpu: 'q4f16',
-        cpu: 'q4',
+        cpu: 'q4f16',
       },
       multimodalGeneration: true,
       useExternalDataFormat: true,

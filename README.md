@@ -238,7 +238,7 @@ Student-facing browser chat UI with local model inference.
 
 - `onnx-community/gemma-4-E2B-it-ONNX` (default)
   - Uses the Transformers.js worker path in this app.
-  - Uses `q4f16` on WebGPU and `q4` on CPU, with external ONNX data loading.
+  - Uses `q4f16` on WebGPU and CPU, with external ONNX data loading.
   - Enables multimodal generation for image and audio input in the current worker path.
   - Reuses the existing lazy multimodal processor load path so preprocessing assets are not pulled during initial model load.
   - Uses runtime `enable_thinking` and parses Gemma's `<|channel>...<channel|>` reasoning into the transcript thinking section.

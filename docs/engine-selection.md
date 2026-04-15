@@ -24,7 +24,7 @@ Inference is selected through the engine client boundary and executes through a 
   - `onnx.wasm.numThreads = 0` by default, or the user-selected value from `Settings -> System -> Transformers.js CPU threads`
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` runs through the `transformers-js` worker with `q4f16` on WebGPU and `q4` on CPU.
-- `onnx-community/gemma-4-E2B-it-ONNX` now runs through the `transformers-js` worker with `q4f16` on WebGPU and `q4` on CPU.
+- `onnx-community/gemma-4-E2B-it-ONNX` now runs through the `transformers-js` worker with `q4f16` on WebGPU and CPU.
 - Models with `multimodalGeneration: true` can still initialize through the text-generation path when the current prompt contains no image/audio/video inputs; the worker reinitializes into the processor/model path only when media is actually present.
 - For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests, so multimodal preprocessing assets are not fetched during initial model load.
 - ONNX models may provide mode-specific runtime hints such as `runtime.dtypes.webgpu` and `runtime.dtypes.cpu`.
