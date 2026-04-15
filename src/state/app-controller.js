@@ -38,13 +38,33 @@ function isFatalGenerationMemoryError(message) {
   );
 }
 
+function isFatalWebGpuDeviceLostError(message, backendLabel = '') {
+  const normalizedMessage = String(message || '');
+  const normalizedBackendLabel =
+    typeof backendLabel === 'string' ? backendLabel.trim().toLowerCase() : '';
+  const referencesWebGpuRuntime =
+    normalizedBackendLabel === 'webgpu' ||
+    /\bwebgpu\b/i.test(normalizedMessage) ||
+    /\bwgpu::/i.test(normalizedMessage) ||
+    /\bGPUBuffer\b/i.test(normalizedMessage) ||
+    /\bmapAsync\b/i.test(normalizedMessage);
+  return (
+    referencesWebGpuRuntime &&
+    /\bdevice\b(?:[^\n.]{0,40}\b)?lost\b/i.test(normalizedMessage)
+  );
+}
+
 function formatGenerationFailureMessage(rawMessage, backendLabel = '') {
   const normalizedMessage = toErrorMessage(rawMessage);
+  const normalizedBackendLabel =
+    typeof backendLabel === 'string' && backendLabel.trim() ? backendLabel.trim().toUpperCase() : '';
+  if (isFatalWebGpuDeviceLostError(normalizedMessage, backendLabel)) {
+    const backendText = normalizedBackendLabel ? ` on ${normalizedBackendLabel}` : ' on WEBGPU';
+    return `WebGPU lost the active graphics device during generation${backendText}. The model was unloaded so the next request can recover cleanly. Retry the prompt, switch to CPU mode, or reload the page if this keeps happening. (${normalizedMessage})`;
+  }
   if (!isFatalGenerationMemoryError(normalizedMessage)) {
     return normalizedMessage;
   }
-  const normalizedBackendLabel =
-    typeof backendLabel === 'string' && backendLabel.trim() ? backendLabel.trim().toUpperCase() : '';
   const backendText = normalizedBackendLabel ? ` on ${normalizedBackendLabel}` : '';
   return `Browser memory was exhausted during generation${backendText}. Lower Context size, choose a smaller model, or use WebGPU if available. (${normalizedMessage})`;
 }
@@ -177,6 +197,8 @@ export function createAppController(dependencies) {
   ) {
     const message = formatGenerationFailureMessage(rawMessage, getLoadedBackendLabel());
     const isFatalMemoryError = isFatalGenerationMemoryError(rawMessage);
+    const isFatalWebGpuError = isFatalWebGpuDeviceLostError(rawMessage, getLoadedBackendLabel());
+    const shouldDisposeEngine = isFatalMemoryError || isFatalWebGpuError;
     modelMessage.text = `Generation error: ${message}`;
     modelMessage.response = modelMessage.text;
     modelMessage.thoughts = '';
@@ -191,7 +213,7 @@ export function createAppController(dependencies) {
     if (updateLastSpokenOnComplete) {
       activeConversation.lastSpokenLeafMessageId = modelMessage.id;
     }
-    if (isFatalMemoryError) {
+    if (shouldDisposeEngine) {
       dependencies.engine.dispose();
       setModelReady(dependencies.state, false);
     }
@@ -201,12 +223,16 @@ export function createAppController(dependencies) {
     dependencies.setStatus(
       isFatalMemoryError
         ? 'Generation failed. Model unloaded after running out of memory.'
+        : isFatalWebGpuError
+          ? 'Generation failed. Model unloaded after WebGPU device loss. Retry or switch to CPU.'
         : 'Generation failed'
     );
     logVisibleTurnRawOutputIfNeeded(modelMessage, visibleModelTurnMessage);
     dependencies.appendDebug(`Generation error: ${message}`);
     if (isFatalMemoryError) {
       dependencies.appendDebug('Disposed current model worker after fatal generation error.');
+    } else if (isFatalWebGpuError) {
+      dependencies.appendDebug('Disposed current model worker after WebGPU device loss.');
     }
     dependencies.queueConversationStateSave();
     notifyGenerationSettled();

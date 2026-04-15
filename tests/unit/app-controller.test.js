@@ -198,6 +198,48 @@ describe('app-controller', () => {
     );
   });
 
+  test('unloads the current model after a WebGPU device-loss generation error', () => {
+    const harness = createControllerHarness();
+    const conversation = createConversation({ id: 'conversation-1', modelId: 'test-model' });
+    const userMessage = addMessageToConversation(conversation, 'user', 'Explain WebGPU issues.');
+    harness.conversations.push(conversation);
+    harness.activeConversationId.value = conversation.id;
+    harness.state.modelReady = true;
+    harness.engine.loadedBackend = 'webgpu';
+
+    harness.engine.generate.mockImplementation((_prompt, handlers) => {
+      handlers.onError(
+        "failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: /onnxruntime/core/providers/webgpu/buffer_manager.cc:543 status == wgpu::MapAsyncStatus::Success was false. Failed to download data from buffer: Failed to execute 'mapAsync' on 'GPUBuffer': [Device] is lost."
+      );
+    });
+
+    harness.controller.startModelGeneration(
+      conversation,
+      buildPromptForConversationLeaf(conversation),
+      {
+        parentMessageId: userMessage.id,
+      }
+    );
+
+    const modelMessage = conversation.messageNodes.find((message) => message.role === 'model');
+    expect(modelMessage?.text).toContain(
+      'WebGPU lost the active graphics device during generation on WEBGPU.'
+    );
+    expect(modelMessage?.text).toContain(
+      'Retry the prompt, switch to CPU mode, or reload the page if this keeps happening.'
+    );
+    expect(modelMessage?.isResponseComplete).toBe(true);
+    expect(harness.engine.dispose).toHaveBeenCalledTimes(1);
+    expect(harness.state.modelReady).toBe(false);
+    expect(harness.state.isGenerating).toBe(false);
+    expect(harness.callLog).toContain(
+      'status:Generation failed. Model unloaded after WebGPU device loss. Retry or switch to CPU.'
+    );
+    expect(harness.callLog).toContain(
+      'debug:Disposed current model worker after WebGPU device loss.'
+    );
+  });
+
   test('runs rename orchestration through the controller and updates the conversation', async () => {
     const harness = createControllerHarness();
     const conversation = createConversation({ id: 'conversation-1', name: 'New Conversation' });

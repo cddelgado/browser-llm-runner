@@ -76,6 +76,8 @@ Student-facing browser chat UI with local model inference.
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
 - CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and now lets `Settings -> System -> Transformers.js CPU threads` control `onnx.wasm.numThreads` (`0` keeps ORT auto).
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
+- If WebGPU loses the active graphics device before any response tokens are shown, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that generation automatically.
+- If that automatic CPU retry is not possible or still fails, the app unloads the current worker, marks the model as not ready, and tells the user to retry, switch to CPU mode, or reload the page if the browser/driver keeps dropping the device.
 - The bundled ONNX Gemma 4 E2B entry runs through the Transformers.js worker path on both WebGPU and CPU.
 - The bundled LiteRT runtime in this app does not currently expose a matching CPU-thread setting, so the System-tab thread control applies only to the Transformers.js/ONNX path.
 - Token controls in Settings:

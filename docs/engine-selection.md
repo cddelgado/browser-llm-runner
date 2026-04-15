@@ -37,6 +37,8 @@ If a backend change makes the current model unavailable, the UI switches to the 
 Generation settings (`maximum output tokens`, `maximum context size`, `temperature`, `top k`, `top p`) apply immediately when idle, or after the current generation completes.
 On the Transformers.js path, `maximum context size` is enforced as a prompt-token budget by left-truncating the oldest prompt tokens before generation, and `maximum output tokens` is passed separately as the generation cap.
 If a generation request stops emitting worker activity for 90 seconds, the main-thread engine client terminates that worker and returns a recoverable timeout so the next request can reinitialize cleanly.
+If WebGPU loses the active device before any response tokens have streamed, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that request automatically.
+If that automatic CPU retry is unavailable or still fails, the controller unloads the current worker, marks the model as not ready, and surfaces recovery guidance to retry, switch to CPU, or reload the page if the browser/driver keeps dropping the device.
 
 ## UI boundary
 

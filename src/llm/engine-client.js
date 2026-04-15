@@ -5,6 +5,34 @@ const GENERATION_INACTIVITY_TIMEOUT_MS = 90000;
 const ENABLE_ENGINE_DEBUG_CONSOLE_LOGS = false;
 const ENABLE_ENGINE_WARN_CONSOLE_LOGS = false;
 
+function toErrorMessage(value) {
+  if (value instanceof Error) {
+    return value.message;
+  }
+  return String(value || 'Unknown error');
+}
+
+function isWebGpuDeviceLostGenerationError(
+  message,
+  { backend = '', backendDevice = '' } = {}
+) {
+  const normalizedMessage = String(message || '');
+  const normalizedBackend = typeof backend === 'string' ? backend.trim().toLowerCase() : '';
+  const normalizedBackendDevice =
+    typeof backendDevice === 'string' ? backendDevice.trim().toLowerCase() : '';
+  const referencesWebGpuRuntime =
+    normalizedBackend === 'webgpu' ||
+    normalizedBackendDevice === 'webgpu' ||
+    /\bwebgpu\b/i.test(normalizedMessage) ||
+    /\bwgpu::/i.test(normalizedMessage) ||
+    /\bGPUBuffer\b/i.test(normalizedMessage) ||
+    /\bmapAsync\b/i.test(normalizedMessage);
+  return (
+    referencesWebGpuRuntime &&
+    /\bdevice\b(?:[^\n.]{0,40}\b)?lost\b/i.test(normalizedMessage)
+  );
+}
+
 function logEngineDebug(event, details = undefined) {
   if (!ENABLE_ENGINE_DEBUG_CONSOLE_LOGS) {
     return;
@@ -161,12 +189,18 @@ export class LLMEngineClient {
     }
 
     const requestId = crypto.randomUUID();
+    const requestGenerationConfig = handlers.generationConfig || this.config.generationConfig;
     this.pendingGeneration = {
       requestId,
+      prompt,
+      runtime: requestRuntime,
+      generationConfig: requestGenerationConfig,
       onToken: handlers.onToken,
       onComplete: handlers.onComplete,
       onError: handlers.onError,
       onCancel: handlers.onCancel,
+      receivedAnyTokens: false,
+      attemptedCpuRecovery: false,
     };
     logEngineDebug('generate-request', {
       requestId,
@@ -180,13 +214,7 @@ export class LLMEngineClient {
     this.#armGenerationWatchdog({ announce: true });
 
     this.worker.postMessage({
-      type: 'generate',
-      payload: {
-        requestId,
-        prompt,
-        runtime: requestRuntime,
-        generationConfig: handlers.generationConfig || this.config.generationConfig,
-      },
+      ...this.#buildGenerateMessage(this.pendingGeneration),
     });
   }
 
@@ -363,6 +391,7 @@ export class LLMEngineClient {
 
     if (data.type === 'token') {
       this.#touchGenerationWatchdog();
+      this.pendingGeneration.receivedAnyTokens = true;
       this.pendingGeneration.onToken(data.payload.text);
       return;
     }
@@ -389,10 +418,13 @@ export class LLMEngineClient {
         if (typeof this.#pendingCancelReject === 'function') {
           this.#pendingCancelReject(new Error(data.payload.message));
         }
+        this.pendingGeneration = null;
+      } else if (this.#shouldAttemptCpuRecovery(data.payload?.message)) {
+        void this.#retryGenerationOnCpuAfterWebGpuFailure(data.payload?.message || '');
       } else {
         this.pendingGeneration.onError(data.payload.message);
+        this.pendingGeneration = null;
       }
-      this.pendingGeneration = null;
     }
   }
 
@@ -502,6 +534,93 @@ export class LLMEngineClient {
       clearTimeout(this.#generationWatchdogTimeout);
     }
     this.#generationWatchdogTimeout = null;
+  }
+
+  #buildGenerateMessage(pendingGeneration) {
+    return {
+      type: 'generate',
+      payload: {
+        requestId: pendingGeneration.requestId,
+        prompt: pendingGeneration.prompt,
+        runtime: pendingGeneration.runtime,
+        generationConfig: pendingGeneration.generationConfig,
+      },
+    };
+  }
+
+  #shouldAttemptCpuRecovery(message) {
+    if (!this.pendingGeneration) {
+      return false;
+    }
+    if (this.pendingGeneration.attemptedCpuRecovery || this.pendingGeneration.receivedAnyTokens) {
+      return false;
+    }
+    if (this.pendingGeneration.requestId === this.pendingCancelRequestId) {
+      return false;
+    }
+    if (
+      this.config?.runtime?.requiresWebGpu === true ||
+      this.pendingGeneration.runtime?.requiresWebGpu === true
+    ) {
+      return false;
+    }
+    return isWebGpuDeviceLostGenerationError(message, {
+      backend: this.loadedBackend,
+      backendDevice: this.loadedBackendDevice,
+    });
+  }
+
+  async #retryGenerationOnCpuAfterWebGpuFailure(originalMessage) {
+    const pendingGeneration = this.pendingGeneration;
+    if (!pendingGeneration) {
+      return;
+    }
+    pendingGeneration.attemptedCpuRecovery = true;
+    logEngineWarn('generate-webgpu-device-lost-retry-cpu', {
+      requestId: pendingGeneration.requestId,
+      loadedModelId: this.loadedModelId,
+      loadedBackend: this.loadedBackend,
+      loadedBackendDevice: this.loadedBackendDevice,
+      message: originalMessage,
+    });
+    this.onStatus('WebGPU device lost. Retrying on CPU...');
+    this.#discardWorkerForRecovery();
+    try {
+      await this.initialize({
+        modelId: this.config.modelId,
+        engineType: this.config.engineType,
+        backendPreference: 'cpu',
+        runtime: pendingGeneration.runtime,
+        generationConfig: pendingGeneration.generationConfig,
+      });
+      if (this.pendingGeneration !== pendingGeneration || !this.worker) {
+        return;
+      }
+      this.#armGenerationWatchdog({ announce: true });
+      this.worker.postMessage(this.#buildGenerateMessage(pendingGeneration));
+    } catch (error) {
+      if (this.pendingGeneration !== pendingGeneration) {
+        return;
+      }
+      const recoveryMessage = `WebGPU device lost and automatic CPU recovery failed. Original error: ${originalMessage} Retry error: ${toErrorMessage(error)}`;
+      pendingGeneration.onError(recoveryMessage);
+      this.pendingGeneration = null;
+    }
+  }
+
+  #discardWorkerForRecovery() {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    this.pendingInit = null;
+    this.pendingInitConfigKey = '';
+    this.loadedModelId = null;
+    this.loadedBackend = null;
+    this.loadedBackendDevice = null;
+    this.loadedEngineType = null;
+    this.engineDescriptor = null;
+    this.#clearPendingInitState();
   }
 
   #getInitConfigKey(config) {

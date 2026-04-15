@@ -4,6 +4,8 @@ import { LLMEngineClient } from '../../src/llm/engine-client.js';
 class MockWorker {
   static instances = [];
   static generateMode = 'complete';
+  static generateModes = [];
+  static initResponses = [];
 
   constructor() {
     this.listeners = new Map();
@@ -30,24 +32,40 @@ class MockWorker {
     this.messages.push(message);
 
     if (message.type === 'init') {
+      const nextInitResponse =
+        MockWorker.initResponses.shift() || {
+          backend: 'cpu',
+          backendDevice: 'wasm',
+          modelId: message.payload?.modelId || 'test-model',
+        };
       queueMicrotask(() => {
         this.#emit('message', {
           type: 'init-success',
-          payload: {
-            backend: 'cpu',
-            backendDevice: 'wasm',
-            modelId: message.payload?.modelId || 'test-model',
-          },
+          payload: nextInitResponse,
         });
       });
       return;
     }
 
     if (message.type === 'generate') {
-      if (MockWorker.generateMode === 'stall') {
+      const currentGenerateMode = MockWorker.generateModes.shift() || MockWorker.generateMode;
+      if (currentGenerateMode === 'stall') {
         return;
       }
       const requestId = message.payload.requestId;
+      if (currentGenerateMode === 'deviceLost') {
+        queueMicrotask(() => {
+          this.#emit('message', {
+            type: 'error',
+            payload: {
+              requestId,
+              message:
+                "failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: /onnxruntime/core/providers/webgpu/buffer_manager.cc:543 status == wgpu::MapAsyncStatus::Success was false. Failed to download data from buffer: Failed to execute 'mapAsync' on 'GPUBuffer': [Device] is lost.",
+            },
+          });
+        });
+        return;
+      }
       queueMicrotask(() => {
         this.#emit('message', {
           type: 'token',
@@ -110,6 +128,8 @@ describe('LLMEngineClient', () => {
     originalWorker = globalThis.Worker;
     MockWorker.instances = [];
     MockWorker.generateMode = 'complete';
+    MockWorker.generateModes = [];
+    MockWorker.initResponses = [];
     globalThis.Worker = /** @type {any} */ (MockWorker);
   });
 
@@ -171,6 +191,50 @@ describe('LLMEngineClient', () => {
     expect(onToken).toHaveBeenCalledWith('Hello ');
     expect(onError).not.toHaveBeenCalled();
     expect(finalText).toBe('Hello world');
+  });
+
+  test('retries once on cpu after a WebGPU device-loss generation error before any tokens stream', async () => {
+    MockWorker.initResponses = [
+      {
+        backend: 'webgpu',
+        backendDevice: 'webgpu',
+        modelId: 'example/model',
+      },
+      {
+        backend: 'cpu',
+        backendDevice: 'wasm',
+        modelId: 'example/model',
+      },
+    ];
+    MockWorker.generateModes = ['deviceLost', 'complete'];
+
+    const client = new LLMEngineClient();
+    const onStatus = vi.fn();
+    const onError = vi.fn();
+    client.onStatus = onStatus;
+    await client.initialize({ modelId: 'example/model', backendPreference: 'webgpu' });
+
+    const completed = new Promise((resolve) => {
+      client.generate('prompt', {
+        onToken: vi.fn(),
+        onError,
+        onComplete: resolve,
+      });
+    });
+
+    const finalText = await completed;
+
+    expect(finalText).toBe('Hello world');
+    expect(onError).not.toHaveBeenCalled();
+    expect(client.loadedBackend).toBe('cpu');
+    expect(client.loadedBackendDevice).toBe('wasm');
+    expect(MockWorker.instances).toHaveLength(2);
+    expect(MockWorker.instances[0].terminated).toBe(true);
+    expect(MockWorker.instances[1].messages.filter((message) => message.type === 'init')).toHaveLength(1);
+    expect(
+      MockWorker.instances[1].messages.filter((message) => message.type === 'generate')
+    ).toHaveLength(1);
+    expect(onStatus).toHaveBeenCalledWith('WebGPU device lost. Retrying on CPU...');
   });
 
   test('rejects initialization when the worker crashes before init completes', async () => {
@@ -246,10 +310,15 @@ describe('LLMEngineClient', () => {
     const firstWorker = client.worker;
     client.pendingGeneration = {
       requestId: '11111111-1111-1111-1111-111111111111',
+      prompt: 'prompt',
+      runtime: {},
+      generationConfig: client.config.generationConfig,
       onToken: vi.fn(),
       onComplete: vi.fn(),
       onError: vi.fn(),
       onCancel: vi.fn(),
+      receivedAnyTokens: false,
+      attemptedCpuRecovery: false,
     };
     await client.cancelGeneration();
 
@@ -271,10 +340,15 @@ describe('LLMEngineClient', () => {
     const onCancel = vi.fn();
     client.pendingGeneration = {
       requestId: '22222222-2222-2222-2222-222222222222',
+      prompt: 'prompt',
+      runtime: {},
+      generationConfig: client.config.generationConfig,
       onToken: vi.fn(),
       onComplete: vi.fn(),
       onError: vi.fn(),
       onCancel,
+      receivedAnyTokens: false,
+      attemptedCpuRecovery: false,
     };
 
     await client.cancelGeneration();
