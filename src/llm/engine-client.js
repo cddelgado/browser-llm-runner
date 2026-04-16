@@ -12,6 +12,13 @@ function toErrorMessage(value) {
   return String(value || 'Unknown error');
 }
 
+function normalizeInitBackendPreference(preference) {
+  if (preference === 'cpu' || preference === 'wasm') {
+    return 'cpu';
+  }
+  return 'webgpu';
+}
+
 function isWebGpuDeviceLostGenerationError(
   message,
   { backend = '', backendDevice = '' } = {}
@@ -111,7 +118,7 @@ export class LLMEngineClient {
     this.onProgress = (_progress) => {};
   }
 
-  async initialize(config = {}) {
+  async initialize(config = {}, { attemptedCpuFallback = false } = {}) {
     const engineType = normalizeEngineType(config.engineType || this.config.engineType);
     const modelId = config.modelId || this.config.modelId;
     logEngineDebug('initialize-request', {
@@ -158,6 +165,24 @@ export class LLMEngineClient {
         engineType: this.loadedEngineType,
       });
       return result;
+    } catch (error) {
+      if (this.#shouldRetryInitOnCpu(error, this.config, { attemptedCpuFallback })) {
+        logEngineWarn('init-webgpu-retry-cpu', {
+          modelId,
+          engineType,
+          message: toErrorMessage(error),
+        });
+        this.onStatus('WebGPU initialization failed. Retrying on CPU...');
+        this.dispose();
+        return await this.initialize(
+          {
+            ...this.config,
+            backendPreference: 'cpu',
+          },
+          { attemptedCpuFallback: true }
+        );
+      }
+      throw error;
     } finally {
       this.pendingInit = null;
       this.pendingInitConfigKey = '';
@@ -546,6 +571,25 @@ export class LLMEngineClient {
         generationConfig: pendingGeneration.generationConfig,
       },
     };
+  }
+
+  #shouldRetryInitOnCpu(error, config, { attemptedCpuFallback = false } = {}) {
+    if (attemptedCpuFallback) {
+      return false;
+    }
+    if (normalizeInitBackendPreference(config?.backendPreference) !== 'webgpu') {
+      return false;
+    }
+    if (config?.runtime?.allowBackendFallback === false || config?.runtime?.requiresWebGpu === true) {
+      return false;
+    }
+    const message = toErrorMessage(error);
+    return (
+      /\bWEBGPU\b/i.test(message) ||
+      /\bWebGPU\b/i.test(message) ||
+      /No usable WebGPU adapter/i.test(message) ||
+      /WebGPU unavailable/i.test(message)
+    );
   }
 
   #shouldAttemptCpuRecovery(message) {

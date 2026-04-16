@@ -285,7 +285,6 @@ async function ensureMultimodalProcessor(modelId, progressCallback = null) {
 function getBackendAttemptOrder(preference, runtimeConfig = {}) {
   const normalizedPreference = normalizeBackendPreference(preference);
   const runtime = normalizeRuntimeConfig(runtimeConfig);
-  const allowBackendFallback = runtime.allowBackendFallback !== false;
   if (runtime.requiresWebGpu) {
     if (normalizedPreference === 'cpu') {
       return [];
@@ -295,10 +294,7 @@ function getBackendAttemptOrder(preference, runtimeConfig = {}) {
   if (normalizedPreference === 'cpu') {
     return ['wasm'];
   }
-  if (!allowBackendFallback) {
-    return ['webgpu'];
-  }
-  return ['webgpu', 'wasm'];
+  return ['webgpu'];
 }
 
 function normalizeBackendPreference(preference) {
@@ -1163,19 +1159,12 @@ async function initialize(payload) {
       return;
     }
   } else if (!webGpuProbe.available) {
-    if (runtime.allowBackendFallback === false) {
-      errors.push(
-        `WEBGPU: ${webGpuProbe.reason} (Automatic CPU fallback is disabled for this model to avoid downloading a second quantization. Switch to CPU mode manually if you want the larger CPU package.)`
-      );
-      attempts = [];
-    } else {
-      attempts = attempts.filter((backend) => backend !== 'webgpu');
-      const shouldTryDefaultCpuFallback =
-        !attempts.includes('default') && (!hasNavigatorGpuApi || Boolean(webGpuProbe.reason));
-      if (shouldTryDefaultCpuFallback) {
-        attempts.push('default');
-      }
-    }
+    const fallbackSuffix =
+      runtime.allowBackendFallback === false
+        ? ' (Automatic CPU fallback is disabled for this model to avoid downloading a second quantization. Switch to CPU mode manually if you want the larger CPU package.)'
+        : '';
+    errors.push(`WEBGPU: ${webGpuProbe.reason}${fallbackSuffix}`);
+    attempts = attempts.filter((backend) => backend !== 'webgpu');
   }
   logWorkerDebug('init-attempt-order', {
     modelId,

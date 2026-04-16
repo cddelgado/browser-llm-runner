@@ -94,7 +94,7 @@ describe('llm.worker init regression', () => {
     });
   });
 
-  test('falls back to cpu before model loading when WebGPU has no usable adapter', async () => {
+  test('surfaces a WebGPU init error before model loading when no usable adapter exists', async () => {
     Object.defineProperty(globalThis, 'navigator', {
       configurable: true,
       value: {
@@ -126,27 +126,16 @@ describe('llm.worker init regression', () => {
       })
     );
 
-    expect(pipelineFactory).toHaveBeenCalledTimes(1);
-    expect(pipelineFactory).toHaveBeenCalledWith(
-      'text-generation',
-      'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
-      expect.objectContaining({
-        device: 'wasm',
-        dtype: 'q4',
-        use_external_data_format: true,
-      })
-    );
+    expect(pipelineFactory).not.toHaveBeenCalled();
     expect(workerSelf.postMessage).toHaveBeenCalledWith({
-      type: 'init-success',
+      type: 'init-error',
       payload: {
-        backend: 'cpu',
-        backendDevice: 'wasm',
-        modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+        message: 'Failed to initialize model. WEBGPU: No usable WebGPU adapter was found.',
       },
     });
   });
 
-  test('falls back to cpu before multimodal Gemma model loading when WebGPU has no usable adapter', async () => {
+  test('surfaces a WebGPU init error before multimodal Gemma model loading when no usable adapter exists', async () => {
     Object.defineProperty(globalThis, 'navigator', {
       configurable: true,
       value: {
@@ -179,21 +168,11 @@ describe('llm.worker init regression', () => {
       })
     );
 
-    expect(multimodalFactory).toHaveBeenCalledTimes(1);
-    expect(multimodalFactory).toHaveBeenCalledWith(
-      'onnx-community/gemma-4-E2B-it-ONNX',
-      expect.objectContaining({
-        device: 'wasm',
-        dtype: 'q4f16',
-        use_external_data_format: true,
-      })
-    );
+    expect(multimodalFactory).not.toHaveBeenCalled();
     expect(workerSelf.postMessage).toHaveBeenCalledWith({
-      type: 'init-success',
+      type: 'init-error',
       payload: {
-        backend: 'cpu',
-        backendDevice: 'wasm',
-        modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+        message: 'Failed to initialize model. WEBGPU: No usable WebGPU adapter was found.',
       },
     });
   });
@@ -240,7 +219,7 @@ describe('llm.worker init regression', () => {
     });
   });
 
-  test('falls through to the default cpu device when wasm init fails without WebGPU', async () => {
+  test('does not attempt any cpu worker init after a failed webgpu probe', async () => {
     pipelineFactory.mockImplementation(async (_task, _modelId, options = {}) => {
       if (options.device === 'wasm') {
         throw new Error('WASM backend init failed.');
@@ -272,23 +251,11 @@ describe('llm.worker init regression', () => {
       })
     );
 
-    expect(pipelineFactory).toHaveBeenCalledTimes(2);
-    expect(pipelineFactory.mock.calls[0]?.[2]).toMatchObject({
-      device: 'wasm',
-      dtype: 'q4',
-      use_external_data_format: true,
-    });
-    expect(pipelineFactory.mock.calls[1]?.[2]).toMatchObject({
-      dtype: 'q4',
-      use_external_data_format: true,
-    });
-    expect(pipelineFactory.mock.calls[1]?.[2]?.device).toBeUndefined();
+    expect(pipelineFactory).not.toHaveBeenCalled();
     expect(workerSelf.postMessage).toHaveBeenCalledWith({
-      type: 'init-success',
+      type: 'init-error',
       payload: {
-        backend: 'cpu',
-        backendDevice: 'default',
-        modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+        message: 'Failed to initialize model. WEBGPU: WebGPU unavailable in this browser.',
       },
     });
   });

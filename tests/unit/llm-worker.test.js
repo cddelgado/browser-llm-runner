@@ -274,12 +274,12 @@ describe('llm.worker text prompt preparation', () => {
 });
 
 describe('llm.worker backend selection', () => {
-  test('webgpu preference falls back from webgpu to wasm in the browser worker', () => {
-    expect(getBackendAttemptOrder('webgpu', {})).toEqual(['webgpu', 'wasm']);
+  test('webgpu preference attempts only the webgpu backend inside the worker', () => {
+    expect(getBackendAttemptOrder('webgpu', {})).toEqual(['webgpu']);
   });
 
-  test('legacy auto preference maps to webgpu mode with the same wasm fallback', () => {
-    expect(getBackendAttemptOrder('auto', {})).toEqual(['webgpu', 'wasm']);
+  test('legacy auto preference maps to a webgpu-only worker attempt', () => {
+    expect(getBackendAttemptOrder('auto', {})).toEqual(['webgpu']);
   });
 
   test('can disable automatic cpu fallback for webgpu-first models with separate packages', () => {

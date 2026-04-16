@@ -32,17 +32,27 @@ class MockWorker {
     this.messages.push(message);
 
     if (message.type === 'init') {
-      const nextInitResponse =
-        MockWorker.initResponses.shift() || {
-          backend: 'cpu',
-          backendDevice: 'wasm',
-          modelId: message.payload?.modelId || 'test-model',
-        };
+      const nextInitResponse = MockWorker.initResponses.shift();
+      const nextInitEvent = nextInitResponse
+        ? {
+            type: nextInitResponse.type || 'init-success',
+            payload:
+              nextInitResponse.payload || {
+                backend: nextInitResponse.backend,
+                backendDevice: nextInitResponse.backendDevice,
+                modelId: nextInitResponse.modelId,
+              },
+          }
+        : {
+            type: 'init-success',
+            payload: {
+              backend: 'cpu',
+              backendDevice: 'wasm',
+              modelId: message.payload?.modelId || 'test-model',
+            },
+          };
       queueMicrotask(() => {
-        this.#emit('message', {
-          type: 'init-success',
-          payload: nextInitResponse,
-        });
+        this.#emit('message', nextInitEvent);
       });
       return;
     }
@@ -235,6 +245,81 @@ describe('LLMEngineClient', () => {
       MockWorker.instances[1].messages.filter((message) => message.type === 'generate')
     ).toHaveLength(1);
     expect(onStatus).toHaveBeenCalledWith('WebGPU device lost. Retrying on CPU...');
+  });
+
+  test('terminates the failed webgpu worker before retrying initialization on cpu', async () => {
+    MockWorker.initResponses = [
+      {
+        type: 'init-error',
+        payload: {
+          message: 'Failed to initialize model. WEBGPU: No usable WebGPU adapter was found.',
+        },
+      },
+      {
+        backend: 'cpu',
+        backendDevice: 'wasm',
+        modelId: 'example/model',
+      },
+    ];
+
+    const client = new LLMEngineClient();
+    const onStatus = vi.fn();
+    client.onStatus = onStatus;
+
+    const result = await client.initialize({
+      modelId: 'example/model',
+      backendPreference: 'webgpu',
+      runtime: {
+        dtypes: {
+          webgpu: 'q4f16',
+          cpu: 'q4',
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      backend: 'cpu',
+      backendDevice: 'wasm',
+      modelId: 'example/model',
+    });
+    expect(MockWorker.instances).toHaveLength(2);
+    expect(MockWorker.instances[0].terminated).toBe(true);
+    expect(MockWorker.instances[0].messages[0]?.payload?.backendPreference).toBe('webgpu');
+    expect(MockWorker.instances[1].messages[0]?.payload?.backendPreference).toBe('cpu');
+    expect(onStatus).toHaveBeenCalledWith('WebGPU initialization failed. Retrying on CPU...');
+  });
+
+  test('does not retry initialization on cpu when backend fallback is disabled', async () => {
+    MockWorker.initResponses = [
+      {
+        type: 'init-error',
+        payload: {
+          message:
+            'Failed to initialize model. WEBGPU: No usable WebGPU adapter was found. (Automatic CPU fallback is disabled for this model to avoid downloading a second quantization. Switch to CPU mode manually if you want the larger CPU package.)',
+        },
+      },
+    ];
+
+    const client = new LLMEngineClient();
+
+    await expect(
+      client.initialize({
+        modelId: 'example/model',
+        backendPreference: 'webgpu',
+        runtime: {
+          allowBackendFallback: false,
+          dtypes: {
+            webgpu: 'q1',
+            cpu: 'q4',
+          },
+        },
+      })
+    ).rejects.toThrow(
+      'Failed to initialize model. WEBGPU: No usable WebGPU adapter was found. (Automatic CPU fallback is disabled for this model to avoid downloading a second quantization. Switch to CPU mode manually if you want the larger CPU package.)'
+    );
+
+    expect(MockWorker.instances).toHaveLength(1);
+    expect(MockWorker.instances[0].terminated).toBe(false);
   });
 
   test('rejects initialization when the worker crashes before init completes', async () => {

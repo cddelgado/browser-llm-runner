@@ -14,6 +14,8 @@ Inference is selected through the engine client boundary and executes through a 
 ## Backends
 
 - `webgpu`: prefer WebGPU execution and fall back to CPU/WASM for ONNX models that do not require WebGPU
+  - automatic init fallback now happens only after the failed WebGPU worker is terminated, so CPU retry does not overlap the failed worker's model download activity
+  - models may opt out with `runtime.allowBackendFallback: false` when CPU uses a separate, much larger quantization package
 - `cpu`: CPU execution through the ONNX browser WASM backend
 - Legacy stored preferences are normalized into those two modes:
   - `auto` -> `webgpu`
