@@ -1,5 +1,8 @@
 import { normalizeOpenAiCompatiblePromptMessages, extractOpenAiCompatibleResponseText, extractOpenAiCompatibleStreamText } from '../cloud/openai-compatible-prompt.js';
-import { buildOpenAiCompatibleChatCompletionsUrl } from '../cloud/openai-compatible.js';
+import {
+  buildOpenAiCompatibleChatCompletionsUrl,
+  inferOpenAiCompatibleMaxOutputTokensField,
+} from '../cloud/openai-compatible.js';
 import { getCloudProviderSecret } from '../state/cloud-provider-store.js';
 
 let currentConfig = null;
@@ -32,13 +35,16 @@ function buildRequestPayload(config, payload) {
     maxContextTokens: generationConfig.maxContextTokens,
     maxOutputTokens: generationConfig.maxOutputTokens,
   });
+  const maxOutputTokensField = inferOpenAiCompatibleMaxOutputTokensField(
+    runtime.apiBaseUrl || config?.runtime?.apiBaseUrl || ''
+  );
   return {
     model: runtime.remoteModelId || config?.modelId || '',
     messages,
     stream: true,
     temperature: generationConfig.temperature,
     top_p: generationConfig.topP,
-    max_tokens: generationConfig.maxOutputTokens,
+    [maxOutputTokensField]: generationConfig.maxOutputTokens,
     ...(runtime.supportsTopK === true ? { top_k: generationConfig.topK } : {}),
   };
 }

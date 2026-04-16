@@ -3,6 +3,16 @@ export const OPENAI_COMPATIBLE_PROVIDER_LABEL = 'OpenAI-compatible';
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
+function usesStrictOpenAiRequestProfile(endpoint) {
+  try {
+    const url = new URL(endpoint);
+    const hostname = url.hostname.trim().toLowerCase();
+    return hostname === 'api.openai.com' || hostname.endsWith('.openai.com');
+  } catch {
+    return false;
+  }
+}
+
 function isLoopbackHost(hostname) {
   const normalizedHostname = typeof hostname === 'string' ? hostname.trim().toLowerCase() : '';
   return LOOPBACK_HOSTS.has(normalizedHostname);
@@ -40,13 +50,11 @@ function toProviderDisplayName(endpoint) {
 }
 
 export function inferOpenAiCompatibleTopKSupport(endpoint) {
-  try {
-    const url = new URL(endpoint);
-    const hostname = url.hostname.trim().toLowerCase();
-    return hostname !== 'api.openai.com' && !hostname.endsWith('.openai.com');
-  } catch {
-    return false;
-  }
+  return !usesStrictOpenAiRequestProfile(endpoint);
+}
+
+export function inferOpenAiCompatibleMaxOutputTokensField(endpoint) {
+  return usesStrictOpenAiRequestProfile(endpoint) ? 'max_completion_tokens' : 'max_tokens';
 }
 
 export function normalizeOpenAiCompatibleEndpoint(value) {

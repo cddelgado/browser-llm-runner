@@ -57,6 +57,7 @@ Student-facing browser chat UI with local model inference.
   - adding browser-reachable OpenAI-compatible endpoints by testing `GET /models` before save
   - storing API keys in dedicated browser-local IndexedDB storage with WebCrypto encryption when the browser supports it, plus an explicit warning that browser-only secret storage is imperfect and saved keys cannot be shown again
   - per-provider accordions with refresh/remove actions, available-model toggles, and nested configured-model accordions for browser-local defaults such as context size, output tokens, temperature, Top P, and Top K where supported
+  - strict OpenAI-hosted endpoints use the stricter OpenAI request profile (`max_completion_tokens`, no `top_k`), while broader compatible endpoints keep the looser `max_tokens` path
   - selected cloud models are appended to the same New Conversation / New Agent picker used by bundled local models
 - `Settings -> Skills` includes:
   - uploading local `.zip` skill packages into dedicated browser-local skills storage that is separate from `/workspace`, conversations, and MCP settings

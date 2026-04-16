@@ -33,6 +33,7 @@ Inference is selected through the engine client boundary and executes through a 
 - ONNX models may provide mode-specific runtime hints such as `runtime.dtypes.webgpu` and `runtime.dtypes.cpu`.
 - LiteRT-backed models may use engine-specific runtime hints such as `runtime.modelAssetPath` and `runtime.promptFormat` instead of Transformers.js-specific dtype settings.
 - Browser-saved cloud models use runtime hints such as `runtime.providerId`, `runtime.apiBaseUrl`, `runtime.remoteModelId`, and optional `runtime.supportsTopK` to drive the OpenAI-compatible worker.
+- The OpenAI-compatible worker keeps two request profiles: strict OpenAI-hosted endpoints suppress `top_k` and send `max_completion_tokens` on `/chat/completions`, while broader compatible endpoints keep the looser `max_tokens` request field.
 
 The resolved backend is shown in the status region in the main UI.
 Initialization is user-triggered on first message send in the chat workspace.

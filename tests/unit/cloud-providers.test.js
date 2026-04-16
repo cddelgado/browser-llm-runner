@@ -5,6 +5,7 @@ import {
   normalizeCloudProviderConfigs,
 } from '../../src/cloud/cloud-provider-config.js';
 import {
+  inferOpenAiCompatibleMaxOutputTokensField,
   inspectOpenAiCompatibleEndpoint,
   normalizeOpenAiCompatibleEndpoint,
 } from '../../src/cloud/openai-compatible.js';
@@ -26,7 +27,7 @@ describe('cloud provider helpers', () => {
 
   test('inspects an OpenAI-compatible endpoint by reading /models', async () => {
     const fetchRef = vi.fn(async () =>
-      new Response(
+      new globalThis.Response(
         JSON.stringify({
           data: [{ id: 'gpt-4o-mini' }, { id: 'gpt-4.1-mini' }],
         }),
@@ -53,6 +54,18 @@ describe('cloud provider helpers', () => {
       supportsTopK: false,
     });
     expect(result.availableModels.map((model) => model.id)).toEqual(['gpt-4.1-mini', 'gpt-4o-mini']);
+  });
+
+  test('uses the strict OpenAI request profile only for OpenAI-hosted endpoints', () => {
+    expect(inferOpenAiCompatibleMaxOutputTokensField('https://api.openai.com/v1')).toBe(
+      'max_completion_tokens'
+    );
+    expect(inferOpenAiCompatibleMaxOutputTokensField('https://foo.openai.com/v1')).toBe(
+      'max_completion_tokens'
+    );
+    expect(inferOpenAiCompatibleMaxOutputTokensField('https://openrouter.ai/api/v1')).toBe(
+      'max_tokens'
+    );
   });
 
   test('builds runtime model catalog entries for selected cloud models', () => {
