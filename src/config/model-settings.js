@@ -48,7 +48,20 @@ export const MODEL_FEATURE_FLAGS = Object.freeze([
   'videoInput',
 ]);
 export const ALLOWED_RUNTIME_DTYPES = Object.freeze(
-  new Set(['q4', 'q8', 'fp32', 'fp16', 'int8', 'uint8', 'bnb4', 'q4f16'])
+  new Set([
+    'q4',
+    'q8',
+    'fp32',
+    'fp16',
+    'int8',
+    'uint8',
+    'bnb4',
+    'q4f16',
+    'q2',
+    'q2f16',
+    'q1',
+    'q1f16',
+  ])
 );
 export const ALLOWED_RUNTIME_PROMPT_FORMATS = Object.freeze(new Set(['gemma-turns', 'qwen-im']));
 export const WEBGPU_COMPATIBLE_BACKEND_PREFERENCES = Object.freeze(new Set(['webgpu']));

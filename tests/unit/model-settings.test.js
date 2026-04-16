@@ -12,6 +12,7 @@ import {
 
 const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
 const REMOVED_LLAMA_1B_MODEL_ID = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
 const REMOVED_QWEN_2B_MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX';
 
@@ -75,7 +76,7 @@ describe('model-settings availability', () => {
   });
 
   test('only exposes the current visible catalog', () => {
-    expect(MODEL_OPTIONS).toHaveLength(2);
+    expect(MODEL_OPTIONS).toHaveLength(3);
     expect(MODEL_OPTIONS_BY_ID.get('LiquidAI/LFM2.5-350M-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('LiquidAI/LFM2.5-1.2B-Instruct-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('LiquidAI/LFM2.5-1.2B-Thinking-ONNX')).toBeUndefined();
@@ -97,6 +98,12 @@ describe('model-settings availability', () => {
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime, 'cpu')
     ).toBe('q4f16');
+    expect(
+      resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.runtime, 'webgpu')
+    ).toBe('q1');
+    expect(
+      resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.runtime, 'cpu')
+    ).toBe('q4');
   });
 
   test('maps the temporary llama 3.2 3B full ONNX repo id back to the browser repo id', () => {
@@ -128,10 +135,21 @@ describe('model-settings availability', () => {
       audioInput: true,
       videoInput: false,
     });
+    expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.features).toMatchObject({
+      streaming: true,
+      thinking: true,
+      toolCalling: true,
+      imageInput: false,
+      audioInput: false,
+      videoInput: false,
+    });
     expect(MODEL_OPTIONS_BY_ID.get(LLAMA_3B_MODEL_ID)?.engine).toEqual({
       type: 'transformers-js',
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.engine).toEqual({
+      type: 'transformers-js',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.engine).toEqual({
       type: 'transformers-js',
     });
     expect(MODEL_OPTIONS_BY_ID.get(LLAMA_3B_MODEL_ID)?.runtime).toMatchObject({
@@ -148,6 +166,12 @@ describe('model-settings availability', () => {
       },
       multimodalGeneration: true,
       useExternalDataFormat: true,
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.runtime).toMatchObject({
+      dtypes: {
+        webgpu: 'q1',
+        cpu: 'q4',
+      },
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.inputLimits).toMatchObject({
       maxImageInputs: 1,
@@ -170,6 +194,17 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.toolCalling).toEqual({
       format: 'gemma-special-token-call',
     });
+    expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.thinkingTags).toEqual({
+      open: '<think>',
+      close: '</think>',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.toolCalling).toEqual({
+      format: 'tagged-json',
+      nameKey: 'name',
+      argumentsKey: 'arguments',
+      openTag: '<tool_call>',
+      closeTag: '</tool_call>',
+    });
     expect(MODEL_OPTIONS_BY_ID.get(LLAMA_3B_MODEL_ID)).toMatchObject({
       displayName: 'Llama 3.2 3B Instruct',
       repositoryUrl: 'https://huggingface.co/onnx-community/Llama-3.2-3B-Instruct-onnx-web',
@@ -177,6 +212,10 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)).toMatchObject({
       displayName: 'Gemma 4 E2B',
       repositoryUrl: 'https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX',
+    });
+    expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)).toMatchObject({
+      displayName: 'Bonsai 8B Q1 (Experimental)',
+      repositoryUrl: 'https://huggingface.co/onnx-community/Bonsai-8B-ONNX',
     });
   });
 });

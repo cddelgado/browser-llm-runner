@@ -118,6 +118,52 @@
         "audioInput": false,
         "videoInput": false
       }
+    },
+    {
+      "id": "onnx-community/Bonsai-8B-ONNX",
+      "label": "onnx-community/Bonsai-8B-ONNX",
+      "displayName": "Bonsai 8B Q1 (Experimental)",
+      "engine": {
+        "type": "transformers-js"
+      },
+      "repositoryUrl": "https://huggingface.co/onnx-community/Bonsai-8B-ONNX",
+      "runtime": {
+        "dtypes": {
+          "webgpu": "q1",
+          "cpu": "q4"
+        }
+      },
+      "thinkingTags": {
+        "open": "<think>",
+        "close": "</think>"
+      },
+      "toolCalling": {
+        "format": "tagged-json",
+        "nameKey": "name",
+        "argumentsKey": "arguments",
+        "openTag": "<tool_call>",
+        "closeTag": "</tool_call>"
+      },
+      "generation": {
+        "defaultMaxOutputTokens": 1024,
+        "maxOutputTokens": 65536,
+        "defaultMaxContextTokens": 8192,
+        "maxContextTokens": 65536,
+        "minTemperature": 0.1,
+        "maxTemperature": 2.0,
+        "defaultTemperature": 0.5,
+        "defaultTopK": 20,
+        "defaultTopP": 0.85,
+        "defaultRepetitionPenalty": 1.0
+      },
+      "features": {
+        "streaming": true,
+        "thinking": true,
+        "toolCalling": true,
+        "imageInput": false,
+        "audioInput": false,
+        "videoInput": false
+      }
     }
   ],
   "legacyAliases": {

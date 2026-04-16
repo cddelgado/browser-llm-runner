@@ -79,6 +79,7 @@ Student-facing browser chat UI with local model inference.
 - If WebGPU loses the active graphics device before any response tokens are shown, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that generation automatically.
 - If that automatic CPU retry is not possible or still fails, the app unloads the current worker, marks the model as not ready, and tells the user to retry, switch to CPU mode, or reload the page if the browser/driver keeps dropping the device.
 - The bundled ONNX Gemma 4 E2B entry runs through the Transformers.js worker path on both WebGPU and CPU.
+- The bundled ONNX Bonsai 8B experimental entry runs through the Transformers.js worker path with `q1` on WebGPU and `q4` on CPU fallback.
 - The bundled LiteRT runtime in this app does not currently expose a matching CPU-thread setting, so the System-tab thread control applies only to the Transformers.js/ONNX path.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
@@ -246,6 +247,12 @@ Student-facing browser chat UI with local model inference.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - Uses `q4f16` on WebGPU and `q4` on CPU in this app.
   - Remains the canonical Llama 3.2 3B entry for this browser app because the full ONNX repo was not reliable here.
+- `onnx-community/Bonsai-8B-ONNX`
+  - Uses the Transformers.js worker path in this app.
+  - Experimental WebGPU-first entry using `q1` on WebGPU and `q4` on CPU fallback.
+  - Relies on the upstream model config for exact ONNX external-data shard counts across dtypes instead of forcing one app-level shard count.
+  - Parses `<think>...</think>` reasoning into the transcript thinking section.
+  - Uses tagged JSON tool calls inside `<tool_call>...</tool_call>` when tool calling is enabled.
 - Legacy stored IDs are automatically remapped to the supported model:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`

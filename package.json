@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/cddelgado/browser-llm-runner#readme",
   "dependencies": {
-    "@huggingface/transformers": "^4.0.1",
+    "@huggingface/transformers": "^4.1.0",
     "@mediapipe/tasks-genai": "0.10.27",
     "@popperjs/core": "^2.11.8",
     "@xterm/addon-fit": "^0.11.0",

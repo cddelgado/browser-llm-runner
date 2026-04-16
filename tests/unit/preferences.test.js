@@ -436,6 +436,21 @@ describe('preferences controller', () => {
     expect(cards.some((card) => card.textContent?.includes('Llama 3.2 1B Instruct'))).toBe(false);
     expect(cards.some((card) => card.textContent?.includes('Qwen3.5 2B Instruct'))).toBe(false);
 
+    const bonsaiCard = cards.find((card) =>
+      card.textContent?.includes('Bonsai 8B Q1 (Experimental)')
+    );
+    expect(bonsaiCard?.textContent).toContain('65,536 tokens');
+    expect(bonsaiCard?.textContent).toContain('about 49,200 words');
+    expect(
+      /** @type {HTMLAnchorElement | null} */ (bonsaiCard?.querySelector('.model-card-link'))?.href
+    ).toBe('https://huggingface.co/onnx-community/Bonsai-8B-ONNX');
+    expect(
+      Array.from(bonsaiCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
+        node.getAttribute('aria-label')
+      )
+    ).toEqual(['Shows a thinking section', 'Can use built-in tools']);
+    expect(bonsaiCard?.querySelector('.model-card-languages')).toBeNull();
+
     const gemmaCard = cards.find((card) => card.textContent?.includes('Gemma 4 E2B'));
     expect(gemmaCard?.textContent).toContain('131,072 tokens');
     expect(gemmaCard?.textContent).toContain('about 98,300 words');
@@ -513,6 +528,10 @@ describe('preferences controller', () => {
       'Can use built-in tools',
       'Accepts image input',
       'Accepts audio input',
+    ]);
+    expect(getFeatureLabels('Bonsai 8B Q1 (Experimental)')).toEqual([
+      'Shows a thinking section',
+      'Can use built-in tools',
     ]);
   });
 

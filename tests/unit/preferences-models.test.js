@@ -107,6 +107,16 @@ describe('preferences-models', () => {
     expect(cards.some((card) => card.textContent?.includes('Llama 3.2 1B Instruct'))).toBe(false);
     expect(cards.some((card) => card.textContent?.includes('Qwen3.5 2B Instruct'))).toBe(false);
 
+    const bonsaiCard = cards.find((card) =>
+      card.textContent?.includes('Bonsai 8B Q1 (Experimental)')
+    );
+    expect(bonsaiCard?.textContent).toContain('65,536 tokens');
+    expect(
+      Array.from(bonsaiCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
+        node.getAttribute('aria-label')
+      )
+    ).toEqual(['Shows a thinking section', 'Can use built-in tools']);
+
     const gemmaButton = /** @type {HTMLButtonElement | null} */ (
       gemmaCard?.querySelector('.model-card-button')
     );

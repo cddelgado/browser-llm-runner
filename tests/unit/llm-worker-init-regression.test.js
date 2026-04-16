@@ -198,6 +198,56 @@ describe('llm.worker init regression', () => {
     });
   });
 
+  test('falls back to cpu before Bonsai 8B model loading when WebGPU has no usable adapter', async () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: {
+        gpu: {
+          requestAdapter: vi.fn(async () => null),
+        },
+      },
+    });
+
+    await import('../../src/workers/llm.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'init',
+          payload: {
+            modelId: 'onnx-community/Bonsai-8B-ONNX',
+            backendPreference: 'webgpu',
+            runtime: {
+              dtypes: {
+                webgpu: 'q1',
+                cpu: 'q4',
+              },
+            },
+          },
+        },
+      })
+    );
+
+    expect(pipelineFactory).toHaveBeenCalledTimes(1);
+    expect(pipelineFactory).toHaveBeenCalledWith(
+      'text-generation',
+      'onnx-community/Bonsai-8B-ONNX',
+      expect.objectContaining({
+        device: 'wasm',
+        dtype: 'q4',
+      })
+    );
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'init-success',
+      payload: {
+        backend: 'cpu',
+        backendDevice: 'wasm',
+        modelId: 'onnx-community/Bonsai-8B-ONNX',
+      },
+    });
+  });
+
   test('falls through to the default cpu device when wasm init fails without WebGPU', async () => {
     pipelineFactory.mockImplementation(async (_task, _modelId, options = {}) => {
       if (options.device === 'wasm') {
