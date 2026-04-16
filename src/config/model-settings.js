@@ -144,6 +144,27 @@ function normalizeRuntime(rawRuntime) {
     (Number.isInteger(rawRuntime?.useExternalDataFormat) && rawRuntime.useExternalDataFormat > 0)
       ? rawRuntime.useExternalDataFormat
       : false;
+  const providerId =
+    typeof rawRuntime?.providerId === 'string' && rawRuntime.providerId.trim()
+      ? rawRuntime.providerId.trim()
+      : '';
+  const providerType =
+    typeof rawRuntime?.providerType === 'string' && rawRuntime.providerType.trim()
+      ? rawRuntime.providerType.trim()
+      : '';
+  const providerDisplayName =
+    typeof rawRuntime?.providerDisplayName === 'string' && rawRuntime.providerDisplayName.trim()
+      ? rawRuntime.providerDisplayName.trim()
+      : '';
+  const apiBaseUrl =
+    typeof rawRuntime?.apiBaseUrl === 'string' && rawRuntime.apiBaseUrl.trim()
+      ? rawRuntime.apiBaseUrl.trim()
+      : '';
+  const remoteModelId =
+    typeof rawRuntime?.remoteModelId === 'string' && rawRuntime.remoteModelId.trim()
+      ? rawRuntime.remoteModelId.trim()
+      : '';
+  const supportsTopK = rawRuntime?.supportsTopK === true;
   return {
     ...(dtype ? { dtype } : {}),
     ...(dtypes ? { dtypes } : {}),
@@ -154,6 +175,12 @@ function normalizeRuntime(rawRuntime) {
     ...(multimodalGeneration ? { multimodalGeneration: true } : {}),
     ...(allowBackendFallback === false ? { allowBackendFallback: false } : {}),
     ...(useExternalDataFormat ? { useExternalDataFormat } : {}),
+    ...(providerId ? { providerId } : {}),
+    ...(providerType ? { providerType } : {}),
+    ...(providerDisplayName ? { providerDisplayName } : {}),
+    ...(apiBaseUrl ? { apiBaseUrl } : {}),
+    ...(remoteModelId ? { remoteModelId } : {}),
+    ...(supportsTopK ? { supportsTopK: true } : {}),
   };
 }
 
@@ -383,6 +410,49 @@ function normalizeConfiguredModelId(modelId) {
   return LEGACY_MODEL_ALIASES[normalizedId] || normalizedId;
 }
 
+function normalizeCatalogModel(model) {
+  const rawModel = /** @type {any} */ (model);
+  const id = typeof rawModel?.id === 'string' ? rawModel.id.trim() : '';
+  if (!id) {
+    return null;
+  }
+  const label =
+    typeof rawModel?.label === 'string' && rawModel.label.trim() ? rawModel.label.trim() : id;
+  const displayName = normalizeModelCardText(rawModel?.displayName) || label;
+  const engine = normalizeEngine(rawModel?.engine);
+  const languageSupport = normalizeLanguageSupport(rawModel?.languageSupport);
+  const repositoryUrl = normalizeRepositoryUrl(rawModel?.repositoryUrl, id);
+  const unavailableReason = normalizeUnavailableReason(rawModel?.unavailableReason);
+  const thinkingTags = normalizeThinkingTags(rawModel?.thinkingTags);
+  const generation = normalizeGenerationLimits(rawModel?.generation);
+  const runtime = normalizeRuntime(rawModel?.runtime);
+  const features = normalizeFeatures(rawModel?.features, { thinkingTags });
+  const thinkingControl = normalizeThinkingControl(rawModel?.thinkingControl, {
+    enabled: features.thinking,
+  });
+  const toolCalling = normalizeToolCalling(rawModel?.toolCalling, {
+    enabled: features.toolCalling,
+  });
+  const inputLimits = normalizeInputLimits(rawModel?.inputLimits);
+  return {
+    id,
+    label,
+    displayName,
+    engine,
+    languageSupport,
+    repositoryUrl,
+    ...(unavailableReason ? { unavailableReason } : {}),
+    features,
+    thinkingControl,
+    toolCalling,
+    thinkingTags,
+    generation,
+    runtime,
+    inputLimits,
+    hidden: normalizeHiddenFlag(rawModel.hidden),
+  };
+}
+
 export function normalizeSupportedBackendPreference(value) {
   if (value === 'cpu' || value === 'wasm') {
     return 'cpu';
@@ -403,51 +473,8 @@ export function browserSupportsWebGpu(navigatorLike = globalThis.navigator) {
   return Boolean(navigatorLike && typeof navigatorLike === 'object' && 'gpu' in navigatorLike);
 }
 
-const configuredModels = Array.isArray(modelCatalog?.models)
-  ? modelCatalog.models
-      .map((model) => {
-        const rawModel = /** @type {any} */ (model);
-        const id = typeof rawModel?.id === 'string' ? rawModel.id.trim() : '';
-        if (!id) {
-          return null;
-        }
-        const label =
-          typeof rawModel?.label === 'string' && rawModel.label.trim() ? rawModel.label.trim() : id;
-        const displayName = normalizeModelCardText(rawModel?.displayName) || label;
-        const engine = normalizeEngine(rawModel?.engine);
-        const languageSupport = normalizeLanguageSupport(rawModel?.languageSupport);
-        const repositoryUrl = normalizeRepositoryUrl(rawModel?.repositoryUrl, id);
-        const unavailableReason = normalizeUnavailableReason(rawModel?.unavailableReason);
-        const thinkingTags = normalizeThinkingTags(rawModel?.thinkingTags);
-        const generation = normalizeGenerationLimits(rawModel?.generation);
-        const runtime = normalizeRuntime(rawModel?.runtime);
-        const features = normalizeFeatures(rawModel?.features, { thinkingTags });
-        const thinkingControl = normalizeThinkingControl(rawModel?.thinkingControl, {
-          enabled: features.thinking,
-        });
-        const toolCalling = normalizeToolCalling(rawModel?.toolCalling, {
-          enabled: features.toolCalling,
-        });
-        const inputLimits = normalizeInputLimits(rawModel?.inputLimits);
-        return {
-          id,
-          label,
-          displayName,
-          engine,
-          languageSupport,
-          repositoryUrl,
-          ...(unavailableReason ? { unavailableReason } : {}),
-          features,
-          thinkingControl,
-          toolCalling,
-          thinkingTags,
-          generation,
-          runtime,
-          inputLimits,
-          hidden: normalizeHiddenFlag(/** @type {any} */ (model).hidden),
-        };
-      })
-      .filter(Boolean)
+const staticConfiguredModels = Array.isArray(modelCatalog?.models)
+  ? modelCatalog.models.map(normalizeCatalogModel).filter(Boolean)
   : [];
 
 const configuredDefaultModel =
@@ -455,11 +482,11 @@ const configuredDefaultModel =
 
 export const DEFAULT_MODEL =
   configuredDefaultModel ||
-  configuredModels[0]?.id ||
+  staticConfiguredModels[0]?.id ||
   'onnx-community/gemma-4-E2B-it-ONNX';
 
-if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
-  configuredModels.unshift({
+if (!staticConfiguredModels.some((model) => model.id === DEFAULT_MODEL)) {
+  staticConfiguredModels.unshift({
     id: DEFAULT_MODEL,
     label: DEFAULT_MODEL,
     displayName: DEFAULT_MODEL,
@@ -477,13 +504,13 @@ if (!configuredModels.some((model) => model.id === DEFAULT_MODEL)) {
   });
 }
 
-const visibleConfiguredModels = [
-  ...configuredModels.filter((model) => !model.hidden && model.id === DEFAULT_MODEL),
-  ...configuredModels.filter((model) => !model.hidden && model.id !== DEFAULT_MODEL),
+const visibleStaticConfiguredModels = [
+  ...staticConfiguredModels.filter((model) => !model.hidden && model.id === DEFAULT_MODEL),
+  ...staticConfiguredModels.filter((model) => !model.hidden && model.id !== DEFAULT_MODEL),
 ];
 
-export const MODEL_OPTIONS = Object.freeze(visibleConfiguredModels);
-export const MODEL_OPTIONS_BY_ID = new Map(configuredModels.map((model) => [model.id, model]));
+export const MODEL_OPTIONS = [];
+export const MODEL_OPTIONS_BY_ID = new Map();
 export const LEGACY_MODEL_ALIASES = Object.fromEntries(
   Object.entries(modelCatalog?.legacyAliases || {})
     .map(([alias, canonical]) => [
@@ -492,7 +519,44 @@ export const LEGACY_MODEL_ALIASES = Object.fromEntries(
     ])
     .filter(([alias, canonical]) => alias && canonical)
 );
-export const SUPPORTED_MODELS = new Set(configuredModels.map((model) => model.id));
+export const SUPPORTED_MODELS = new Set();
+let runtimeConfiguredModels = [];
+
+function refreshRegisteredModels() {
+  const visibleRuntimeConfiguredModels = runtimeConfiguredModels.filter((model) => !model.hidden);
+  const nextVisibleModels = [
+    ...visibleStaticConfiguredModels,
+    ...visibleRuntimeConfiguredModels.filter((model) => model.id !== DEFAULT_MODEL),
+  ];
+
+  MODEL_OPTIONS.splice(0, MODEL_OPTIONS.length, ...nextVisibleModels);
+  MODEL_OPTIONS_BY_ID.clear();
+  SUPPORTED_MODELS.clear();
+
+  [...staticConfiguredModels, ...runtimeConfiguredModels].forEach((model) => {
+    MODEL_OPTIONS_BY_ID.set(model.id, model);
+    SUPPORTED_MODELS.add(model.id);
+  });
+}
+
+export function replaceRuntimeModelCatalog(models) {
+  const nextRuntimeModels = [];
+  const seenModelIds = new Set(staticConfiguredModels.map((model) => model.id));
+  (Array.isArray(models) ? models : []).forEach((model) => {
+    const normalizedModel = normalizeCatalogModel(model);
+    if (!normalizedModel || seenModelIds.has(normalizedModel.id)) {
+      return;
+    }
+    seenModelIds.add(normalizedModel.id);
+    nextRuntimeModels.push(normalizedModel);
+  });
+  runtimeConfiguredModels = nextRuntimeModels.sort((left, right) =>
+    left.displayName.localeCompare(right.displayName)
+  );
+  refreshRegisteredModels();
+}
+
+refreshRegisteredModels();
 
 export function normalizeModelId(modelId) {
   const canonical = LEGACY_MODEL_ALIASES[modelId] || modelId;

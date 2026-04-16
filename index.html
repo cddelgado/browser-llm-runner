@@ -693,6 +693,17 @@
                     <button
                       type="button"
                       class="nav-link"
+                      id="settingsTabCloudProviders"
+                      role="tab"
+                      data-settings-tab="cloudProviders"
+                      aria-controls="settingsCloudProvidersPanel"
+                      aria-selected="false"
+                    >
+                      Cloud Providers
+                    </button>
+                    <button
+                      type="button"
+                      class="nav-link"
                       id="settingsTabProxy"
                       role="tab"
                       data-settings-tab="proxy"
@@ -1134,6 +1145,76 @@
                         id="skillsList"
                         class="accordion settings-accordion"
                         aria-labelledby="skillsListLabel"
+                      ></div>
+                    </div>
+                  </section>
+
+                  <section
+                    id="settingsCloudProvidersPanel"
+                    class="settings-tab-panel d-none"
+                    role="tabpanel"
+                    data-settings-tab-panel="cloudProviders"
+                    aria-labelledby="settingsTabCloudProviders"
+                  >
+                    <h3 class="h6 mb-0" id="settingsCloudProvidersHeading">Cloud Providers</h3>
+                    <div class="settings-control-group">
+                      <form id="cloudProviderForm" class="mcp-server-form">
+                        <label class="form-label" for="cloudProviderEndpointInput">
+                          OpenAI-compatible endpoint
+                        </label>
+                        <div class="input-group mb-3">
+                          <input
+                            id="cloudProviderEndpointInput"
+                            class="form-control"
+                            type="url"
+                            inputmode="url"
+                            placeholder="https://api.openai.com/v1"
+                            aria-describedby="cloudProviderHelp cloudProviderStorageHelp cloudProviderAddFeedback"
+                          />
+                        </div>
+                        <label class="form-label" for="cloudProviderApiKeyInput">API key</label>
+                        <div class="input-group">
+                          <input
+                            id="cloudProviderApiKeyInput"
+                            class="form-control"
+                            type="password"
+                            autocomplete="new-password"
+                            placeholder="sk-..."
+                            aria-describedby="cloudProviderHelp cloudProviderStorageHelp cloudProviderAddFeedback"
+                          />
+                          <button id="addCloudProviderButton" type="submit" class="btn btn-primary">
+                            Test and save
+                          </button>
+                        </div>
+                        <p id="cloudProviderHelp" class="form-text mb-0">
+                          The app tests <code>/models</code> before saving. The endpoint must be
+                          browser-reachable and allow direct cross-origin browser requests.
+                        </p>
+                        <div
+                          id="cloudProviderStorageHelp"
+                          class="alert alert-warning py-2 px-3 mt-3 mb-0"
+                          role="note"
+                        >
+                          API keys are encrypted in browser-local storage when possible, but
+                          browser-only storage is not perfect. After you save a key, the full value
+                          cannot be shown again. Remove and re-add the provider to replace it.
+                        </div>
+                        <div id="cloudProviderAddFeedback" class="d-none mt-3" aria-live="polite"></div>
+                      </form>
+                    </div>
+                    <div class="settings-control-group">
+                      <p class="form-label mb-1" id="cloudProvidersListLabel">
+                        Configured cloud providers
+                      </p>
+                      <p class="form-text mt-0">
+                        Select the provider models you want exposed in the chat picker, then expand
+                        the configured-model accordions to set browser-local defaults for context
+                        size, temperature, Top P, Top K, and output length.
+                      </p>
+                      <div
+                        id="cloudProvidersList"
+                        class="accordion settings-accordion"
+                        aria-labelledby="cloudProvidersListLabel"
                       ></div>
                     </div>
                   </section>

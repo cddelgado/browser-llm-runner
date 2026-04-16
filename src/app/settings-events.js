@@ -1,4 +1,5 @@
 import { isSettingsView } from '../state/app-state.js';
+import { bindCloudProviderSettingsEvents } from './settings-events-cloud.js';
 import { bindModelSettingsEvents } from './settings-events-models.js';
 import { bindToolingSettingsEvents } from './settings-events-tooling.js';
 
@@ -19,6 +20,11 @@ export function bindSettingsEvents({
   skillPackageInput = null,
   addSkillPackageButton = null,
   skillsList = null,
+  cloudProviderForm = null,
+  cloudProviderEndpointInput = null,
+  cloudProviderApiKeyInput = null,
+  addCloudProviderButton = null,
+  cloudProvidersList = null,
   corsProxyForm,
   corsProxyInput,
   saveCorsProxyButton,
@@ -59,6 +65,14 @@ export function bindSettingsEvents({
   clearSkillPackageFeedback = null,
   importSkillPackageFile = null,
   removeSkillPackagePreference = null,
+  addCloudProvider = null,
+  setCloudProviderFeedback = null,
+  clearCloudProviderFeedback = null,
+  refreshCloudProviderPreference = null,
+  removeCloudProviderPreference = null,
+  setCloudProviderModelSelected = null,
+  updateCloudModelGenerationPreference = null,
+  resetCloudModelGenerationPreference = null,
   saveCorsProxyPreference,
   clearCorsProxyPreference,
   setCorsProxyFeedback,
@@ -234,6 +248,23 @@ export function bindSettingsEvents({
     removeMcpServerPreference,
     setSkillPackageFeedback,
     setMcpServerFeedback,
+    setStatus,
+  });
+
+  bindCloudProviderSettingsEvents({
+    cloudProviderForm,
+    cloudProviderEndpointInput,
+    cloudProviderApiKeyInput,
+    addCloudProviderButton,
+    cloudProvidersList,
+    addCloudProvider,
+    setCloudProviderFeedback,
+    clearCloudProviderFeedback,
+    refreshCloudProviderPreference,
+    removeCloudProviderPreference,
+    setCloudProviderModelSelected,
+    updateCloudModelGenerationPreference,
+    resetCloudModelGenerationPreference,
     setStatus,
   });
 

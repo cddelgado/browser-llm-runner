@@ -42,6 +42,7 @@ export const ORCHESTRATION_KINDS = Object.freeze({
  *   enabledToolNames?: string[];
  *   skillPackages?: any[];
  *   mcpServers?: any[];
+ *   cloudProviders?: any[];
  *   renderMathMl?: boolean;
  *   corsProxyUrl?: string;
  *   maxDebugEntries?: number;
@@ -54,6 +55,7 @@ export function createAppState({
   enabledToolNames = [],
   skillPackages = [],
   mcpServers = [],
+  cloudProviders = [],
   renderMathMl = true,
   corsProxyUrl = '',
   maxDebugEntries = 240,
@@ -88,6 +90,7 @@ export function createAppState({
     enabledToolNames: Array.isArray(enabledToolNames) ? [...enabledToolNames] : [],
     skillPackages: Array.isArray(skillPackages) ? [...skillPackages] : [],
     mcpServers: Array.isArray(mcpServers) ? [...mcpServers] : [],
+    cloudProviders: Array.isArray(cloudProviders) ? [...cloudProviders] : [],
     renderMathMl: Boolean(renderMathMl),
     enableSingleKeyShortcuts: true,
     transcriptView: 'standard',

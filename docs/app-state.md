@@ -33,6 +33,8 @@ That lets the shell disable send and attachment controls while uploads are still
 
 The same centralized state also now carries uploaded skill-package metadata so the settings UI, prompt builder, and local tool harness all resolve the same browser-local skill inventory.
 
+It now also carries browser-saved cloud-provider metadata so the settings accordions, shared model picker, and remote engine runtime all resolve the same selected OpenAI-compatible provider/model inventory.
+
 ## Current boundary
 
 - `src/state/app-state.js`

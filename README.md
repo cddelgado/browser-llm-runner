@@ -53,6 +53,11 @@ Student-facing browser chat UI with local model inference.
   - imported servers start disabled, and every discovered command starts disabled
   - per-server accordions with metadata, refresh/remove actions, and per-command toggles
   - disabled MCP servers and disabled MCP commands are omitted from the computed system prompt and rejected by the local tool-execution loop
+- `Settings -> Cloud Providers` includes:
+  - adding browser-reachable OpenAI-compatible endpoints by testing `GET /models` before save
+  - storing API keys in dedicated browser-local IndexedDB storage with WebCrypto encryption when the browser supports it, plus an explicit warning that browser-only secret storage is imperfect and saved keys cannot be shown again
+  - per-provider accordions with refresh/remove actions, available-model toggles, and nested configured-model accordions for browser-local defaults such as context size, output tokens, temperature, Top P, and Top K where supported
+  - selected cloud models are appended to the same New Conversation / New Agent picker used by bundled local models
 - `Settings -> Skills` includes:
   - uploading local `.zip` skill packages into dedicated browser-local skills storage that is separate from `/workspace`, conversations, and MCP settings
   - per-package accordions with a markdown-rendered `SKILL.md` preview, enable toggle, and remove action
@@ -73,6 +78,7 @@ Student-facing browser chat UI with local model inference.
 - Backend selection supports:
   - `WebGPU`
   - `CPU`
+- Selected cloud-provider models run through a browser fetch-backed OpenAI-compatible worker path instead of the local WebGPU/CPU runtimes; the backend selector is ignored for those models.
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU.
 - CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, enables WASM proxying across ONNX backends, and now lets `Settings -> System -> Transformers.js CPU threads` control `onnx.wasm.numThreads` (`0` keeps ORT auto).
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
@@ -106,6 +112,7 @@ Student-facing browser chat UI with local model inference.
   - `Top K` and `Top P` are persisted per model, like temperature and token limits.
   - The runtime also applies per-model `repetition_penalty` defaults where Transformers.js supports them; unsupported knobs such as `min_p` and `presence_penalty` are intentionally not exposed in this app.
 - The selected backend and model are stored in `localStorage`.
+- Cloud provider metadata is stored in browser IndexedDB, and provider API keys are stored separately in encrypted browser-local IndexedDB records when WebCrypto key storage is available.
 - Model files are downloaded on first load and cached in-browser for reuse.
   - Transformers.js-backed models use the Transformers.js browser cache.
   - LiteRT-backed models fetch a pinned LiteRT artifact (`.task` or `.litertlm`) at runtime and rely on the browser HTTP cache.
@@ -237,6 +244,8 @@ Student-facing browser chat UI with local model inference.
 
 ## Supported models
 
+In addition to the bundled local model catalog, users can add browser-reachable OpenAI-compatible providers from `Settings -> Cloud Providers`, select any returned remote models they want exposed, and then use those cloud models from the same picker on the New Conversation and New Agent screens.
+
 - `onnx-community/gemma-4-E2B-it-ONNX` (default)
   - Uses the Transformers.js worker path in this app.
   - Uses `q4f16` on WebGPU and CPU, with external ONNX data loading.
@@ -289,6 +298,8 @@ For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` r
 - Transformers.js and MediaPipe Tasks GenAI are bundled from locally installed packages rather than imported from a CDN at runtime.
 - Browser-local Python execution currently loads Pyodide assets from the pinned `https://cdn.jsdelivr.net/pyodide/v0.29.3/full/` distribution at runtime.
 - Optional CORS proxy support uses a validated prefix-style proxy URL from `Settings -> Proxy`; validation now sends an MCP `initialize` probe to `https://example-server.modelcontextprotocol.io/mcp`, accepts the reference server's auth challenge as proof that the proxied MCP transport is browser-readable, and retries only after a likely CORS failure. Same-origin requests, remote proxying of local/private-network targets, and requests with explicit authorization headers are left on the normal browser path.
+- OpenAI-compatible cloud providers are tested with a direct authenticated `GET /models` call and then used directly from the browser for `/chat/completions`; those requests require browser-readable CORS support because the app intentionally does not proxy authorization-bearing requests.
+- Cloud-provider API keys are stored in dedicated IndexedDB records with WebCrypto encryption when available. This is better than plain browser storage, but it is still browser-only protection rather than a hardware-backed or server-side secret vault.
 - MCP server support uses browser fetch directly. Only `https` endpoints, or `http://localhost`, are accepted, and servers that require OAuth or token-based authentication are rejected when detected. When an enabled MCP command is called, that command's arguments are sent to the configured MCP endpoint.
 - Attachment ingestion uses browser-local limits before large files are read into memory:
   - text files: 5 MB max, truncated to 400,000 characters

@@ -11,6 +11,8 @@ This document tracks security hardening decisions and known gaps that should sta
 - Proxy validation accepts only prefix-style `https` URLs, or `http://localhost`, preserves query-string prefixes, and rejects embedded credentials and fragments.
 - Proxy fallback is skipped for same-origin requests, requests that carry explicit authorization headers, and attempts to send local/private-network targets through a remote proxy.
 - MCP server support also uses the browser fetch API directly. It accepts only browser-reachable `https` endpoints, or `http://localhost`, and rejects embedded credentials plus obvious auth challenges where detected.
+- OpenAI-compatible cloud providers are also browser-direct. The app tests them with an authenticated `GET /models` call before save and later uses authenticated `/chat/completions` requests directly from the browser worker.
+- Saved cloud-provider API keys live in dedicated IndexedDB records instead of plain `localStorage` or `sessionStorage`. When the browser supports WebCrypto key storage, those secrets are encrypted at rest with a non-extractable browser-held AES-GCM key before they are written.
 - Transformers.js and MediaPipe Tasks GenAI are loaded from locally installed packages and bundled with the app build instead of being imported from a CDN at runtime.
 - Browser-local Python execution currently loads Pyodide runtime assets from the pinned `https://cdn.jsdelivr.net/pyodide/v0.29.3/full/` distribution at runtime.
 - Attachment ingestion applies per-type limits before large files are read into memory:
@@ -26,3 +28,4 @@ This document tracks security hardening decisions and known gaps that should sta
 
 - Model artifacts are still fetched from upstream model repositories at runtime. The LiteRT Gemma 4 asset is pinned to a specific Hugging Face revision, but the app does not yet apply a uniform revision-pinning or integrity-verification policy across all model downloads. This remains an accepted supply-chain risk for now and should stay documented until the app adopts pinned or self-hosted model artifacts consistently.
 - When an enabled MCP command is invoked, that command's arguments are sent to the configured remote MCP endpoint and its result comes back into the local conversation. This is expected behavior, but it is still an external network surface the user controls.
+- Browser-only secret storage is still not perfect secret storage. A malicious extension, compromised origin, or future XSS bug could still use the browser-held key material or invoke the decryption path. The UI warns about that limitation and intentionally never re-displays a saved cloud-provider API key after it is stored.

@@ -43,6 +43,10 @@ const MODEL_FEATURE_DEFINITIONS = Object.freeze([
   },
 ]);
 
+function isCloudModel(model) {
+  return model?.engine?.type === 'openai-compatible';
+}
+
 function formatInteger(value) {
   return INTEGER_FORMATTER.format(Math.max(0, Number(value) || 0));
 }
@@ -369,6 +373,12 @@ export function createModelPreferencesController({
         badge.textContent = 'Default';
         titleMeta.appendChild(badge);
       }
+      if (isCloudModel(model)) {
+        const cloudBadge = documentRef.createElement('span');
+        cloudBadge.className = 'badge text-bg-info model-card-badge';
+        cloudBadge.textContent = 'Cloud';
+        titleMeta.appendChild(cloudBadge);
+      }
       if (!availability.available) {
         const unavailableBadge = documentRef.createElement('span');
         unavailableBadge.className = 'badge model-card-badge model-card-badge-unavailable';
@@ -412,6 +422,15 @@ export function createModelPreferencesController({
         availabilityNote.className = 'model-card-note';
         availabilityNote.textContent = `Unavailable in this app. ${availability.reason}`;
         content.appendChild(availabilityNote);
+      } else if (isCloudModel(model)) {
+        const providerLabel =
+          typeof model.runtime?.providerDisplayName === 'string' && model.runtime.providerDisplayName.trim()
+            ? model.runtime.providerDisplayName.trim()
+            : 'cloud provider';
+        const cloudNote = documentRef.createElement('p');
+        cloudNote.className = 'model-card-note';
+        cloudNote.textContent = `Uses the saved ${providerLabel} endpoint.`;
+        content.appendChild(cloudNote);
       } else if (model.runtime?.requiresWebGpu) {
         const requirement = documentRef.createElement('p');
         requirement.className = 'model-card-note';
@@ -443,7 +462,7 @@ export function createModelPreferencesController({
       detailsLink.href = model.repositoryUrl || `https://huggingface.co/${model.id}`;
       detailsLink.target = '_blank';
       detailsLink.rel = 'noopener noreferrer';
-      detailsLink.textContent = 'Model details';
+      detailsLink.textContent = isCloudModel(model) ? 'Provider endpoint' : 'Model details';
       footer.appendChild(detailsLink);
       card.appendChild(footer);
 

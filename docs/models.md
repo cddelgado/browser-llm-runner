@@ -3,8 +3,9 @@
 Model support is configured in `src/config/models.json`:
 
 - `models`: list of supported models (`id`, `label`, optional card metadata, optional `features`)
+  - The app also appends browser-saved cloud models at runtime from `Settings -> Cloud Providers`; those entries are normalized into the same picker/catalog shape even though they are not committed in `src/config/models.json`.
 - `models[].engine`: explicit inference-driver selection for that model
-  - `type`: currently `transformers-js` or `mediapipe-genai`
+  - `type`: currently `transformers-js`, `mediapipe-genai`, or `openai-compatible`
 - `models[].displayName`: friendly card title shown in the pre-chat model picker
 - `models[].languageSupport`: optional language-tag metadata for the pre-chat picker
   - `tags`: ordered language entries with two-letter `code` and full `name`
@@ -29,6 +30,9 @@ Model support is configured in `src/config/models.json`:
   - `useExternalDataFormat` (`true`/number to enable loading `.onnx_data` sidecar files)
   - `modelAssetPath` (pinned LiteRT artifact URL for engines that fetch a specific artifact directly)
   - `promptFormat` (worker-side prompt flattening profile for LiteRT models that do not use tokenizer `apply_chat_template()`)
+  - `providerId` / `providerType` / `providerDisplayName` (runtime-only metadata for browser-saved cloud models)
+  - `apiBaseUrl` / `remoteModelId` (OpenAI-compatible worker endpoint/model routing)
+  - `supportsTopK` (`true` only when the configured cloud provider should receive `top_k`)
 - `models[].thinkingControl`: optional model-specific reasoning control metadata:
   - `defaultEnabled` (`false` only when the model should default to non-thinking mode in this app)
   - `runtimeParameter` (currently `enable_thinking` when the worker should pass a runtime switch)
@@ -140,7 +144,7 @@ Normalized in `src/config/model-settings.js` via `MODEL_FEATURE_FLAGS`.
 ### Engine field
 
 - `engine.type`
-  Selects the inference driver for that model. The current app ships `transformers-js` for ONNX/Transformers.js models and `mediapipe-genai` for LiteRT Gemma 4.
+  Selects the inference driver for that model. The current app ships `transformers-js` for ONNX/Transformers.js models, `mediapipe-genai` for LiteRT Gemma 4, and `openai-compatible` for browser-saved cloud models discovered from `Settings -> Cloud Providers`.
 
 ### Runtime fields
 
@@ -160,6 +164,13 @@ Normalized in `src/config/model-settings.js` via `MODEL_FEATURE_FLAGS`.
   Used by engines such as `mediapipe-genai` to fetch a pinned LiteRT artifact directly.
 - `promptFormat`
   Used by LiteRT worker paths to select the right flattened chat wrapper. Current values are `gemma-turns` and `qwen-im`.
+- `providerId` / `providerType` / `providerDisplayName`
+  Runtime-only metadata for browser-saved cloud models so the worker can look up the saved provider and render a clearer picker card.
+- `apiBaseUrl`
+- `remoteModelId`
+  Used by the OpenAI-compatible worker to call `/chat/completions` for the selected remote model.
+- `supportsTopK`
+  Lets the app suppress `top_k` for providers that should stay on the stricter OpenAI-style request envelope.
 
 ### Thinking-control fields
 
@@ -276,6 +287,10 @@ Current models in Settings:
 - Legacy aliases remapped automatically at runtime:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
+- Browser-saved cloud models:
+  - come from `Settings -> Cloud Providers` after the app successfully reads that provider's `/models` endpoint
+  - are added to the same picker used by local models for `New Conversation` and `New Agent`
+  - default to a conservative remote-friendly feature set in this app: streaming on, tool calling off, thinking off, and no multimodal input until a provider/runtime path is explicitly verified
 
 Notes:
 

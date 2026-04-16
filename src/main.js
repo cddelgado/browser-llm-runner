@@ -7,6 +7,7 @@ import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import { bindComposerEvents } from './app/composer-events.js';
 import { createComposerRuntimeController } from './app/composer-runtime.js';
+import { createCloudProviderSettingsController } from './app/cloud-provider-settings.js';
 import { createAgentAutomationController } from './app/agent-automation.js';
 import {
   formatAttachmentSize,
@@ -83,7 +84,10 @@ import {
   browserSupportsWebGpu,
   normalizeGenerationLimits,
   normalizeModelId,
+  replaceRuntimeModelCatalog,
 } from './config/model-settings.js';
+import { buildRuntimeModelCatalog } from './cloud/cloud-provider-config.js';
+import { inspectOpenAiCompatibleEndpoint } from './cloud/openai-compatible.js';
 import { normalizeMessageContentParts, setUserMessageText } from './state/conversation-content.js';
 import {
   CONVERSATION_TYPES,
@@ -165,6 +169,13 @@ import {
   shouldDisableComposerForPreChatConversationSelection as selectShouldDisableComposerForPreChatConversationSelection,
 } from './state/app-state.js';
 import { loadConversationState, saveConversationState } from './state/conversation-store.js';
+import {
+  getCloudProviderSecret,
+  loadCloudProviders as loadStoredCloudProviders,
+  removeCloudProvider as removeStoredCloudProvider,
+  saveCloudProvider as saveStoredCloudProvider,
+  updateCloudProvider as updateStoredCloudProvider,
+} from './state/cloud-provider-store.js';
 import { renderConversationListView } from './ui/conversation-list-view.js';
 import { buildDebugLogCsv, renderDebugLogView } from './ui/debug-log-view.js';
 import { loadMarkdownRenderer, renderPlainTextMarkdownFallback } from './ui/markdown-renderer.js';
@@ -246,6 +257,12 @@ const skillPackageInput = document.getElementById('skillPackageInput');
 const addSkillPackageButton = document.getElementById('addSkillPackageButton');
 const skillPackageAddFeedback = document.getElementById('skillPackageAddFeedback');
 const skillsList = document.getElementById('skillsList');
+const cloudProviderForm = document.getElementById('cloudProviderForm');
+const cloudProviderEndpointInput = document.getElementById('cloudProviderEndpointInput');
+const cloudProviderApiKeyInput = document.getElementById('cloudProviderApiKeyInput');
+const addCloudProviderButton = document.getElementById('addCloudProviderButton');
+const cloudProviderAddFeedback = document.getElementById('cloudProviderAddFeedback');
+const cloudProvidersList = document.getElementById('cloudProvidersList');
 const corsProxyForm = document.getElementById('corsProxyForm');
 const corsProxyInput = document.getElementById('corsProxyInput');
 const saveCorsProxyButton = document.getElementById('saveCorsProxyButton');
@@ -541,6 +558,7 @@ const appState = createAppState({
   defaultSystemPrompt: '',
   enableToolCalling: true,
   enabledToolNames: getEnabledToolNames(),
+  cloudProviders: [],
   mcpServers: [],
   maxDebugEntries: MAX_DEBUG_ENTRIES,
 });
@@ -3659,6 +3677,65 @@ const {
   syncModelSelectionForCurrentEnvironment,
 } = preferencesController;
 
+function syncCloudProviderModelCatalog() {
+  replaceRuntimeModelCatalog(buildRuntimeModelCatalog(appState.cloudProviders));
+  const activeConversation = getActiveConversation();
+  if (activeConversation) {
+    const previousModelId = activeConversation.modelId;
+    const { selectedModelId } = syncConversationModelSelection(activeConversation, {
+      announceFallback: false,
+      useDefaults: true,
+    });
+    if (selectedModelId !== previousModelId) {
+      queueConversationStateSave();
+    }
+  } else {
+    populateModelSelect();
+    const selectedModelId = syncModelSelectionForCurrentEnvironment({ announceFallback: false });
+    syncGenerationSettingsFromModel(selectedModelId, true);
+    syncConversationLanguageAndThinkingControls();
+  }
+  updateConversationSystemPromptPreview();
+  updateActionButtons();
+  updateWelcomePanelVisibility({ syncRoute: false });
+}
+
+const cloudProviderSettingsController = createCloudProviderSettingsController({
+  appState,
+  documentRef: document,
+  cloudProviderAddFeedback,
+  cloudProvidersList,
+  inspectCloudProviderEndpoint: (endpoint, apiKey) =>
+    inspectOpenAiCompatibleEndpoint(endpoint, apiKey, {
+      fetchRef: baseFetchRef,
+    }),
+  loadCloudProviders: loadStoredCloudProviders,
+  saveCloudProvider: saveStoredCloudProvider,
+  updateCloudProvider: updateStoredCloudProvider,
+  removeCloudProvider: removeStoredCloudProvider,
+  getCloudProviderSecret,
+  onProvidersChanged: () => {
+    syncCloudProviderModelCatalog();
+  },
+  getStoredGenerationConfigForModel,
+  persistGenerationConfigForModel,
+  getModelGenerationLimits,
+  syncGenerationSettingsFromModel,
+  getSelectedModelId: () => modelSelect?.value || DEFAULT_MODEL,
+});
+
+const {
+  addCloudProvider,
+  clearCloudProviderFeedback,
+  refreshCloudProviderPreference,
+  removeCloudProviderPreference,
+  resetCloudModelGenerationPreference,
+  restoreCloudProvidersFromStorage,
+  setCloudProviderFeedback,
+  setCloudProviderModelSelected,
+  updateCloudModelGenerationPreference,
+} = cloudProviderSettingsController;
+
 function applyConversationLanguagePreference(value, { persist = false } = {}) {
   const normalizedValue = normalizeConversationLanguagePreference(value);
   const activeConversation = getActiveConversation();
@@ -3698,6 +3775,33 @@ async function restoreSkillPackagesFromStorage() {
       details: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+async function initializeStoredBrowserState() {
+  try {
+    await restoreCloudProvidersFromStorage();
+  } catch (error) {
+    appendDebug({
+      kind: 'cloud-providers',
+      message: 'Failed to restore cloud providers.',
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  populateModelSelect();
+  restoreInferencePreferences();
+  syncConversationLanguageAndThinkingControls();
+  try {
+    await probeWebGpuAvailability();
+  } catch (_error) {
+    // probeWebGpuAvailability already records recoverable adapter failures.
+  }
+
+  updateWelcomePanelVisibility({ syncRoute: false });
+  applyAppRouteFromHash();
+  await restoreSkillPackagesFromStorage();
+  await restoreSemanticMemoryFromStorage();
+  await restoreConversationStateFromStorage();
 }
 
 function resetPendingConversationModelPreferences() {
@@ -3999,16 +4103,11 @@ applyDefaultSystemPrompt(getStoredDefaultSystemPrompt());
 if (appState.renderMathMl) {
   void ensureMathJaxLoaded();
 }
-populateModelSelect();
-restoreInferencePreferences();
-syncConversationLanguageAndThinkingControls();
-void probeWebGpuAvailability();
 showProgressRegion(false);
 renderComposerAttachments();
 renderDebugLog();
 updateActionButtons();
 setActiveSettingsTab(appState.activeSettingsTab);
-updateWelcomePanelVisibility({ syncRoute: false });
 if (pauseAgentBtn instanceof HTMLButtonElement) {
   pauseAgentBtn.addEventListener('click', () => {
     toggleAgentPauseState();
@@ -4039,10 +4138,7 @@ skipLinkElements.forEach((link) => {
   });
 });
 updateSkipLinkVisibility();
-applyAppRouteFromHash();
-void restoreSkillPackagesFromStorage();
-void restoreSemanticMemoryFromStorage();
-void restoreConversationStateFromStorage();
+void initializeStoredBrowserState();
 
 bindSettingsEvents({
   appState,
@@ -4061,6 +4157,11 @@ bindSettingsEvents({
   skillPackageInput,
   addSkillPackageButton,
   skillsList,
+  cloudProviderForm,
+  cloudProviderEndpointInput,
+  cloudProviderApiKeyInput,
+  addCloudProviderButton,
+  cloudProvidersList,
   corsProxyForm,
   corsProxyInput,
   saveCorsProxyButton,
@@ -4102,6 +4203,14 @@ bindSettingsEvents({
   clearSkillPackageFeedback,
   importSkillPackageFile,
   removeSkillPackagePreference,
+  addCloudProvider,
+  setCloudProviderFeedback,
+  clearCloudProviderFeedback,
+  refreshCloudProviderPreference,
+  removeCloudProviderPreference,
+  setCloudProviderModelSelected,
+  updateCloudModelGenerationPreference,
+  resetCloudModelGenerationPreference,
   saveCorsProxyPreference,
   clearCorsProxyPreference,
   setCorsProxyFeedback,

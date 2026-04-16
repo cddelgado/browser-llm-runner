@@ -18,6 +18,7 @@ describe('settings markup', () => {
       'tools',
       'mcpServers',
       'skills',
+      'cloudProviders',
       'proxy',
       'debug',
     ]);
@@ -33,6 +34,21 @@ describe('settings markup', () => {
     expect(cpuThreadsInput?.getAttribute('aria-describedby')).toBe('cpuThreadsHelp');
     expect(dom.window.document.getElementById('cpuThreadsHelp')?.textContent).toContain(
       'LiteRT runtime'
+    );
+  });
+
+  test('includes the Cloud Providers settings form and accordion list', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    const dom = new JSDOM(html);
+
+    expect(dom.window.document.getElementById('cloudProviderForm')).not.toBeNull();
+    expect(dom.window.document.getElementById('cloudProviderEndpointInput')).not.toBeNull();
+    expect(dom.window.document.getElementById('cloudProviderApiKeyInput')?.getAttribute('type')).toBe(
+      'password'
+    );
+    expect(dom.window.document.getElementById('cloudProvidersList')).not.toBeNull();
+    expect(dom.window.document.getElementById('cloudProviderStorageHelp')?.textContent).toContain(
+      'cannot be shown again'
     );
   });
 });

@@ -9,6 +9,7 @@ Inference is selected through the engine client boundary and executes through a 
 - The app currently ships:
   - `transformers-js` via `src/workers/llm.worker.js`
   - `mediapipe-genai` via `src/workers/mediapipe-llm.worker.js`
+  - `openai-compatible` via `src/workers/openai-compatible.worker.js`
 - Additional local or remote drivers can be added later without changing the UI/controller contract, as long as they implement the same client-facing `initialize` / `generate` / `cancel` lifecycle.
 
 ## Backends
@@ -31,6 +32,7 @@ Inference is selected through the engine client boundary and executes through a 
 - For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests, so multimodal preprocessing assets are not fetched during initial model load.
 - ONNX models may provide mode-specific runtime hints such as `runtime.dtypes.webgpu` and `runtime.dtypes.cpu`.
 - LiteRT-backed models may use engine-specific runtime hints such as `runtime.modelAssetPath` and `runtime.promptFormat` instead of Transformers.js-specific dtype settings.
+- Browser-saved cloud models use runtime hints such as `runtime.providerId`, `runtime.apiBaseUrl`, `runtime.remoteModelId`, and optional `runtime.supportsTopK` to drive the OpenAI-compatible worker.
 
 The resolved backend is shown in the status region in the main UI.
 Initialization is user-triggered on first message send in the chat workspace.
@@ -38,9 +40,11 @@ If model/backend settings change, the next message triggers a fresh load with up
 If a backend change makes the current model unavailable, the UI switches to the first compatible model and announces that in the status region.
 Generation settings (`maximum output tokens`, `maximum context size`, `temperature`, `top k`, `top p`) apply immediately when idle, or after the current generation completes.
 On the Transformers.js path, `maximum context size` is enforced as a prompt-token budget by left-truncating the oldest prompt tokens before generation, and `maximum output tokens` is passed separately as the generation cap.
+On the OpenAI-compatible path, `maximum context size` is enforced approximately before the request is sent by trimming older prompt turns with a lightweight text-based token estimate, because the browser app does not ship every provider tokenizer.
 If a generation request stops emitting worker activity for 90 seconds, the main-thread engine client terminates that worker and returns a recoverable timeout so the next request can reinitialize cleanly.
 If WebGPU loses the active device before any response tokens have streamed, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that request automatically.
 If that automatic CPU retry is unavailable or still fails, the controller unloads the current worker, marks the model as not ready, and surfaces recovery guidance to retry, switch to CPU, or reload the page if the browser/driver keeps dropping the device.
+OpenAI-compatible requests stream through Server-Sent Events in a dedicated worker and still honor the existing cancellation contract by aborting the in-flight fetch when the user chooses `Stop generating`.
 
 ## UI boundary
 
