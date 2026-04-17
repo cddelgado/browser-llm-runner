@@ -4,6 +4,7 @@
   --conversation-panel-open-width: 320px;
   --conversation-panel-width: var(--conversation-panel-open-width);
   --conversation-panel-collapsed-width: 1.5rem;
+  --chat-content-max-width: 900px;
   --floating-controls-right-offset: calc(max(0.75rem, env(safe-area-inset-right)) + 1rem);
   --app-bg: linear-gradient(145deg, #e7edf5 0%, #f4f7fb 40%, #ffffff 100%);
   --panel-bg: linear-gradient(180deg, rgba(231, 237, 246, 0.98) 0%, rgba(244, 247, 251, 0.96) 100%);
@@ -431,6 +432,8 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto;
   gap: 0.6rem;
   align-items: center;
+  width: min(100%, var(--chat-content-max-width));
+  margin: 0 auto;
 }
 
 .top-bar-start {
@@ -1111,7 +1114,7 @@
 
 .chat-transcript-wrap {
   flex: 1;
-  max-width: 900px;
+  max-width: var(--chat-content-max-width);
   margin: 0 auto;
   width: 100%;
   position: relative;
@@ -1802,7 +1805,7 @@
   background: transparent;
   padding: 0 0 1rem;
   width: 100%;
-  max-width: 900px;
+  max-width: var(--chat-content-max-width);
   margin: -0.15rem auto 0;
   position: relative;
   z-index: 2;
@@ -1821,7 +1824,7 @@
 
 .task-list-tray {
   width: 100%;
-  max-width: 900px;
+  max-width: var(--chat-content-max-width);
   margin: 0.2rem auto 0.65rem;
   position: relative;
   z-index: 1;
