@@ -248,7 +248,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - `sed` with a single sed-like script, `-n`, and `-i`
   - `file` with basic directory, signature, extension, and text-vs-binary classification
   - `diff` with `-u` unified-style emulated output
-  - `curl` with `URL`, `-I`, `-X`, repeated `-H`, `-d`, and `-o`
+  - `curl` with `URL`, bare host-style HTTPS shortcuts such as `wttr.in/...`, `-s`, `-I`, `-X`, repeated `-H`, `-d`, and `-o`
   - `python` with `/workspace/<script>.py` or short `-c` execution
   - `echo`
   - `set`
@@ -261,6 +261,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - fenced code blocks and nested tool-call payloads are rejected before execution
   - relative paths resolve from the conversation's current working directory
   - new conversations start with the shell pointer at `/workspace`
+  - shell paths stay under `/workspace`; `/tmp` is accepted as an alias for `/workspace/tmp`
   - minimal variable support exists for `$VAR`, `${VAR}`, `NAME=value`, `set`, and `unset`
   - `help <command>` returns command-specific usage and description text inside the shell subset itself
   - `paste` merges text files line-by-line, with optional `-d` delimiters
@@ -272,6 +273,7 @@ This tool is defined in [src/llm/tool-calling.js](/c:/Users/cddel/OneDrive/Devel
   - built-in pseudo variables include `PWD` and `WORKSPACE`
   - `diff` is line-based and emits unified-style emulated output rather than full GNU diff compatibility
   - `curl` uses the browser fetch API, so CORS, browser-managed redirects, and forbidden request headers still apply
+  - `curl` accepts `-s` / `--silent` as a no-op and treats bare host-style URLs such as `wttr.in/London?format=3` as `https://...`
   - `curl -o` writes response bytes to a file under `/workspace`; without `-o`, response bytes are decoded as UTF-8 text for `stdout`
   - `python` delegates to a browser-local Pyodide worker and mirrors its output back into shell-style `stdout`, `stderr`, and `exitCode`
   - `python -c` is intentionally small and should be treated as a short-snippet path; larger code should be written with `write_python_file` and then executed by path

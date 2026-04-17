@@ -212,7 +212,7 @@ const SHELL_COMMANDS = Object.freeze([
   },
   {
     name: 'curl',
-    usage: 'curl [-I] [-X <method>] [-H "Header: value"]... [-d <body>] [-o <file>] <url>',
+    usage: 'curl [-s] [-I] [-X <method>] [-H "Header: value"]... [-d <body>] [-o <file>] <url>',
     description: 'Fetch a URL with the browser network stack and optional workspace output.',
   },
   {
@@ -831,6 +831,27 @@ function formatCurlHeaderLines(headers) {
   return entries.map(([name, value]) => `${name}: ${value}`);
 }
 
+function hasExplicitUrlScheme(value) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(String(value || ''));
+}
+
+function normalizeCurlUrl(rawUrl) {
+  const normalizedUrl = String(rawUrl || '').trim();
+  if (!normalizedUrl) {
+    return '';
+  }
+  if (hasExplicitUrlScheme(normalizedUrl)) {
+    return normalizedUrl;
+  }
+  if (normalizedUrl.startsWith('//')) {
+    return `https:${normalizedUrl}`;
+  }
+  if (/^(localhost|[a-z0-9.-]+\.[a-z]{2,})(?::\d+)?(?:[/?#].*)?$/i.test(normalizedUrl)) {
+    return `https://${normalizedUrl}`;
+  }
+  return normalizedUrl;
+}
+
 function parseCurlArguments(args) {
   const options = {
     includeHeadersOnly: false,
@@ -844,6 +865,9 @@ function parseCurlArguments(args) {
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === '--') {
+      continue;
+    }
+    if (argument === '-s' || argument === '--silent') {
       continue;
     }
     if (argument === '-I') {
@@ -915,6 +939,7 @@ function parseCurlArguments(args) {
   if (!options.url) {
     throw new Error('expected exactly one URL.');
   }
+  options.url = normalizeCurlUrl(options.url);
 
   return options;
 }
@@ -1178,19 +1203,23 @@ function resolveWorkspacePath(
     return workspaceFileSystem.normalizePath(currentWorkingDirectory);
   }
   const slashNormalized = rawValue.replace(/\\/g, '/');
+  const shellPath =
+    slashNormalized === '/tmp' || slashNormalized.startsWith('/tmp/')
+      ? `${WORKSPACE_ROOT_PATH}/tmp${slashNormalized.slice('/tmp'.length)}`
+      : slashNormalized;
   const isAbsolute =
-    slashNormalized.startsWith('/') ||
-    slashNormalized === 'workspace' ||
-    slashNormalized.startsWith('workspace/');
+    shellPath.startsWith('/') ||
+    shellPath === 'workspace' ||
+    shellPath.startsWith('workspace/');
   const seedPath = isAbsolute
     ? WORKSPACE_ROOT_PATH
     : workspaceFileSystem.normalizePath(currentWorkingDirectory);
   const seedSegments = seedPath.split('/').filter(Boolean);
   const candidateSegments = isAbsolute
-    ? (slashNormalized.startsWith('/') ? slashNormalized : `/${slashNormalized}`)
+    ? (shellPath.startsWith('/') ? shellPath : `/${shellPath}`)
         .split('/')
         .filter(Boolean)
-    : slashNormalized.split('/').filter(Boolean);
+    : shellPath.split('/').filter(Boolean);
 
   const normalizedSegments = isAbsolute ? [] : [...seedSegments];
   for (const segment of candidateSegments) {
@@ -4873,8 +4902,10 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'diff -u /workspace/<left-file> /workspace/<right-file>',
       'curl https://example.com/data.txt',
       'curl -I https://example.com/data.txt',
+      'curl -s wttr.in/London?format=3',
       'curl -X POST -H "Content-Type: application/json" -d \'{"topic":"planets"}\' https://example.com/api',
       'curl -o /workspace/download.bin https://example.com/file.bin',
+      'curl -s -o /tmp/weather.png wttr.in/Berlin.png',
       'python /workspace/script.py',
       'python -c "print(2 + 2)"',
       'mkdir -p /workspace/<directory>',
@@ -4885,10 +4916,12 @@ function buildShellCommandUsageResult(currentWorkingDirectory = WORKSPACE_ROOT_P
       'Commands are GNU/Linux-like, but only the documented subset is implemented.',
       `Command text must be plain shell input, ${MAX_SHELL_COMMAND_LENGTH} characters or fewer, and free of control characters.`,
       'Relative paths resolve from the current working directory.',
+      'Shell paths stay under /workspace; /tmp is accepted as an alias for /workspace/tmp.',
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.',
       'Pipeline-safe commands: printf, echo, cat, head, tail, wc, sort, uniq, cut, tr, nl, grep, sed, tee.',
       'Unsupported syntax: ;, &&, redirection, substitution, globbing.',
       'paste, join, column, file, diff, curl, python, and tee are partial GNU/Linux-like subsets.',
+      'curl accepts -s/--silent as a no-op and treats bare host-style URLs as https:// URLs.',
       'Unsupported commands or syntax return stderr text and a non-zero exit code.',
     ],
     placeholders: [

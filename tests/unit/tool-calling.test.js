@@ -2114,7 +2114,8 @@ describe('tool-calling prompt builder', () => {
         }),
         expect.objectContaining({
           name: 'curl',
-          usage: 'curl [-I] [-X <method>] [-H "Header: value"]... [-d <body>] [-o <file>] <url>',
+          usage:
+            'curl [-s] [-I] [-X <method>] [-H "Header: value"]... [-d <body>] [-o <file>] <url>',
         }),
         expect.objectContaining({
           name: 'set',
@@ -2152,6 +2153,9 @@ describe('tool-calling prompt builder', () => {
       'Relative paths resolve from the current working directory.'
     );
     expect(result.result.limitations).toContain(
+      'Shell paths stay under /workspace; /tmp is accepted as an alias for /workspace/tmp.'
+    );
+    expect(result.result.limitations).toContain(
       'Minimal variable support exists for $VAR, ${VAR}, NAME=value, set, and unset.'
     );
     expect(result.result.limitations).toContain(
@@ -2162,6 +2166,9 @@ describe('tool-calling prompt builder', () => {
     );
     expect(result.result.limitations).toContain(
       'paste, join, column, file, diff, curl, python, and tee are partial GNU/Linux-like subsets.'
+    );
+    expect(result.result.limitations).toContain(
+      'curl accepts -s/--silent as a no-op and treats bare host-style URLs as https:// URLs.'
     );
   });
 
@@ -4849,6 +4856,35 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.stdout).toBe('HTTP 204 No Content\ncontent-type: text/plain\nx-test: yes');
   });
 
+  test('supports curl -s with a schemeless weather URL', async () => {
+    const fetchRef = vi.fn(async (url, init = {}) => {
+      expect(url).toBe('https://wttr.in/London?format=3');
+      expect(init).toMatchObject({
+        method: 'GET',
+        body: null,
+      });
+      return new globalThis.Response('London: Sunny', {
+        status: 200,
+      });
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          shell: 'curl -s "wttr.in/London?format=3"',
+        },
+      },
+      {
+        workspaceFileSystem: createMockWorkspaceFileSystem(),
+        fetchRef,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe('London: Sunny');
+  });
+
   test('supports curl -X, repeated -H, and -d', async () => {
     const fetchRef = vi.fn(async (_url, init = {}) => {
       expect(init).toMatchObject({
@@ -4912,6 +4948,38 @@ describe('tool-calling prompt builder', () => {
     expect(result.result.stdout).toBe('');
     await expect(workspaceFileSystem.readFile('/workspace/downloads/report.pdf')).resolves.toEqual(
       new Uint8Array([0x50, 0x44, 0x46])
+    );
+  });
+
+  test('supports curl -s -o with the /tmp shell alias', async () => {
+    const workspaceFileSystem = createMockWorkspaceFileSystem();
+    const fetchRef = vi.fn(async (url) => {
+      expect(url).toBe('https://wttr.in/Berlin.png');
+      return new globalThis.Response(new Uint8Array([0x50, 0x4e, 0x47]), {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/png',
+        },
+      });
+    });
+
+    const result = await executeToolCall(
+      {
+        name: 'run_shell_command',
+        arguments: {
+          shell: 'curl -s -o /tmp/weather.png wttr.in/Berlin.png',
+        },
+      },
+      {
+        workspaceFileSystem,
+        fetchRef,
+      }
+    );
+
+    expect(result.result.exitCode).toBe(0);
+    expect(result.result.stdout).toBe('');
+    await expect(workspaceFileSystem.readFile('/workspace/tmp/weather.png')).resolves.toEqual(
+      new Uint8Array([0x50, 0x4e, 0x47])
     );
   });
 

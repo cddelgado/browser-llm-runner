@@ -225,7 +225,7 @@ Student-facing browser chat UI with local model inference.
   - The shell subset includes a single-command `sed` MVP for common line printing, deletion, substitution, and in-place text edits under `/workspace`.
   - The shell subset includes a basic `file` command that classifies directories plus common text and binary file types under `/workspace`.
   - The shell subset includes a line-based `diff` command with unified-style emulated output for comparing two text files under `/workspace`.
-  - The shell subset includes a browser-backed `curl` subset for `URL`, `-I`, `-X`, repeated `-H`, `-d`, and `/workspace`-bounded `-o`.
+  - The shell subset includes a browser-backed `curl` subset for `URL`, bare host-style HTTPS shortcuts such as `wttr.in/...`, `-s`, `-I`, `-X`, repeated `-H`, `-d`, and `/workspace`-bounded `-o` with `/tmp` accepted as an alias for `/workspace/tmp`.
   - The shell subset includes a delegated `python` command for `python /workspace/script.py` and short `python -c "..."` execution through a browser-local Pyodide worker.
   - The shell subset includes `tee` so pipeline output can be written safely into `/workspace` files without enabling shell redirection.
   - Larger Python source is expected to flow through `write_python_file`, which also mirrors a meaningful file-write entry into the read-only terminal before later `python` execution appears there.
