@@ -352,6 +352,8 @@ describe('llm.worker wasm backend config', () => {
     const result = configureOnnxWasmBackend(env, 'webgpu');
     expect(env.backends.onnx.wasm.proxy).toBe(true);
     expect(env.backends.onnx.wasm.numThreads).toBe(0);
+    expect(result?.wasmPaths?.mjs).toContain('ort-wasm-simd-threaded.asyncify.mjs');
+    expect(result?.wasmPaths?.wasm).toContain('ort-wasm-simd-threaded.asyncify.wasm');
     expect(result).toEqual({
       backend: 'webgpu',
       proxy: true,

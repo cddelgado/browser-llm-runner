@@ -4,8 +4,6 @@ import {
 } from '../config/generation-config.js';
 import ortWasmAsyncifyBinaryPath from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
 import ortWasmAsyncifyModulePath from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url';
-import ortWasmJsepBinaryPath from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm?url';
-import ortWasmJsepModulePath from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.mjs?url';
 import ortWasmBinaryPath from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url';
 import ortWasmModulePath from 'onnxruntime-web/ort-wasm-simd-threaded.mjs?url';
 
@@ -256,9 +254,12 @@ function isSafariUserAgent() {
 
 function resolveLocalOnnxWasmPaths(backend = 'wasm') {
   if (backend === 'webgpu') {
+    // Keep the bundled wasm assets aligned with the installed `onnxruntime-web/webgpu`
+    // entrypoint. The current WebGPU bundle expects the WebGPU EP asyncify module, and
+    // wiring in the JSEP wasm here causes `webgpuInit is not a function` during init.
     return {
-      mjs: ortWasmJsepModulePath,
-      wasm: ortWasmJsepBinaryPath,
+      mjs: ortWasmAsyncifyModulePath,
+      wasm: ortWasmAsyncifyBinaryPath,
     };
   }
   if (isSafariUserAgent()) {

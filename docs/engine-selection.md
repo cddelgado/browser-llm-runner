@@ -25,7 +25,7 @@ Inference is selected through the engine client boundary and executes through a 
   - `env.useWasmCache = true`
   - `onnx.wasm.proxy = true`
   - `onnx.wasm.numThreads = 0` by default, or the user-selected value from `Settings -> System -> Transformers.js CPU threads`
-  - `onnx.wasm.wasmPaths` now points at app-bundled ONNX Runtime WASM files instead of the default CDN path (`jsep` for WebGPU, threaded WASM for CPU, asyncify on Safari CPU fallback)
+  - `onnx.wasm.wasmPaths` now points at app-bundled ONNX Runtime WASM files instead of the default CDN path (the installed `onnxruntime-web/webgpu` bundle currently uses the asyncify WebGPU EP assets, threaded WASM for CPU, and asyncify on Safari CPU fallback)
   - `Settings -> System -> Clear Downloaded Model Files` uses Transformers.js cache metadata to remove the selected local ONNX model's cached files from the browser cache
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` runs through the `transformers-js` worker with `q4` on WebGPU and CPU.
