@@ -94,7 +94,7 @@ Minimum validation after adding a model:
 - Backend availability behaves correctly for `auto`, `webgpu`, `wasm`, and `cpu`.
 - The worker loads the right execution path.
 - Tool calling, thinking tags, and media input are either verified or explicitly disabled.
-- `npm run typecheck`
+- `pnpm typecheck`
 - Relevant unit tests
 
 ## Disable or remove a model
