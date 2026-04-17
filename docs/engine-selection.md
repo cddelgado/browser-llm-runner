@@ -30,7 +30,7 @@ Inference is selected through the engine client boundary and executes through a 
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` runs through the `transformers-js` worker with `q4` on WebGPU and CPU.
 - `huggingworld/gemma-4-E2B-it-ONNX` now runs through the `transformers-js` worker with `q4f16` on WebGPU and CPU.
-- `onnx-community/Bonsai-8B-ONNX` now runs through the `transformers-js` worker with `q4` on WebGPU and CPU.
+- `onnx-community/Bonsai-8B-ONNX` now runs through the `transformers-js` worker with `q1` on WebGPU and CPU.
 - Models with `multimodalGeneration: true` can still initialize through the text-generation path when the current prompt contains no image/audio/video inputs; the worker reinitializes into the processor/model path only when media is actually present.
 - For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests, so multimodal preprocessing assets are not fetched during initial model load.
 - For text-only Transformers.js turns, the worker now loads `AutoTokenizer` and `AutoModelForCausalLM` directly, feeds tokenized prompt tensors into `model.generate()`, and reuses `past_key_values` when a follow-up turn extends the previous prompt prefix.

@@ -90,7 +90,7 @@ Student-facing browser chat UI with local model inference.
 - On the Transformers.js text path, the worker now loads `AutoTokenizer` + `AutoModelForCausalLM` directly, skips the extra pipeline retokenization pass, and reuses `past_key_values` for append-only follow-up turns when the next prompt is a strict token-prefix extension of the previous completed turn.
 - The bundled ONNX Gemma 4 E2B entry now points at `huggingworld/gemma-4-E2B-it-ONNX` and runs through the Transformers.js worker path on both WebGPU and CPU.
 - The bundled ONNX Llama 3.2 3B entry now uses `q4` on both WebGPU and CPU.
-- The bundled ONNX Bonsai 8B experimental entry now uses `q4` on both WebGPU and CPU.
+- The bundled ONNX Bonsai 8B experimental entry now uses `q1` on both WebGPU and CPU.
 - The bundled LiteRT runtime in this app does not currently expose a matching CPU-thread setting, so the System-tab thread control applies only to the Transformers.js/ONNX path.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
@@ -268,7 +268,7 @@ In addition to the bundled local model catalog, users can add browser-reachable 
   - Remains the canonical Llama 3.2 3B entry for this browser app because the full ONNX repo was not reliable here.
 - `onnx-community/Bonsai-8B-ONNX`
   - Uses the Transformers.js worker path in this app.
-  - Experimental ONNX entry using `q4` on WebGPU and CPU in this app.
+  - Experimental ONNX entry using `q1` on WebGPU and CPU in this app.
   - Relies on the upstream model config for exact ONNX external-data shard counts across dtypes instead of forcing one app-level shard count.
   - Parses `<think>...</think>` reasoning into the transcript thinking section.
   - Uses tagged JSON tool calls inside `<tool_call>...</tool_call>` when tool calling is enabled.

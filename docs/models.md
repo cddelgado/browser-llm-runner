@@ -281,7 +281,7 @@ Current models in Settings:
   - Keeps the browser-oriented `onnx-web` repo id as the canonical Llama 3.2 3B model in this app.
 - `onnx-community/Bonsai-8B-ONNX`
   - Uses the `transformers-js` engine.
-  - Experimental ONNX path using runtime revision `a5694a132e4050cef2dc335528016ce7e56504c9` and runtime dtypes `{ webgpu: q4, cpu: q4 }`.
+  - Experimental ONNX path using runtime revision `a5694a132e4050cef2dc335528016ce7e56504c9` and runtime dtypes `{ webgpu: q1, cpu: q1 }`.
   - Relies on the upstream `transformers.js_config.use_external_data_format` map for per-dtype ONNX shard counts.
   - Uses `thinkingTags { open: "<think>", close: "</think>" }`.
   - Uses tagged JSON tool calls with `<tool_call>...</tool_call>` wrappers and `{"name":"...","arguments":{...}}` inside.
@@ -300,7 +300,7 @@ Notes:
 
 - Each model explicitly points at its engine driver in config.
 - Transformers.js and MediaPipe Tasks GenAI are loaded from locally installed packages and bundled into the app build.
-- The installed Transformers.js runtime now exposes newer low-bit ONNX dtypes including `q2`, `q2f16`, `q1`, and `q1f16`; the bundled catalog currently keeps Bonsai on `q4` for both WebGPU and CPU.
+- The installed Transformers.js runtime now exposes newer low-bit ONNX dtypes including `q2`, `q2f16`, `q1`, and `q1f16`; the bundled catalog currently keeps Bonsai on `q1` for both WebGPU and CPU.
 - Model assets are downloaded at runtime and cached in-browser through the engine-specific path.
 - Model assets are not committed to this repository.
 - Transformers.js-backed model assets in the shipped catalog are revision-pinned, and the ONNX worker now uses app-bundled ONNX Runtime WASM assets instead of the default CDN path.
@@ -321,6 +321,6 @@ Per-model limits and defaults:
 
 - `huggingworld/gemma-4-E2B-it-ONNX`: engine `transformers-js`, runtime revision `84b2c85ce64e8a0c999a3284f438d28db1d396a5`, runtime dtypes `{ webgpu: q4f16, cpu: q4f16 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, `inputLimits.maxImageInputs: 1`, `inputLimits.maxAudioInputs: 1`, max context `131072`, default context `8192`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, `imageInput`, and `audioInput`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: runtime revision `8ddaf6b6764ff2916a807e3c2ec0b5a441192473`, runtime dtypes `{ webgpu: q4, cpu: q4 }`, max context `131072`, default context `8192`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"shell":"..."}` inside `parameters`, no thinking tags
-- `onnx-community/Bonsai-8B-ONNX`: runtime revision `a5694a132e4050cef2dc335528016ce7e56504c9`, runtime dtypes `{ webgpu: q4, cpu: q4 }`, max context `65536`, default context `8192`, default temperature `0.5`, default top-k `20`, default top-p `0.85`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, tagged JSON tool-call format inside `<tool_call>...</tool_call>`, thinking tags `<think>` / `</think>`, and upstream-managed per-dtype ONNX shard metadata
+- `onnx-community/Bonsai-8B-ONNX`: runtime revision `a5694a132e4050cef2dc335528016ce7e56504c9`, runtime dtypes `{ webgpu: q1, cpu: q1 }`, max context `65536`, default context `8192`, default temperature `0.5`, default top-k `20`, default top-p `0.85`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, tagged JSON tool-call format inside `<tool_call>...</tool_call>`, thinking tags `<think>` / `</think>`, and upstream-managed per-dtype ONNX shard metadata
 - `Llama 3.2 3B` keeps the browser-oriented `onnx-web` repo id as its canonical model in this app. The full ONNX repo remains a legacy alias because its browser load path was not reliable here: the `int8` package could fail with `Array buffer allocation failed`, and the `q4` package could fail to preload required `.onnx_data` shards.
 - The remaining listed Llama entry enables `useExternalDataFormat: true` for `.onnx_data` loading.

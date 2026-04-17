@@ -140,10 +140,10 @@ describe('model-settings availability', () => {
     ).toBe('q4f16');
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.runtime, 'webgpu')
-    ).toBe('q4');
+    ).toBe('q1');
     expect(
       resolveRuntimeDtypeForBackend(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.runtime, 'cpu')
-    ).toBe('q4');
+    ).toBe('q1');
   });
 
   test('maps the temporary llama 3.2 3B full ONNX repo id back to the browser repo id', () => {
@@ -212,8 +212,8 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.runtime).toMatchObject({
       revision: 'a5694a132e4050cef2dc335528016ce7e56504c9',
       dtypes: {
-        webgpu: 'q4',
-        cpu: 'q4',
+        webgpu: 'q1',
+        cpu: 'q1',
       },
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.inputLimits).toMatchObject({
@@ -257,7 +257,7 @@ describe('model-settings availability', () => {
       repositoryUrl: 'https://huggingface.co/huggingworld/gemma-4-E2B-it-ONNX',
     });
     expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)).toMatchObject({
-      displayName: 'Bonsai 8B Q4 (Experimental)',
+      displayName: 'Bonsai 8B Q1 (Experimental)',
       repositoryUrl: 'https://huggingface.co/onnx-community/Bonsai-8B-ONNX',
     });
   });
