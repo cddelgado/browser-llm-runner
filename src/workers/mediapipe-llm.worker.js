@@ -297,6 +297,21 @@ function requestGenerationCancel(requestId) {
   llmInference?.cancelProcessing?.();
 }
 
+function getStreamTextDelta(nextText, previousText = '') {
+  const normalizedNextText = typeof nextText === 'string' ? nextText : String(nextText || '');
+  const normalizedPreviousText =
+    typeof previousText === 'string' ? previousText : String(previousText || '');
+  if (!normalizedNextText) {
+    return '';
+  }
+  if (normalizedPreviousText && normalizedNextText.startsWith(normalizedPreviousText)) {
+    return normalizedNextText.slice(normalizedPreviousText.length);
+  }
+  return normalizedNextText;
+}
+
+export { getStreamTextDelta };
+
 async function getWasmFileset() {
   const useSimd = await FilesetResolver.isSimdSupported(true);
   return useSimd
@@ -783,19 +798,25 @@ async function generate(payload) {
     llmInference.clearCancelSignals?.();
 
     let finalText = '';
+    let streamedText = '';
     const formattedPrompt = resolvePrompt(prompt, runtime);
     finalText = await llmInference.generateResponse(formattedPrompt, (partialResult, done) => {
       if (generationState.cancelRequested) {
         return;
       }
       const text = typeof partialResult === 'string' ? partialResult : String(partialResult || '');
-      self.postMessage({
-        type: 'token',
-        payload: {
-          requestId,
-          text,
-        },
-      });
+      const deltaText = getStreamTextDelta(text, streamedText);
+      if (deltaText) {
+        self.postMessage({
+          type: 'token',
+          payload: {
+            requestId,
+            text: deltaText,
+          },
+        });
+      }
+      streamedText =
+        streamedText && text.startsWith(streamedText) ? text : `${streamedText}${deltaText}`;
       if (done) {
         finalText = text;
       }
@@ -811,7 +832,7 @@ async function generate(payload) {
 
     self.postMessage({
       type: 'complete',
-      payload: { requestId, text: String(finalText || '') },
+      payload: { requestId, text: String(finalText || streamedText || '') },
     });
     postStatus(`Complete (${backendStatusLabel})`);
   } catch (error) {

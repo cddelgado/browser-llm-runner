@@ -46,11 +46,14 @@ If model/backend settings change, the next message triggers a fresh load with up
 If a backend change makes the current model unavailable, the UI switches to the first compatible model and announces that in the status region.
 Generation settings (`maximum output tokens`, `maximum context size`, `temperature`, `top k`, `top p`) apply immediately when idle, or after the current generation completes.
 On the Transformers.js path, `maximum context size` is enforced as a prompt-token budget by left-truncating the oldest prompt tokens before generation, and `maximum output tokens` is passed separately as the generation cap.
+On the Transformers.js multimodal path, the worker trims the oldest non-system turns at message boundaries before generation so image/audio requests still honor the configured context budget; if the current multimodal turn is too large to fit even after older turns are dropped, generation fails with guidance to raise the context size or reduce attachments.
 On the OpenAI-compatible path, `maximum context size` is enforced approximately before the request is sent by trimming older prompt turns with a lightweight text-based token estimate, because the browser app does not ship every provider tokenizer.
 If a generation request stops emitting worker activity for 90 seconds, the main-thread engine client terminates that worker and returns a recoverable timeout so the next request can reinitialize cleanly.
 If WebGPU fails before any response tokens have streamed with a recoverable runtime error (including device loss), the engine client disposes the failed worker, reloads the same model on CPU once, and retries that request automatically.
+If the user chooses `Stop generating` while that automatic CPU recovery is in flight, the pending request is canceled and the retry is not resumed after the replacement worker finishes initializing.
 If that automatic CPU retry is unavailable or still fails, the controller unloads the current worker, marks the model as not ready, and surfaces recovery guidance to retry, switch to CPU, or reload the page if the browser/driver keeps failing WebGPU execution.
 OpenAI-compatible requests stream through Server-Sent Events in a dedicated worker and still honor the existing cancellation contract by aborting the in-flight fetch when the user chooses `Stop generating`.
+LiteRT/MediaPipe-backed models apply context and sampler settings at initialization time, so generation-setting edits trigger a reinitialization before the next LiteRT request instead of being hot-swapped mid-session.
 
 ## UI boundary
 

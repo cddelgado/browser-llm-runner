@@ -85,6 +85,7 @@ Student-facing browser chat UI with local model inference.
 - CPU mode runs CPU-capable ONNX models through the browser WASM path. The ONNX worker keeps `useWasmCache` enabled, uses app-bundled ONNX Runtime WASM assets instead of the default CDN path, enables WASM proxying across ONNX backends, and lets `Settings -> System -> Transformers.js CPU threads` control `onnx.wasm.numThreads` (`0` keeps ORT auto).
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
 - If WebGPU loses the active graphics device before any response tokens are shown, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that generation automatically.
+- If `Stop generating` is pressed while that automatic CPU recovery is still initializing, the pending request is canceled and the retry is not resumed.
 - If that automatic CPU retry is not possible or still fails, the app unloads the current worker, marks the model as not ready, and tells the user to retry, switch to CPU mode, or reload the page if the browser/driver keeps dropping the device.
 - On the Transformers.js text path, the worker now loads `AutoTokenizer` + `AutoModelForCausalLM` directly, skips the extra pipeline retokenization pass, and reuses `past_key_values` for append-only follow-up turns when the next prompt is a strict token-prefix extension of the previous completed turn.
 - The bundled ONNX Gemma 4 E2B entry now points at `huggingworld/gemma-4-E2B-it-ONNX` and runs through the Transformers.js worker path on both WebGPU and CPU.
@@ -99,6 +100,8 @@ Student-facing browser chat UI with local model inference.
   - Fields are disabled until a model is loaded.
   - `Context size (short-term memory)` includes a `Reset to model default` link that applies the selected model default when clicked.
   - On the Transformers.js engine path, `Context size` is enforced as a hard prompt-token budget by left-truncating the oldest conversation tokens before generation, and `Maximum output tokens` is enforced separately as the generation cap.
+  - On the Transformers.js multimodal path, the worker trims the oldest non-system turns before generation so image/audio prompts stay within the configured context budget; if the current multimodal turn alone is too large, generation fails with guidance to raise the context size or reduce attachments.
+  - LiteRT/MediaPipe-backed models apply context and sampler settings at initialization time, so generation-setting edits trigger a reinitialization before the next LiteRT request instead of hot-swapping those values mid-session.
   - If changed during generation, updates are queued and applied after the current response finishes.
 - `Settings -> Model` also includes:
   - `Response language`, stored per conversation or pending pre-chat draft, with a warning when the selected language is not listed for the selected model in this app.

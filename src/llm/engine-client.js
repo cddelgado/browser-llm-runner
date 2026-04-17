@@ -126,6 +126,7 @@ export class LLMEngineClient {
     this.loadedBackend = null;
     this.loadedBackendDevice = null;
     this.loadedEngineType = null;
+    this.loadedInitConfigKey = '';
     this.engineDescriptor = null;
     this.config = {
       engineType: DEFAULT_ENGINE_TYPE,
@@ -186,6 +187,7 @@ export class LLMEngineClient {
       this.loadedBackend = result?.backend || null;
       this.loadedBackendDevice = result?.backendDevice || null;
       this.loadedEngineType = result?.engineType || engineType;
+      this.loadedInitConfigKey = initConfigKey;
       logEngineDebug('initialize-success', {
         modelId: this.loadedModelId,
         backend: this.loadedBackend,
@@ -231,18 +233,19 @@ export class LLMEngineClient {
       throw new Error('Generation is already in progress.');
     }
 
+    const requestGenerationConfig = handlers.generationConfig || this.config.generationConfig;
     const requestRuntime = {
       ...this.config.runtime,
       ...(handlers.runtime && typeof handlers.runtime === 'object' ? handlers.runtime : {}),
     };
-    if (this.#shouldReinitializeForRuntime(requestRuntime)) {
+    if (this.#shouldReinitializeForRequest(requestRuntime, requestGenerationConfig)) {
       await this.initialize({
         runtime: requestRuntime,
+        generationConfig: requestGenerationConfig,
       });
     }
 
     const requestId = crypto.randomUUID();
-    const requestGenerationConfig = handlers.generationConfig || this.config.generationConfig;
     this.pendingGeneration = {
       requestId,
       prompt,
@@ -254,6 +257,7 @@ export class LLMEngineClient {
       onCancel: handlers.onCancel,
       receivedAnyTokens: false,
       attemptedCpuRecovery: false,
+      cancelRequested: false,
     };
     logEngineDebug('generate-request', {
       requestId,
@@ -285,7 +289,12 @@ export class LLMEngineClient {
   }
 
   async cancelGeneration() {
-    if (!this.worker || !this.pendingGeneration) {
+    if (!this.pendingGeneration) {
+      return;
+    }
+    this.pendingGeneration.cancelRequested = true;
+    if (!this.worker) {
+      this.#cancelPendingGenerationWithoutWorker();
       return;
     }
     if (this.pendingCancel) {
@@ -333,6 +342,7 @@ export class LLMEngineClient {
     this.loadedBackend = null;
     this.loadedBackendDevice = null;
     this.loadedEngineType = null;
+    this.loadedInitConfigKey = '';
     this.engineDescriptor = null;
     this.#clearPendingInitState();
   }
@@ -518,6 +528,7 @@ export class LLMEngineClient {
     this.loadedBackend = null;
     this.loadedBackendDevice = null;
     this.loadedEngineType = null;
+    this.loadedInitConfigKey = '';
     this.engineDescriptor = null;
   }
 
@@ -671,7 +682,11 @@ export class LLMEngineClient {
         runtime: pendingGeneration.runtime,
         generationConfig: pendingGeneration.generationConfig,
       });
-      if (this.pendingGeneration !== pendingGeneration || !this.worker) {
+      if (
+        this.pendingGeneration !== pendingGeneration ||
+        pendingGeneration.cancelRequested ||
+        !this.worker
+      ) {
         return;
       }
       this.#armGenerationWatchdog({ announce: true });
@@ -699,6 +714,7 @@ export class LLMEngineClient {
     this.loadedBackend = null;
     this.loadedBackendDevice = null;
     this.loadedEngineType = null;
+    this.loadedInitConfigKey = '';
     this.engineDescriptor = null;
     this.#clearPendingInitState();
   }
@@ -713,10 +729,21 @@ export class LLMEngineClient {
     });
   }
 
-  #shouldReinitializeForRuntime(nextRuntime) {
+  #shouldReinitializeForRequest(nextRuntime, nextGenerationConfig) {
     const currentRequiresMultimodal = this.#usesMultimodalExecution(this.config.runtime);
     const nextRequiresMultimodal = this.#usesMultimodalExecution(nextRuntime);
-    return currentRequiresMultimodal !== nextRequiresMultimodal;
+    if (currentRequiresMultimodal !== nextRequiresMultimodal) {
+      return true;
+    }
+    if (this.engineDescriptor?.reinitializeOnGenerationConfigChange !== true) {
+      return false;
+    }
+    const nextInitConfigKey = this.#getInitConfigKey({
+      ...this.config,
+      runtime: nextRuntime,
+      generationConfig: nextGenerationConfig,
+    });
+    return nextInitConfigKey !== this.loadedInitConfigKey;
   }
 
   #usesMultimodalExecution(runtime) {
@@ -730,6 +757,18 @@ export class LLMEngineClient {
       ((this.loadedModelId && this.loadedModelId !== modelId) ||
         (this.loadedEngineType && this.loadedEngineType !== normalizedEngineType))
     );
+  }
+
+  #cancelPendingGenerationWithoutWorker() {
+    if (!this.pendingGeneration) {
+      return;
+    }
+    this.#clearGenerationWatchdog();
+    const pendingGeneration = this.pendingGeneration;
+    this.pendingGeneration = null;
+    if (typeof pendingGeneration.onCancel === 'function') {
+      pendingGeneration.onCancel();
+    }
   }
 
   #pendingCancelResolve = null;

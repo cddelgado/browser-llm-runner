@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Worker Harness</title>
+    <style>
+      body {
+        font-family: Georgia, 'Times New Roman', serif;
+        margin: 0;
+        padding: 2rem;
+        background: linear-gradient(180deg, #f4efe6 0%, #efe6d8 100%);
+        color: #1e1a17;
+      }
+
+      main {
+        max-width: 48rem;
+        margin: 0 auto;
+        padding: 1.5rem;
+        border: 1px solid #b39b7d;
+        background: rgba(255, 252, 247, 0.92);
+      }
+
+      .controls {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin: 1rem 0;
+      }
+
+      button {
+        padding: 0.7rem 1rem;
+        border: 1px solid #5d4630;
+        background: #fff9f1;
+        color: #1e1a17;
+        cursor: pointer;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        border: 1px solid #cab9a1;
+        padding: 0.75rem;
+        background: #fffdf9;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>OpenAI-Compatible Worker Harness</h1>
+      <p>This page exercises the real fetch-backed worker path in a browser.</p>
+      <div class="controls">
+        <button id="runWorkerButton" type="button">Run worker harness</button>
+        <button id="cancelWorkerButton" type="button" disabled>Cancel worker harness</button>
+      </div>
+      <h2>Status</h2>
+      <div id="workerStatus" aria-live="polite">Idle</div>
+      <h2>Output</h2>
+      <pre id="workerOutput"></pre>
+      <h2>Events</h2>
+      <pre id="workerEvents"></pre>
+    </main>
+    <script type="module" src="./src/test/openai-worker-harness.js"></script>
+  </body>
+</html>

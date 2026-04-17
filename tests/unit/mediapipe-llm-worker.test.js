@@ -331,6 +331,13 @@ if (typeof exports === 'object' && typeof module === 'object') {
       },
     });
     expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'token',
+      payload: {
+        requestId: 'request-1',
+        text: '11:25 PM.',
+      },
+    });
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
       type: 'complete',
       payload: {
         requestId: 'request-1',

@@ -1,9 +1,14 @@
+const { resolve } = require('node:path');
 const { defineConfig } = require('vite');
 
 module.exports = defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
   build: {
     rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        workerHarness: resolve(__dirname, 'worker-harness.html'),
+      },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) {

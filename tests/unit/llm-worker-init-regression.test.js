@@ -42,6 +42,7 @@ function createTokenizer() {
       attention_mask: [[1, 1, 1]],
     })),
     batch_decode: vi.fn(() => ['Decoded output']),
+    dispose: vi.fn(),
   };
 }
 
@@ -56,6 +57,7 @@ function createTextModel(generateImplementation = null) {
           };
         })
     ),
+    dispose: vi.fn(),
   };
 }
 
@@ -419,6 +421,63 @@ describe('llm.worker init regression', () => {
         text: 'Model output',
       },
     });
+  });
+
+  test('disposes the loaded text runtime before switching into multimodal mode', async () => {
+    const tokenizer = createTokenizer();
+    const textModel = createTextModel();
+    const multimodalModel = {
+      tokenizer: createTokenizer(),
+      generate: vi.fn(async () => ({
+        sequences: [[101, 102, 103, 201]],
+      })),
+      dispose: vi.fn(),
+    };
+    tokenizerFactory.mockResolvedValueOnce(tokenizer);
+    textModelFactory.mockResolvedValueOnce(textModel);
+    multimodalFactory.mockResolvedValueOnce(multimodalModel);
+
+    await import('../../src/workers/llm.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'init',
+          payload: {
+            modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
+            backendPreference: 'cpu',
+            runtime: {
+              dtypes: {
+                cpu: 'q4f16',
+              },
+            },
+          },
+        },
+      })
+    );
+
+    await workerSelf.onmessage(
+      /** @type {any} */ ({
+        data: {
+          type: 'init',
+          payload: {
+            modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
+            backendPreference: 'cpu',
+            runtime: {
+              dtypes: {
+                cpu: 'q4f16',
+              },
+              multimodalGeneration: true,
+            },
+          },
+        },
+      })
+    );
+
+    expect(tokenizer.dispose).toHaveBeenCalledTimes(1);
+    expect(textModel.dispose).toHaveBeenCalledTimes(1);
+    expect(multimodalFactory).toHaveBeenCalledTimes(1);
   });
 
   test('preserves special tokens in the text streamer when runtime thinking is enabled', async () => {

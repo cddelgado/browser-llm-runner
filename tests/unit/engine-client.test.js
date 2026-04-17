@@ -51,9 +51,19 @@ class MockWorker {
               modelId: message.payload?.modelId || 'test-model',
             },
           };
-      queueMicrotask(() => {
-        this.#emit('message', nextInitEvent);
-      });
+      const delayMs =
+        Number.isFinite(nextInitResponse?.delayMs) && nextInitResponse.delayMs > 0
+          ? Math.trunc(nextInitResponse.delayMs)
+          : 0;
+      if (delayMs > 0) {
+        setTimeout(() => {
+          this.#emit('message', nextInitEvent);
+        }, delayMs);
+      } else {
+        queueMicrotask(() => {
+          this.#emit('message', nextInitEvent);
+        });
+      }
       return;
     }
 
@@ -304,6 +314,49 @@ describe('LLMEngineClient', () => {
     expect(onStatus).toHaveBeenCalledWith('WebGPU generation failed. Retrying on CPU...');
   });
 
+  test('canceling during automatic cpu recovery prevents the retried generation from resuming', async () => {
+    vi.useFakeTimers();
+    MockWorker.initResponses = [
+      {
+        backend: 'webgpu',
+        backendDevice: 'webgpu',
+        modelId: 'example/model',
+      },
+      {
+        backend: 'cpu',
+        backendDevice: 'wasm',
+        modelId: 'example/model',
+        delayMs: 50,
+      },
+    ];
+    MockWorker.generateModes = ['deviceLost'];
+
+    const client = new LLMEngineClient();
+    const onCancel = vi.fn();
+    const onError = vi.fn();
+    await client.initialize({ modelId: 'example/model', backendPreference: 'webgpu' });
+
+    client.generate('prompt', {
+      onToken: vi.fn(),
+      onError,
+      onComplete: vi.fn(),
+      onCancel,
+    });
+
+    await Promise.resolve();
+    expect(MockWorker.instances).toHaveLength(2);
+
+    await client.cancelGeneration();
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(client.pendingGeneration).toBeNull();
+    expect(MockWorker.instances[1].messages.filter((message) => message.type === 'generate')).toHaveLength(
+      0
+    );
+  });
+
   test('terminates the failed webgpu worker before retrying initialization on cpu', async () => {
     MockWorker.initResponses = [
       {
@@ -445,6 +498,36 @@ describe('LLMEngineClient', () => {
     });
   });
 
+  test('reinitializes MediaPipe engines before generation when generation settings changed since init', async () => {
+    const client = new LLMEngineClient();
+    await client.initialize({
+      modelId: 'litert-community/gemma-4-E4B-it-litert-lm',
+      engineType: 'mediapipe-genai',
+      generationConfig: {
+        maxOutputTokens: 512,
+        maxContextTokens: 8192,
+        temperature: 1,
+        topK: 64,
+        topP: 0.95,
+        repetitionPenalty: 1,
+      },
+    });
+
+    client.setGenerationConfig({
+      maxOutputTokens: 768,
+    });
+
+    await client.generate('prompt', {
+      onToken: () => {},
+      onComplete: () => {},
+      onError: () => {},
+    });
+
+    const initMessages = MockWorker.instances[0].messages.filter((message) => message.type === 'init');
+    expect(initMessages).toHaveLength(2);
+    expect(initMessages[1]?.payload?.generationConfig?.maxOutputTokens).toBe(768);
+  });
+
   test('cancelGeneration sends a cancel request without reloading the worker', async () => {
     const client = new LLMEngineClient();
     await client.initialize({ modelId: 'example/model' });
@@ -461,6 +544,7 @@ describe('LLMEngineClient', () => {
       onCancel: vi.fn(),
       receivedAnyTokens: false,
       attemptedCpuRecovery: false,
+      cancelRequested: false,
     };
     await client.cancelGeneration();
 
@@ -491,6 +575,30 @@ describe('LLMEngineClient', () => {
       onCancel,
       receivedAnyTokens: false,
       attemptedCpuRecovery: false,
+      cancelRequested: false,
+    };
+
+    await client.cancelGeneration();
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(client.pendingGeneration).toBeNull();
+  });
+
+  test('cancelGeneration clears a pending request even after the worker was already discarded', async () => {
+    const client = new LLMEngineClient();
+    const onCancel = vi.fn();
+    client.pendingGeneration = {
+      requestId: '33333333-3333-3333-3333-333333333333',
+      prompt: 'prompt',
+      runtime: {},
+      generationConfig: client.config.generationConfig,
+      onToken: vi.fn(),
+      onComplete: vi.fn(),
+      onError: vi.fn(),
+      onCancel,
+      receivedAnyTokens: false,
+      attemptedCpuRecovery: false,
+      cancelRequested: false,
     };
 
     await client.cancelGeneration();

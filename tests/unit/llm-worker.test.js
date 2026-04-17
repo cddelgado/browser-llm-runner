@@ -13,6 +13,7 @@ let resolveGenerationMaxLength;
 let resolveBackendLabel;
 let ONNX_WASM_PROXY_ENABLED;
 let ONNX_WASM_NUM_THREADS;
+let trimMultimodalMessagesToContextBudget;
 
 beforeAll(async () => {
   globalThis.self = /** @type {any} */ ({
@@ -33,6 +34,7 @@ beforeAll(async () => {
     resolveBackendLabel,
     ONNX_WASM_PROXY_ENABLED,
     ONNX_WASM_NUM_THREADS,
+    trimMultimodalMessagesToContextBudget,
   } = await import('../../src/workers/llm.worker.js'));
 });
 
@@ -249,6 +251,103 @@ describe('llm.worker text prompt preparation', () => {
         return_dict: true,
       })
     );
+  });
+});
+
+describe('llm.worker multimodal prompt budgeting', () => {
+  test('drops older multimodal conversation turns until the prompt fits the context budget', () => {
+    const processor = {
+      tokenizer: {
+        encode: (text) => text.split(/\s+/).filter(Boolean),
+      },
+      apply_chat_template: (messages) =>
+        messages
+          .map((message) =>
+            Array.isArray(message.content)
+              ? message.content
+                  .map((part) => {
+                    if (part?.type === 'text') {
+                      return part.text;
+                    }
+                    return `<${part?.type || 'part'}>`;
+                  })
+                  .join(' ')
+              : message.content
+          )
+          .join(' '),
+    };
+
+    const trimmed = trimMultimodalMessagesToContextBudget(
+      processor,
+      [
+        { role: 'system', content: 'You are helpful.' },
+        { role: 'user', content: [{ type: 'text', text: 'Older context that can be removed first.' }] },
+        { role: 'assistant', content: 'Older answer that can be removed too.' },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Use this image now.' },
+            { type: 'image', image: 'data:image/png;base64,abcd' },
+          ],
+        },
+      ],
+      { maxContextTokens: 9 },
+      {}
+    );
+
+    expect(trimmed.truncated).toBe(true);
+    expect(trimmed.originalPromptTokens).toBeGreaterThan(trimmed.promptTokens);
+    expect(trimmed.messages).toEqual([
+      { role: 'system', content: 'You are helpful.' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Use this image now.' },
+          { type: 'image', image: 'data:image/png;base64,abcd' },
+        ],
+      },
+    ]);
+  });
+
+  test('throws when the current multimodal turn exceeds the context budget on its own', () => {
+    const processor = {
+      tokenizer: {
+        encode: (text) => text.split(/\s+/).filter(Boolean),
+      },
+      apply_chat_template: (messages) =>
+        messages
+          .map((message) =>
+            Array.isArray(message.content)
+              ? message.content
+                  .map((part) => {
+                    if (part?.type === 'text') {
+                      return part.text;
+                    }
+                    return `<${part?.type || 'part'}>`;
+                  })
+                  .join(' ')
+              : message.content
+          )
+          .join(' '),
+    };
+
+    expect(() =>
+      trimMultimodalMessagesToContextBudget(
+        processor,
+        [
+          { role: 'system', content: 'You are helpful.' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'This attachment-heavy request is still too large to fit.' },
+              { type: 'image', image: 'data:image/png;base64,abcd' },
+            ],
+          },
+        ],
+        { maxContextTokens: 5 },
+        {}
+      )
+    ).toThrow('exceeds the 5-token context budget');
   });
 });
 

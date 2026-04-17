@@ -615,6 +615,29 @@ async function clearTextGenerationPrefixCache() {
   await setTextGenerationPrefixCache(null);
 }
 
+async function disposeLoadedModelResources() {
+  await clearTextGenerationPrefixCache();
+  for (const candidate of [processor, model, tokenizer]) {
+    if (!candidate || typeof candidate.dispose !== 'function') {
+      continue;
+    }
+    try {
+      await candidate.dispose();
+    } catch {
+      // Ignore disposal failures so reinitialization can continue.
+    }
+  }
+  model = null;
+  tokenizer = null;
+  processor = null;
+  backendInUse = null;
+  loadedBackendDevice = null;
+  loadedModelId = null;
+  loadedExecutionMode = 'text';
+  loadedBackendPreference = null;
+  loadedRuntimeConfigKey = '';
+}
+
 function extractTokenSequence(inputIds) {
   if (!inputIds) {
     return [];
@@ -883,6 +906,70 @@ async function prepareMultimodalInputsFromPrompt(messages, RawImage) {
   };
 }
 
+function countPromptTextTokens(tokenizerInstance, promptText) {
+  if (!tokenizerInstance || typeof tokenizerInstance.encode !== 'function') {
+    return 0;
+  }
+  return tokenizerInstance.encode(promptText, { add_special_tokens: false }).length;
+}
+
+function buildMultimodalPromptText(processorInstance, messages, runtime = {}) {
+  if (!processorInstance || typeof processorInstance.apply_chat_template !== 'function') {
+    throw new Error('Multimodal processor is missing apply_chat_template().');
+  }
+  return processorInstance.apply_chat_template(messages, buildMultimodalChatTemplateOptions(runtime));
+}
+
+function trimMultimodalMessagesToContextBudget(
+  processorInstance,
+  messages,
+  requestGenerationConfig,
+  runtime = {}
+) {
+  const maxContextTokens =
+    Number.isInteger(requestGenerationConfig?.maxContextTokens) &&
+    requestGenerationConfig.maxContextTokens > 0
+      ? requestGenerationConfig.maxContextTokens
+      : 0;
+  const workingMessages = Array.isArray(messages)
+    ? messages.map((message) => ({ ...message }))
+    : [];
+  let promptText = buildMultimodalPromptText(processorInstance, workingMessages, runtime);
+  const countingTokenizer = processorInstance?.tokenizer || tokenizer;
+  let promptTokens = countPromptTextTokens(countingTokenizer, promptText);
+  const originalPromptTokens = promptTokens;
+  if (!maxContextTokens || !promptTokens || promptTokens <= maxContextTokens) {
+    return {
+      messages: workingMessages,
+      promptText,
+      promptTokens,
+      originalPromptTokens,
+      truncated: false,
+    };
+  }
+
+  const firstRemovableIndex = workingMessages[0]?.role === 'system' ? 1 : 0;
+  while (promptTokens > maxContextTokens && workingMessages.length - 1 > firstRemovableIndex) {
+    workingMessages.splice(firstRemovableIndex, 1);
+    promptText = buildMultimodalPromptText(processorInstance, workingMessages, runtime);
+    promptTokens = countPromptTextTokens(countingTokenizer, promptText);
+  }
+
+  if (promptTokens > maxContextTokens) {
+    throw new Error(
+      `The current multimodal prompt needs about ${promptTokens} tokens, which exceeds the ${maxContextTokens}-token context budget even after older turns were trimmed. Increase Context size or reduce the current attachment-heavy turn.`
+    );
+  }
+
+  return {
+    messages: workingMessages,
+    promptText,
+    promptTokens,
+    originalPromptTokens,
+    truncated: true,
+  };
+}
+
 async function prepareImageInputsFromPrompt(messages, RawImage) {
   const prepared = await prepareMultimodalInputsFromPrompt(messages, RawImage);
   return {
@@ -977,6 +1064,7 @@ export { shouldSkipSpecialTokensInMultimodalOutput };
 export { buildMultimodalStreamerOptions };
 export { buildMultimodalDecodeOptions };
 export { ensureMultimodalProcessor };
+export { trimMultimodalMessagesToContextBudget };
 
 function isRuntimeReadyForGeneration({
   hasModel = false,
@@ -1367,7 +1455,7 @@ async function initialize(payload) {
     useBrowserCache: env.useBrowserCache,
     useWasmCache: env.useWasmCache,
   });
-  await clearTextGenerationPrefixCache();
+  await disposeLoadedModelResources();
 
   for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex += 1) {
     const backend = attempts[attemptIndex];
@@ -1435,8 +1523,6 @@ async function initialize(payload) {
         },
       };
       if (runtime.multimodalGeneration) {
-        processor = null;
-        tokenizer = null;
         postProgress({ percent: 10, message: `Loading ${modelId} multimodal model...` });
         model = await AutoModelForImageTextToText.from_pretrained(modelId, {
           ...modelLoadOptions,
@@ -1445,16 +1531,16 @@ async function initialize(payload) {
         tokenizer = model?.tokenizer || null;
         loadedExecutionMode = 'multimodal';
       } else {
-        processor = null;
         postProgress({ percent: 10, message: `Loading ${modelId} tokenizer...` });
-        tokenizer = await AutoTokenizer.from_pretrained(modelId, {
+        const tokenizerPromise = AutoTokenizer.from_pretrained(modelId, {
           progress_callback: modelLoadOptions.progress_callback,
           ...(runtime.revision ? { revision: runtime.revision } : {}),
         });
         postProgress({ percent: 15, message: `Loading ${modelId} text model...` });
-        model = await AutoModelForCausalLM.from_pretrained(modelId, {
+        const modelPromise = AutoModelForCausalLM.from_pretrained(modelId, {
           ...modelLoadOptions,
         });
+        [tokenizer, model] = await Promise.all([tokenizerPromise, modelPromise]);
         loadedExecutionMode = 'text';
       }
       backendInUse = resolvedBackendLabel;
@@ -1481,6 +1567,7 @@ async function initialize(payload) {
       postStatus(`Ready (${backendInUse.toUpperCase()})`);
       return;
     } catch (error) {
+      await disposeLoadedModelResources();
       const rawMessage =
         backend === 'webgpu' ? formatWebGpuInitializationError(error) : extractErrorMessage(error);
       logWorkerWarn('init-backend-failed', {
@@ -1628,14 +1715,26 @@ async function generate(payload) {
         }
       );
       const { RawImage } = await loadTransformers();
-      const { messages, images, audios } = await prepareMultimodalInputsFromPrompt(
+      const trimmedPrompt = trimMultimodalMessagesToContextBudget(
+        multimodalProcessor,
         formattedPrompt,
+        requestGenerationConfig,
+        runtime
+      );
+      const { images, audios } = await prepareMultimodalInputsFromPrompt(
+        trimmedPrompt.messages,
         RawImage
       );
-      const promptText = multimodalProcessor.apply_chat_template(
-        messages,
-        buildMultimodalChatTemplateOptions(runtime)
-      );
+      const promptText = trimmedPrompt.promptText;
+      if (trimmedPrompt.truncated) {
+        logWorkerWarn('generate-multimodal-prompt-truncated', {
+          requestId,
+          modelId: loadedModelId || payload.modelId || '',
+          originalPromptTokens: trimmedPrompt.originalPromptTokens,
+          promptTokens: trimmedPrompt.promptTokens,
+          maxContextTokens: requestGenerationConfig.maxContextTokens,
+        });
+      }
       const imageInputs = images.length > 1 ? images : images[0] || null;
       const audioInputs = audios.length > 1 ? audios : audios[0] || null;
       const modelInputs = await multimodalProcessor(promptText, imageInputs, audioInputs, {
