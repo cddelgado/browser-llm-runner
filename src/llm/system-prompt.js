@@ -28,8 +28,8 @@ export function buildMathRenderingFeaturePrompt({ renderMathMl = false } = {}) {
     return '';
   }
   return (
-    'Present mathematical notation in LaTeX, use $...$ for inline math and $$...$$ ' +
-    'for display math, and include matching delimiters so expressions render correctly.'
+    'When writing mathematical notation in LaTeX, use $...$ for inline math and $$...$$ ' +
+    'for display math. Include matching delimiters so expressions render correctly.'
   );
 }
 
