@@ -3,6 +3,17 @@ import { JSDOM } from 'jsdom';
 import { createAppState } from '../../src/state/app-state.js';
 import { createModelPreferencesController } from '../../src/app/preferences-models.js';
 
+const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
+const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
+
+function getModelCard(modelCardList, modelId) {
+  const button = Array.from(modelCardList.querySelectorAll('.model-card-button')).find(
+    (candidate) => candidate instanceof HTMLButtonElement && candidate.dataset.modelId === modelId
+  );
+  return button?.closest('.model-card') || null;
+}
+
 function createHarness({
   navigatorRef = /** @type {any} */ ({ gpu: {} }),
   appStateOverrides = {},
@@ -81,7 +92,7 @@ describe('preferences-models', () => {
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
     expect(cards.length).toBe(modelSelect.querySelectorAll('option').length);
 
-    const gemmaCard = cards.find((card) => card.textContent?.includes('Gemma 4 E2B'));
+    const gemmaCard = getModelCard(modelCardList, GEMMA_4_MODEL_ID);
     expect(gemmaCard?.textContent).toContain('131,072 tokens');
     expect(gemmaCard?.querySelectorAll('.model-feature-pill')).toHaveLength(4);
     expect(
@@ -90,26 +101,22 @@ describe('preferences-models', () => {
       'Supported languages: English (EN), Spanish (ES), French (FR), Chinese (ZH), Hindi (HI), Japanese (JA), and more.'
     );
 
-    const llama3BCard = cards.find((card) => card.textContent?.includes('Llama 3.2 3B Instruct'));
+    const llama3BCard = getModelCard(modelCardList, LLAMA_3B_MODEL_ID);
     expect(llama3BCard?.textContent).toContain('131,072 tokens');
     expect(
       Array.from(llama3BCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
       )
     ).toEqual(['Can use built-in tools']);
-    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 350M'))).toBe(false);
-    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Instruct'))).toBe(
-      false
+    expect(getModelCard(modelCardList, 'LiquidAI/LFM2.5-350M-ONNX')).toBeNull();
+    expect(getModelCard(modelCardList, 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX')).toBeNull();
+    expect(getModelCard(modelCardList, 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX')).toBeNull();
+    expect(getModelCard(modelCardList, 'onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')).toBe(
+      null
     );
-    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Thinking'))).toBe(
-      false
-    );
-    expect(cards.some((card) => card.textContent?.includes('Llama 3.2 1B Instruct'))).toBe(false);
-    expect(cards.some((card) => card.textContent?.includes('Qwen3.5 2B Instruct'))).toBe(false);
+    expect(getModelCard(modelCardList, 'onnx-community/Qwen3.5-2B-ONNX')).toBeNull();
 
-    const bonsaiCard = cards.find((card) =>
-      card.textContent?.includes('Bonsai 8B Q4 (Experimental)')
-    );
+    const bonsaiCard = getModelCard(modelCardList, BONSAI_8B_MODEL_ID);
     expect(bonsaiCard?.textContent).toContain('65,536 tokens');
     expect(
       Array.from(bonsaiCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
@@ -121,7 +128,7 @@ describe('preferences-models', () => {
       gemmaCard?.querySelector('.model-card-button')
     );
     gemmaButton?.click();
-    expect(modelSelect.value).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(modelSelect.value).toBe(GEMMA_4_MODEL_ID);
     expect(gemmaButton?.getAttribute('aria-checked')).toBe('true');
 
     modelCardList.dispatchEvent(
@@ -146,14 +153,14 @@ describe('preferences-models', () => {
     );
 
     harness.controller.populateModelSelect();
-    modelSelect.value = 'onnx-community/gemma-4-E2B-it-ONNX';
+    modelSelect.value = GEMMA_4_MODEL_ID;
     backendSelect.value = 'cpu';
 
     const selectedModel = harness.controller.syncModelSelectionForCurrentEnvironment({
       announceFallback: true,
     });
 
-    expect(selectedModel).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(selectedModel).toBe(GEMMA_4_MODEL_ID);
     expect(modelSelect.value).toBe(selectedModel);
     expect(harness.deps.setStatus).not.toHaveBeenCalled();
   });
@@ -169,14 +176,14 @@ describe('preferences-models', () => {
 
     harness.controller.restoreInferencePreferences();
 
-    expect(
-      harness.controller.getAvailableModelId('onnx-community/Qwen3.5-2B-ONNX', 'webgpu')
-    ).toBe('onnx-community/gemma-4-E2B-it-ONNX');
-    expect(modelSelect.value).toBe('onnx-community/gemma-4-E2B-it-ONNX');
-    expect(harness.storage.getItem('model')).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(harness.controller.getAvailableModelId('onnx-community/Qwen3.5-2B-ONNX', 'webgpu')).toBe(
+      GEMMA_4_MODEL_ID
+    );
+    expect(modelSelect.value).toBe(GEMMA_4_MODEL_ID);
+    expect(harness.storage.getItem('model')).toBe(GEMMA_4_MODEL_ID);
     expect(harness.storage.getItem('backend')).toBe('webgpu');
     expect(harness.deps.syncGenerationSettingsFromModel).toHaveBeenCalledWith(
-      'onnx-community/gemma-4-E2B-it-ONNX',
+      GEMMA_4_MODEL_ID,
       true
     );
   });
@@ -195,7 +202,7 @@ describe('preferences-models', () => {
     const generationConfig = { maxOutputTokens: 512 };
 
     harness.controller.populateModelSelect();
-    modelSelect.value = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
+    modelSelect.value = LLAMA_3B_MODEL_ID;
     backendSelect.value = 'cpu';
     cpuThreadsInput.value = '3';
 
@@ -203,26 +210,24 @@ describe('preferences-models', () => {
 
     expect(engineConfig).toEqual({
       engineType: 'transformers-js',
-      modelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+      modelId: LLAMA_3B_MODEL_ID,
       backendPreference: 'cpu',
-      runtime: { runtimeModelId: 'onnx-community/Llama-3.2-3B-Instruct-onnx-web', cpuThreads: 3 },
+      runtime: { runtimeModelId: LLAMA_3B_MODEL_ID, cpuThreads: 3 },
       generationConfig,
     });
-    expect(harness.deps.getRuntimeConfigForModel).toHaveBeenCalledWith(
-      'onnx-community/Llama-3.2-3B-Instruct-onnx-web'
-    );
+    expect(harness.deps.getRuntimeConfigForModel).toHaveBeenCalledWith(LLAMA_3B_MODEL_ID);
     expect(harness.deps.syncGenerationSettingsFromModel).toHaveBeenCalledWith(
-      'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+      LLAMA_3B_MODEL_ID,
       false
     );
 
     harness.controller.persistInferencePreferences(generationConfig);
 
-    expect(harness.storage.getItem('model')).toBe('onnx-community/Llama-3.2-3B-Instruct-onnx-web');
+    expect(harness.storage.getItem('model')).toBe(LLAMA_3B_MODEL_ID);
     expect(harness.storage.getItem('backend')).toBe('cpu');
     expect(harness.storage.getItem('cpu-threads')).toBe('3');
     expect(harness.deps.persistGenerationConfigForModel).toHaveBeenCalledWith(
-      'onnx-community/Llama-3.2-3B-Instruct-onnx-web',
+      LLAMA_3B_MODEL_ID,
       generationConfig
     );
   });
@@ -261,7 +266,7 @@ describe('preferences-models', () => {
     });
 
     harness.controller.populateModelSelect();
-    harness.controller.setSelectedModelId('onnx-community/gemma-4-E2B-it-ONNX');
+    harness.controller.setSelectedModelId(GEMMA_4_MODEL_ID);
 
     const adapterAvailable = await harness.controller.probeWebGpuAvailability();
 
@@ -270,7 +275,7 @@ describe('preferences-models', () => {
     expect(harness.appState.webGpuProbeCompleted).toBe(true);
     expect(harness.appState.webGpuAdapterAvailable).toBe(false);
     expect(harness.deps.syncGenerationSettingsFromModel).toHaveBeenCalledWith(
-      'onnx-community/gemma-4-E2B-it-ONNX',
+      GEMMA_4_MODEL_ID,
       true
     );
     expect(harness.deps.setStatus).not.toHaveBeenCalled();

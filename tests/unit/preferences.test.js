@@ -4,6 +4,17 @@ import { createAppState } from '../../src/state/app-state.js';
 import { createPreferencesController } from '../../src/app/preferences.js';
 import { getEnabledToolDefinitions } from '../../src/llm/tool-calling.js';
 
+const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
+const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
+
+function getModelCard(modelCardList, modelId) {
+  const button = Array.from(modelCardList.querySelectorAll('.model-card-button')).find(
+    (candidate) => candidate instanceof HTMLButtonElement && candidate.dataset.modelId === modelId
+  );
+  return button?.closest('.model-card') || null;
+}
+
 function createPreferencesHarness({
   validateCorsProxyUrl = vi.fn(async (value) => {
     if (String(value || '').includes('bad-proxy')) {
@@ -418,32 +429,28 @@ describe('preferences controller', () => {
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
     expect(cards.length).toBe(modelSelect.querySelectorAll('option').length);
 
-    const llama3BCard = cards.find((card) => card.textContent?.includes('Llama 3.2 3B Instruct'));
+    const llama3BCard = getModelCard(modelCardList, LLAMA_3B_MODEL_ID);
     expect(llama3BCard?.textContent).toContain('131,072 tokens');
     expect(llama3BCard?.textContent).not.toContain('Temp 0.6');
     expect(llama3BCard?.textContent).not.toContain('Default context 8,192');
     expect(
       /** @type {HTMLAnchorElement | null} */ (llama3BCard?.querySelector('.model-card-link'))?.href
-    ).toBe('https://huggingface.co/onnx-community/Llama-3.2-3B-Instruct-onnx-web');
+    ).toBe(`https://huggingface.co/${LLAMA_3B_MODEL_ID}`);
 
-    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 350M'))).toBe(false);
-    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Instruct'))).toBe(
-      false
+    expect(getModelCard(modelCardList, 'LiquidAI/LFM2.5-350M-ONNX')).toBeNull();
+    expect(getModelCard(modelCardList, 'LiquidAI/LFM2.5-1.2B-Instruct-ONNX')).toBeNull();
+    expect(getModelCard(modelCardList, 'LiquidAI/LFM2.5-1.2B-Thinking-ONNX')).toBeNull();
+    expect(getModelCard(modelCardList, 'onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')).toBe(
+      null
     );
-    expect(cards.some((card) => card.textContent?.includes('Liquid LFM 2.5 1.2B Thinking'))).toBe(
-      false
-    );
-    expect(cards.some((card) => card.textContent?.includes('Llama 3.2 1B Instruct'))).toBe(false);
-    expect(cards.some((card) => card.textContent?.includes('Qwen3.5 2B Instruct'))).toBe(false);
+    expect(getModelCard(modelCardList, 'onnx-community/Qwen3.5-2B-ONNX')).toBeNull();
 
-    const bonsaiCard = cards.find((card) =>
-      card.textContent?.includes('Bonsai 8B Q4 (Experimental)')
-    );
+    const bonsaiCard = getModelCard(modelCardList, BONSAI_8B_MODEL_ID);
     expect(bonsaiCard?.textContent).toContain('65,536 tokens');
     expect(bonsaiCard?.textContent).toContain('about 49,200 words');
     expect(
       /** @type {HTMLAnchorElement | null} */ (bonsaiCard?.querySelector('.model-card-link'))?.href
-    ).toBe('https://huggingface.co/onnx-community/Bonsai-8B-ONNX');
+    ).toBe(`https://huggingface.co/${BONSAI_8B_MODEL_ID}`);
     expect(
       Array.from(bonsaiCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
@@ -451,7 +458,7 @@ describe('preferences controller', () => {
     ).toEqual(['Shows a thinking section', 'Can use built-in tools']);
     expect(bonsaiCard?.querySelector('.model-card-languages')).toBeNull();
 
-    const gemmaCard = cards.find((card) => card.textContent?.includes('Gemma 4 E2B'));
+    const gemmaCard = getModelCard(modelCardList, GEMMA_4_MODEL_ID);
     expect(gemmaCard?.textContent).toContain('131,072 tokens');
     expect(gemmaCard?.textContent).toContain('about 98,300 words');
     expect(gemmaCard?.textContent).not.toContain('Default context 8,192');
@@ -464,7 +471,7 @@ describe('preferences controller', () => {
     expect(gemmaCard?.textContent).not.toContain('onnx-community/gemma-4-E2B-it-ONNX');
     expect(
       /** @type {HTMLAnchorElement | null} */ (gemmaCard?.querySelector('.model-card-link'))?.href
-    ).toBe('https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX');
+    ).toBe(`https://huggingface.co/${GEMMA_4_MODEL_ID}`);
     expect(
       /** @type {HTMLAnchorElement | null} */ (gemmaCard?.querySelector('.model-card-link'))
         ?.textContent
@@ -503,7 +510,7 @@ describe('preferences controller', () => {
     );
     gemmaButton?.click();
 
-    expect(modelSelect.value).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(modelSelect.value).toBe(GEMMA_4_MODEL_ID);
     expect(gemmaButton?.getAttribute('aria-checked')).toBe('true');
   });
 
@@ -513,23 +520,21 @@ describe('preferences controller', () => {
 
     harness.controller.populateModelSelect();
 
-    const getFeatureLabels = (title) => {
-      const card = Array.from(modelCardList.querySelectorAll('.model-card')).find((candidate) =>
-        candidate.textContent?.includes(title)
-      );
+    const getFeatureLabels = (modelId) => {
+      const card = getModelCard(modelCardList, modelId);
       return Array.from(card?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
       );
     };
 
-    expect(getFeatureLabels('Llama 3.2 3B Instruct')).toEqual(['Can use built-in tools']);
-    expect(getFeatureLabels('Gemma 4 E2B')).toEqual([
+    expect(getFeatureLabels(LLAMA_3B_MODEL_ID)).toEqual(['Can use built-in tools']);
+    expect(getFeatureLabels(GEMMA_4_MODEL_ID)).toEqual([
       'Shows a thinking section',
       'Can use built-in tools',
       'Accepts image input',
       'Accepts audio input',
     ]);
-    expect(getFeatureLabels('Bonsai 8B Q4 (Experimental)')).toEqual([
+    expect(getFeatureLabels(BONSAI_8B_MODEL_ID)).toEqual([
       'Shows a thinking section',
       'Can use built-in tools',
     ]);
@@ -548,6 +553,6 @@ describe('preferences controller', () => {
       '.model-card .model-card-title'
     )?.textContent;
     expect(firstCardTitle).toBe('Gemma 4 E2B');
-    expect(modelSelect.options[0]?.value).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(modelSelect.options[0]?.value).toBe(GEMMA_4_MODEL_ID);
   });
 });
