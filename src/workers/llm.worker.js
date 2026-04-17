@@ -1254,7 +1254,7 @@ function promptContainsStructuredMedia(prompt) {
 }
 
 async function initialize(payload) {
-  const modelId = payload.modelId || 'onnx-community/gemma-4-E2B-it-ONNX';
+  const modelId = payload.modelId || 'huggingworld/gemma-4-E2B-it-ONNX';
   const backendPreference = normalizeBackendPreference(payload.backendPreference || 'webgpu');
   generationConfig = normalizeGenerationConfig(payload.generationConfig);
   const runtime = normalizeRuntimeConfig(payload.runtime);
@@ -1491,7 +1491,7 @@ async function initialize(payload) {
       const isUnauthorized = /unauthorized|401|403/i.test(rawMessage);
       if (isUnauthorized) {
         errors.push(
-          `${backend.toUpperCase()}: ${rawMessage} (This model appears gated or blocked for direct browser access. Use a public model like onnx-community/gemma-4-E2B-it-ONNX, or self-host pinned model files for static delivery.)`
+          `${backend.toUpperCase()}: ${rawMessage} (This model appears gated or blocked for direct browser access. Use a public model like huggingworld/gemma-4-E2B-it-ONNX, or self-host pinned model files for static delivery.)`
         );
       } else {
         const fallbackSuffix =

@@ -129,7 +129,7 @@ export class LLMEngineClient {
     this.engineDescriptor = null;
     this.config = {
       engineType: DEFAULT_ENGINE_TYPE,
-      modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+      modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
       backendPreference: 'webgpu',
       runtime: {},
       generationConfig: {

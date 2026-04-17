@@ -564,7 +564,7 @@ describe('LLMEngineClient', () => {
     const client = new LLMEngineClient();
 
     await client.initialize({
-      modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+      modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
       engineType: 'transformers-js',
     });
 

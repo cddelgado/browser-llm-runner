@@ -1,9 +1,9 @@
 {
-  "defaultModelId": "onnx-community/gemma-4-E2B-it-ONNX",
+  "defaultModelId": "huggingworld/gemma-4-E2B-it-ONNX",
   "models": [
     {
-      "id": "onnx-community/gemma-4-E2B-it-ONNX",
-      "label": "onnx-community/gemma-4-E2B-it-ONNX",
+      "id": "huggingworld/gemma-4-E2B-it-ONNX",
+      "label": "huggingworld/gemma-4-E2B-it-ONNX",
       "displayName": "Gemma 4 E2B",
       "engine": {
         "type": "transformers-js"
@@ -20,9 +20,9 @@
         "hasMore": true,
         "sourceUrl": "https://ai.google.dev/gemma"
       },
-      "repositoryUrl": "https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX",
+      "repositoryUrl": "https://huggingface.co/huggingworld/gemma-4-E2B-it-ONNX",
       "runtime": {
-        "revision": "ee1a73e8f4cb9aab6c7165231bf7e8e6331051cc",
+        "revision": "84b2c85ce64e8a0c999a3284f438d28db1d396a5",
         "dtypes": {
           "webgpu": "q4f16",
           "cpu": "q4f16"
@@ -170,6 +170,7 @@
     }
   ],
   "legacyAliases": {
+    "onnx-community/gemma-4-E2B-it-ONNX": "huggingworld/gemma-4-E2B-it-ONNX",
     "onnx-community/Llama-3.2-3B-Instruct-ONNX": "onnx-community/Llama-3.2-3B-Instruct-onnx-web",
     "Xenova/distilgpt2": "onnx-community/Llama-3.2-3B-Instruct-onnx-web"
   }

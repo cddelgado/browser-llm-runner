@@ -108,7 +108,7 @@ async function seedTerminalConversation(page) {
       id: conversationId,
       sortOrder: 0,
       name: 'Terminal session',
-      modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+      modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
       conversationType: 'chat',
       systemPrompt: null,
       conversationSystemPrompt: null,

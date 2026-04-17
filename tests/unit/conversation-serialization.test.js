@@ -15,7 +15,7 @@ describe('conversation-serialization', () => {
     const conversation = createConversation({
       id: 'conversation-1',
       name: 'Images',
-      modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+      modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
       languagePreference: 'es',
       thinkingEnabled: false,
       startedAt: 1710000000000,
@@ -78,7 +78,7 @@ describe('conversation-serialization', () => {
       },
     });
 
-    expect(snapshot.conversations[0]?.modelId).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(snapshot.conversations[0]?.modelId).toBe('huggingworld/gemma-4-E2B-it-ONNX');
     expect(snapshot.conversations[0]?.languagePreference).toBe('es');
     expect(snapshot.conversations[0]?.thinkingEnabled).toBe(false);
     expect(snapshot.conversations[0]?.currentWorkingDirectory).toBe('/workspace/uploads');
@@ -183,7 +183,7 @@ describe('conversation-serialization', () => {
     expect(appState.conversationIdCounter).toBe(2);
     expect(appState.activeConversationId).toBeNull();
     expect(appState.conversations[0]?.name).toBe('New Conversation');
-    expect(appState.conversations[0]?.modelId).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(appState.conversations[0]?.modelId).toBe('huggingworld/gemma-4-E2B-it-ONNX');
     expect(appState.conversations[0]?.languagePreference).toBe('fr');
     expect(appState.conversations[0]?.thinkingEnabled).toBe(false);
     expect(appState.conversations[0]?.currentWorkingDirectory).toBe('/workspace/saved');

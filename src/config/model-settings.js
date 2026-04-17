@@ -488,7 +488,7 @@ const configuredDefaultModel =
 export const DEFAULT_MODEL =
   configuredDefaultModel ||
   staticConfiguredModels[0]?.id ||
-  'onnx-community/gemma-4-E2B-it-ONNX';
+  'huggingworld/gemma-4-E2B-it-ONNX';
 
 if (!staticConfiguredModels.some((model) => model.id === DEFAULT_MODEL)) {
   staticConfiguredModels.unshift({

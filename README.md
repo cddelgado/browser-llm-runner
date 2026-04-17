@@ -87,7 +87,7 @@ Student-facing browser chat UI with local model inference.
 - If WebGPU loses the active graphics device before any response tokens are shown, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that generation automatically.
 - If that automatic CPU retry is not possible or still fails, the app unloads the current worker, marks the model as not ready, and tells the user to retry, switch to CPU mode, or reload the page if the browser/driver keeps dropping the device.
 - On the Transformers.js text path, the worker now loads `AutoTokenizer` + `AutoModelForCausalLM` directly, skips the extra pipeline retokenization pass, and reuses `past_key_values` for append-only follow-up turns when the next prompt is a strict token-prefix extension of the previous completed turn.
-- The bundled ONNX Gemma 4 E2B entry runs through the Transformers.js worker path on both WebGPU and CPU.
+- The bundled ONNX Gemma 4 E2B entry now points at `huggingworld/gemma-4-E2B-it-ONNX` and runs through the Transformers.js worker path on both WebGPU and CPU.
 - The bundled ONNX Llama 3.2 3B entry now uses `q4` on both WebGPU and CPU.
 - The bundled ONNX Bonsai 8B experimental entry now uses `q4` on both WebGPU and CPU.
 - The bundled LiteRT runtime in this app does not currently expose a matching CPU-thread setting, so the System-tab thread control applies only to the Transformers.js/ONNX path.
@@ -253,7 +253,7 @@ Student-facing browser chat UI with local model inference.
 
 In addition to the bundled local model catalog, users can add browser-reachable OpenAI-compatible providers from `Settings -> Cloud Providers`, select any returned remote models they want exposed, and then use those cloud models from the same picker on the New Conversation and New Agent screens.
 
-- `onnx-community/gemma-4-E2B-it-ONNX` (default)
+- `huggingworld/gemma-4-E2B-it-ONNX` (default)
   - Uses the Transformers.js worker path in this app.
   - Uses `q4f16` on WebGPU and CPU, with external ONNX data loading.
   - Enables multimodal generation for image and audio input in the current worker path.
@@ -270,6 +270,7 @@ In addition to the bundled local model catalog, users can add browser-reachable 
   - Parses `<think>...</think>` reasoning into the transcript thinking section.
   - Uses tagged JSON tool calls inside `<tool_call>...</tool_call>` when tool calling is enabled.
 - Legacy stored IDs are automatically remapped to the supported model:
+  - `onnx-community/gemma-4-E2B-it-ONNX` -> `huggingworld/gemma-4-E2B-it-ONNX`
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 

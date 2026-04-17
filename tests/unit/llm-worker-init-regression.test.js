@@ -192,7 +192,7 @@ describe('llm.worker init regression', () => {
         data: {
           type: 'init',
           payload: {
-            modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+            modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
             backendPreference: 'webgpu',
             runtime: {
               dtypes: {
@@ -441,7 +441,7 @@ describe('llm.worker init regression', () => {
         data: {
           type: 'init',
           payload: {
-            modelId: 'onnx-community/gemma-4-E2B-it-ONNX',
+            modelId: 'huggingworld/gemma-4-E2B-it-ONNX',
             backendPreference: 'cpu',
             runtime: {
               dtypes: {

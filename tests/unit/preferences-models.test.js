@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import { createAppState } from '../../src/state/app-state.js';
 import { createModelPreferencesController } from '../../src/app/preferences-models.js';
 
-const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+const GEMMA_4_MODEL_ID = 'huggingworld/gemma-4-E2B-it-ONNX';
 const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
 

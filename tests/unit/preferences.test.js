@@ -4,7 +4,7 @@ import { createAppState } from '../../src/state/app-state.js';
 import { createPreferencesController } from '../../src/app/preferences.js';
 import { getEnabledToolDefinitions } from '../../src/llm/tool-calling.js';
 
-const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+const GEMMA_4_MODEL_ID = 'huggingworld/gemma-4-E2B-it-ONNX';
 const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
 
@@ -406,14 +406,14 @@ describe('preferences controller', () => {
     const backendSelect = harness.document.getElementById('backendSelect');
 
     harness.controller.populateModelSelect();
-    modelSelect.value = 'onnx-community/gemma-4-E2B-it-ONNX';
+    modelSelect.value = 'huggingworld/gemma-4-E2B-it-ONNX';
     backendSelect.value = 'cpu';
 
     const selectedModel = harness.controller.syncModelSelectionForCurrentEnvironment({
       announceFallback: true,
     });
 
-    expect(selectedModel).toBe('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(selectedModel).toBe('huggingworld/gemma-4-E2B-it-ONNX');
     expect(modelSelect.value).toBe(selectedModel);
   });
 
@@ -468,7 +468,7 @@ describe('preferences controller', () => {
     expect(gemmaCard?.textContent).toContain('ZH');
     expect(gemmaCard?.textContent).not.toContain('HI');
     expect(gemmaCard?.textContent).toContain('and more');
-    expect(gemmaCard?.textContent).not.toContain('onnx-community/gemma-4-E2B-it-ONNX');
+    expect(gemmaCard?.textContent).not.toContain('huggingworld/gemma-4-E2B-it-ONNX');
     expect(
       /** @type {HTMLAnchorElement | null} */ (gemmaCard?.querySelector('.model-card-link'))?.href
     ).toBe(`https://huggingface.co/${GEMMA_4_MODEL_ID}`);

@@ -11,7 +11,7 @@ import {
 } from '../../src/config/model-settings.js';
 
 const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
-const GEMMA_4_MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+const GEMMA_4_MODEL_ID = 'huggingworld/gemma-4-E2B-it-ONNX';
 const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
 const REMOVED_LLAMA_1B_MODEL_ID = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
 const REMOVED_QWEN_2B_MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX';
@@ -80,6 +80,10 @@ describe('model-settings availability', () => {
       available: true,
       reason: '',
     });
+  });
+
+  test('maps the prior onnx-community Gemma 4 repo id to the new huggingworld repo id', () => {
+    expect(normalizeModelId('onnx-community/gemma-4-E2B-it-ONNX')).toBe(GEMMA_4_MODEL_ID);
   });
 
   test('falls back to the first cpu-capable visible model when WebGPU mode is unavailable', () => {
@@ -197,7 +201,7 @@ describe('model-settings availability', () => {
       useExternalDataFormat: true,
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.runtime).toMatchObject({
-      revision: 'ee1a73e8f4cb9aab6c7165231bf7e8e6331051cc',
+      revision: '84b2c85ce64e8a0c999a3284f438d28db1d396a5',
       dtypes: {
         webgpu: 'q4f16',
         cpu: 'q4f16',
@@ -250,7 +254,7 @@ describe('model-settings availability', () => {
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)).toMatchObject({
       displayName: 'Gemma 4 E2B',
-      repositoryUrl: 'https://huggingface.co/onnx-community/gemma-4-E2B-it-ONNX',
+      repositoryUrl: 'https://huggingface.co/huggingworld/gemma-4-E2B-it-ONNX',
     });
     expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)).toMatchObject({
       displayName: 'Bonsai 8B Q4 (Experimental)',
