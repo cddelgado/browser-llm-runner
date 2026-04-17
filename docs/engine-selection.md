@@ -48,8 +48,8 @@ Generation settings (`maximum output tokens`, `maximum context size`, `temperatu
 On the Transformers.js path, `maximum context size` is enforced as a prompt-token budget by left-truncating the oldest prompt tokens before generation, and `maximum output tokens` is passed separately as the generation cap.
 On the OpenAI-compatible path, `maximum context size` is enforced approximately before the request is sent by trimming older prompt turns with a lightweight text-based token estimate, because the browser app does not ship every provider tokenizer.
 If a generation request stops emitting worker activity for 90 seconds, the main-thread engine client terminates that worker and returns a recoverable timeout so the next request can reinitialize cleanly.
-If WebGPU loses the active device before any response tokens have streamed, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that request automatically.
-If that automatic CPU retry is unavailable or still fails, the controller unloads the current worker, marks the model as not ready, and surfaces recovery guidance to retry, switch to CPU, or reload the page if the browser/driver keeps dropping the device.
+If WebGPU fails before any response tokens have streamed with a recoverable runtime error (including device loss), the engine client disposes the failed worker, reloads the same model on CPU once, and retries that request automatically.
+If that automatic CPU retry is unavailable or still fails, the controller unloads the current worker, marks the model as not ready, and surfaces recovery guidance to retry, switch to CPU, or reload the page if the browser/driver keeps failing WebGPU execution.
 OpenAI-compatible requests stream through Server-Sent Events in a dedicated worker and still honor the existing cancellation contract by aborting the in-flight fetch when the user chooses `Stop generating`.
 
 ## UI boundary

@@ -40,6 +40,34 @@ function isWebGpuDeviceLostGenerationError(
   );
 }
 
+function isRecoverableWebGpuGenerationError(
+  message,
+  { backend = '', backendDevice = '' } = {}
+) {
+  const normalizedMessage = String(message || '');
+  const normalizedBackend = typeof backend === 'string' ? backend.trim().toLowerCase() : '';
+  const normalizedBackendDevice =
+    typeof backendDevice === 'string' ? backendDevice.trim().toLowerCase() : '';
+  const referencesWebGpuRuntime =
+    normalizedBackend === 'webgpu' ||
+    normalizedBackendDevice === 'webgpu' ||
+    /\bwebgpu\b/i.test(normalizedMessage) ||
+    /\bwgpu::/i.test(normalizedMessage) ||
+    /\bGPUBuffer\b/i.test(normalizedMessage) ||
+    /\bmapAsync\b/i.test(normalizedMessage) ||
+    /\/webgpu\//i.test(normalizedMessage);
+  if (!referencesWebGpuRuntime) {
+    return false;
+  }
+  return (
+    isWebGpuDeviceLostGenerationError(normalizedMessage, { backend, backendDevice }) ||
+    /failed to call OrtRun\(\)/i.test(normalizedMessage) ||
+    /Failed to download data from buffer/i.test(normalizedMessage) ||
+    /\bGPU validation\b/i.test(normalizedMessage) ||
+    /\bValidationError\b/i.test(normalizedMessage)
+  );
+}
+
 function logEngineDebug(event, details = undefined) {
   if (!ENABLE_ENGINE_DEBUG_CONSOLE_LOGS) {
     return;
@@ -608,7 +636,7 @@ export class LLMEngineClient {
     ) {
       return false;
     }
-    return isWebGpuDeviceLostGenerationError(message, {
+    return isRecoverableWebGpuGenerationError(message, {
       backend: this.loadedBackend,
       backendDevice: this.loadedBackendDevice,
     });
@@ -620,14 +648,20 @@ export class LLMEngineClient {
       return;
     }
     pendingGeneration.attemptedCpuRecovery = true;
-    logEngineWarn('generate-webgpu-device-lost-retry-cpu', {
+    logEngineWarn('generate-webgpu-retry-cpu', {
       requestId: pendingGeneration.requestId,
       loadedModelId: this.loadedModelId,
       loadedBackend: this.loadedBackend,
       loadedBackendDevice: this.loadedBackendDevice,
       message: originalMessage,
     });
-    this.onStatus('WebGPU device lost. Retrying on CPU...');
+    const isDeviceLost = isWebGpuDeviceLostGenerationError(originalMessage, {
+      backend: this.loadedBackend,
+      backendDevice: this.loadedBackendDevice,
+    });
+    this.onStatus(
+      isDeviceLost ? 'WebGPU device lost. Retrying on CPU...' : 'WebGPU generation failed. Retrying on CPU...'
+    );
     this.#discardWorkerForRecovery();
     try {
       await this.initialize({
@@ -646,7 +680,9 @@ export class LLMEngineClient {
       if (this.pendingGeneration !== pendingGeneration) {
         return;
       }
-      const recoveryMessage = `WebGPU device lost and automatic CPU recovery failed. Original error: ${originalMessage} Retry error: ${toErrorMessage(error)}`;
+      const recoveryMessage = isDeviceLost
+        ? `WebGPU device lost and automatic CPU recovery failed. Original error: ${originalMessage} Retry error: ${toErrorMessage(error)}`
+        : `WebGPU generation failed and automatic CPU recovery failed. Original error: ${originalMessage} Retry error: ${toErrorMessage(error)}`;
       pendingGeneration.onError(recoveryMessage);
       this.pendingGeneration = null;
     }

@@ -76,6 +76,19 @@ class MockWorker {
         });
         return;
       }
+      if (currentGenerateMode === 'webgpuRuntimeError') {
+        queueMicrotask(() => {
+          this.#emit('message', {
+            type: 'error',
+            payload: {
+              requestId,
+              message:
+                'failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: /onnxruntime/core/providers/webgpu/program_manager.cc:1024 WebGPU validation failed while running the graph.',
+            },
+          });
+        });
+        return;
+      }
       queueMicrotask(() => {
         this.#emit('message', {
           type: 'token',
@@ -245,6 +258,50 @@ describe('LLMEngineClient', () => {
       MockWorker.instances[1].messages.filter((message) => message.type === 'generate')
     ).toHaveLength(1);
     expect(onStatus).toHaveBeenCalledWith('WebGPU device lost. Retrying on CPU...');
+  });
+
+  test('retries once on cpu after a non-device-loss WebGPU runtime error before any tokens stream', async () => {
+    MockWorker.initResponses = [
+      {
+        backend: 'webgpu',
+        backendDevice: 'webgpu',
+        modelId: 'example/model',
+      },
+      {
+        backend: 'cpu',
+        backendDevice: 'wasm',
+        modelId: 'example/model',
+      },
+    ];
+    MockWorker.generateModes = ['webgpuRuntimeError', 'complete'];
+
+    const client = new LLMEngineClient();
+    const onStatus = vi.fn();
+    const onError = vi.fn();
+    client.onStatus = onStatus;
+    await client.initialize({ modelId: 'example/model', backendPreference: 'webgpu' });
+
+    const completed = new Promise((resolve) => {
+      client.generate('prompt', {
+        onToken: vi.fn(),
+        onError,
+        onComplete: resolve,
+      });
+    });
+
+    const finalText = await completed;
+
+    expect(finalText).toBe('Hello world');
+    expect(onError).not.toHaveBeenCalled();
+    expect(client.loadedBackend).toBe('cpu');
+    expect(client.loadedBackendDevice).toBe('wasm');
+    expect(MockWorker.instances).toHaveLength(2);
+    expect(MockWorker.instances[0].terminated).toBe(true);
+    expect(MockWorker.instances[1].messages.filter((message) => message.type === 'init')).toHaveLength(1);
+    expect(
+      MockWorker.instances[1].messages.filter((message) => message.type === 'generate')
+    ).toHaveLength(1);
+    expect(onStatus).toHaveBeenCalledWith('WebGPU generation failed. Retrying on CPU...');
   });
 
   test('terminates the failed webgpu worker before retrying initialization on cpu', async () => {
