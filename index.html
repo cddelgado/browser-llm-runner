@@ -1323,6 +1323,58 @@
                           <label class="form-label" for="orchestrationDefinitionInput">
                             JSON definition
                           </label>
+                          <div class="orchestration-step-editor mb-3">
+                            <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                              <div>
+                                <p class="form-label mb-1">Steps</p>
+                                <p class="form-text mt-0 mb-0" id="orchestrationStepEditorHelp">
+                                  Add, edit, and remove steps here. The editor writes back to the
+                                  same JSON definition below and shows how each step output is
+                                  exposed to later steps.
+                                </p>
+                              </div>
+                              <div class="d-flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  class="btn btn-outline-primary btn-sm"
+                                  data-orchestration-add-step="prompt"
+                                >
+                                  Add prompt step
+                                </button>
+                                <button
+                                  type="button"
+                                  class="btn btn-outline-secondary btn-sm"
+                                  data-orchestration-add-step="transform"
+                                >
+                                  Add transform step
+                                </button>
+                                <button
+                                  type="button"
+                                  class="btn btn-outline-secondary btn-sm"
+                                  data-orchestration-add-step="forEach"
+                                >
+                                  Add forEach step
+                                </button>
+                                <button
+                                  type="button"
+                                  class="btn btn-outline-secondary btn-sm"
+                                  data-orchestration-add-step="join"
+                                >
+                                  Add join step
+                                </button>
+                              </div>
+                            </div>
+                            <div
+                              id="orchestrationStepEditorFeedback"
+                              class="d-none"
+                              aria-live="polite"
+                            ></div>
+                            <ol
+                              id="orchestrationStepList"
+                              class="orchestration-step-list list-unstyled mb-0"
+                              aria-describedby="orchestrationStepEditorHelp orchestrationStepEditorFeedback"
+                            ></ol>
+                          </div>
                           <textarea
                             id="orchestrationDefinitionInput"
                             class="form-control font-monospace"
@@ -1331,9 +1383,9 @@
                             aria-describedby="orchestrationDefinitionHelp"
                           ></textarea>
                           <p id="orchestrationDefinitionHelp" class="form-text mb-0">
-                            The definition uses the same JSON orchestration step contract as the
-                            built-in workflows. Slash-command runs currently require you to clear
-                            any pending composer attachments first.
+                            The raw JSON stays editable for advanced fields. If the JSON becomes
+                            invalid, the step editor pauses until you fix it. Slash-command runs
+                            currently require you to clear any pending composer attachments first.
                           </p>
                         </div>
                         <div class="d-flex flex-wrap gap-2">

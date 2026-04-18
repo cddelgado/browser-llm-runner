@@ -29,6 +29,8 @@ This project uses transparent, JSON-defined orchestrations for small follow-up t
 - `Settings -> Orchestrations` separates app-managed definitions from user-authored definitions.
   - Built-in app orchestrations are shown for transparency but are intentionally read-only in the UI.
   - Custom orchestrations can be created, edited, exported, imported, and removed in-browser.
+  - The custom editor includes a structured step list for adding, editing, and removing steps while keeping the raw JSON definition available for advanced edits.
+  - The step editor also shows the placeholder flow between steps so users can see when later prompts can reference `{{previousStepOutput}}`, `{{stepNOutput}}`, `{{stepNOutputs}}`, and any named `{{outputKey}}`.
 - Orchestrations are step arrays (`steps`) where each step defines a `type`.
   - `prompt` is the default if `type` is omitted.
 - Prompt steps can define:

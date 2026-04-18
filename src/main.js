@@ -320,6 +320,12 @@ const orchestrationDescriptionInput = /** @type {HTMLTextAreaElement | null} */ 
 const orchestrationDefinitionInput = /** @type {HTMLTextAreaElement | null} */ (
   document.getElementById('orchestrationDefinitionInput')
 );
+const orchestrationStepList = /** @type {HTMLElement | null} */ (
+  document.getElementById('orchestrationStepList')
+);
+const orchestrationStepEditorFeedback = /** @type {HTMLElement | null} */ (
+  document.getElementById('orchestrationStepEditorFeedback')
+);
 const orchestrationSaveButton = /** @type {HTMLButtonElement | null} */ (
   document.getElementById('orchestrationSaveButton')
 );
@@ -3778,11 +3784,14 @@ const preferencesController = createPreferencesController({
   enableToolCallingToggle,
   toolSettingsList,
   orchestrationEditorHeading,
+  orchestrationEditorForm,
   orchestrationEditorIdInput,
   orchestrationNameInput,
   orchestrationSlashCommandInput,
   orchestrationDescriptionInput,
   orchestrationDefinitionInput,
+  orchestrationStepList,
+  orchestrationStepEditorFeedback,
   orchestrationSaveButton,
   orchestrationResetButton,
   orchestrationImportInput,

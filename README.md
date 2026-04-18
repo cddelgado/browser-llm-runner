@@ -68,6 +68,8 @@ Student-facing browser chat UI with local model inference.
   - imported skills start disabled and only appear in the system prompt after the user enables them
 - `Settings -> Orchestrations` includes:
   - a browser-local editor for creating and updating custom orchestration JSON plus the slash command that invokes it
+  - a structured step editor for adding, editing, and removing orchestration steps while keeping the raw JSON visible for advanced fields
+  - per-step flow cues that show how each step output becomes available to later steps through `previousStepOutput`, `stepNOutput`, `stepNOutputs`, and any named `outputKey`
   - import of one exported orchestration JSON file or an exported collection, and export of one orchestration or all saved custom orchestrations
   - a saved custom-orchestration accordion with edit, export, and remove actions
   - a separate built-in orchestration accordion that shows app-managed definitions for transparency but keeps them read-only
@@ -380,6 +382,7 @@ Orchestrations are JSON-defined, inspectable workflows used for LLM-guided follo
   - nested prompt placeholders such as `{{chunk.text}}`
 - User-facing orchestration controls:
   - `Settings -> Orchestrations` lets users create, save, import, export, and remove custom orchestrations in this browser
+  - the custom-orchestration editor now includes a structured step list for adding/removing/editing steps without hand-writing every JSON property, while still exposing the raw JSON definition for advanced edits
   - app-managed orchestrations are listed separately in the same settings tab and remain read-only
 - Intended design:
   - deterministic code handles extraction and data shaping
