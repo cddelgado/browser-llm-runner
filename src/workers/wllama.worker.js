@@ -27,14 +27,24 @@ let activeGeneration = null;
 let wllamaLibraryPromise = null;
 
 function ensureWorkerDocumentShim() {
-  if (typeof globalThis.document === 'undefined') {
-    globalThis.document = {
-      baseURI: self.location?.href || '',
-    };
+  const workerGlobal = /** @type {any} */ (globalThis);
+  const baseUri = self.location?.href || '';
+  if (typeof workerGlobal.document === 'undefined') {
+    Object.defineProperty(workerGlobal, 'document', {
+      value: {
+        baseURI: baseUri,
+      },
+      configurable: true,
+      writable: true,
+    });
     return;
   }
-  if (typeof globalThis.document.baseURI !== 'string' || !globalThis.document.baseURI) {
-    globalThis.document.baseURI = self.location?.href || '';
+  const documentLike = /** @type {any} */ (workerGlobal.document);
+  if (typeof documentLike.baseURI !== 'string' || !documentLike.baseURI) {
+    Object.defineProperty(documentLike, 'baseURI', {
+      value: baseUri,
+      configurable: true,
+    });
   }
 }
 
