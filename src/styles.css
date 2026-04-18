@@ -429,7 +429,7 @@
 
 .top-bar-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 0.6rem;
   align-items: center;
   width: 100%;
@@ -440,6 +440,7 @@
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
+  justify-self: start;
 }
 
 .top-bar-new-conversation {
@@ -452,6 +453,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
+  justify-self: center;
 }
 
 .top-bar.top-bar-actions-only {
@@ -515,6 +517,7 @@
   justify-self: end;
   gap: 0.35rem;
   min-width: 0;
+  margin-right: calc(var(--floating-controls-right-offset) - 1rem);
 }
 
 .agent-automation-controls {
