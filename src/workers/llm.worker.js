@@ -25,6 +25,8 @@ const ENABLE_WORKER_DEBUG_CONSOLE_LOGS = false;
 const ENABLE_WORKER_WARN_CONSOLE_LOGS = false;
 const ONNX_WASM_PROXY_ENABLED = true;
 const ONNX_WASM_NUM_THREADS = 0;
+// Prefix-cache reuse was retaining too much browser memory with the current local runtimes.
+const ENABLE_TEXT_GENERATION_PREFIX_CACHE = false;
 
 let model = null;
 let tokenizer = null;
@@ -676,6 +678,13 @@ function resolveTextGenerationModelInputs(preparedTextInputs) {
     preparedTextInputs?.modelInputs && typeof preparedTextInputs.modelInputs === 'object'
       ? preparedTextInputs.modelInputs
       : null;
+  if (!ENABLE_TEXT_GENERATION_PREFIX_CACHE) {
+    return {
+      modelInputs,
+      usedPrefixCache: false,
+      cachedPromptTokens: 0,
+    };
+  }
   const cachedPrefixTokens = textGenerationPrefixCache?.sequenceTokens;
   if (
     !modelInputs ||
@@ -713,6 +722,10 @@ function resolveTextGenerationModelInputs(preparedTextInputs) {
 }
 
 async function updateTextGenerationPrefixCache(generationOutput) {
+  if (!ENABLE_TEXT_GENERATION_PREFIX_CACHE) {
+    await clearTextGenerationPrefixCache();
+    return;
+  }
   const sequences = generationOutput?.sequences;
   const pastKeyValues = generationOutput?.past_key_values;
   const sequenceTokens = extractTokenSequence(sequences);
@@ -1783,6 +1796,9 @@ async function generate(payload) {
       const textGenerationModel = model;
       if (!textGenerationModel || typeof textGenerationModel.generate !== 'function') {
         throw new Error('Text-generation model is not initialized correctly.');
+      }
+      if (!ENABLE_TEXT_GENERATION_PREFIX_CACHE) {
+        await clearTextGenerationPrefixCache();
       }
       const preparedTextInputs = prepareTextGenerationInputs(
         tokenizer,

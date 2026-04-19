@@ -103,7 +103,7 @@ describe('preferences-models', () => {
     expect(cards.length).toBe(modelSelect.querySelectorAll('option').length);
 
     const gemmaCard = getModelCard(modelCardList, GEMMA_4_MODEL_ID);
-    expect(gemmaCard?.textContent).toContain('131,072 tokens');
+    expect(gemmaCard?.textContent).toContain('4,096 tokens');
     expect(gemmaCard?.querySelectorAll('.model-feature-pill')).toHaveLength(4);
     expect(
       gemmaCard?.querySelector('.model-card-languages .bi-translate')?.getAttribute('aria-label')
@@ -112,7 +112,7 @@ describe('preferences-models', () => {
     );
 
     const llama3BCard = getModelCard(modelCardList, LLAMA_3B_MODEL_ID);
-    expect(llama3BCard?.textContent).toContain('131,072 tokens');
+    expect(llama3BCard?.textContent).toContain('4,096 tokens');
     expect(
       Array.from(llama3BCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
@@ -127,7 +127,7 @@ describe('preferences-models', () => {
     expect(getModelCard(modelCardList, 'onnx-community/Qwen3.5-2B-ONNX')).toBeNull();
 
     const bonsaiCard = getModelCard(modelCardList, BONSAI_8B_MODEL_ID);
-    expect(bonsaiCard?.textContent).toContain('65,536 tokens');
+    expect(bonsaiCard?.textContent).toContain('4,096 tokens');
     expect(
       Array.from(bonsaiCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')

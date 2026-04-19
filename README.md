@@ -95,13 +95,13 @@ Student-facing browser chat UI with local model inference.
 - If WebGPU loses the active graphics device before any response tokens are shown, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that generation automatically.
 - If `Stop generating` is pressed while that automatic CPU recovery is still initializing, the pending request is canceled and the retry is not resumed.
 - If that automatic CPU retry is not possible or still fails, the app unloads the current worker, marks the model as not ready, and tells the user to retry, switch to CPU mode, or reload the page if the browser/driver keeps dropping the device.
-- On the Transformers.js text path, the worker now loads `AutoTokenizer` + `AutoModelForCausalLM` directly, skips the extra pipeline retokenization pass, and reuses `past_key_values` for append-only follow-up turns when the next prompt is a strict token-prefix extension of the previous completed turn.
+- On the Transformers.js text path, the worker now loads `AutoTokenizer` + `AutoModelForCausalLM` directly, skips the extra pipeline retokenization pass, and intentionally clears prompt-cache state between turns because `past_key_values` reuse was retaining too much browser memory in practice.
 - The bundled ONNX Gemma 4 E2B entry now points at `huggingworld/gemma-4-E2B-it-ONNX` and runs through the Transformers.js worker path on both WebGPU and CPU.
 - The bundled ONNX Llama 3.2 3B entry now uses `q4` on both WebGPU and CPU.
 - The bundled ONNX Bonsai 8B experimental entry now uses `q1` on both WebGPU and CPU.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
-  - Values are constrained by per-model limits from `src/config/models.json` and use `step=8`.
+  - Values are constrained by per-model limits from `src/config/models.json`, use `step=8`, and reflect the app's browser-safe caps rather than every model's theoretical upstream context window.
   - Each token field shows an estimated word count (`tokens * 0.75`).
   - User overrides are saved per model in browser storage and restored when that model is selected again.
   - Fields are disabled until a model is loaded.
@@ -113,7 +113,7 @@ Student-facing browser chat UI with local model inference.
 - `Settings -> Model` also includes:
   - `Response language`, stored per conversation or pending pre-chat draft, with a warning when the selected language is not listed for the selected model in this app.
   - `Enable model thinking when supported`, stored per conversation or pending pre-chat draft, which only affects models with a configured thinking-control contract.
-  - For `wllama` GGUF models only: `Reuse prompt cache between turns`, `Prompt batch size`, and `Min P`, stored per model and applied through the local CPU/WASM `wllama` runtime.
+  - For `wllama` GGUF models only: `Reuse prompt cache between turns`, `Prompt batch size`, and `Min P`, stored per model and applied through the local CPU/WASM `wllama` runtime. Prompt-cache reuse now defaults off, auto-disables above `2048` context tokens, and prompt batch size is capped to a smaller browser-safe range.
 - Temperature control in Settings:
   - `Temperature (Creativity)` is model-aware and constrained by per-model `minTemperature`, `maxTemperature`, and `defaultTemperature`.
   - Values use `step=0.1`.

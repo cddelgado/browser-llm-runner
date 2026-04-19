@@ -97,6 +97,9 @@ import {
 import {
   buildDefaultWllamaSettings,
   sanitizeWllamaSettings,
+  canUseWllamaPromptCache,
+  MAX_WLLAMA_BATCH_SIZE,
+  MAX_WLLAMA_PROMPT_CACHE_CONTEXT_TOKENS,
   MAX_WLLAMA_MIN_P,
   MIN_WLLAMA_BATCH_SIZE,
   MIN_WLLAMA_MIN_P,
@@ -1424,12 +1427,20 @@ function renderWllamaSettingsVisibility(modelId) {
 function renderWllamaSettingsHelpText(settings, generationConfig) {
   const maxBatchSize = Math.max(
     MIN_WLLAMA_BATCH_SIZE,
-    Number(generationConfig?.maxContextTokens) || MIN_WLLAMA_BATCH_SIZE
+    Math.min(
+      MAX_WLLAMA_BATCH_SIZE,
+      Number(generationConfig?.maxContextTokens) || MIN_WLLAMA_BATCH_SIZE
+    )
   );
+  const promptCacheAllowed = canUseWllamaPromptCache(generationConfig?.maxContextTokens);
   if (wllamaPromptCacheHelp) {
-    wllamaPromptCacheHelp.textContent = settings.usePromptCache
-      ? 'Prompt cache reuse is enabled. Follow-up turns can reuse compatible prefixes instead of reprocessing the full prompt every time.'
-      : 'Prompt cache reuse is disabled. Every turn starts from a cleared KV cache.';
+    wllamaPromptCacheHelp.textContent = !promptCacheAllowed
+      ? `Prompt cache reuse is automatically disabled above ${formatInteger(
+          MAX_WLLAMA_PROMPT_CACHE_CONTEXT_TOKENS
+        )} context tokens to avoid browser memory spikes. Lower Context size to re-enable it.`
+      : settings.usePromptCache
+        ? 'Prompt cache reuse is enabled. Follow-up turns can reuse compatible prefixes instead of reprocessing the full prompt every time.'
+        : 'Prompt cache reuse is disabled. Every turn starts from a cleared KV cache.';
   }
   if (wllamaBatchSizeHelp) {
     wllamaBatchSizeHelp.textContent = `Load-time prompt batch size. Higher values can speed prompt ingestion but use more memory. Allowed: ${formatInteger(
@@ -1468,7 +1479,10 @@ function syncWllamaSettingsFromModel(modelId, { useDefaults = true, generationCo
   if (wllamaBatchSizeInput instanceof HTMLInputElement) {
     wllamaBatchSizeInput.min = String(MIN_WLLAMA_BATCH_SIZE);
     wllamaBatchSizeInput.max = String(
-      Math.max(MIN_WLLAMA_BATCH_SIZE, effectiveGenerationConfig.maxContextTokens)
+      Math.max(
+        MIN_WLLAMA_BATCH_SIZE,
+        Math.min(MAX_WLLAMA_BATCH_SIZE, effectiveGenerationConfig.maxContextTokens)
+      )
     );
     wllamaBatchSizeInput.step = String(WLLAMA_BATCH_SIZE_STEP);
     wllamaBatchSizeInput.value = String(settings.batchSize);

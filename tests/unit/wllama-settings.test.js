@@ -8,7 +8,7 @@ import {
 describe('wllama-settings', () => {
   test('builds defaults against the current context limit', () => {
     expect(buildDefaultWllamaSettings({ maxContextTokens: 256 })).toEqual({
-      usePromptCache: true,
+      usePromptCache: false,
       batchSize: 256,
       minP: 0,
     });
@@ -26,8 +26,24 @@ describe('wllama-settings', () => {
       )
     ).toEqual({
       usePromptCache: false,
-      batchSize: 640,
+      batchSize: 256,
       minP: 0.15,
+    });
+  });
+
+  test('automatically disables prompt-cache reuse above the safe context budget', () => {
+    expect(
+      sanitizeWllamaSettings(
+        {
+          usePromptCache: true,
+          batchSize: '512',
+        },
+        { maxContextTokens: 4096 }
+      )
+    ).toEqual({
+      usePromptCache: false,
+      batchSize: 256,
+      minP: 0,
     });
   });
 });

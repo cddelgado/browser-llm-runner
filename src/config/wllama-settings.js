@@ -1,14 +1,16 @@
 import { clamp } from './generation-config.js';
 
 export const MIN_WLLAMA_BATCH_SIZE = 32;
+export const MAX_WLLAMA_BATCH_SIZE = 256;
 export const WLLAMA_BATCH_SIZE_STEP = 32;
 export const MIN_WLLAMA_MIN_P = 0;
 export const MAX_WLLAMA_MIN_P = 1;
 export const WLLAMA_MIN_P_STEP = 0.05;
+export const MAX_WLLAMA_PROMPT_CACHE_CONTEXT_TOKENS = 2048;
 
 export const DEFAULT_WLLAMA_SETTINGS = Object.freeze({
-  usePromptCache: true,
-  batchSize: 512,
+  usePromptCache: false,
+  batchSize: MAX_WLLAMA_BATCH_SIZE,
   minP: 0,
 });
 
@@ -22,7 +24,18 @@ function resolveMaxBatchSize(maxContextTokens) {
     maxContextTokens,
     DEFAULT_WLLAMA_SETTINGS.batchSize
   );
-  return Math.max(MIN_WLLAMA_BATCH_SIZE, normalizedContextTokens);
+  return Math.max(
+    MIN_WLLAMA_BATCH_SIZE,
+    Math.min(MAX_WLLAMA_BATCH_SIZE, normalizedContextTokens)
+  );
+}
+
+export function canUseWllamaPromptCache(maxContextTokens) {
+  const normalizedContextTokens = normalizePositiveInteger(maxContextTokens, 0);
+  return (
+    normalizedContextTokens > 0 &&
+    normalizedContextTokens <= MAX_WLLAMA_PROMPT_CACHE_CONTEXT_TOKENS
+  );
 }
 
 export function quantizeWllamaBatchSize(value, maxContextTokens) {
@@ -76,8 +89,9 @@ export function buildDefaultWllamaSettings(options = {}) {
 export function sanitizeWllamaSettings(candidateSettings, options = {}) {
   const { maxContextTokens } = options;
   const defaults = buildDefaultWllamaSettings({ maxContextTokens });
+  const promptCacheAllowed = canUseWllamaPromptCache(maxContextTokens);
   return {
-    usePromptCache: candidateSettings?.usePromptCache !== false,
+    usePromptCache: promptCacheAllowed && candidateSettings?.usePromptCache === true,
     batchSize: quantizeWllamaBatchSize(candidateSettings?.batchSize, maxContextTokens),
     minP: quantizeWllamaMinP(candidateSettings?.minP ?? defaults.minP),
   };
