@@ -661,7 +661,7 @@ describe('LLMEngineClient', () => {
     expect(MockWorker.instances[1].messages[0].payload.engineType).toBe('openai-compatible');
 
     await client.initialize({
-      modelId: 'unsloth/Qwen3.5-2B-GGUF',
+      modelId: 'LiquidAI/LFM2.5-1.2B-Thinking-GGUF',
       engineType: 'wllama',
     });
 

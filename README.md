@@ -279,9 +279,9 @@ In addition to the bundled local model catalog, users can add browser-reachable 
   - Relies on the upstream model config for exact ONNX external-data shard counts across dtypes instead of forcing one app-level shard count.
   - Parses `<think>...</think>` reasoning into the transcript thinking section.
   - Uses tagged JSON tool calls inside `<tool_call>...</tool_call>` when tool calling is enabled.
-- `unsloth/Qwen3.5-2B-GGUF`
+- `LiquidAI/LFM2.5-1.2B-Thinking-GGUF`
   - Uses the `wllama` worker path in this app.
-  - Loads the pinned `Qwen3.5-2B-UD-Q4_K_XL.gguf` quant from `unsloth/Qwen3.5-2B-GGUF`.
+  - Loads the pinned `LFM2.5-1.2B-Thinking-Q4_K_M.gguf` quant from `LiquidAI/LFM2.5-1.2B-Thinking-GGUF`.
   - Runs as a text-only, single-thread CPU/WASM GGUF model in this app.
   - Parses `<think>...</think>` reasoning into the transcript thinking section.
   - Does not currently enable tool calling or multimodal input in this app.
@@ -333,7 +333,7 @@ For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` r
 - Audio input is upload-only. The app does not expose live recording.
 - Video input is not currently exposed because the supported browser runtime paths are not reliable enough yet.
 - The app still does not ship with a CSP. This is a documented hardening gap for a future pass.
-- The bundled Transformers.js models in `src/config/models.json` are pinned to explicit Hugging Face revisions, and the bundled `wllama` Qwen GGUF entry uses a pinned Hugging Face `resolve/<commit>/...` URL, so browser caches stay stable across redeploys until the catalog is intentionally updated.
+- The bundled Transformers.js models in `src/config/models.json` are pinned to explicit Hugging Face revisions, and the bundled `wllama` LFM2.5 GGUF entry uses a pinned Hugging Face `resolve/<commit>/...` URL, so browser caches stay stable across redeploys until the catalog is intentionally updated.
 
 See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 

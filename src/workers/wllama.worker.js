@@ -339,7 +339,7 @@ async function initialize(payload) {
   const modelId =
     typeof payload?.modelId === 'string' && payload.modelId.trim()
       ? payload.modelId.trim()
-      : 'unsloth/Qwen3.5-2B-GGUF';
+      : 'LiquidAI/LFM2.5-1.2B-Thinking-GGUF';
   const runtime = normalizeRuntimeConfig(payload?.runtime);
   const nextGenerationConfig = normalizeGenerationConfig(payload?.generationConfig);
   generationConfig = nextGenerationConfig;

@@ -31,7 +31,7 @@ Inference is selected through the engine client boundary and executes through a 
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` runs through the `transformers-js` worker with `q4` on WebGPU and CPU.
 - `huggingworld/gemma-4-E2B-it-ONNX` now runs through the `transformers-js` worker with `q4f16` on WebGPU and CPU.
 - `onnx-community/Bonsai-8B-ONNX` now runs through the `transformers-js` worker with `q1` on WebGPU and CPU.
-- `unsloth/Qwen3.5-2B-GGUF` runs through the `wllama` worker with the pinned `Qwen3.5-2B-UD-Q4_K_XL.gguf` file on CPU/WASM only.
+- `LiquidAI/LFM2.5-1.2B-Thinking-GGUF` runs through the `wllama` worker with the pinned `LFM2.5-1.2B-Thinking-Q4_K_M.gguf` file on CPU/WASM only.
 - CPU-only engines such as `wllama` stay selectable in the model picker even if the current backend preference is `WebGPU`; selecting one automatically switches the saved backend preference to `CPU` before the next load.
 - Models with `multimodalGeneration: true` can still initialize through the text-generation path when the current prompt contains no image/audio/video inputs; the worker reinitializes into the processor/model path only when media is actually present.
 - For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests, so multimodal preprocessing assets are not fetched during initial model load.

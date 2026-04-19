@@ -169,15 +169,15 @@
       }
     },
     {
-      "id": "unsloth/Qwen3.5-2B-GGUF",
-      "label": "unsloth/Qwen3.5-2B-GGUF",
-      "displayName": "Qwen 3.5 2B GGUF Q4_K_XL",
+      "id": "LiquidAI/LFM2.5-1.2B-Thinking-GGUF",
+      "label": "LiquidAI/LFM2.5-1.2B-Thinking-GGUF",
+      "displayName": "LFM2.5 1.2B Thinking GGUF Q4_K_M",
       "engine": {
         "type": "wllama"
       },
-      "repositoryUrl": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF",
+      "repositoryUrl": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF",
       "runtime": {
-        "modelUrl": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/1c466474d208da1a7c4b8cb87ebcdac78f160e34/Qwen3.5-2B-UD-Q4_K_XL.gguf"
+        "modelUrl": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/6eef5895049f444e3436c6f583207e610a1485ce/LFM2.5-1.2B-Thinking-Q4_K_M.gguf"
       },
       "thinkingTags": {
         "open": "<think>",
@@ -186,14 +186,14 @@
       "generation": {
         "defaultMaxOutputTokens": 1024,
         "maxOutputTokens": 32768,
-        "defaultMaxContextTokens": 8192,
+        "defaultMaxContextTokens": 4096,
         "maxContextTokens": 32768,
         "minTemperature": 0.1,
         "maxTemperature": 2.0,
-        "defaultTemperature": 0.7,
-        "defaultTopK": 20,
-        "defaultTopP": 0.8,
-        "defaultRepetitionPenalty": 1.0
+        "defaultTemperature": 0.1,
+        "defaultTopK": 50,
+        "defaultTopP": 0.1,
+        "defaultRepetitionPenalty": 1.05
       },
       "features": {
         "streaming": true,

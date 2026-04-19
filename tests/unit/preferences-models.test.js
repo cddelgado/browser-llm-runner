@@ -6,7 +6,7 @@ import { createModelPreferencesController } from '../../src/app/preferences-mode
 const GEMMA_4_MODEL_ID = 'huggingworld/gemma-4-E2B-it-ONNX';
 const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
-const QWEN_35_2B_WLLAMA_MODEL_ID = 'unsloth/Qwen3.5-2B-GGUF';
+const LFM_25_12B_WLLAMA_MODEL_ID = 'LiquidAI/LFM2.5-1.2B-Thinking-GGUF';
 
 function getModelCard(modelCardList, modelId) {
   const button = Array.from(modelCardList.querySelectorAll('.model-card-button')).find(
@@ -134,10 +134,10 @@ describe('preferences-models', () => {
       )
     ).toEqual(['Shows a thinking section', 'Can use built-in tools']);
 
-    const qwenCard = getModelCard(modelCardList, QWEN_35_2B_WLLAMA_MODEL_ID);
-    expect(qwenCard?.textContent).toContain('Runs in CPU mode only in this app.');
+    const lfmCard = getModelCard(modelCardList, LFM_25_12B_WLLAMA_MODEL_ID);
+    expect(lfmCard?.textContent).toContain('Runs in CPU mode only in this app.');
     expect(
-      Array.from(qwenCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
+      Array.from(lfmCard?.querySelectorAll('.model-feature-pill') || []).map((node) =>
         node.getAttribute('aria-label')
       )
     ).toEqual(['Shows a thinking section']);
@@ -253,10 +253,10 @@ describe('preferences-models', () => {
   test('switches the backend to cpu automatically when a cpu-only wllama model is selected', () => {
     const harness = createHarness({
       getRuntimeConfigForModel: (modelId) => {
-        if (modelId === QWEN_35_2B_WLLAMA_MODEL_ID) {
+        if (modelId === LFM_25_12B_WLLAMA_MODEL_ID) {
           return {
             modelUrl:
-              'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/1c466474d208da1a7c4b8cb87ebcdac78f160e34/Qwen3.5-2B-UD-Q4_K_XL.gguf',
+              'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/6eef5895049f444e3436c6f583207e610a1485ce/LFM2.5-1.2B-Thinking-Q4_K_M.gguf',
           };
         }
         return { runtimeModelId: modelId };
@@ -272,19 +272,19 @@ describe('preferences-models', () => {
 
     harness.controller.populateModelSelect();
     backendSelect.value = 'webgpu';
-    harness.controller.setSelectedModelId(QWEN_35_2B_WLLAMA_MODEL_ID, { dispatch: false });
+    harness.controller.setSelectedModelId(LFM_25_12B_WLLAMA_MODEL_ID, { dispatch: false });
 
-    expect(modelSelect.value).toBe(QWEN_35_2B_WLLAMA_MODEL_ID);
+    expect(modelSelect.value).toBe(LFM_25_12B_WLLAMA_MODEL_ID);
     expect(backendSelect.value).toBe('cpu');
 
     const engineConfig = harness.controller.readEngineConfigFromUI(generationConfig);
     expect(engineConfig).toEqual({
       engineType: 'wllama',
-      modelId: QWEN_35_2B_WLLAMA_MODEL_ID,
+      modelId: LFM_25_12B_WLLAMA_MODEL_ID,
       backendPreference: 'cpu',
       runtime: {
         modelUrl:
-          'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/1c466474d208da1a7c4b8cb87ebcdac78f160e34/Qwen3.5-2B-UD-Q4_K_XL.gguf',
+          'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/6eef5895049f444e3436c6f583207e610a1485ce/LFM2.5-1.2B-Thinking-Q4_K_M.gguf',
         cpuThreads: 0,
       },
       generationConfig,

@@ -13,7 +13,7 @@ import {
 const LLAMA_3B_MODEL_ID = 'onnx-community/Llama-3.2-3B-Instruct-onnx-web';
 const GEMMA_4_MODEL_ID = 'huggingworld/gemma-4-E2B-it-ONNX';
 const BONSAI_8B_MODEL_ID = 'onnx-community/Bonsai-8B-ONNX';
-const QWEN_35_2B_WLLAMA_MODEL_ID = 'unsloth/Qwen3.5-2B-GGUF';
+const LFM_25_12B_WLLAMA_MODEL_ID = 'LiquidAI/LFM2.5-1.2B-Thinking-GGUF';
 const REMOVED_LLAMA_1B_MODEL_ID = 'onnx-community/Llama-3.2-1B-Instruct-ONNX';
 const REMOVED_QWEN_2B_MODEL_ID = 'onnx-community/Qwen3.5-2B-ONNX';
 
@@ -35,9 +35,9 @@ describe('model-settings availability', () => {
     });
   });
 
-  test('keeps the wllama-backed Qwen model available in cpu mode only', () => {
+  test('keeps the wllama-backed LFM model available in cpu mode only', () => {
     expect(
-      getModelAvailability(QWEN_35_2B_WLLAMA_MODEL_ID, {
+      getModelAvailability(LFM_25_12B_WLLAMA_MODEL_ID, {
         backendPreference: 'cpu',
         webGpuAvailable: true,
       })
@@ -46,7 +46,7 @@ describe('model-settings availability', () => {
       reason: '',
     });
     expect(
-      getModelAvailability(QWEN_35_2B_WLLAMA_MODEL_ID, {
+      getModelAvailability(LFM_25_12B_WLLAMA_MODEL_ID, {
         backendPreference: 'webgpu',
         webGpuAvailable: true,
       })
@@ -204,7 +204,7 @@ describe('model-settings availability', () => {
       audioInput: false,
       videoInput: false,
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_35_2B_WLLAMA_MODEL_ID)?.features).toMatchObject({
+    expect(MODEL_OPTIONS_BY_ID.get(LFM_25_12B_WLLAMA_MODEL_ID)?.features).toMatchObject({
       streaming: true,
       thinking: true,
       toolCalling: false,
@@ -221,7 +221,7 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.engine).toEqual({
       type: 'transformers-js',
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_35_2B_WLLAMA_MODEL_ID)?.engine).toEqual({
+    expect(MODEL_OPTIONS_BY_ID.get(LFM_25_12B_WLLAMA_MODEL_ID)?.engine).toEqual({
       type: 'wllama',
     });
     expect(MODEL_OPTIONS_BY_ID.get(LLAMA_3B_MODEL_ID)?.runtime).toMatchObject({
@@ -248,9 +248,9 @@ describe('model-settings availability', () => {
         cpu: 'q1',
       },
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_35_2B_WLLAMA_MODEL_ID)?.runtime).toMatchObject({
+    expect(MODEL_OPTIONS_BY_ID.get(LFM_25_12B_WLLAMA_MODEL_ID)?.runtime).toMatchObject({
       modelUrl:
-        'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/1c466474d208da1a7c4b8cb87ebcdac78f160e34/Qwen3.5-2B-UD-Q4_K_XL.gguf',
+        'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF/resolve/6eef5895049f444e3436c6f583207e610a1485ce/LFM2.5-1.2B-Thinking-Q4_K_M.gguf',
     });
     expect(MODEL_OPTIONS_BY_ID.get(GEMMA_4_MODEL_ID)?.inputLimits).toMatchObject({
       maxImageInputs: 1,
@@ -296,9 +296,9 @@ describe('model-settings availability', () => {
       displayName: 'Bonsai 8B Q1 (Experimental)',
       repositoryUrl: 'https://huggingface.co/onnx-community/Bonsai-8B-ONNX',
     });
-    expect(MODEL_OPTIONS_BY_ID.get(QWEN_35_2B_WLLAMA_MODEL_ID)).toMatchObject({
-      displayName: 'Qwen 3.5 2B GGUF Q4_K_XL',
-      repositoryUrl: 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF',
+    expect(MODEL_OPTIONS_BY_ID.get(LFM_25_12B_WLLAMA_MODEL_ID)).toMatchObject({
+      displayName: 'LFM2.5 1.2B Thinking GGUF Q4_K_M',
+      repositoryUrl: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF',
     });
   });
 });
