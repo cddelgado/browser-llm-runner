@@ -10,7 +10,7 @@ Student-facing browser chat UI with local model inference.
 - Clicking `Start a conversation` opens the chat workspace at `#/chat` with model selection, an empty composer, and no model load yet.
 - The selected model starts loading only after the first message is sent.
 - For multimodal models, the worker defers multimodal processor loading until the first generation request so image/audio preprocessing assets are not pulled in during initial model load.
-- Text-only chats on multimodal-capable models normally initialize through the lighter text-generation path first; the worker reloads the multimodal sessions only when the prompt actually contains image or audio inputs. Gemma 4 stays on its full multimodal runtime even for text-only turns because its lighter path regressed in-browser.
+- Text-only chats on multimodal-capable models initialize through the lighter text-generation path first; the worker reloads the multimodal sessions only when the prompt actually contains image or audio inputs.
 - Each conversation stores its own selected model.
 - Changing the model for the active conversation updates that conversation only.
 - Switching to a saved conversation with a different model keeps the current model loaded until the next send for that conversation.
@@ -102,6 +102,7 @@ Student-facing browser chat UI with local model inference.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
   - Values are constrained by per-model limits from `src/config/models.json`, use `step=8`, and reflect the app's browser-safe caps rather than every model's theoretical upstream context window.
+  - Models can also apply stricter backend-specific caps when one runtime path needs a smaller browser-safe budget.
   - Each token field shows an estimated word count (`tokens * 0.75`).
   - User overrides are saved per model in browser storage and restored when that model is selected again.
   - Fields are disabled until a model is loaded.

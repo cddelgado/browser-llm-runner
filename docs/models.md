@@ -57,6 +57,7 @@ Model support is configured in `src/config/models.json`:
   - `maxOutputTokens`
   - `defaultMaxContextTokens`
   - `maxContextTokens`
+  - `backendOverrides.<backend>` (optional per-backend generation-limit override such as a lower CPU-safe budget)
   - `minTemperature`
   - `maxTemperature`
   - `defaultTemperature`
@@ -229,6 +230,7 @@ If the model exposes thoughts in a way that does not fit the current tag-based p
 - `maxOutputTokens`
 - `defaultMaxContextTokens`
 - `maxContextTokens`
+- `backendOverrides.<backend>` for runtime-specific safety caps when one backend needs a smaller budget than the model's default app-wide limits
 - `minTemperature`
 - `maxTemperature`
 - `defaultTemperature`
@@ -333,7 +335,7 @@ Notes:
 
 Per-model limits and defaults:
 
-- `huggingworld/gemma-4-E2B-it-ONNX`: engine `transformers-js`, runtime revision `84b2c85ce64e8a0c999a3284f438d28db1d396a5`, runtime dtypes `{ webgpu: q4f16, cpu: q4f16 }`, `multimodalGeneration: true`, `preferMultimodalForText: true`, `useExternalDataFormat: true`, `inputLimits.maxImageInputs: 1`, `inputLimits.maxAudioInputs: 1`, browser-local max context `4096`, default context `4096`, browser-local max output `2048`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, `imageInput`, and `audioInput`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
+- `huggingworld/gemma-4-E2B-it-ONNX`: engine `transformers-js`, runtime revision `84b2c85ce64e8a0c999a3284f438d28db1d396a5`, runtime dtypes `{ webgpu: q4f16, cpu: q4f16 }`, `multimodalGeneration: true`, `useExternalDataFormat: true`, `inputLimits.maxImageInputs: 1`, `inputLimits.maxAudioInputs: 1`, browser-local max context `4096`, default context `4096`, browser-local max output `2048`, default temperature `1.0`, default top-k `64`, default top-p `0.95`, default repetition penalty `1.0`, feature flags `thinking`, `toolCalling`, `imageInput`, and `audioInput`, tool call format `gemma-special-token-call`, thinking tags `<|channel>` / `<channel|>` with leading `thought` stripped, thinking control `{ runtimeParameter: "enable_thinking" }`
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web`: runtime revision `8ddaf6b6764ff2916a807e3c2ec0b5a441192473`, runtime dtypes `{ webgpu: q4, cpu: q4 }`, browser-local max context `4096`, default context `4096`, browser-local max output `2048`, default temperature `0.6`, default top-p `0.9`, default top-k `50`, feature flag `toolCalling`, tool call format `{"name":"tool_name","parameters":{...}}` with `run_shell_command` preferring `{"shell":"..."}` inside `parameters`, no thinking tags
 - `onnx-community/Bonsai-8B-ONNX`: runtime revision `a5694a132e4050cef2dc335528016ce7e56504c9`, runtime dtypes `{ webgpu: q1, cpu: q1 }`, browser-local max context `4096`, default context `4096`, browser-local max output `2048`, default temperature `0.5`, default top-k `20`, default top-p `0.85`, default repetition penalty `1.0`, feature flags `thinking` and `toolCalling`, tagged JSON tool-call format inside `<tool_call>...</tool_call>`, thinking tags `<think>` / `</think>`, and upstream-managed per-dtype ONNX shard metadata
 - `LiquidAI/LFM2.5-1.2B-Thinking-GGUF`: engine `wllama`, pinned GGUF URL `.../resolve/6eef5895049f444e3436c6f583207e610a1485ce/LFM2.5-1.2B-Thinking-Q4_K_M.gguf`, browser-local max context `4096`, default context `4096`, browser-local max output `1024`, default temperature `0.1`, default top-k `50`, default top-p `0.1`, default repetition penalty `1.05`, feature flag `thinking`, no tool calling, no multimodal input, `<think>` / `</think>` reasoning tags, prompt-cache reuse auto-disabled above `2048` context tokens, and prompt batch size capped to a smaller browser-safe range

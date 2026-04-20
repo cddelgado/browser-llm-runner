@@ -410,6 +410,39 @@ function normalizeFeatures(rawFeatures, { thinkingTags = null } = {}) {
   return normalized;
 }
 
+function normalizeGenerationBackendOverrides(rawBackendOverrides, baseGeneration) {
+  if (
+    !rawBackendOverrides ||
+    typeof rawBackendOverrides !== 'object' ||
+    Array.isArray(rawBackendOverrides)
+  ) {
+    return null;
+  }
+
+  const backendOverrides = {};
+  ['webgpu', 'cpu'].forEach((backend) => {
+    const rawOverride = rawBackendOverrides?.[backend];
+    if (!rawOverride || typeof rawOverride !== 'object' || Array.isArray(rawOverride)) {
+      return;
+    }
+    backendOverrides[backend] = normalizeGenerationLimits({
+      ...baseGeneration,
+      ...rawOverride,
+    });
+  });
+
+  return Object.keys(backendOverrides).length ? backendOverrides : null;
+}
+
+function normalizeGeneration(rawGeneration) {
+  const baseGeneration = normalizeGenerationLimits(rawGeneration);
+  const backendOverrides = normalizeGenerationBackendOverrides(
+    rawGeneration?.backendOverrides,
+    baseGeneration
+  );
+  return backendOverrides ? { ...baseGeneration, backendOverrides } : baseGeneration;
+}
+
 function normalizeConfiguredModelId(modelId) {
   const normalizedId = typeof modelId === 'string' ? modelId.trim() : '';
   return LEGACY_MODEL_ALIASES[normalizedId] || normalizedId;
@@ -429,7 +462,7 @@ function normalizeCatalogModel(model) {
   const repositoryUrl = normalizeRepositoryUrl(rawModel?.repositoryUrl, id);
   const unavailableReason = normalizeUnavailableReason(rawModel?.unavailableReason);
   const thinkingTags = normalizeThinkingTags(rawModel?.thinkingTags);
-  const generation = normalizeGenerationLimits(rawModel?.generation);
+  const generation = normalizeGeneration(rawModel?.generation);
   const runtime = normalizeRuntime(rawModel?.runtime);
   const features = normalizeFeatures(rawModel?.features, { thinkingTags });
   const thinkingControl = normalizeThinkingControl(rawModel?.thinkingControl, {
@@ -574,6 +607,14 @@ export function normalizeModelId(modelId) {
 export function getModelEngineType(modelId) {
   const resolvedModelId = normalizeConfiguredModelId(modelId);
   return MODEL_OPTIONS_BY_ID.get(resolvedModelId)?.engine?.type || DEFAULT_ENGINE_TYPE;
+}
+
+export function getModelGenerationLimits(modelId, { backendPreference = 'webgpu' } = {}) {
+  const resolvedModelId = normalizeConfiguredModelId(modelId);
+  const generation =
+    MODEL_OPTIONS_BY_ID.get(resolvedModelId)?.generation || normalizeGenerationLimits(null);
+  const normalizedBackendPreference = normalizeSupportedBackendPreference(backendPreference);
+  return generation?.backendOverrides?.[normalizedBackendPreference] || generation;
 }
 
 export function getModelAvailability(

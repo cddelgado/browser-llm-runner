@@ -86,6 +86,7 @@ import {
   TOKEN_STEP,
   TOP_K_STEP,
   TOP_P_STEP,
+  getModelGenerationLimits as getConfiguredModelGenerationLimits,
   getModelEngineType,
   getModelAvailability,
   clamp,
@@ -1273,15 +1274,29 @@ function scheduleMathTypeset(element, options = {}) {
   mathTypesetTimers.set(element, nextTimerId);
 }
 
-function getModelGenerationLimits(modelId) {
+function getBaseModelGenerationLimits(modelId) {
   return (
     MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.generation ||
     normalizeGenerationLimits(null)
   );
 }
 
-function sanitizeGenerationConfigForModel(modelId, candidateConfig) {
-  return sanitizeGenerationConfig(candidateConfig, getModelGenerationLimits(modelId));
+function getModelGenerationLimits(
+  modelId,
+  { backendPreference = backendSelect?.value || 'webgpu' } = {}
+) {
+  return getConfiguredModelGenerationLimits(normalizeModelId(modelId), { backendPreference });
+}
+
+function sanitizeGenerationConfigForModel(
+  modelId,
+  candidateConfig,
+  { backendPreference = backendSelect?.value || 'webgpu' } = {}
+) {
+  return sanitizeGenerationConfig(
+    candidateConfig,
+    getModelGenerationLimits(modelId, { backendPreference })
+  );
 }
 
 function getStoredModelGenerationSettings() {
@@ -1304,12 +1319,15 @@ function getStoredGenerationConfigForModel(modelId) {
   if (!stored || typeof stored !== 'object') {
     return null;
   }
-  return sanitizeGenerationConfigForModel(normalizedModelId, stored);
+  return sanitizeGenerationConfig(stored, getBaseModelGenerationLimits(normalizedModelId));
 }
 
 function persistGenerationConfigForModel(modelId, config) {
   const normalizedModelId = normalizeModelId(modelId);
-  const sanitized = sanitizeGenerationConfigForModel(normalizedModelId, config);
+  const sanitized = sanitizeGenerationConfig(
+    config,
+    getBaseModelGenerationLimits(normalizedModelId)
+  );
   const byModel = getStoredModelGenerationSettings();
   byModel[normalizedModelId] = sanitized;
   localStorage.setItem(MODEL_GENERATION_SETTINGS_STORAGE_KEY, JSON.stringify(byModel));
@@ -1498,15 +1516,27 @@ function syncWllamaSettingsFromModel(modelId, { useDefaults = true, generationCo
 }
 
 function renderGenerationSettingsHelpText(config, limits) {
+  const normalizedModelId = normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
+  const baseLimits = getBaseModelGenerationLimits(normalizedModelId);
+  const currentBackend = String(backendSelect?.value || 'webgpu')
+    .trim()
+    .toLowerCase();
+  const backendLabel = currentBackend === 'cpu' ? 'CPU' : 'WebGPU';
+  const hasReducedTokenLimits =
+    Number(limits?.maxContextTokens) < Number(baseLimits?.maxContextTokens) ||
+    Number(limits?.maxOutputTokens) < Number(baseLimits?.maxOutputTokens);
+  const reducedTokenLimitsNote = hasReducedTokenLimits
+    ? ` ${backendLabel} mode reduces this model's token budget in this app to avoid browser memory exhaustion.`
+    : '';
   if (maxOutputTokensHelp) {
     maxOutputTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
       Math.min(limits.maxOutputTokens, config.maxContextTokens)
-    )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxOutputTokens)}.`;
+    )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxOutputTokens)}.${reducedTokenLimitsNote}`;
   }
   if (maxContextTokensHelp) {
     maxContextTokensHelp.textContent = `Allowed: ${formatInteger(MIN_TOKEN_LIMIT)} to ${formatInteger(
       limits.maxContextTokens
-    )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxContextTokens)}.`;
+    )} in steps of ${formatInteger(TOKEN_STEP)}. Estimated words: about ${formatWordEstimateFromTokens(config.maxContextTokens)}.${reducedTokenLimitsNote}`;
   }
   if (temperatureHelp) {
     temperatureHelp.textContent = `Allowed: ${limits.minTemperature.toFixed(1)} to ${limits.maxTemperature.toFixed(
@@ -1527,8 +1557,9 @@ function syncGenerationSettingsFromModel(modelId, useDefaults = true) {
   const normalizedModelId = normalizeModelId(modelId);
   const limits = getModelGenerationLimits(normalizedModelId);
   const defaultConfig = buildDefaultGenerationConfig(limits);
+  const storedConfig = getStoredGenerationConfigForModel(normalizedModelId);
   const config = useDefaults
-    ? getStoredGenerationConfigForModel(normalizedModelId) || defaultConfig
+    ? sanitizeGenerationConfig(storedConfig || defaultConfig, limits)
     : buildGenerationConfigFromUI(normalizedModelId);
   const boundedOutputMax = Math.min(limits.maxOutputTokens, config.maxContextTokens);
 

@@ -169,6 +169,9 @@ describe('preferences-models', () => {
     const backendSelect = /** @type {HTMLSelectElement} */ (
       harness.document.getElementById('backendSelect')
     );
+    const modelCardList = /** @type {HTMLElement} */ (
+      harness.document.getElementById('modelCardList')
+    );
 
     harness.controller.populateModelSelect();
     modelSelect.value = GEMMA_4_MODEL_ID;
@@ -181,6 +184,7 @@ describe('preferences-models', () => {
     expect(selectedModel).toBe(GEMMA_4_MODEL_ID);
     expect(modelSelect.value).toBe(selectedModel);
     expect(harness.deps.setStatus).not.toHaveBeenCalled();
+    expect(getModelCard(modelCardList, GEMMA_4_MODEL_ID)?.textContent).toContain('4,096 tokens');
   });
 
   test('restores a removed model id as the default visible model', () => {

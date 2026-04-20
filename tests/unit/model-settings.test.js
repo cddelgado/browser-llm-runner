@@ -6,6 +6,7 @@ import {
   browserSupportsWebGpu,
   getFirstAvailableModelId,
   getModelAvailability,
+  getModelGenerationLimits,
   normalizeModelId,
   resolveRuntimeDtypeForBackend,
 } from '../../src/config/model-settings.js';
@@ -137,6 +138,30 @@ describe('model-settings availability', () => {
     });
   });
 
+  test('keeps Gemma 4 generation limits consistent across webgpu and cpu', () => {
+    expect(
+      getModelGenerationLimits(GEMMA_4_MODEL_ID, {
+        backendPreference: 'webgpu',
+      })
+    ).toMatchObject({
+      defaultMaxOutputTokens: 1024,
+      maxOutputTokens: 2048,
+      defaultMaxContextTokens: 4096,
+      maxContextTokens: 4096,
+    });
+
+    expect(
+      getModelGenerationLimits(GEMMA_4_MODEL_ID, {
+        backendPreference: 'cpu',
+      })
+    ).toMatchObject({
+      defaultMaxOutputTokens: 1024,
+      maxOutputTokens: 2048,
+      defaultMaxContextTokens: 4096,
+      maxContextTokens: 4096,
+    });
+  });
+
   test('only exposes the current visible catalog', () => {
     expect(MODEL_OPTIONS).toHaveLength(4);
     expect(MODEL_OPTIONS_BY_ID.get('LiquidAI/LFM2.5-350M-ONNX')).toBeUndefined();
@@ -239,7 +264,6 @@ describe('model-settings availability', () => {
         cpu: 'q4f16',
       },
       multimodalGeneration: true,
-      preferMultimodalForText: true,
       useExternalDataFormat: true,
     });
     expect(MODEL_OPTIONS_BY_ID.get(BONSAI_8B_MODEL_ID)?.runtime).toMatchObject({

@@ -6,6 +6,7 @@ import {
   browserSupportsWebGpu,
   getFirstAvailableModelId,
   getModelEngineType,
+  getModelGenerationLimits,
   getModelAvailability,
   normalizeModelId,
   normalizeSupportedBackendPreference,
@@ -59,6 +60,13 @@ function formatInteger(value) {
 function formatWordEstimate(tokenCount) {
   const roundedEstimate = Math.round(((Number(tokenCount) || 0) * 0.75) / 100) * 100;
   return formatInteger(roundedEstimate);
+}
+
+function hasReducedGenerationLimits(currentLimits, defaultLimits) {
+  return (
+    Number(currentLimits?.maxContextTokens) < Number(defaultLimits?.maxContextTokens) ||
+    Number(currentLimits?.maxOutputTokens) < Number(defaultLimits?.maxOutputTokens)
+  );
 }
 
 function buildLanguageSupportText(model) {
@@ -356,6 +364,13 @@ export function createModelPreferencesController({
     modelCardList.replaceChildren();
 
     MODEL_OPTIONS.forEach((model) => {
+      const effectiveGenerationLimits = getModelGenerationLimits(model.id, {
+        backendPreference: selectedBackend,
+      });
+      const reducedGenerationLimits = hasReducedGenerationLimits(
+        effectiveGenerationLimits,
+        model.generation
+      );
       const availability = getModelAvailability(model.id, {
         backendPreference: selectedBackend,
         webGpuAvailable,
@@ -434,8 +449,8 @@ export function createModelPreferencesController({
       const context = documentRef.createElement('p');
       context.className = 'model-card-context';
       context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> <strong>${formatInteger(
-        model.generation.maxContextTokens
-      )} tokens</strong> / about ${formatWordEstimate(model.generation.maxContextTokens)} words`;
+        effectiveGenerationLimits.maxContextTokens
+      )} tokens</strong> / about ${formatWordEstimate(effectiveGenerationLimits.maxContextTokens)} words`;
       primary.appendChild(context);
       content.appendChild(primary);
 
@@ -458,6 +473,13 @@ export function createModelPreferencesController({
         cpuOnlyNote.className = 'model-card-note';
         cpuOnlyNote.textContent = 'Runs in CPU mode only in this app.';
         content.appendChild(cpuOnlyNote);
+      } else if (reducedGenerationLimits) {
+        const generationSafetyNote = documentRef.createElement('p');
+        generationSafetyNote.className = 'model-card-note';
+        generationSafetyNote.textContent = `Uses reduced ${formatBackendPreferenceLabel(
+          selectedBackend
+        )} token limits in this app to avoid browser memory exhaustion.`;
+        content.appendChild(generationSafetyNote);
       } else if (model.runtime?.requiresWebGpu) {
         const requirement = documentRef.createElement('p');
         requirement.className = 'model-card-note';

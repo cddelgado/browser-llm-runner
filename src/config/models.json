@@ -28,7 +28,6 @@
           "cpu": "q4f16"
         },
         "multimodalGeneration": true,
-        "preferMultimodalForText": true,
         "useExternalDataFormat": true
       },
       "thinkingControl": {
