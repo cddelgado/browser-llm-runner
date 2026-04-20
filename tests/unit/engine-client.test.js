@@ -466,6 +466,40 @@ describe('LLMEngineClient', () => {
     });
   });
 
+  test('passes per-request generation config through to the worker generate payload', async () => {
+    const client = new LLMEngineClient();
+    await client.initialize({
+      modelId: 'LiquidAI/LFM2.5-1.2B-Thinking-GGUF',
+      engineType: 'wllama',
+    });
+
+    await client.generate('prompt', {
+      generationConfig: {
+        maxOutputTokens: 512,
+        maxContextTokens: 4096,
+        temperature: 0.1,
+        topK: 50,
+        topP: 0.1,
+        repetitionPenalty: 1.05,
+      },
+      onToken: () => {},
+      onComplete: () => {},
+      onError: () => {},
+    });
+
+    const generateMessage = MockWorker.instances[0].messages.find(
+      (message) => message.type === 'generate'
+    );
+    expect(generateMessage?.payload?.generationConfig).toEqual({
+      maxOutputTokens: 512,
+      maxContextTokens: 4096,
+      temperature: 0.1,
+      topK: 50,
+      topP: 0.1,
+      repetitionPenalty: 1.05,
+    });
+  });
+
   test('reinitializes before generation when the request switches execution into multimodal mode', async () => {
     const client = new LLMEngineClient();
     await client.initialize({

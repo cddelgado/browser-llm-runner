@@ -138,6 +138,15 @@ describe('model-settings availability', () => {
     });
   });
 
+  test('keeps the LFM GGUF sampling defaults aligned with the published thinking guidance', () => {
+    expect(MODEL_OPTIONS_BY_ID.get(LFM_25_12B_WLLAMA_MODEL_ID)?.generation).toMatchObject({
+      defaultTemperature: 0.1,
+      defaultTopK: 50,
+      defaultTopP: 0.1,
+      defaultRepetitionPenalty: 1.05,
+    });
+  });
+
   test('keeps Gemma 4 generation limits consistent across webgpu and cpu', () => {
     expect(
       getModelGenerationLimits(GEMMA_4_MODEL_ID, {
