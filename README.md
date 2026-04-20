@@ -90,7 +90,7 @@ Student-facing browser chat UI with local model inference.
   - `CPU`
 - Selected cloud-provider models run through a browser fetch-backed OpenAI-compatible worker path instead of the local WebGPU/CPU runtimes; the backend selector is ignored for those models.
 - `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU and do not opt out with `runtime.allowBackendFallback: false`.
-- CPU mode runs CPU-capable ONNX models through the browser ONNX Runtime WASM path and runs GGUF models through the bundled `wllama` WASM runtime. The ONNX worker keeps `useWasmCache` enabled, uses app-bundled ONNX Runtime WASM assets instead of the default CDN path, enables WASM proxying across ONNX backends, and lets `Settings -> System -> Transformers.js CPU threads` control `onnx.wasm.numThreads` (`0` keeps ORT auto). Selecting a CPU-only GGUF model automatically switches the backend preference to `CPU` before load.
+- CPU mode runs CPU-capable ONNX models through the browser ONNX Runtime WASM path and runs GGUF models through the bundled `wllama` WASM runtime. The ONNX worker keeps `useWasmCache` enabled, uses app-bundled ONNX Runtime WASM assets instead of the default CDN path, enables WASM proxying across ONNX backends, and lets `Settings -> System -> CPU threads` control `onnx.wasm.numThreads` plus the explicit `wllama` thread hint (`0` keeps each engine on its own auto policy). On secure static hosts, the app also registers a same-origin COOP/COEP service worker so `wllama` can use multithreaded WASM when the browser allows `SharedArrayBuffer`; otherwise it falls back to single-thread WASM. Selecting a CPU-only GGUF model automatically switches the backend preference to `CPU` before load.
 - If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely.
 - If WebGPU loses the active graphics device before any response tokens are shown, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that generation automatically.
 - If `Stop generating` is pressed while that automatic CPU recovery is still initializing, the pending request is canceled and the retry is not resumed.
@@ -285,7 +285,7 @@ In addition to the bundled local model catalog, users can add browser-reachable 
 - `LiquidAI/LFM2.5-1.2B-Thinking-GGUF`
   - Uses the `wllama` worker path in this app.
   - Loads the pinned `LFM2.5-1.2B-Thinking-Q4_K_M.gguf` quant from `LiquidAI/LFM2.5-1.2B-Thinking-GGUF`.
-  - Runs as a text-only, single-thread CPU/WASM GGUF model in this app.
+  - Runs as a text-only CPU/WASM GGUF model in this app, using multithreaded `wllama` when cross-origin isolation is available and otherwise falling back to single-thread WASM.
   - Parses `<think>...</think>` reasoning into the transcript thinking section.
   - Does not currently enable tool calling or multimodal input in this app.
 - Legacy stored IDs are automatically remapped to the supported model:
@@ -337,6 +337,7 @@ For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` r
 - Video input is not currently exposed because the supported browser runtime paths are not reliable enough yet.
 - The app still does not ship with a CSP. This is a documented hardening gap for a future pass.
 - The bundled Transformers.js models in `src/config/models.json` are pinned to explicit Hugging Face revisions, and the bundled `wllama` LFM2.5 GGUF entry uses a pinned Hugging Face `resolve/<commit>/...` URL, so browser caches stay stable across redeploys until the catalog is intentionally updated.
+- The app also ships a same-origin `coi-serviceworker.js` helper so secure static-host deployments such as GitHub Pages can add COOP/COEP headers and unlock `SharedArrayBuffer`-backed `wllama` multithreading after the first load/reload.
 
 See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 

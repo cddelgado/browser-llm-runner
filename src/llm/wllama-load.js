@@ -5,8 +5,21 @@ function toMessage(error) {
   return String(error || '');
 }
 
+function normalizePositiveInteger(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  const normalized = Math.trunc(parsed);
+  return normalized > 0 ? normalized : null;
+}
+
 export function shouldRetryWllamaModelLoad(error) {
   return /\binvalid magic number\b/i.test(toMessage(error)) || /\bnot a gguf\b/i.test(toMessage(error));
+}
+
+export function normalizeWllamaThreadCount(value) {
+  return normalizePositiveInteger(value);
 }
 
 export function expandWllamaModelUrls(modelUrl) {

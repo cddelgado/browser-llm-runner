@@ -25,7 +25,7 @@ describe('settings markup', () => {
     ]);
   });
 
-  test('includes the Transformers.js CPU thread control on the System tab', () => {
+  test('includes the local CPU thread control on the System tab', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
     const dom = new JSDOM(html);
     const cpuThreadsInput = dom.window.document.getElementById('cpuThreadsInput');
@@ -34,8 +34,18 @@ describe('settings markup', () => {
     expect(cpuThreadsInput?.getAttribute('type')).toBe('number');
     expect(cpuThreadsInput?.getAttribute('aria-describedby')).toBe('cpuThreadsHelp');
     expect(dom.window.document.getElementById('cpuThreadsHelp')?.textContent).toContain(
-      'Transformers.js CPU/WASM path'
+      'wllama'
     );
+  });
+
+  test('registers the COOP/COEP service worker helper from index.html', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    const dom = new JSDOM(html);
+    const serviceWorkerScript = dom.window.document.querySelector(
+      'script[src="./coi-serviceworker.js"]'
+    );
+
+    expect(serviceWorkerScript).not.toBeNull();
   });
 
   test('includes the Cloud Providers settings form and accordion list', () => {

@@ -1,4 +1,5 @@
 import singleThreadWasmPath from '@wllama/wllama/esm/single-thread/wllama.wasm?url';
+import multiThreadWasmPath from '@wllama/wllama/esm/multi-thread/wllama.wasm?url';
 
 import {
   buildDefaultGenerationConfig,
@@ -6,6 +7,7 @@ import {
 } from '../config/generation-config.js';
 import {
   expandWllamaModelUrls,
+  normalizeWllamaThreadCount,
   shouldRetryWllamaModelLoad,
 } from '../llm/wllama-load.js';
 import { normalizeWllamaPromptMessages } from '../llm/wllama-prompt.js';
@@ -61,6 +63,13 @@ async function loadWllamaLibrary() {
   return wllamaLibraryPromise;
 }
 
+function buildWllamaAssetPaths() {
+  return {
+    'single-thread/wllama.wasm': singleThreadWasmPath,
+    'multi-thread/wllama.wasm': multiThreadWasmPath,
+  };
+}
+
 function buildWllamaConstructorConfig(runtime = {}) {
   return {
     ...(runtime.parallelDownloads ? { parallelDownloads: runtime.parallelDownloads } : {}),
@@ -69,9 +78,10 @@ function buildWllamaConstructorConfig(runtime = {}) {
 }
 
 function buildWllamaLoadConfig(runtime = {}, nextGenerationConfig = {}, extraConfig = {}) {
+  const threadCount = resolveThreadCount(runtime);
   return {
     n_ctx: nextGenerationConfig.maxContextTokens,
-    n_threads: resolveThreadCount(runtime),
+    ...(threadCount ? { n_threads: threadCount } : {}),
     ...(runtime.batchSize ? { n_batch: runtime.batchSize } : {}),
     ...extraConfig,
   };
@@ -138,9 +148,7 @@ async function inspectFirstModelBlob(blobs) {
 async function createWllamaInstance(runtime = {}) {
   const { LoggerWithoutDebug, Wllama } = await loadWllamaLibrary();
   return new Wllama(
-    {
-      'single-thread/wllama.wasm': singleThreadWasmPath,
-    },
+    buildWllamaAssetPaths(),
     {
       logger: LoggerWithoutDebug,
       ...buildWllamaConstructorConfig(runtime),
@@ -243,7 +251,7 @@ function normalizeRuntimeConfig(rawRuntime) {
       : '';
   const allowOffline = rawRuntime?.allowOffline === true;
   const parallelDownloads = normalizePositiveInteger(rawRuntime?.parallelDownloads, 0);
-  const cpuThreads = normalizePositiveInteger(rawRuntime?.cpuThreads, 0);
+  const cpuThreads = normalizeWllamaThreadCount(rawRuntime?.cpuThreads) || 0;
   const batchSize = normalizePositiveInteger(rawRuntime?.batchSize, 0);
   const minP = normalizeProbability(rawRuntime?.minP, 0);
   return {
@@ -276,7 +284,36 @@ function buildSamplingConfig(nextGenerationConfig, runtime = {}) {
 }
 
 function resolveThreadCount(runtime = {}) {
-  return normalizePositiveInteger(runtime.cpuThreads, 1);
+  return normalizeWllamaThreadCount(runtime.cpuThreads);
+}
+
+function getWllamaThreadInfo(instance) {
+  const isMultithread =
+    instance && typeof instance.isMultithread === 'function' && instance.isMultithread() === true;
+  const numThreads =
+    instance && typeof instance.getNumThreads === 'function'
+      ? normalizeWllamaThreadCount(instance.getNumThreads()) || 1
+      : 1;
+  return {
+    isMultithread,
+    numThreads,
+  };
+}
+
+function buildWllamaReadyStatus(instance) {
+  const threadInfo = getWllamaThreadInfo(instance);
+  if (threadInfo.isMultithread && threadInfo.numThreads > 1) {
+    return `Ready (CPU, ${threadInfo.numThreads} threads)`;
+  }
+  return 'Ready (CPU)';
+}
+
+function buildWllamaLoadedMessage(modelId, instance) {
+  const threadInfo = getWllamaThreadInfo(instance);
+  if (threadInfo.isMultithread && threadInfo.numThreads > 1) {
+    return `Loaded ${modelId} (CPU, ${threadInfo.numThreads} threads).`;
+  }
+  return `Loaded ${modelId} (CPU).`;
 }
 
 function isAbortError(error) {
@@ -373,7 +410,7 @@ async function initialize(payload) {
       engineType: 'wllama',
       modelId,
     });
-    postStatus('Ready (CPU)');
+    postStatus(buildWllamaReadyStatus(wllama));
     return;
   }
 
@@ -469,7 +506,7 @@ async function initialize(payload) {
   loadedRuntimeConfigKey = nextRuntimeConfigKey;
   postProgress({
     percent: 100,
-    message: `Loaded ${modelId} (CPU).`,
+    message: buildWllamaLoadedMessage(modelId, nextWllama),
   });
   post('init-success', {
     backend: 'cpu',
@@ -477,7 +514,7 @@ async function initialize(payload) {
     engineType: 'wllama',
     modelId,
   });
-  postStatus('Ready (CPU)');
+  postStatus(buildWllamaReadyStatus(nextWllama));
 }
 
 async function generate(payload) {

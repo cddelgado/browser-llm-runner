@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>ClawsChat</title>
+    <script>
+      window.coi = { quiet: true };
+    </script>
+    <script src="./coi-serviceworker.js"></script>
   </head>
   <body class="app-body">
     <nav class="skip-links" aria-label="Skip links">
@@ -753,9 +757,7 @@
                       </select>
                     </div>
                     <div class="settings-control-group">
-                      <label class="form-label" for="cpuThreadsInput"
-                        >Transformers.js CPU threads</label
-                      >
+                      <label class="form-label" for="cpuThreadsInput">CPU threads</label>
                       <input
                         id="cpuThreadsInput"
                         class="form-control"
@@ -767,9 +769,10 @@
                         aria-describedby="cpuThreadsHelp"
                       />
                       <p id="cpuThreadsHelp" class="form-text mb-0">
-                        Auto (`0`) uses ONNX Runtime Web thread auto-selection. Applies to the
-                        Transformers.js CPU/WASM path, including WebGPU fallback to WASM when
-                        used.
+                        Auto (`0`) keeps each local CPU engine on its own thread policy.
+                        Transformers.js uses ONNX Runtime Web auto-selection. `wllama` uses its
+                        multithread default when cross-origin isolation is available and otherwise
+                        falls back to single-thread WASM.
                       </p>
                     </div>
                     <div class="settings-control-group">

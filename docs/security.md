@@ -14,7 +14,8 @@ This document tracks security hardening decisions and known gaps that should sta
 - OpenAI-compatible cloud providers are also browser-direct. The app tests them with an authenticated `GET /models` call before save and later uses authenticated `/chat/completions` requests directly from the browser worker.
 - Saved cloud-provider API keys live in dedicated IndexedDB records instead of plain `localStorage` or `sessionStorage`. When the browser supports WebCrypto key storage, those secrets are encrypted at rest with a non-extractable browser-held AES-GCM key before they are written.
 - Transformers.js is loaded from the locally installed package and bundled with the app build instead of being imported from a CDN at runtime.
-- `@wllama/wllama` is also loaded from the locally installed package and bundles the single-thread `wllama.wasm` runtime asset with the app build instead of fetching that runtime from a CDN at generation time.
+- `@wllama/wllama` is also loaded from the locally installed package and bundles both `wllama.wasm` runtime variants with the app build instead of fetching them from a CDN at generation time.
+- Secure static-host deployments register a same-origin `coi-serviceworker.js` helper that adds COOP/COEP headers on controlled responses so `wllama` can use `SharedArrayBuffer`-backed multithreading when the browser allows it.
 - Browser-local Python execution currently loads Pyodide runtime assets from the pinned `https://cdn.jsdelivr.net/pyodide/v0.29.3/full/` distribution at runtime.
 - Attachment ingestion applies per-type limits before large files are read into memory:
   - text files: 5 MB max, truncated to 400,000 characters for storage and prompt preparation

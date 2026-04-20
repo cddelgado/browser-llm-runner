@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 
 import {
   expandWllamaModelUrls,
+  normalizeWllamaThreadCount,
   shouldRetryWllamaModelLoad,
 } from '../../src/llm/wllama-load.js';
 
@@ -35,5 +36,18 @@ describe('wllama-load', () => {
     expect(expandWllamaModelUrls('https://example.com/model.gguf')).toEqual([
       'https://example.com/model.gguf',
     ]);
+  });
+
+  test('treats zero or invalid wllama thread counts as auto mode', () => {
+    expect(normalizeWllamaThreadCount(0)).toBeNull();
+    expect(normalizeWllamaThreadCount('0')).toBeNull();
+    expect(normalizeWllamaThreadCount(-2)).toBeNull();
+    expect(normalizeWllamaThreadCount('abc')).toBeNull();
+  });
+
+  test('keeps explicit positive wllama thread counts', () => {
+    expect(normalizeWllamaThreadCount(1)).toBe(1);
+    expect(normalizeWllamaThreadCount('4')).toBe(4);
+    expect(normalizeWllamaThreadCount(3.8)).toBe(3);
   });
 });

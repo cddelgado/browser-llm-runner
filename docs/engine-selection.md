@@ -24,9 +24,10 @@ Inference is selected through the engine client boundary and executes through a 
 - ONNX worker defaults keep browser cache support enabled for both modes:
   - `env.useWasmCache = true`
   - `onnx.wasm.proxy = true`
-  - `onnx.wasm.numThreads = 0` by default, or the user-selected value from `Settings -> System -> Transformers.js CPU threads`
+  - `onnx.wasm.numThreads = 0` by default, or the user-selected value from `Settings -> System -> CPU threads`
   - `onnx.wasm.wasmPaths` now points at app-bundled ONNX Runtime WASM files instead of the default CDN path (the installed `onnxruntime-web/webgpu` bundle currently uses the asyncify WebGPU EP assets, threaded WASM for CPU, and asyncify on Safari CPU fallback)
   - `Settings -> System -> Clear Downloaded Model Files` uses Transformers.js cache metadata to remove the selected ONNX model, and `wllama`'s `ModelManager` to remove the selected cached GGUF model
+- The app registers a same-origin `coi-serviceworker.js` on secure static hosts so pages such as GitHub Pages can add COOP/COEP headers after the first load/reload and expose `SharedArrayBuffer` for `wllama`.
 - Models with `requiresWebGpu: true` only attempt WebGPU and are unavailable in CPU mode.
 - `onnx-community/Llama-3.2-3B-Instruct-onnx-web` runs through the `transformers-js` worker with `q4` on WebGPU and CPU.
 - `huggingworld/gemma-4-E2B-it-ONNX` now runs through the `transformers-js` worker with `q4f16` on WebGPU only.
@@ -37,6 +38,8 @@ Inference is selected through the engine client boundary and executes through a 
 - For multimodal models, the worker loads the `AutoProcessor` lazily on first generation and then reuses it for later requests, so multimodal preprocessing assets are not fetched during initial model load.
 - For text-only Transformers.js turns, the worker now loads `AutoTokenizer` and `AutoModelForCausalLM` directly, feeds tokenized prompt tensors into `model.generate()`, and clears prior prompt-cache state between turns because `past_key_values` reuse was causing browser-memory regressions with the current local runtimes.
 - The `wllama` worker currently supports text-only prompts. It normalizes structured chat messages into a chat-formatted prompt, rejects image/audio/video inputs with actionable errors, and streams completion deltas back through the same engine-client contract as the other drivers.
+- The `wllama` worker bundles both single-thread and multi-thread WASM assets. When the page is cross-origin isolated, `wllama` auto-selects the multi-thread build; otherwise it falls back to single-thread.
+- `Settings -> System -> CPU threads` also feeds `wllama`'s explicit `n_threads` hint. A value of `0` leaves `wllama` on its own auto thread policy; `1` forces single-thread even when multi-thread is available.
 - `Settings -> Model` exposes a small `wllama`-only block for GGUF models:
   - `Reuse prompt cache between turns` maps to `useCache` during generation when the active context budget is `2048` tokens or below
   - `Prompt batch size` maps to load-time `n_batch` and is capped to a smaller browser-safe range
