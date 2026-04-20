@@ -24,6 +24,11 @@ const OPENAI_COMPATIBLE_PROMPT_TOOL_CALLING_PROFILE = Object.freeze({
   nameKey: 'name',
   argumentsKey: 'parameters',
 });
+const CLOUD_PROVIDER_LINK_KEYS = Object.freeze([
+  'createAccountUrl',
+  'createTokenUrl',
+  'dataSecurityUrl',
+]);
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -31,6 +36,26 @@ function normalizeString(value) {
 
 function normalizeTimestamp(value) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
+}
+
+function normalizePositiveInteger(value) {
+  return Number.isInteger(value) && value > 0 ? Math.trunc(value) : null;
+}
+
+function normalizeHttpUrl(value) {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return '';
+  }
+  try {
+    const url = new URL(normalized);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return url.toString();
+    }
+  } catch {
+    return '';
+  }
+  return '';
 }
 
 export function buildCloudModelId(providerId, remoteModelId) {
@@ -47,6 +72,33 @@ function normalizeCloudModelFeatures(rawFeatures, defaults = null) {
     toolCalling:
       rawFeatures?.toolCalling === true ||
       (rawFeatures?.toolCalling !== false && defaultToolCalling),
+  };
+}
+
+function normalizeCloudProviderLinks(rawLinks) {
+  if (!rawLinks || typeof rawLinks !== 'object' || Array.isArray(rawLinks)) {
+    return null;
+  }
+  const normalizedLinks = Object.fromEntries(
+    CLOUD_PROVIDER_LINK_KEYS.map((key) => [key, normalizeHttpUrl(rawLinks[key])]).filter(
+      ([, value]) => Boolean(value)
+    )
+  );
+  return Object.keys(normalizedLinks).length ? normalizedLinks : null;
+}
+
+function normalizeCloudModelRateLimit(rawRateLimit) {
+  if (!rawRateLimit || typeof rawRateLimit !== 'object' || Array.isArray(rawRateLimit)) {
+    return null;
+  }
+  const maxRequests = normalizePositiveInteger(rawRateLimit.maxRequests);
+  const windowMs = normalizePositiveInteger(rawRateLimit.windowMs);
+  if (!maxRequests || !windowMs) {
+    return null;
+  }
+  return {
+    maxRequests,
+    windowMs,
   };
 }
 
@@ -101,6 +153,8 @@ function normalizeSelectedModelEntry(entry, availableModels, provider) {
       entry?.features,
       detectedFeatures || DEFAULT_REMOTE_MODEL_FEATURES
     ),
+    rateLimit: normalizeCloudModelRateLimit(entry?.rateLimit),
+    managed: entry?.managed === true,
   };
 }
 
@@ -126,17 +180,23 @@ export function normalizeCloudProviderConfig(provider) {
   }
   const endpointHost = normalizeString(provider?.endpointHost);
   const displayName = normalizeString(provider?.displayName) || endpointHost || endpoint;
+  const preconfigured = provider?.preconfigured === true;
+  const links = normalizeCloudProviderLinks(provider?.links);
+  const hasSecret = provider?.hasSecret === true;
   const normalizedProvider = {
     id,
     type,
     endpoint,
     endpointHost,
     displayName,
+    preconfigured,
+    hasSecret,
     supportsTopK: provider?.supportsTopK === true,
     importedAt: normalizeTimestamp(provider?.importedAt) || Date.now(),
     updatedAt: normalizeTimestamp(provider?.updatedAt) || Date.now(),
     availableModels: [],
     selectedModels: [],
+    ...(links ? { links } : {}),
   };
   normalizedProvider.availableModels = normalizeAvailableModels(provider?.availableModels);
   normalizedProvider.selectedModels = normalizeSelectedModels(
@@ -144,6 +204,13 @@ export function normalizeCloudProviderConfig(provider) {
     normalizedProvider.availableModels,
     normalizedProvider
   );
+  if (normalizedProvider.preconfigured && !normalizedProvider.availableModels.length) {
+    normalizedProvider.availableModels = normalizedProvider.selectedModels.map((model) => ({
+      id: model.id,
+      displayName: model.displayName,
+      detectedFeatures: model.detectedFeatures,
+    }));
+  }
   return normalizedProvider;
 }
 
@@ -158,7 +225,12 @@ export function normalizeCloudProviderConfigs(value) {
       seenProviderIds.add(provider.id);
       return true;
     })
-    .sort((left, right) => left.displayName.localeCompare(right.displayName));
+    .sort((left, right) => {
+      if (left.preconfigured !== right.preconfigured) {
+        return left.preconfigured ? -1 : 1;
+      }
+      return left.displayName.localeCompare(right.displayName);
+    });
 }
 
 export function getCloudProviderById(providers, providerId) {
@@ -167,6 +239,121 @@ export function getCloudProviderById(providers, providerId) {
     return null;
   }
   return normalizeCloudProviderConfigs(providers).find((provider) => provider.id === normalizedProviderId) || null;
+}
+
+function mergeAvailableModels(baseProvider, storedProvider) {
+  const mergedAvailableModels = [];
+  const seenModelIds = new Set();
+  [...(baseProvider?.availableModels || []), ...(storedProvider?.availableModels || [])].forEach(
+    (model) => {
+      const normalizedModel = normalizeAvailableModelEntry(model);
+      if (!normalizedModel || seenModelIds.has(normalizedModel.id)) {
+        return;
+      }
+      seenModelIds.add(normalizedModel.id);
+      mergedAvailableModels.push(normalizedModel);
+    }
+  );
+  return mergedAvailableModels;
+}
+
+function mergeSelectedModels(baseProvider, storedProvider, availableModels) {
+  const mergedSelectedModels = [];
+  const seenModelIds = new Set();
+  const storedSelectedModelsById = new Map(
+    (storedProvider?.selectedModels || []).map((model) => [model.id, model])
+  );
+
+  (baseProvider?.selectedModels || []).forEach((model) => {
+    const storedModel = storedSelectedModelsById.get(model.id);
+    const normalizedModel = normalizeSelectedModelEntry(
+      {
+        ...model,
+        ...(baseProvider?.preconfigured ? { managed: true } : {}),
+        ...(storedModel
+          ? {
+              supportsTopK: storedModel.supportsTopK,
+              detectedFeatures: storedModel.detectedFeatures,
+              features: storedModel.features,
+            }
+          : {}),
+      },
+      availableModels,
+      baseProvider
+    );
+    if (!normalizedModel || seenModelIds.has(normalizedModel.id)) {
+      return;
+    }
+    seenModelIds.add(normalizedModel.id);
+    mergedSelectedModels.push(normalizedModel);
+  });
+
+  (storedProvider?.selectedModels || []).forEach((model) => {
+    if (seenModelIds.has(model.id)) {
+      return;
+    }
+    const normalizedModel = normalizeSelectedModelEntry(model, availableModels, {
+      ...baseProvider,
+      supportsTopK:
+        storedProvider?.supportsTopK === true || baseProvider?.supportsTopK === true,
+    });
+    if (!normalizedModel) {
+      return;
+    }
+    seenModelIds.add(normalizedModel.id);
+    mergedSelectedModels.push(normalizedModel);
+  });
+
+  return mergedSelectedModels;
+}
+
+export function mergeCloudProviderConfigs(preconfiguredProviders, storedProviders) {
+  const normalizedPreconfiguredProviders = normalizeCloudProviderConfigs(
+    (Array.isArray(preconfiguredProviders) ? preconfiguredProviders : []).map((provider) => ({
+      ...provider,
+      preconfigured: true,
+      selectedModels: Array.isArray(provider?.selectedModels)
+        ? provider.selectedModels.map((model) => ({
+            ...model,
+            managed: model?.managed !== false,
+          }))
+        : [],
+    }))
+  );
+  const normalizedStoredProviders = normalizeCloudProviderConfigs(storedProviders);
+  const storedProvidersById = new Map(normalizedStoredProviders.map((provider) => [provider.id, provider]));
+  const mergedProviders = [];
+  const seenProviderIds = new Set();
+
+  normalizedPreconfiguredProviders.forEach((provider) => {
+    const storedProvider = storedProvidersById.get(provider.id) || null;
+    const availableModels = mergeAvailableModels(provider, storedProvider);
+    const selectedModels = mergeSelectedModels(provider, storedProvider, availableModels);
+    mergedProviders.push(
+      normalizeCloudProviderConfig({
+        ...provider,
+        ...(storedProvider
+          ? {
+              importedAt: storedProvider.importedAt,
+              updatedAt: storedProvider.updatedAt,
+              hasSecret: storedProvider.hasSecret === true,
+            }
+          : {}),
+        availableModels,
+        selectedModels,
+      })
+    );
+    seenProviderIds.add(provider.id);
+  });
+
+  normalizedStoredProviders.forEach((provider) => {
+    if (seenProviderIds.has(provider.id)) {
+      return;
+    }
+    mergedProviders.push(provider);
+  });
+
+  return normalizeCloudProviderConfigs(mergedProviders);
 }
 
 export function buildRuntimeModelCatalog(providers) {
@@ -197,9 +384,12 @@ export function buildRuntimeModelCatalog(providers) {
           providerId: provider.id,
           providerType: provider.type,
           providerDisplayName: provider.displayName,
+          providerHasSecret: provider.hasSecret === true,
+          providerPreconfigured: provider.preconfigured === true,
           apiBaseUrl: provider.endpoint,
           remoteModelId: model.id,
           supportsTopK: model.supportsTopK === true,
+          ...(model.rateLimit ? { rateLimit: model.rateLimit } : {}),
         },
       };
     })

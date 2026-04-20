@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 const getCloudProviderSecretMock = vi.fn();
+const consumeCloudModelRateLimitMock = vi.fn();
 
 vi.mock('../../src/state/cloud-provider-store.js', () => ({
   getCloudProviderSecret: getCloudProviderSecretMock,
+}));
+
+vi.mock('../../src/state/cloud-rate-limit-store.js', () => ({
+  consumeCloudModelRateLimit: consumeCloudModelRateLimitMock,
 }));
 
 function createWorkerSelf() {
@@ -51,6 +56,11 @@ describe('openai-compatible.worker', () => {
     vi.resetModules();
     vi.clearAllMocks();
     getCloudProviderSecretMock.mockResolvedValue('test-api-key');
+    consumeCloudModelRateLimitMock.mockResolvedValue({
+      allowed: true,
+      retryAfterMs: 0,
+      remainingRequests: null,
+    });
     const workerSelf = createWorkerSelf();
     globalThis.self = /** @type {any} */ (workerSelf);
     Object.defineProperty(globalThis, 'fetch', {
@@ -207,6 +217,74 @@ describe('openai-compatible.worker', () => {
     expect(workerSelf.postMessage).toHaveBeenCalledWith({
       type: 'canceled',
       payload: { requestId: 'request-2' },
+    });
+  });
+
+  test('blocks remote generation when the browser-local rate limit is exhausted', async () => {
+    consumeCloudModelRateLimitMock.mockResolvedValue({
+      allowed: false,
+      retryAfterMs: 60000,
+      remainingRequests: 0,
+    });
+
+    await import('../../src/workers/openai-compatible.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    workerSelf.dispatch('message', {
+      type: 'init',
+      payload: {
+        engineType: 'openai-compatible',
+        modelId: 'provider/model',
+        runtime: {
+          providerId: 'provider-1',
+          apiBaseUrl: 'https://example.test/v1',
+          remoteModelId: 'provider/model',
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    workerSelf.postMessage.mockClear();
+
+    workerSelf.dispatch('message', {
+      type: 'generate',
+      payload: {
+        requestId: 'request-3',
+        prompt: [{ role: 'user', content: 'Try again.' }],
+        generationConfig: {
+          maxContextTokens: 256,
+          maxOutputTokens: 64,
+          temperature: 0.6,
+          topP: 0.95,
+        },
+        runtime: {
+          providerId: 'provider-1',
+          apiBaseUrl: 'https://example.test/v1',
+          remoteModelId: 'provider/model',
+          rateLimit: {
+            maxRequests: 1,
+            windowMs: 60000,
+          },
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    expect(consumeCloudModelRateLimitMock).toHaveBeenCalledWith(
+      'provider-1',
+      'provider/model',
+      {
+        maxRequests: 1,
+        windowMs: 60000,
+      }
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'error',
+      payload: {
+        requestId: 'request-3',
+        message: 'This cloud model hit its browser-local rate limit. Try again in about 1 minute.',
+      },
     });
   });
 });

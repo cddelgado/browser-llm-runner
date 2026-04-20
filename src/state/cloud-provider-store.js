@@ -207,6 +207,7 @@ export async function saveCloudProvider(provider, { apiKey = '' } = {}) {
   try {
     const normalizedProvider = normalizeCloudProviderConfig({
       ...provider,
+      hasSecret: true,
       id:
         typeof provider?.id === 'string' && provider.id.trim()
           ? provider.id.trim()
@@ -262,6 +263,54 @@ export async function updateCloudProvider(provider) {
       stores[CLOUD_PROVIDER_STORE_NAME].put(normalizedProvider);
     });
     return normalizedProvider;
+  } finally {
+    db.close();
+  }
+}
+
+export async function saveCloudProviderSecret(providerId, apiKey) {
+  const normalizedProviderId =
+    typeof providerId === 'string' && providerId.trim() ? providerId.trim() : '';
+  if (!normalizedProviderId) {
+    throw new Error('A cloud provider id is required to save an API key.');
+  }
+
+  const db = await openCloudProviderDb();
+  if (!db) {
+    throw new Error('Secure cloud-provider storage is unavailable in this browser session.');
+  }
+  try {
+    const key = await ensureSecretKey(db);
+    const encryptedSecret = await encryptSecret(apiKey, key);
+
+    await withTransaction(
+      db,
+      [CLOUD_PROVIDER_STORE_NAME, CLOUD_PROVIDER_SECRET_STORE_NAME],
+      'readwrite',
+      async (stores) => {
+        const existingProvider = await requestToPromise(
+          stores[CLOUD_PROVIDER_STORE_NAME].get(normalizedProviderId),
+          'Failed to read the saved cloud-provider record.'
+        );
+
+        stores[CLOUD_PROVIDER_SECRET_STORE_NAME].put({
+          id: normalizedProviderId,
+          updatedAt: Date.now(),
+          iv: encryptedSecret.iv,
+          ciphertext: encryptedSecret.ciphertext,
+        });
+
+        if (existingProvider && typeof existingProvider === 'object') {
+          stores[CLOUD_PROVIDER_STORE_NAME].put({
+            ...existingProvider,
+            hasSecret: true,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+    );
+
+    return true;
   } finally {
     db.close();
   }

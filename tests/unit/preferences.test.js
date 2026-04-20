@@ -428,6 +428,12 @@ describe('preferences controller', () => {
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
     expect(cards.length).toBe(modelSelect.querySelectorAll('option').length);
+    expect(
+      Array.from(modelCardList.querySelectorAll('.model-card-section-title')).map((node) =>
+        node.textContent?.trim()
+      )
+    ).toEqual(['Local Models', 'Cloud Models']);
+    expect(modelCardList.textContent).toContain('No cloud models configured yet.');
 
     const llama3BCard = getModelCard(modelCardList, LLAMA_3B_MODEL_ID);
     expect(llama3BCard?.textContent).toContain('4,096 tokens');

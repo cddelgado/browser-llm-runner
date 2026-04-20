@@ -353,6 +353,180 @@ export function createModelPreferencesController({
     return nextModelId;
   }
 
+  function getModelGroups() {
+    return [
+      {
+        key: 'local',
+        label: 'Local Models',
+        models: MODEL_OPTIONS.filter((model) => !isCloudModel(model)),
+        emptyMessage: 'No local models are configured.',
+      },
+      {
+        key: 'cloud',
+        label: 'Cloud Models',
+        models: MODEL_OPTIONS.filter((model) => isCloudModel(model)),
+        emptyMessage: 'No cloud models configured yet.',
+      },
+    ];
+  }
+
+  function createModelCard(model, { selectedBackend, webGpuAvailable }) {
+    const effectiveGenerationLimits = getModelGenerationLimits(model.id, {
+      backendPreference: selectedBackend,
+    });
+    const reducedGenerationLimits = hasReducedGenerationLimits(
+      effectiveGenerationLimits,
+      model.generation
+    );
+    const availability = getModelAvailability(model.id, {
+      backendPreference: selectedBackend,
+      webGpuAvailable,
+    });
+    const card = documentRef.createElement('article');
+    card.className = 'model-card';
+    if (!availability.available) {
+      card.classList.add('is-unavailable');
+    }
+
+    const selectButton = documentRef.createElement('button');
+    selectButton.type = 'button';
+    selectButton.className = 'model-card-button';
+    selectButton.dataset.modelId = model.id;
+    selectButton.setAttribute('role', 'radio');
+    selectButton.setAttribute('aria-checked', 'false');
+    selectButton.disabled = !availability.available;
+
+    const content = documentRef.createElement('div');
+    content.className = 'model-card-content';
+
+    const primary = documentRef.createElement('div');
+    primary.className = 'model-card-primary';
+
+    const titleRow = documentRef.createElement('div');
+    titleRow.className = 'model-card-title-row';
+    const title = documentRef.createElement('span');
+    title.className = 'model-card-title';
+    title.textContent = model.displayName || model.label;
+    titleRow.appendChild(title);
+
+    const titleMeta = documentRef.createElement('div');
+    titleMeta.className = 'model-card-title-meta';
+    if (model.id === DEFAULT_MODEL) {
+      const badge = documentRef.createElement('span');
+      badge.className = 'badge text-bg-primary model-card-badge';
+      badge.textContent = 'Default';
+      titleMeta.appendChild(badge);
+    }
+    if (isCloudModel(model)) {
+      const cloudBadge = documentRef.createElement('span');
+      cloudBadge.className = 'badge text-bg-info model-card-badge';
+      cloudBadge.textContent = 'Cloud';
+      titleMeta.appendChild(cloudBadge);
+    }
+    if (!availability.available) {
+      const unavailableBadge = documentRef.createElement('span');
+      unavailableBadge.className = 'badge model-card-badge model-card-badge-unavailable';
+      unavailableBadge.textContent = 'Unavailable';
+      titleMeta.appendChild(unavailableBadge);
+      selectButton.title = availability.reason;
+      selectButton.setAttribute(
+        'aria-label',
+        `${model.displayName || model.label}. Unavailable. ${availability.reason}`
+      );
+    }
+
+    const featureList = documentRef.createElement('ul');
+    featureList.className = 'model-card-features';
+    buildFeatureTokens(model).forEach((feature) => {
+      const item = documentRef.createElement('li');
+      item.className = 'model-feature-pill';
+      item.setAttribute('aria-label', feature.label);
+      item.title = feature.label;
+      item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i>`;
+      featureList.appendChild(item);
+    });
+    if (featureList.childElementCount > 0) {
+      titleMeta.appendChild(featureList);
+    }
+    if (titleMeta.childElementCount > 0) {
+      titleRow.appendChild(titleMeta);
+    }
+    primary.appendChild(titleRow);
+
+    const context = documentRef.createElement('p');
+    context.className = 'model-card-context';
+    context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> <strong>${formatInteger(
+      effectiveGenerationLimits.maxContextTokens
+    )} tokens</strong> / about ${formatWordEstimate(effectiveGenerationLimits.maxContextTokens)} words`;
+    primary.appendChild(context);
+    content.appendChild(primary);
+
+    if (!availability.available) {
+      const availabilityNote = documentRef.createElement('p');
+      availabilityNote.className = 'model-card-note';
+      availabilityNote.textContent = `Unavailable in this app. ${availability.reason}`;
+      content.appendChild(availabilityNote);
+    } else if (isCloudModel(model)) {
+      const providerLabel =
+        typeof model.runtime?.providerDisplayName === 'string' && model.runtime.providerDisplayName.trim()
+          ? model.runtime.providerDisplayName.trim()
+          : 'cloud provider';
+      const cloudNote = documentRef.createElement('p');
+      cloudNote.className = 'model-card-note';
+      cloudNote.textContent = model.runtime?.providerPreconfigured
+        ? `Uses the app-managed ${providerLabel} endpoint.`
+        : `Uses the saved ${providerLabel} endpoint.`;
+      content.appendChild(cloudNote);
+    } else if (isCpuOnlyModel(model)) {
+      const cpuOnlyNote = documentRef.createElement('p');
+      cpuOnlyNote.className = 'model-card-note';
+      cpuOnlyNote.textContent = 'Runs in CPU mode only in this app.';
+      content.appendChild(cpuOnlyNote);
+    } else if (reducedGenerationLimits) {
+      const generationSafetyNote = documentRef.createElement('p');
+      generationSafetyNote.className = 'model-card-note';
+      generationSafetyNote.textContent = `Uses reduced ${formatBackendPreferenceLabel(
+        selectedBackend
+      )} token limits in this app to avoid browser memory exhaustion.`;
+      content.appendChild(generationSafetyNote);
+    } else if (model.runtime?.requiresWebGpu) {
+      const requirement = documentRef.createElement('p');
+      requirement.className = 'model-card-note';
+      requirement.textContent = 'This model requires WebGPU.';
+      content.appendChild(requirement);
+    }
+    selectButton.appendChild(content);
+
+    selectButton.addEventListener('click', () => {
+      if (selectButton.disabled) {
+        return;
+      }
+      setSelectedModelId(model.id, { dispatch: true });
+    });
+    card.appendChild(selectButton);
+
+    const feedbackSlot = documentRef.createElement('div');
+    feedbackSlot.className = 'model-card-feedback-slot';
+    card.appendChild(feedbackSlot);
+
+    const footer = documentRef.createElement('div');
+    footer.className = 'model-card-footer';
+    const languages = createLanguageSupportNode(model);
+    if (languages) {
+      footer.appendChild(languages);
+    }
+    const detailsLink = documentRef.createElement('a');
+    detailsLink.className = 'model-card-link';
+    detailsLink.href = model.repositoryUrl || `https://huggingface.co/${model.id}`;
+    detailsLink.target = '_blank';
+    detailsLink.rel = 'noopener noreferrer';
+    detailsLink.textContent = isCloudModel(model) ? 'Provider endpoint' : 'Model details';
+    footer.appendChild(detailsLink);
+    card.appendChild(footer);
+
+    return card;
+  }
+
   function populateModelCards() {
     if (!(modelCardList instanceof HTMLElement)) {
       return;
@@ -363,159 +537,36 @@ export function createModelPreferencesController({
     const webGpuAvailable = getWebGpuAvailability();
     modelCardList.replaceChildren();
 
-    MODEL_OPTIONS.forEach((model) => {
-      const effectiveGenerationLimits = getModelGenerationLimits(model.id, {
-        backendPreference: selectedBackend,
-      });
-      const reducedGenerationLimits = hasReducedGenerationLimits(
-        effectiveGenerationLimits,
-        model.generation
-      );
-      const availability = getModelAvailability(model.id, {
-        backendPreference: selectedBackend,
-        webGpuAvailable,
-      });
-      const card = documentRef.createElement('article');
-      card.className = 'model-card';
-      if (!availability.available) {
-        card.classList.add('is-unavailable');
+    getModelGroups().forEach((group) => {
+      const section = documentRef.createElement('section');
+      section.className = 'model-card-section';
+      section.dataset.modelSection = group.key;
+
+      const heading = documentRef.createElement('h3');
+      heading.className = 'model-card-section-title';
+      heading.textContent = group.label;
+      section.appendChild(heading);
+
+      if (!group.models.length) {
+        const emptyState = documentRef.createElement('p');
+        emptyState.className = 'model-card-section-empty';
+        emptyState.textContent = group.emptyMessage;
+        section.appendChild(emptyState);
+      } else {
+        const sectionList = documentRef.createElement('div');
+        sectionList.className = 'model-card-section-list';
+        group.models.forEach((model) => {
+          sectionList.appendChild(
+            createModelCard(model, {
+              selectedBackend,
+              webGpuAvailable,
+            })
+          );
+        });
+        section.appendChild(sectionList);
       }
 
-      const selectButton = documentRef.createElement('button');
-      selectButton.type = 'button';
-      selectButton.className = 'model-card-button';
-      selectButton.dataset.modelId = model.id;
-      selectButton.setAttribute('role', 'radio');
-      selectButton.setAttribute('aria-checked', 'false');
-      selectButton.disabled = !availability.available;
-
-      const content = documentRef.createElement('div');
-      content.className = 'model-card-content';
-
-      const primary = documentRef.createElement('div');
-      primary.className = 'model-card-primary';
-
-      const titleRow = documentRef.createElement('div');
-      titleRow.className = 'model-card-title-row';
-      const title = documentRef.createElement('span');
-      title.className = 'model-card-title';
-      title.textContent = model.displayName || model.label;
-      titleRow.appendChild(title);
-
-      const titleMeta = documentRef.createElement('div');
-      titleMeta.className = 'model-card-title-meta';
-      if (model.id === DEFAULT_MODEL) {
-        const badge = documentRef.createElement('span');
-        badge.className = 'badge text-bg-primary model-card-badge';
-        badge.textContent = 'Default';
-        titleMeta.appendChild(badge);
-      }
-      if (isCloudModel(model)) {
-        const cloudBadge = documentRef.createElement('span');
-        cloudBadge.className = 'badge text-bg-info model-card-badge';
-        cloudBadge.textContent = 'Cloud';
-        titleMeta.appendChild(cloudBadge);
-      }
-      if (!availability.available) {
-        const unavailableBadge = documentRef.createElement('span');
-        unavailableBadge.className = 'badge model-card-badge model-card-badge-unavailable';
-        unavailableBadge.textContent = 'Unavailable';
-        titleMeta.appendChild(unavailableBadge);
-        selectButton.title = availability.reason;
-        selectButton.setAttribute(
-          'aria-label',
-          `${model.displayName || model.label}. Unavailable. ${availability.reason}`
-        );
-      }
-
-      const featureList = documentRef.createElement('ul');
-      featureList.className = 'model-card-features';
-      buildFeatureTokens(model).forEach((feature) => {
-        const item = documentRef.createElement('li');
-        item.className = 'model-feature-pill';
-        item.setAttribute('aria-label', feature.label);
-        item.title = feature.label;
-        item.innerHTML = `<i class="bi ${feature.icon}" aria-hidden="true"></i>`;
-        featureList.appendChild(item);
-      });
-      if (featureList.childElementCount > 0) {
-        titleMeta.appendChild(featureList);
-      }
-      if (titleMeta.childElementCount > 0) {
-        titleRow.appendChild(titleMeta);
-      }
-      primary.appendChild(titleRow);
-
-      const context = documentRef.createElement('p');
-      context.className = 'model-card-context';
-      context.innerHTML = `<i class="bi bi-text-paragraph" aria-hidden="true"></i> <strong>${formatInteger(
-        effectiveGenerationLimits.maxContextTokens
-      )} tokens</strong> / about ${formatWordEstimate(effectiveGenerationLimits.maxContextTokens)} words`;
-      primary.appendChild(context);
-      content.appendChild(primary);
-
-      if (!availability.available) {
-        const availabilityNote = documentRef.createElement('p');
-        availabilityNote.className = 'model-card-note';
-        availabilityNote.textContent = `Unavailable in this app. ${availability.reason}`;
-        content.appendChild(availabilityNote);
-      } else if (isCloudModel(model)) {
-        const providerLabel =
-          typeof model.runtime?.providerDisplayName === 'string' && model.runtime.providerDisplayName.trim()
-            ? model.runtime.providerDisplayName.trim()
-            : 'cloud provider';
-        const cloudNote = documentRef.createElement('p');
-        cloudNote.className = 'model-card-note';
-        cloudNote.textContent = `Uses the saved ${providerLabel} endpoint.`;
-        content.appendChild(cloudNote);
-      } else if (isCpuOnlyModel(model)) {
-        const cpuOnlyNote = documentRef.createElement('p');
-        cpuOnlyNote.className = 'model-card-note';
-        cpuOnlyNote.textContent = 'Runs in CPU mode only in this app.';
-        content.appendChild(cpuOnlyNote);
-      } else if (reducedGenerationLimits) {
-        const generationSafetyNote = documentRef.createElement('p');
-        generationSafetyNote.className = 'model-card-note';
-        generationSafetyNote.textContent = `Uses reduced ${formatBackendPreferenceLabel(
-          selectedBackend
-        )} token limits in this app to avoid browser memory exhaustion.`;
-        content.appendChild(generationSafetyNote);
-      } else if (model.runtime?.requiresWebGpu) {
-        const requirement = documentRef.createElement('p');
-        requirement.className = 'model-card-note';
-        requirement.textContent = 'This model requires WebGPU.';
-        content.appendChild(requirement);
-      }
-      selectButton.appendChild(content);
-
-      selectButton.addEventListener('click', () => {
-        if (selectButton.disabled) {
-          return;
-        }
-        setSelectedModelId(model.id, { dispatch: true });
-      });
-      card.appendChild(selectButton);
-
-      const feedbackSlot = documentRef.createElement('div');
-      feedbackSlot.className = 'model-card-feedback-slot';
-      card.appendChild(feedbackSlot);
-
-      const footer = documentRef.createElement('div');
-      footer.className = 'model-card-footer';
-      const languages = createLanguageSupportNode(model);
-      if (languages) {
-        footer.appendChild(languages);
-      }
-      const detailsLink = documentRef.createElement('a');
-      detailsLink.className = 'model-card-link';
-      detailsLink.href = model.repositoryUrl || `https://huggingface.co/${model.id}`;
-      detailsLink.target = '_blank';
-      detailsLink.rel = 'noopener noreferrer';
-      detailsLink.textContent = isCloudModel(model) ? 'Provider endpoint' : 'Model details';
-      footer.appendChild(detailsLink);
-      card.appendChild(footer);
-
-      modelCardList.appendChild(card);
+      modelCardList.appendChild(section);
     });
 
     setSelectedModelId(selectedModel, { dispatch: false });
@@ -531,21 +582,29 @@ export function createModelPreferencesController({
     const webGpuAvailable = getWebGpuAvailability();
     modelSelect.replaceChildren();
 
-    MODEL_OPTIONS.forEach((model) => {
-      const option = documentRef.createElement('option');
-      option.value = model.id;
-      const availability = getModelAvailability(model.id, {
-        backendPreference: selectedBackend,
-        webGpuAvailable,
+    getModelGroups().forEach((group) => {
+      if (!group.models.length) {
+        return;
+      }
+      const optGroup = documentRef.createElement('optgroup');
+      optGroup.label = group.label;
+      group.models.forEach((model) => {
+        const option = documentRef.createElement('option');
+        option.value = model.id;
+        const availability = getModelAvailability(model.id, {
+          backendPreference: selectedBackend,
+          webGpuAvailable,
+        });
+        option.disabled = !availability.available;
+        option.textContent =
+          !availability.available && model.runtime?.requiresWebGpu
+            ? `${model.label}${webGpuRequiredModelSuffix}`
+            : !availability.available
+              ? `${model.label} (Unavailable)`
+              : model.label;
+        optGroup.appendChild(option);
       });
-      option.disabled = !availability.available;
-      option.textContent =
-        !availability.available && model.runtime?.requiresWebGpu
-          ? `${model.label}${webGpuRequiredModelSuffix}`
-          : !availability.available
-            ? `${model.label} (Unavailable)`
-            : model.label;
-      modelSelect.appendChild(option);
+      modelSelect.appendChild(optGroup);
     });
 
     setSelectedModelId(getAvailableModelId(selectedModel, selectedBackend), { dispatch: false });

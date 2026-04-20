@@ -8,6 +8,7 @@ import {
   getModelAvailability,
   getModelGenerationLimits,
   normalizeModelId,
+  replaceRuntimeModelCatalog,
   resolveRuntimeDtypeForBackend,
 } from '../../src/config/model-settings.js';
 
@@ -334,5 +335,48 @@ describe('model-settings availability', () => {
       displayName: 'LFM2.5 1.2B Thinking GGUF Q4_K_M',
       repositoryUrl: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Thinking-GGUF',
     });
+  });
+
+  test('keeps cloud models unavailable until an API key is saved for their provider', () => {
+    replaceRuntimeModelCatalog([
+      {
+        id: 'cloud:test-provider:test-model',
+        label: 'test-model',
+        displayName: 'Test Cloud Model',
+        repositoryUrl: 'https://example.test/v1',
+        engine: {
+          type: 'openai-compatible',
+        },
+        generation: {
+          defaultMaxOutputTokens: 256,
+          maxOutputTokens: 512,
+          defaultMaxContextTokens: 2048,
+          maxContextTokens: 2048,
+        },
+        features: {
+          streaming: true,
+          thinking: false,
+          toolCalling: false,
+          imageInput: false,
+          audioInput: false,
+          videoInput: false,
+        },
+        runtime: {
+          providerId: 'test-provider',
+          providerType: 'openai-compatible',
+          providerDisplayName: 'Test Provider',
+          providerHasSecret: false,
+          apiBaseUrl: 'https://example.test/v1',
+          remoteModelId: 'test-model',
+        },
+      },
+    ]);
+
+    expect(getModelAvailability('cloud:test-provider:test-model')).toEqual({
+      available: false,
+      reason: 'Save an API key for this cloud model in Settings -> Cloud Providers.',
+    });
+
+    replaceRuntimeModelCatalog([]);
   });
 });

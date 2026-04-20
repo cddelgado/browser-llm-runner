@@ -2,9 +2,12 @@ import { buildDefaultGenerationConfig, sanitizeGenerationConfig } from '../confi
 import {
   buildCloudModelId,
   REMOTE_MODEL_GENERATION_LIMITS,
+  mergeCloudProviderConfigs,
   normalizeCloudProviderConfigs,
   getCloudProviderById,
 } from '../cloud/cloud-provider-config.js';
+
+const RATE_LIMIT_WINDOW_MINUTE_MS = 60 * 1000;
 
 function buildAlertClasses(variant) {
   return [
@@ -119,6 +122,10 @@ function buildConfiguredModelFeatureToggleId(providerId, modelId, featureKey) {
   return `cloudConfiguredModelFeature-${providerId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-${modelId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-${featureKey.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
 }
 
+function buildProviderSecretInputId(providerId) {
+  return `cloudProviderSecret-${providerId.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+}
+
 function cloudModelSupportsDetectedToolCalling(model) {
   return model?.detectedFeatures?.toolCalling === true;
 }
@@ -134,14 +141,38 @@ function buildCloudModelToolCallingHelpText(model) {
   return 'Provider metadata did not confirm tool or function calling. Turn this on only when you know the model can follow prompt-directed JSON tool calls.';
 }
 
+function toRateLimitWindowMinutes(rateLimit) {
+  if (!Number.isInteger(rateLimit?.windowMs) || rateLimit.windowMs <= 0) {
+    return '';
+  }
+  return String(Math.max(1, Math.round(rateLimit.windowMs / RATE_LIMIT_WINDOW_MINUTE_MS)));
+}
+
+function normalizeRateLimitInput(candidate) {
+  const maxRequests = Number.parseInt(String(candidate?.maxRequests ?? ''), 10);
+  const windowMinutes = Number.parseInt(String(candidate?.windowMinutes ?? ''), 10);
+  if (!Number.isInteger(maxRequests) || maxRequests <= 0) {
+    return null;
+  }
+  if (!Number.isInteger(windowMinutes) || windowMinutes <= 0) {
+    return null;
+  }
+  return {
+    maxRequests,
+    windowMs: windowMinutes * RATE_LIMIT_WINDOW_MINUTE_MS,
+  };
+}
+
 export function createCloudProviderSettingsController({
   appState,
   documentRef = document,
+  preconfiguredProviders = [],
   cloudProviderAddFeedback = null,
   cloudProvidersList = null,
   inspectCloudProviderEndpoint,
   loadCloudProviders,
   saveCloudProvider,
+  saveCloudProviderSecret,
   updateCloudProvider,
   removeCloudProvider,
   getCloudProviderSecret,
@@ -180,11 +211,23 @@ export function createCloudProviderSettingsController({
     }
   }
 
+  function mergeProviders(providers) {
+    return mergeCloudProviderConfigs(preconfiguredProviders, providers);
+  }
+
   function applyCloudProviders(providers) {
-    appState.cloudProviders = normalizeCloudProviderConfigs(providers);
+    appState.cloudProviders = mergeProviders(providers);
     renderCloudProviderPreferences();
     notifyProvidersChanged();
     return appState.cloudProviders;
+  }
+
+  async function reloadCloudProvidersFromStorage() {
+    if (typeof loadCloudProviders !== 'function') {
+      return applyCloudProviders([]);
+    }
+    const providers = await loadCloudProviders();
+    return applyCloudProviders(providers);
   }
 
   function renderConfiguredModelAccordion(documentRef, provider, container) {
@@ -256,6 +299,14 @@ export function createCloudProviderSettingsController({
       intro.textContent =
         'These defaults stay local to this browser. Context size is enforced approximately for remote models.';
       body.appendChild(intro);
+
+      if (model.managed) {
+        const managedNote = documentRef.createElement('div');
+        managedNote.className = 'alert alert-secondary py-2 px-3 mb-0';
+        managedNote.textContent =
+          'This model is preconfigured by the app. It stays in the picker, and its shipped endpoint, base defaults, and rate limit are managed here.';
+        body.appendChild(managedNote);
+      }
 
       const toolCallingToggleWrapper = documentRef.createElement('div');
       toolCallingToggleWrapper.className = 'settings-control-group';
@@ -380,6 +431,63 @@ export function createCloudProviderSettingsController({
         body.appendChild(wrapper);
       });
 
+      const rateLimitHeading = documentRef.createElement('p');
+      rateLimitHeading.className = 'form-label mb-1';
+      rateLimitHeading.textContent = 'Browser-local rate limit';
+      body.appendChild(rateLimitHeading);
+
+      const rateLimitHelp = documentRef.createElement('p');
+      rateLimitHelp.className = 'form-text mt-0 mb-0';
+      rateLimitHelp.textContent = model.managed
+        ? 'This model uses the app-managed request cap below so a shared free API does not get exhausted accidentally.'
+        : 'Add a browser-local request cap for this model to avoid exhausting a free API key. Leave either field blank to disable rate limiting.';
+      body.appendChild(rateLimitHelp);
+
+      [
+        {
+          key: 'maxRequests',
+          label: 'Requests per window',
+          type: 'number',
+          inputMode: 'numeric',
+          value: model.rateLimit?.maxRequests ? String(model.rateLimit.maxRequests) : '',
+          min: '1',
+          step: '1',
+        },
+        {
+          key: 'windowMinutes',
+          label: 'Window length (minutes)',
+          type: 'number',
+          inputMode: 'numeric',
+          value: toRateLimitWindowMinutes(model.rateLimit),
+          min: '1',
+          step: '1',
+        },
+      ].forEach((field) => {
+        const wrapper = documentRef.createElement('div');
+        wrapper.className = 'settings-control-group';
+
+        const label = documentRef.createElement('label');
+        label.className = 'form-label';
+        const inputId = `${panelId}-rateLimit-${field.key}`;
+        label.htmlFor = inputId;
+        label.textContent = field.label;
+        wrapper.appendChild(label);
+
+        const input = documentRef.createElement('input');
+        input.id = inputId;
+        input.className = 'form-control';
+        input.type = field.type;
+        input.inputMode = field.inputMode;
+        input.value = field.value;
+        input.min = field.min;
+        input.step = field.step;
+        input.disabled = model.managed === true;
+        input.dataset.cloudModelRateLimit = field.key;
+        wrapper.appendChild(input);
+
+        body.appendChild(wrapper);
+      });
+
       const resetButton = documentRef.createElement('button');
       resetButton.type = 'button';
       resetButton.className = 'btn btn-outline-secondary btn-sm align-self-start';
@@ -414,7 +522,8 @@ export function createCloudProviderSettingsController({
     }
 
     providers.forEach((provider) => {
-      const selectedModelIds = new Set(provider.selectedModels.map((model) => model.id));
+      const selectedModelsById = new Map(provider.selectedModels.map((model) => [model.id, model]));
+      const selectedModelIds = new Set(selectedModelsById.keys());
       const headingId = buildProviderHeadingId(provider.id);
       const panelId = buildProviderPanelId(provider.id);
       const accordionItem = documentRef.createElement('div');
@@ -459,7 +568,9 @@ export function createCloudProviderSettingsController({
       controls.className = 'd-flex flex-wrap align-items-start justify-content-between gap-3';
       const keyNote = documentRef.createElement('p');
       keyNote.className = 'mb-0 text-body-secondary';
-      keyNote.textContent = 'API key saved in browser-local encrypted storage. It cannot be shown again.';
+      keyNote.textContent = provider.hasSecret
+        ? 'API key saved in browser-local encrypted storage. It cannot be shown again.'
+        : 'Save an API key below before these cloud models can be used from this browser.';
       controls.appendChild(keyNote);
 
       const actionGroup = documentRef.createElement('div');
@@ -471,15 +582,95 @@ export function createCloudProviderSettingsController({
       refreshButton.dataset.cloudProviderRefresh = 'true';
       refreshButton.dataset.cloudProviderId = provider.id;
       actionGroup.appendChild(refreshButton);
-      const removeButton = documentRef.createElement('button');
-      removeButton.type = 'button';
-      removeButton.className = 'btn btn-outline-danger btn-sm';
-      removeButton.textContent = 'Remove provider';
-      removeButton.dataset.cloudProviderRemove = 'true';
-      removeButton.dataset.cloudProviderId = provider.id;
-      actionGroup.appendChild(removeButton);
+      if (!provider.preconfigured) {
+        const removeButton = documentRef.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'btn btn-outline-danger btn-sm';
+        removeButton.textContent = 'Remove provider';
+        removeButton.dataset.cloudProviderRemove = 'true';
+        removeButton.dataset.cloudProviderId = provider.id;
+        actionGroup.appendChild(removeButton);
+      }
       controls.appendChild(actionGroup);
       body.appendChild(controls);
+
+      if (provider.preconfigured) {
+        const managedProviderNote = documentRef.createElement('div');
+        managedProviderNote.className = 'alert alert-secondary py-2 px-3 mb-0';
+        managedProviderNote.textContent =
+          'This provider includes app-managed cloud models. Those managed models stay in the picker and cannot be removed here.';
+        body.appendChild(managedProviderNote);
+      }
+
+      if (provider.links) {
+        const linkGroup = documentRef.createElement('div');
+        linkGroup.className = 'settings-control-group';
+        const linksLabel = documentRef.createElement('p');
+        linksLabel.className = 'form-label mb-1';
+        linksLabel.textContent = 'Provider links';
+        linkGroup.appendChild(linksLabel);
+        const linksRow = documentRef.createElement('div');
+        linksRow.className = 'd-flex flex-wrap gap-2';
+        [
+          ['createAccountUrl', 'Create account'],
+          ['createTokenUrl', 'Create token'],
+          ['dataSecurityUrl', 'Data security'],
+        ].forEach(([key, label]) => {
+          const href = provider.links?.[key];
+          if (!href) {
+            return;
+          }
+          const link = documentRef.createElement('a');
+          link.className = 'btn btn-outline-secondary btn-sm';
+          link.href = href;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = label;
+          linksRow.appendChild(link);
+        });
+        if (linksRow.childElementCount > 0) {
+          linkGroup.appendChild(linksRow);
+          body.appendChild(linkGroup);
+        }
+      }
+
+      const secretGroup = documentRef.createElement('div');
+      secretGroup.className = 'settings-control-group';
+      const secretForm = documentRef.createElement('form');
+      secretForm.className = 'mcp-server-form';
+      secretForm.dataset.cloudProviderSecretForm = 'true';
+      secretForm.dataset.cloudProviderId = provider.id;
+      const secretLabel = documentRef.createElement('label');
+      const secretInputId = buildProviderSecretInputId(provider.id);
+      secretLabel.className = 'form-label';
+      secretLabel.htmlFor = secretInputId;
+      secretLabel.textContent = provider.hasSecret ? 'Update API key' : 'Save API key';
+      secretForm.appendChild(secretLabel);
+      const secretInputGroup = documentRef.createElement('div');
+      secretInputGroup.className = 'input-group';
+      const secretInput = documentRef.createElement('input');
+      secretInput.id = secretInputId;
+      secretInput.className = 'form-control';
+      secretInput.type = 'password';
+      secretInput.autocomplete = 'off';
+      secretInput.placeholder = provider.hasSecret ? 'Enter a new API key' : 'Paste an API key';
+      secretInput.dataset.cloudProviderSecretInput = 'true';
+      secretInput.dataset.cloudProviderId = provider.id;
+      secretInputGroup.appendChild(secretInput);
+      const secretSaveButton = documentRef.createElement('button');
+      secretSaveButton.type = 'submit';
+      secretSaveButton.className = 'btn btn-primary';
+      secretSaveButton.textContent = provider.hasSecret ? 'Update key' : 'Save key';
+      secretInputGroup.appendChild(secretSaveButton);
+      secretForm.appendChild(secretInputGroup);
+      const secretHelp = documentRef.createElement('p');
+      secretHelp.className = 'form-text mb-0';
+      secretHelp.textContent = provider.hasSecret
+        ? 'Replacing the saved API key updates this provider for future requests.'
+        : 'The key is stored only in this browser and cannot be shown again after it is saved.';
+      secretForm.appendChild(secretHelp);
+      secretGroup.appendChild(secretForm);
+      body.appendChild(secretGroup);
 
       const metadata = documentRef.createElement('dl');
       metadata.className = 'mcp-server-metadata mb-0';
@@ -507,6 +698,8 @@ export function createCloudProviderSettingsController({
       const availableModelsList = documentRef.createElement('div');
       availableModelsList.className = 'd-flex flex-column gap-3';
       provider.availableModels.forEach((model) => {
+        const configuredModel = selectedModelsById.get(model.id) || null;
+        const isManagedModel = configuredModel?.managed === true;
         const wrapper = documentRef.createElement('div');
         wrapper.className = 'form-check form-switch';
 
@@ -516,6 +709,7 @@ export function createCloudProviderSettingsController({
         toggle.role = 'switch';
         toggle.id = buildProviderModelToggleId(provider.id, model.id);
         toggle.checked = selectedModelIds.has(model.id);
+        toggle.disabled = isManagedModel;
         toggle.dataset.cloudProviderModelToggle = 'true';
         toggle.dataset.cloudProviderId = provider.id;
         toggle.dataset.cloudRemoteModelId = model.id;
@@ -530,7 +724,9 @@ export function createCloudProviderSettingsController({
 
         const help = documentRef.createElement('p');
         help.className = 'form-text mb-0';
-        help.textContent = model.id;
+        help.textContent = isManagedModel
+          ? `${model.id} - Included by the app and cannot be removed here.`
+          : model.id;
         wrapper.appendChild(help);
 
         availableModelsList.appendChild(wrapper);
@@ -546,7 +742,7 @@ export function createCloudProviderSettingsController({
       const configuredModelsHelp = documentRef.createElement('p');
       configuredModelsHelp.className = 'form-text mt-0 mb-2';
       configuredModelsHelp.textContent =
-        'Adjust per-model browser-local defaults for context size, output length, temperature, Top P, and Top K where supported.';
+        'Adjust per-model browser-local defaults for context size, output length, temperature, Top P, and Top K where supported. Cloud models can also carry a browser-local request cap.';
       configuredModelsGroup.appendChild(configuredModelsHelp);
       renderConfiguredModelAccordion(documentRef, provider, configuredModelsGroup);
       body.appendChild(configuredModelsGroup);
@@ -560,11 +756,7 @@ export function createCloudProviderSettingsController({
   }
 
   async function restoreCloudProvidersFromStorage() {
-    if (typeof loadCloudProviders !== 'function') {
-      return [];
-    }
-    const providers = await loadCloudProviders();
-    return applyCloudProviders(providers);
+    return reloadCloudProvidersFromStorage();
   }
 
   async function addCloudProvider(endpoint, apiKey) {
@@ -582,13 +774,35 @@ export function createCloudProviderSettingsController({
     const savedProvider = await saveCloudProvider(
       {
         ...inspectedProvider,
+        hasSecret: true,
         selectedModels: [],
       },
       { apiKey }
     );
-    applyCloudProviders([...normalizeCloudProviderConfigs(appState.cloudProviders), savedProvider]);
+    await reloadCloudProvidersFromStorage();
     clearCloudProviderFeedback();
     return savedProvider;
+  }
+
+  async function saveCloudProviderSecretPreference(providerId, apiKey) {
+    if (
+      typeof saveCloudProviderSecret !== 'function' ||
+      typeof updateCloudProvider !== 'function'
+    ) {
+      throw new Error('Cloud-provider secret storage is unavailable.');
+    }
+    const existingProvider = getCloudProviderById(appState.cloudProviders, providerId);
+    if (!existingProvider) {
+      throw new Error('The selected cloud provider could not be found.');
+    }
+    await saveCloudProviderSecret(existingProvider.id, apiKey);
+    await updateCloudProvider({
+      ...existingProvider,
+      hasSecret: true,
+    });
+    await reloadCloudProvidersFromStorage();
+    clearCloudProviderFeedback();
+    return true;
   }
 
   async function refreshCloudProviderPreference(providerId) {
@@ -612,16 +826,13 @@ export function createCloudProviderSettingsController({
       ...existingProvider,
       ...refreshedMetadata,
       selectedModels: existingProvider.selectedModels
-        .filter((model) => availableModelsById.has(model.id))
+        .filter((model) => model.managed === true || availableModelsById.has(model.id))
         .map((model) => ({
           ...model,
           displayName: availableModelsById.get(model.id)?.displayName || model.displayName || model.id,
         })),
     });
-    const nextProviders = normalizeCloudProviderConfigs(appState.cloudProviders).map((provider) =>
-      provider.id === nextProvider.id ? nextProvider : provider
-    );
-    applyCloudProviders(nextProviders);
+    await reloadCloudProvidersFromStorage();
     clearCloudProviderFeedback();
     return nextProvider;
   }
@@ -630,13 +841,18 @@ export function createCloudProviderSettingsController({
     if (typeof removeCloudProvider !== 'function') {
       throw new Error('Cloud-provider removal is unavailable.');
     }
+    const existingProvider = getCloudProviderById(appState.cloudProviders, providerId);
+    if (!existingProvider) {
+      throw new Error('The selected cloud provider could not be found.');
+    }
+    if (existingProvider.preconfigured) {
+      throw new Error('This app-managed cloud provider cannot be removed.');
+    }
     const removed = await removeCloudProvider(providerId);
     if (!removed) {
       throw new Error('The selected cloud provider could not be removed.');
     }
-    applyCloudProviders(
-      normalizeCloudProviderConfigs(appState.cloudProviders).filter((provider) => provider.id !== providerId)
-    );
+    await reloadCloudProvidersFromStorage();
     clearCloudProviderFeedback();
     return true;
   }
@@ -651,6 +867,9 @@ export function createCloudProviderSettingsController({
       throw new Error('The selected remote model could not be found.');
     }
     const existingSelectedModel = existingProvider.selectedModels.find((model) => model.id === remoteModelId);
+    if (selected !== true && existingSelectedModel?.managed === true) {
+      throw new Error('This app-managed cloud model cannot be removed from the picker.');
+    }
 
     const nextSelectedModels = selected
       ? [
@@ -663,6 +882,8 @@ export function createCloudProviderSettingsController({
             supportsTopK: existingProvider.supportsTopK === true,
             detectedFeatures: availableModel.detectedFeatures,
             features: existingSelectedModel?.features || availableModel.detectedFeatures,
+            ...(existingSelectedModel?.rateLimit ? { rateLimit: existingSelectedModel.rateLimit } : {}),
+            ...(existingSelectedModel?.managed ? { managed: true } : {}),
           },
         ]
       : existingProvider.selectedModels.filter((model) => model.id !== remoteModelId);
@@ -671,11 +892,7 @@ export function createCloudProviderSettingsController({
       ...existingProvider,
       selectedModels: nextSelectedModels,
     });
-    applyCloudProviders(
-      normalizeCloudProviderConfigs(appState.cloudProviders).map((provider) =>
-        provider.id === nextProvider.id ? nextProvider : provider
-      )
-    );
+    await reloadCloudProvidersFromStorage();
     return nextProvider;
   }
 
@@ -705,15 +922,43 @@ export function createCloudProviderSettingsController({
                 [featureKey]: enabled === true,
               },
             }
+            : model
+      ),
+    });
+    await reloadCloudProvidersFromStorage();
+    return nextProvider;
+  }
+
+  async function updateCloudModelRateLimitPreference(providerId, remoteModelId, nextRateLimit) {
+    if (typeof updateCloudProvider !== 'function') {
+      throw new Error('Cloud model settings are unavailable.');
+    }
+    const existingProvider = getCloudProviderById(appState.cloudProviders, providerId);
+    if (!existingProvider) {
+      throw new Error('The selected cloud provider could not be found.');
+    }
+    const existingModel = existingProvider.selectedModels.find((model) => model.id === remoteModelId);
+    if (!existingModel) {
+      throw new Error('The selected remote model could not be found.');
+    }
+    if (existingModel.managed) {
+      throw new Error('This app-managed cloud model uses a fixed rate limit.');
+    }
+
+    const rateLimit = normalizeRateLimitInput(nextRateLimit);
+    await updateCloudProvider({
+      ...existingProvider,
+      selectedModels: existingProvider.selectedModels.map((model) =>
+        model.id === remoteModelId
+          ? {
+              ...model,
+              rateLimit,
+            }
           : model
       ),
     });
-    applyCloudProviders(
-      normalizeCloudProviderConfigs(appState.cloudProviders).map((provider) =>
-        provider.id === nextProvider.id ? nextProvider : provider
-      )
-    );
-    return nextProvider;
+    await reloadCloudProvidersFromStorage();
+    return rateLimit;
   }
 
   function updateCloudModelGenerationPreference(providerId, remoteModelId, nextConfig) {
@@ -750,9 +995,11 @@ export function createCloudProviderSettingsController({
     removeCloudProviderPreference,
     resetCloudModelGenerationPreference,
     restoreCloudProvidersFromStorage,
+    saveCloudProviderSecretPreference,
     setCloudProviderFeedback,
     setCloudProviderModelSelected,
     updateCloudModelFeaturePreference,
     updateCloudModelGenerationPreference,
+    updateCloudModelRateLimitPreference,
   };
 }

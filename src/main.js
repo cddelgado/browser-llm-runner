@@ -201,8 +201,10 @@ import {
   loadCloudProviders as loadStoredCloudProviders,
   removeCloudProvider as removeStoredCloudProvider,
   saveCloudProvider as saveStoredCloudProvider,
+  saveCloudProviderSecret as saveStoredCloudProviderSecret,
   updateCloudProvider as updateStoredCloudProvider,
 } from './state/cloud-provider-store.js';
+import { PRECONFIGURED_CLOUD_PROVIDERS } from './config/preconfigured-cloud-providers.js';
 import { renderConversationListView } from './ui/conversation-list-view.js';
 import { buildDebugLogCsv, renderDebugLogView } from './ui/debug-log-view.js';
 import { loadMarkdownRenderer, renderPlainTextMarkdownFallback } from './ui/markdown-renderer.js';
@@ -689,7 +691,7 @@ const appState = createAppState({
   defaultSystemPrompt: '',
   enableToolCalling: true,
   enabledToolNames: getEnabledToolNames(),
-  cloudProviders: [],
+  cloudProviders: [...PRECONFIGURED_CLOUD_PROVIDERS],
   mcpServers: [],
   maxDebugEntries: MAX_DEBUG_ENTRIES,
 });
@@ -4284,6 +4286,7 @@ function syncCloudProviderModelCatalog() {
 const cloudProviderSettingsController = createCloudProviderSettingsController({
   appState,
   documentRef: document,
+  preconfiguredProviders: [...PRECONFIGURED_CLOUD_PROVIDERS],
   cloudProviderAddFeedback,
   cloudProvidersList,
   inspectCloudProviderEndpoint: (endpoint, apiKey) =>
@@ -4292,6 +4295,7 @@ const cloudProviderSettingsController = createCloudProviderSettingsController({
     }),
   loadCloudProviders: loadStoredCloudProviders,
   saveCloudProvider: saveStoredCloudProvider,
+  saveCloudProviderSecret: saveStoredCloudProviderSecret,
   updateCloudProvider: updateStoredCloudProvider,
   removeCloudProvider: removeStoredCloudProvider,
   getCloudProviderSecret,
@@ -4312,10 +4316,12 @@ const {
   removeCloudProviderPreference,
   resetCloudModelGenerationPreference,
   restoreCloudProvidersFromStorage,
+  saveCloudProviderSecretPreference,
   setCloudProviderFeedback,
   setCloudProviderModelSelected,
   updateCloudModelFeaturePreference,
   updateCloudModelGenerationPreference,
+  updateCloudModelRateLimitPreference,
 } = cloudProviderSettingsController;
 
 function applyConversationLanguagePreference(value, { persist = false } = {}) {
@@ -4382,6 +4388,7 @@ async function initializeStoredBrowserState() {
     });
   }
 
+  syncCloudProviderModelCatalog();
   populateModelSelect();
   restoreInferencePreferences();
   syncConversationLanguageAndThinkingControls();
@@ -4826,9 +4833,11 @@ bindSettingsEvents({
   clearCloudProviderFeedback,
   refreshCloudProviderPreference,
   removeCloudProviderPreference,
+  saveCloudProviderSecretPreference,
   setCloudProviderModelSelected,
   updateCloudModelFeaturePreference,
   updateCloudModelGenerationPreference,
+  updateCloudModelRateLimitPreference,
   resetCloudModelGenerationPreference,
   saveCorsProxyPreference,
   clearCorsProxyPreference,

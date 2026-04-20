@@ -3,6 +3,7 @@ import {
   buildOpenAiCompatibleChatCompletionsUrl,
   inferOpenAiCompatibleMaxOutputTokensField,
 } from '../cloud/openai-compatible.js';
+import { consumeCloudModelRateLimit } from '../state/cloud-rate-limit-store.js';
 import { getCloudProviderSecret } from '../state/cloud-provider-store.js';
 
 let currentConfig = null;
@@ -23,6 +24,19 @@ function isAbortError(error) {
   return globalThis.DOMException && error instanceof globalThis.DOMException
     ? error.name === 'AbortError'
     : error?.name === 'AbortError';
+}
+
+function formatRetryAfter(retryAfterMs) {
+  const totalSeconds = Math.max(1, Math.ceil((Number(retryAfterMs) || 0) / 1000));
+  if (totalSeconds >= 3600) {
+    const hours = Math.ceil(totalSeconds / 3600);
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (totalSeconds >= 60) {
+    const minutes = Math.ceil(totalSeconds / 60);
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  return `${totalSeconds} second${totalSeconds === 1 ? '' : 's'}`;
 }
 
 function buildRequestPayload(config, payload) {
@@ -201,6 +215,18 @@ async function generate(payload) {
   };
 
   try {
+    const rateLimitCheck = await consumeCloudModelRateLimit(
+      requestRuntime.providerId,
+      requestRuntime.remoteModelId,
+      requestRuntime.rateLimit
+    );
+    if (!rateLimitCheck.allowed) {
+      throw new Error(
+        `This cloud model hit its browser-local rate limit. Try again in about ${formatRetryAfter(
+          rateLimitCheck.retryAfterMs
+        )}.`
+      );
+    }
     post('status', { message: 'Sending request to remote provider...' });
     const apiKey = await getCloudProviderSecret(requestRuntime.providerId);
     const response = await fetch(buildOpenAiCompatibleChatCompletionsUrl(requestRuntime.apiBaseUrl), {

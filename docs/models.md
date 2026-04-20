@@ -3,7 +3,22 @@
 Model support is configured in `src/config/models.json`:
 
 - `models`: list of supported models (`id`, `label`, optional card metadata, optional `features`)
-  - The app also appends browser-saved cloud models at runtime from `Settings -> Cloud Providers`; those entries are normalized into the same picker/catalog shape even though they are not committed in `src/config/models.json`.
+  - The app also appends configured cloud models at runtime from `Settings -> Cloud Providers`; those entries are normalized into the same picker/catalog shape even though they are not committed in `src/config/models.json`.
+- App-managed predefined cloud providers/models are configured separately in `src/config/cloud-models.json`.
+  - These entries are normalized through the same cloud-provider helpers as browser-saved providers.
+  - Predefined cloud models appear in the picker under `Cloud Models`.
+  - Predefined cloud models stay in the picker and cannot be removed by the user.
+  - Predefined cloud models can ship app-managed default generation limits plus a fixed browser-local rate limit.
+
+`src/config/cloud-models.json` is the app-managed cloud-model source file:
+
+- `providers[]`
+  - OpenAI-compatible provider metadata such as `id`, `endpoint`, `displayName`, and optional `links`
+  - `links.createAccountUrl`, `links.createTokenUrl`, and `links.dataSecurityUrl` drive the provider actions shown in `Settings -> Cloud Providers`
+- `providers[].selectedModels[]`
+  - fixed predefined remote models the app should expose
+  - each entry can ship `generation` defaults/limits and an optional `rateLimit { maxRequests, windowMs }`
+  - these predefined selected models are treated as managed and cannot be removed from the picker
 - `models[].engine`: explicit inference-driver selection for that model
   - `type`: currently `transformers-js`, `wllama`, or `openai-compatible`
 - `models[].displayName`: friendly card title shown in the pre-chat model picker
@@ -35,8 +50,11 @@ Model support is configured in `src/config/models.json`:
   - `allowOffline` (optional `wllama` cache-only load hint)
   - `usePromptCache` / `batchSize` / `minP` are app-managed `wllama` runtime overrides derived from `Settings -> Model` rather than committed catalog fields
   - `providerId` / `providerType` / `providerDisplayName` (runtime-only metadata for browser-saved cloud models)
+  - `providerHasSecret` (runtime-only flag used to keep cloud models unavailable until this browser has a saved API key)
+  - `providerPreconfigured` (runtime-only flag used for picker/settings messaging around app-managed cloud models)
   - `apiBaseUrl` / `remoteModelId` (OpenAI-compatible worker endpoint/model routing)
   - `supportsTopK` (`true` only when the configured cloud provider should receive `top_k`)
+  - `rateLimit.maxRequests` / `rateLimit.windowMs` (runtime-only browser-local request cap for OpenAI-compatible cloud models)
 - `models[].thinkingControl`: optional model-specific reasoning control metadata:
   - `defaultEnabled` (`false` only when the model should default to non-thinking mode in this app)
   - `runtimeParameter` (currently `enable_thinking` when the worker should pass a runtime switch)
@@ -150,7 +168,7 @@ Normalized in `src/config/model-settings.js` via `MODEL_FEATURE_FLAGS`.
 ### Engine field
 
 - `engine.type`
-  Selects the inference driver for that model. The current app ships `transformers-js` for bundled ONNX/Transformers.js models, `wllama` for bundled GGUF models, and `openai-compatible` for browser-saved cloud models discovered from `Settings -> Cloud Providers`.
+  Selects the inference driver for that model. The current app ships `transformers-js` for bundled ONNX/Transformers.js models, `wllama` for bundled GGUF models, and `openai-compatible` for configured cloud models discovered from `Settings -> Cloud Providers`.
 
 ### Runtime fields
 
@@ -173,12 +191,18 @@ Normalized in `src/config/model-settings.js` via `MODEL_FEATURE_FLAGS`.
 - `allowOffline`
   Optional `wllama` runtime hint that prefers cached assets and avoids network fetches when possible.
 - `providerId` / `providerType` / `providerDisplayName`
-  Runtime-only metadata for browser-saved cloud models so the worker can look up the saved provider and render a clearer picker card.
+  Runtime-only metadata for configured cloud models so the worker can look up the saved provider and render a clearer picker card.
+- `providerHasSecret`
+  Keeps a cloud model unavailable until an API key has been saved for that provider in this browser.
+- `providerPreconfigured`
+  Lets the picker/settings UI distinguish app-managed cloud models from user-added ones.
 - `apiBaseUrl`
 - `remoteModelId`
   Used by the OpenAI-compatible worker to call `/chat/completions` for the selected remote model.
 - `supportsTopK`
   Lets the app suppress `top_k` for providers that should stay on the stricter OpenAI-style request envelope.
+- `rateLimit.maxRequests` / `rateLimit.windowMs`
+  Optional browser-local request cap enforced before a remote request is sent. This is the mechanism used to protect free/shared APIs from accidental overuse.
 
 ### Thinking-control fields
 
@@ -303,12 +327,13 @@ Current models in Settings:
   - `onnx-community/gemma-4-E2B-it-ONNX` -> `huggingworld/gemma-4-E2B-it-ONNX`
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-- Browser-saved cloud models:
-  - come from `Settings -> Cloud Providers` after the app successfully reads that provider's `/models` endpoint
-  - are added to the same picker used by local models for `New Conversation` and `New Agent`
+- Configured cloud models:
+  - can come either from app-managed `src/config/cloud-models.json` entries or from browser-saved providers added in `Settings -> Cloud Providers`
+  - are added to the same picker used by local models for `New Conversation` and `New Agent`, under a separate `Cloud Models` heading
   - always keep the conservative remote-friendly runtime assumptions in this app: streaming on, thinking off, and no multimodal input until a provider/runtime path is explicitly verified
   - now preserve any tool/function support that can be inferred from the provider's `/models` metadata, and each selected remote model also exposes a user-controlled `Enable built-in tools` toggle in `Settings -> Cloud Providers`
   - use the app's generic JSON prompt-tool profile (`{"name":"tool_name","parameters":{...}}`) when that built-in-tools toggle is enabled for the selected remote model
+  - can also carry a browser-local request cap (`rateLimit`) so the browser blocks excess requests before another remote API call is sent
 
 Notes:
 
@@ -320,7 +345,7 @@ Notes:
 - Model assets are downloaded at runtime and cached in-browser through the engine-specific path.
 - Model assets are not committed to this repository.
 - Transformers.js-backed model assets in the shipped catalog are revision-pinned, the bundled LFM2.5 GGUF model uses a pinned Hugging Face `resolve/<commit>/...` URL, and the ONNX worker now uses app-bundled ONNX Runtime WASM assets instead of the default CDN path.
-- The pre-chat picker presents each model as a single-select horizontal row with capability chips, language tags, and short-term memory shown as tokens plus a rough word estimate rounded to the nearest 100.
+- The pre-chat picker presents separate `Local Models` and `Cloud Models` sections, with each model shown as a single-select horizontal row with capability chips, language tags, and short-term memory shown as tokens plus a rough word estimate rounded to the nearest 100.
 - Model capability flags describe what a model can support; the image/audio/video UI is only enabled when the runtime also declares `multimodalGeneration: true`.
 - Audio input is upload-only. The app does not expose live recording.
 - Video input should stay disabled until the worker path is validated end-to-end in the browser runtime.

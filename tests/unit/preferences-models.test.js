@@ -101,6 +101,12 @@ describe('preferences-models', () => {
 
     const cards = Array.from(modelCardList.querySelectorAll('.model-card'));
     expect(cards.length).toBe(modelSelect.querySelectorAll('option').length);
+    expect(
+      Array.from(modelCardList.querySelectorAll('.model-card-section-title')).map((node) =>
+        node.textContent?.trim()
+      )
+    ).toEqual(['Local Models', 'Cloud Models']);
+    expect(modelCardList.textContent).toContain('No cloud models configured yet.');
 
     const gemmaCard = getModelCard(modelCardList, GEMMA_4_MODEL_ID);
     expect(gemmaCard?.textContent).toContain('4,096 tokens');

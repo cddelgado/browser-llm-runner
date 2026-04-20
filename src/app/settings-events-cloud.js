@@ -12,6 +12,20 @@ function readCloudModelSettingsFromPanel(panel) {
   return values;
 }
 
+function readCloudModelRateLimitFromPanel(panel) {
+  if (!(panel instanceof HTMLElement)) {
+    return null;
+  }
+  const values = {};
+  panel.querySelectorAll('input[data-cloud-model-rate-limit]').forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+    values[input.dataset.cloudModelRateLimit] = input.value;
+  });
+  return values;
+}
+
 export function bindCloudProviderSettingsEvents({
   cloudProviderForm,
   cloudProviderEndpointInput,
@@ -23,9 +37,11 @@ export function bindCloudProviderSettingsEvents({
   clearCloudProviderFeedback,
   refreshCloudProviderPreference,
   removeCloudProviderPreference,
+  saveCloudProviderSecretPreference,
   setCloudProviderModelSelected,
   updateCloudModelFeaturePreference,
   updateCloudModelGenerationPreference,
+  updateCloudModelRateLimitPreference,
   resetCloudModelGenerationPreference,
   setStatus,
 }) {
@@ -92,6 +108,48 @@ export function bindCloudProviderSettingsEvents({
   }
 
   if (cloudProvidersList instanceof HTMLElement) {
+    cloudProvidersList.addEventListener('submit', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || target.tagName !== 'FORM') {
+        return;
+      }
+      if (target.dataset.cloudProviderSecretForm !== 'true') {
+        return;
+      }
+      event.preventDefault();
+      const providerId =
+        typeof target.dataset.cloudProviderId === 'string' ? target.dataset.cloudProviderId : '';
+      const secretInput = target.querySelector('input[data-cloud-provider-secret-input="true"]');
+      const apiKey = secretInput instanceof HTMLInputElement ? secretInput.value : '';
+      const submitButton = target.querySelector('button[type="submit"]');
+      if (submitButton instanceof HTMLButtonElement) {
+        submitButton.disabled = true;
+      }
+      if (secretInput instanceof HTMLInputElement) {
+        secretInput.disabled = true;
+      }
+      void saveCloudProviderSecretPreference(providerId, apiKey)
+        .then(
+          () => {
+            if (secretInput instanceof HTMLInputElement) {
+              secretInput.value = '';
+            }
+            setStatus('Cloud provider API key saved.');
+          },
+          (error) => {
+            setStatus(error instanceof Error ? error.message : String(error));
+          }
+        )
+        .finally(() => {
+          if (submitButton instanceof HTMLButtonElement) {
+            submitButton.disabled = false;
+          }
+          if (secretInput instanceof HTMLInputElement) {
+            secretInput.disabled = false;
+          }
+        });
+    });
+
     cloudProvidersList.addEventListener('change', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) {
@@ -194,6 +252,39 @@ export function bindCloudProviderSettingsEvents({
         } catch (error) {
           setStatus(error instanceof Error ? error.message : String(error));
         }
+        return;
+      }
+
+      if (
+        target instanceof HTMLInputElement &&
+        typeof target.dataset.cloudModelRateLimit === 'string'
+      ) {
+        const panel = target.closest('[data-cloud-model-config="true"]');
+        const rateLimit = readCloudModelRateLimitFromPanel(panel);
+        const providerId =
+          panel instanceof HTMLElement && typeof panel.dataset.cloudProviderId === 'string'
+            ? panel.dataset.cloudProviderId
+            : '';
+        const remoteModelId =
+          panel instanceof HTMLElement && typeof panel.dataset.cloudRemoteModelId === 'string'
+            ? panel.dataset.cloudRemoteModelId
+            : '';
+        if (!rateLimit || !providerId || !remoteModelId) {
+          return;
+        }
+        target.disabled = true;
+        void updateCloudModelRateLimitPreference(providerId, remoteModelId, rateLimit)
+          .then(
+            () => {
+              setStatus('Cloud model rate limit updated.');
+            },
+            (error) => {
+              setStatus(error instanceof Error ? error.message : String(error));
+            }
+          )
+          .finally(() => {
+            target.disabled = false;
+          });
       }
     });
 

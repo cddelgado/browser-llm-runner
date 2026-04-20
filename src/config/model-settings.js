@@ -152,6 +152,8 @@ function normalizeRuntime(rawRuntime) {
     typeof rawRuntime?.providerDisplayName === 'string' && rawRuntime.providerDisplayName.trim()
       ? rawRuntime.providerDisplayName.trim()
       : '';
+  const providerHasSecret = rawRuntime?.providerHasSecret === true;
+  const providerPreconfigured = rawRuntime?.providerPreconfigured === true;
   const apiBaseUrl =
     typeof rawRuntime?.apiBaseUrl === 'string' && rawRuntime.apiBaseUrl.trim()
       ? rawRuntime.apiBaseUrl.trim()
@@ -167,6 +169,18 @@ function normalizeRuntime(rawRuntime) {
       : '';
   const parallelDownloads = normalizePositiveIntegerLimit(rawRuntime?.parallelDownloads);
   const allowOffline = rawRuntime?.allowOffline === true;
+  const rateLimit =
+    rawRuntime?.rateLimit &&
+    typeof rawRuntime.rateLimit === 'object' &&
+    Number.isInteger(rawRuntime.rateLimit.maxRequests) &&
+    rawRuntime.rateLimit.maxRequests > 0 &&
+    Number.isInteger(rawRuntime.rateLimit.windowMs) &&
+    rawRuntime.rateLimit.windowMs > 0
+      ? {
+          maxRequests: rawRuntime.rateLimit.maxRequests,
+          windowMs: rawRuntime.rateLimit.windowMs,
+        }
+      : null;
   return {
     ...(dtype ? { dtype } : {}),
     ...(dtypes ? { dtypes } : {}),
@@ -180,9 +194,12 @@ function normalizeRuntime(rawRuntime) {
     ...(providerId ? { providerId } : {}),
     ...(providerType ? { providerType } : {}),
     ...(providerDisplayName ? { providerDisplayName } : {}),
+    ...(providerHasSecret ? { providerHasSecret: true } : {}),
+    ...(providerPreconfigured ? { providerPreconfigured: true } : {}),
     ...(apiBaseUrl ? { apiBaseUrl } : {}),
     ...(remoteModelId ? { remoteModelId } : {}),
     ...(supportsTopK ? { supportsTopK: true } : {}),
+    ...(rateLimit ? { rateLimit } : {}),
     ...(modelUrl ? { modelUrl } : {}),
     ...(parallelDownloads ? { parallelDownloads } : {}),
     ...(allowOffline ? { allowOffline: true } : {}),
@@ -636,6 +653,16 @@ export function getModelAvailability(
     return {
       available: false,
       reason: model.unavailableReason,
+    };
+  }
+
+  if (
+    model.engine?.type === 'openai-compatible' &&
+    model.runtime?.providerHasSecret !== true
+  ) {
+    return {
+      available: false,
+      reason: 'Save an API key for this cloud model in Settings -> Cloud Providers.',
     };
   }
 

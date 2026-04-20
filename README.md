@@ -4,7 +4,7 @@ Student-facing browser chat UI with local model inference.
 
 ## Runtime behavior
 
-- Inference runs through an engine-driver layer selected from model config and user preferences; bundled local models use either the Transformers.js worker path for ONNX models or the `wllama` worker path for GGUF models, while browser-saved cloud models use the OpenAI-compatible worker path.
+- Inference runs through an engine-driver layer selected from model config and user preferences; bundled local models use either the Transformers.js worker path for ONNX models or the `wllama` worker path for GGUF models, while configured cloud models use the OpenAI-compatible worker path.
 - Conversation turns are sent to the model as structured chat messages (`system`/`user`/`assistant`) rather than a flattened transcript string.
 - On initial load, the app shows a home screen with a `Start a conversation` action.
 - Clicking `Start a conversation` opens the chat workspace at `#/chat` with model selection, an empty composer, and no model load yet.
@@ -17,6 +17,7 @@ Student-facing browser chat UI with local model inference.
 - When that continued send needs a different model, the app unloads the previous worker, loads the conversation's model, and shows load progress at the bottom of the transcript view.
 - Clicking `New Conversation` returns the workspace to the pre-chat model picker without adding a sidebar item yet.
 - Clicking `New Agent` returns the workspace to a matching pre-chat flow with agent name and personality fields above the same model picker; the composer then prompts the user to say hello to that agent.
+- The pre-chat picker now renders separate `Local Models` and `Cloud Models` sections.
 - Typing `/picard` in the composer switches the workspace into a prefilled Picard-inspired agent draft, and typing `/picard <message>` starts that agent and sends `<message>` as the first hello.
 - Saved custom orchestrations can also be invoked from the composer with `/<command> ...`; those slash-command runs stay local, use the current conversation context, and require pending attachments to be cleared before send.
 - After leaving the launch screen, the `New Conversation` button remains visible in the top bar; it is disabled while a fresh conversation is being prepared.
@@ -56,9 +57,12 @@ Student-facing browser chat UI with local model inference.
   - disabled MCP servers and disabled MCP commands are omitted from the computed system prompt and rejected by the local tool-execution loop
 - `Settings -> Cloud Providers` includes:
   - adding browser-reachable OpenAI-compatible endpoints by testing `GET /models` before save
+  - app-managed predefined cloud providers from `src/config/cloud-models.json`; their managed models stay in the picker and cannot be removed by the user
   - storing API keys in dedicated browser-local IndexedDB storage with WebCrypto encryption when the browser supports it, plus an explicit warning that browser-only secret storage is imperfect and saved keys cannot be shown again
-  - per-provider accordions with refresh/remove actions, available-model toggles, and nested configured-model accordions for browser-local defaults such as context size, output tokens, temperature, Top P, and Top K where supported
+  - per-provider accordions with refresh/remove actions, API-key update forms, optional provider links (`Create account`, `Create token`, `Data security`), available-model toggles, and nested configured-model accordions for browser-local defaults such as context size, output tokens, temperature, Top P, and Top K where supported
+  - per-selected-model browser-local request caps so cloud models can be rate-limited before the browser sends another remote request
   - selected remote models preserve any tool/function support detected from provider metadata, and each selected model also exposes an explicit `Enable built-in tools` toggle so users can opt into prompt-based tool calling when they know the model supports it
+  - predefined cloud models can also ship app-managed default generation parameters and fixed rate limits from `src/config/cloud-models.json`
   - strict OpenAI-hosted endpoints use the stricter OpenAI request profile (`max_completion_tokens`, no `top_k`), while broader compatible endpoints keep the looser `max_tokens` path
   - selected cloud models are appended to the same New Conversation / New Agent picker used by bundled local models
 - `Settings -> Skills` includes:
@@ -263,7 +267,7 @@ Student-facing browser chat UI with local model inference.
 
 ## Supported models
 
-In addition to the bundled local model catalog, users can add browser-reachable OpenAI-compatible providers from `Settings -> Cloud Providers`, select any returned remote models they want exposed, and then use those cloud models from the same picker on the New Conversation and New Agent screens.
+In addition to the bundled local model catalog, the app can ship predefined cloud providers/models from `src/config/cloud-models.json`, and users can still add their own browser-reachable OpenAI-compatible providers from `Settings -> Cloud Providers`. Any selected remote models are exposed in the same picker on the New Conversation and New Agent screens under `Cloud Models`.
 
 - `huggingworld/gemma-4-E2B-it-ONNX` (default)
   - Uses the Transformers.js worker path in this app.

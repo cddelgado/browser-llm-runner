@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import {
   buildRuntimeModelCatalog,
   buildCloudModelId,
+  mergeCloudProviderConfigs,
   normalizeCloudProviderConfigs,
 } from '../../src/cloud/cloud-provider-config.js';
 import {
@@ -113,6 +114,7 @@ describe('cloud provider helpers', () => {
         endpoint: 'https://openrouter.ai/api/v1',
         endpointHost: 'openrouter.ai',
         displayName: 'OpenRouter',
+        hasSecret: true,
         supportsTopK: true,
         availableModels: [
           {
@@ -147,6 +149,7 @@ describe('cloud provider helpers', () => {
         },
         runtime: expect.objectContaining({
           providerId: 'provider-1',
+          providerHasSecret: true,
           apiBaseUrl: 'https://openrouter.ai/api/v1',
           remoteModelId: 'meta-llama/3.1-8b-instruct',
           supportsTopK: true,
@@ -184,6 +187,92 @@ describe('cloud provider helpers', () => {
         toolCalling: true,
       },
     });
+  });
+
+  test('merges preconfigured providers with stored overrides and preserves managed models', () => {
+    const merged = mergeCloudProviderConfigs(
+      [
+        {
+          id: 'managed-provider',
+          type: 'openai-compatible',
+          endpoint: 'https://managed.example/v1',
+          displayName: 'Managed Provider',
+          links: {
+            createAccountUrl: 'https://managed.example/signup',
+            createTokenUrl: 'https://managed.example/tokens',
+            dataSecurityUrl: 'https://managed.example/security',
+          },
+          selectedModels: [
+            {
+              id: 'managed/model',
+              displayName: 'Managed Model',
+              generation: {
+                defaultMaxOutputTokens: 256,
+                maxOutputTokens: 512,
+                defaultMaxContextTokens: 2048,
+                maxContextTokens: 2048,
+              },
+              rateLimit: {
+                maxRequests: 25,
+                windowMs: 3600000,
+              },
+            },
+          ],
+        },
+      ],
+      [
+        {
+          id: 'managed-provider',
+          type: 'openai-compatible',
+          endpoint: 'https://managed.example/v1',
+          displayName: 'Managed Provider',
+          hasSecret: true,
+          selectedModels: [
+            {
+              id: 'managed/model',
+              displayName: 'Managed Model',
+              features: {
+                toolCalling: true,
+              },
+            },
+            {
+              id: 'optional/model',
+              displayName: 'Optional Model',
+            },
+          ],
+        },
+      ]
+    );
+
+    expect(merged).toEqual([
+      expect.objectContaining({
+        id: 'managed-provider',
+        preconfigured: true,
+        hasSecret: true,
+        links: {
+          createAccountUrl: 'https://managed.example/signup',
+          createTokenUrl: 'https://managed.example/tokens',
+          dataSecurityUrl: 'https://managed.example/security',
+        },
+        selectedModels: [
+          expect.objectContaining({
+            id: 'managed/model',
+            managed: true,
+            features: {
+              toolCalling: true,
+            },
+            rateLimit: {
+              maxRequests: 25,
+              windowMs: 3600000,
+            },
+          }),
+          expect.objectContaining({
+            id: 'optional/model',
+            managed: false,
+          }),
+        ],
+      }),
+    ]);
   });
 
   test('normalizes prompts for remote chat completion requests and trims old history approximately', () => {
