@@ -176,6 +176,10 @@ describe('cloud provider helpers', () => {
           {
             id: 'meta-llama/3.1-8b-instruct',
             displayName: 'Llama 3.1 8B',
+            thinkingControl: {
+              enabledInstruction: 'Use extended reasoning.',
+              disabledInstruction: 'Answer directly.',
+            },
           },
         ],
       },
@@ -190,8 +194,14 @@ describe('cloud provider helpers', () => {
         }),
         engine: { type: 'openai-compatible' },
         features: expect.objectContaining({
+          thinking: true,
           toolCalling: true,
         }),
+        thinkingControl: {
+          defaultEnabled: true,
+          enabledInstruction: 'Use extended reasoning.',
+          disabledInstruction: 'Answer directly.',
+        },
         toolCalling: {
           format: 'json',
           nameKey: 'name',
@@ -234,10 +244,35 @@ describe('cloud provider helpers', () => {
       detectedFeatures: {
         toolCalling: true,
       },
-      features: {
+      features: expect.objectContaining({
         toolCalling: true,
-      },
+      }),
     });
+  });
+
+  test('migrates stored browser-saved cloud model context caps above the old 131072 ceiling', () => {
+    const providers = normalizeCloudProviderConfigs([
+      {
+        id: 'provider-1',
+        type: 'openai-compatible',
+        endpoint: 'https://openrouter.ai/api/v1',
+        endpointHost: 'openrouter.ai',
+        displayName: 'OpenRouter',
+        selectedModels: [
+          {
+            id: 'remote/model',
+            generation: {
+              defaultMaxOutputTokens: 1024,
+              maxOutputTokens: 131072,
+              defaultMaxContextTokens: 8192,
+              maxContextTokens: 131072,
+            },
+          },
+        ],
+      },
+    ]);
+
+    expect(providers[0]?.selectedModels[0]?.generation.maxContextTokens).toBe(4194304);
   });
 
   test('merges preconfigured providers with stored overrides and preserves managed models', () => {
@@ -309,9 +344,9 @@ describe('cloud provider helpers', () => {
           expect.objectContaining({
             id: 'managed/model',
             managed: true,
-            features: {
+            features: expect.objectContaining({
               toolCalling: true,
-            },
+            }),
             rateLimit: {
               maxRequests: 25,
               windowMs: 3600000,

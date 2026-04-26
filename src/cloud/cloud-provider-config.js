@@ -14,9 +14,11 @@ export const REMOTE_MODEL_GENERATION_LIMITS = Object.freeze({
   defaultRepetitionPenalty: 1.0,
 });
 const DEFAULT_REMOTE_MODEL_DETECTED_FEATURES = Object.freeze({
+  thinking: false,
   toolCalling: false,
 });
 const DEFAULT_REMOTE_MODEL_FEATURES = Object.freeze({
+  thinking: false,
   toolCalling: false,
 });
 const OPENAI_COMPATIBLE_PROMPT_TOOL_CALLING_PROFILE = Object.freeze({
@@ -67,12 +69,57 @@ export function buildCloudModelId(providerId, remoteModelId) {
 }
 
 function normalizeCloudModelFeatures(rawFeatures, defaults = null) {
+  const defaultThinking = defaults?.thinking === true;
   const defaultToolCalling = defaults?.toolCalling === true;
   return {
+    thinking:
+      rawFeatures?.thinking === true || (rawFeatures?.thinking !== false && defaultThinking),
     toolCalling:
       rawFeatures?.toolCalling === true ||
       (rawFeatures?.toolCalling !== false && defaultToolCalling),
   };
+}
+
+function normalizeCloudThinkingControl(rawThinkingControl) {
+  if (
+    !rawThinkingControl ||
+    typeof rawThinkingControl !== 'object' ||
+    Array.isArray(rawThinkingControl)
+  ) {
+    return null;
+  }
+  const enabledInstruction =
+    typeof rawThinkingControl.enabledInstruction === 'string'
+      ? rawThinkingControl.enabledInstruction.trim()
+      : '';
+  const disabledInstruction =
+    typeof rawThinkingControl.disabledInstruction === 'string'
+      ? rawThinkingControl.disabledInstruction.trim()
+      : '';
+  if (!enabledInstruction && !disabledInstruction) {
+    return null;
+  }
+  return {
+    defaultEnabled: rawThinkingControl.defaultEnabled !== false,
+    ...(enabledInstruction ? { enabledInstruction } : {}),
+    ...(disabledInstruction ? { disabledInstruction } : {}),
+  };
+}
+
+function normalizeCloudGenerationLimits(rawGeneration, { managed = false } = {}) {
+  const normalizedGeneration = normalizeGenerationLimits(
+    rawGeneration || REMOTE_MODEL_GENERATION_LIMITS
+  );
+  if (managed) {
+    return normalizedGeneration;
+  }
+  return normalizeGenerationLimits({
+    ...normalizedGeneration,
+    maxContextTokens: Math.max(
+      normalizedGeneration.maxContextTokens,
+      REMOTE_MODEL_GENERATION_LIMITS.maxContextTokens
+    ),
+  });
 }
 
 function normalizeCloudProviderLinks(rawLinks) {
@@ -140,18 +187,24 @@ function normalizeSelectedModelEntry(entry, availableModels, provider) {
     matchingAvailableModel?.detectedFeatures,
     entry?.detectedFeatures || DEFAULT_REMOTE_MODEL_DETECTED_FEATURES
   );
+  const thinkingControl = normalizeCloudThinkingControl(entry?.thinkingControl);
+  const features = normalizeCloudModelFeatures(
+    entry?.features,
+    detectedFeatures || DEFAULT_REMOTE_MODEL_FEATURES
+  );
+  features.thinking = Boolean(thinkingControl);
   return {
     id,
     displayName,
-    generation: normalizeGenerationLimits(entry?.generation || REMOTE_MODEL_GENERATION_LIMITS),
+    generation: normalizeCloudGenerationLimits(entry?.generation, {
+      managed: entry?.managed === true,
+    }),
     supportsTopK:
       entry?.supportsTopK === true ||
       (entry?.supportsTopK !== false && provider.supportsTopK === true),
     detectedFeatures,
-    features: normalizeCloudModelFeatures(
-      entry?.features,
-      detectedFeatures || DEFAULT_REMOTE_MODEL_FEATURES
-    ),
+    features,
+    ...(thinkingControl ? { thinkingControl } : {}),
     rateLimit: normalizeCloudModelRateLimit(entry?.rateLimit),
     managed: entry?.managed === true,
   };
@@ -367,6 +420,7 @@ export function buildRuntimeModelCatalog(providers) {
   return normalizeCloudProviderConfigs(providers).flatMap((provider) =>
     provider.selectedModels.map((model) => {
       const toolCallingEnabled = model?.features?.toolCalling === true;
+      const thinkingEnabled = Boolean(model?.thinkingControl);
       return {
         id: buildCloudModelId(provider.id, model.id),
         label: model.id,
@@ -378,12 +432,13 @@ export function buildRuntimeModelCatalog(providers) {
         generation: model.generation,
         features: {
           streaming: true,
-          thinking: false,
+          thinking: thinkingEnabled,
           toolCalling: toolCallingEnabled,
           imageInput: false,
           audioInput: false,
           videoInput: false,
         },
+        ...(thinkingEnabled ? { thinkingControl: model.thinkingControl } : {}),
         ...(toolCallingEnabled
           ? { toolCalling: OPENAI_COMPATIBLE_PROMPT_TOOL_CALLING_PROFILE }
           : {}),

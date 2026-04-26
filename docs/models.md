@@ -17,7 +17,7 @@ Model support is configured in `src/config/models.json`:
   - `links.createAccountUrl`, `links.createTokenUrl`, and `links.dataSecurityUrl` drive the provider actions shown in `Settings -> Cloud Providers`
 - `providers[].selectedModels[]`
   - fixed predefined remote models the app should expose
-  - each entry can ship `generation` defaults/limits and an optional `rateLimit { maxRequests, windowMs }`
+  - each entry can ship `generation` defaults/limits, optional `thinkingControl { enabledInstruction, disabledInstruction }`, and an optional `rateLimit { maxRequests, windowMs }`
   - these predefined selected models are treated as managed and cannot be removed from the picker
 - `models[].engine`: explicit inference-driver selection for that model
   - `type`: currently `transformers-js`, `wllama`, or `openai-compatible`
@@ -332,8 +332,9 @@ Current models in Settings:
   - can come either from app-managed `src/config/cloud-models.json` entries or from browser-saved, user-named providers added in `Settings -> Cloud Providers`
   - are added to the same picker used by local models for `New Conversation` and `New Agent`, under a separate `Cloud Models` heading
   - always keep the conservative remote-friendly runtime assumptions in this app: streaming on, thinking off, and no multimodal input until a provider/runtime path is explicitly verified
-  - now preserve any tool/function support that can be inferred from the provider's `/models` metadata, and each selected remote model also exposes a user-controlled `Enable built-in tools` toggle in `Settings -> Cloud Providers`
+  - now preserve any tool/function support that can be inferred from the provider's `/models` metadata, and each selected remote model also exposes user-controlled `Enable built-in tools` and `Enable thinking control` settings in `Settings -> Cloud Providers`
   - use the app's generic JSON prompt-tool profile (`{"name":"tool_name","parameters":{...}}`) when that built-in-tools toggle is enabled for the selected remote model
+  - use user-entered thinking-control instructions as system-prompt additions when conversation-level thinking is enabled or disabled for that cloud model
   - show enabled-model defaults directly under each provider model switch instead of in a separate configured-model list
   - can also carry a browser-local request cap (`rateLimit`) so the browser blocks excess requests before another remote API call is sent; the settings UI supports second, minute, hour, day, and week windows and stores the normalized value as `windowMs`
 

@@ -36,6 +36,22 @@ function createHarness() {
           data-cloud-remote-model-id="meta-llama/3.1-8b-instruct"
         >
           <input
+            id="cloudModelThinkingToggle"
+            type="checkbox"
+            data-cloud-model-thinking-toggle="true"
+            data-cloud-provider-id="provider-1"
+            data-cloud-remote-model-id="meta-llama/3.1-8b-instruct"
+            data-cloud-remote-model-display-name="Llama 3.1 8B"
+          />
+          <textarea
+            id="cloudModelThinkingEnabled"
+            data-cloud-model-thinking-setting="enabledInstruction"
+          >Think carefully before answering.</textarea>
+          <textarea
+            id="cloudModelThinkingDisabled"
+            data-cloud-model-thinking-setting="disabledInstruction"
+          >Answer directly.</textarea>
+          <input
             id="cloudModelRateLimitRequests"
             type="number"
             data-cloud-model-rate-limit="maxRequests"
@@ -65,6 +81,7 @@ function createHarness() {
   globalThis.HTMLFormElement = dom.window.HTMLFormElement;
   globalThis.HTMLInputElement = dom.window.HTMLInputElement;
   globalThis.HTMLSelectElement = dom.window.HTMLSelectElement;
+  globalThis.HTMLTextAreaElement = dom.window.HTMLTextAreaElement;
 
   const deps = {
     cloudProviderForm: document.getElementById('cloudProviderForm'),
@@ -82,8 +99,8 @@ function createHarness() {
     setCloudProviderModelSelected: vi.fn(),
     updateCloudModelFeaturePreference: vi.fn(async () => true),
     updateCloudModelGenerationPreference: vi.fn(),
+    updateCloudModelThinkingPreference: vi.fn(async () => true),
     updateCloudModelRateLimitPreference: vi.fn(async () => true),
-    resetCloudModelGenerationPreference: vi.fn(),
     setStatus: vi.fn(),
   };
 
@@ -96,6 +113,7 @@ function createHarness() {
     elements: {
       cloudProviderSecretInput: document.getElementById('cloudProviderSecretInput'),
       cloudModelToolToggle: document.getElementById('cloudModelToolToggle'),
+      cloudModelThinkingToggle: document.getElementById('cloudModelThinkingToggle'),
       cloudModelRateLimitRequests: document.getElementById('cloudModelRateLimitRequests'),
     },
   };
@@ -146,6 +164,28 @@ describe('settings-events-cloud', () => {
       true
     );
     expect(harness.deps.setStatus).toHaveBeenCalledWith('Built-in tools enabled for Llama 3.1 8B.');
+  });
+
+  test('persists cloud-model thinking instructions and announces status', async () => {
+    const harness = createHarness();
+    const toggle = /** @type {HTMLInputElement} */ (harness.elements.cloudModelThinkingToggle);
+
+    toggle.checked = true;
+    toggle.dispatchEvent(new harness.dom.window.Event('change', { bubbles: true }));
+    await Promise.resolve();
+
+    expect(harness.deps.updateCloudModelThinkingPreference).toHaveBeenCalledWith(
+      'provider-1',
+      'meta-llama/3.1-8b-instruct',
+      {
+        enabled: true,
+        enabledInstruction: 'Think carefully before answering.',
+        disabledInstruction: 'Answer directly.',
+      }
+    );
+    expect(harness.deps.setStatus).toHaveBeenCalledWith(
+      'Thinking control enabled for Llama 3.1 8B.'
+    );
   });
 
   test('saves provider secrets through the delegated form handler', async () => {

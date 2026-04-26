@@ -128,9 +128,12 @@ describe('cloud-provider settings controller', () => {
       harness.document.getElementById('cloudProvidersList')?.textContent || '';
 
     expect(availableModelSwitch).not.toBeNull();
-    expect(availableModelSwitch?.closest('.form-check')?.contains(configuredPanel)).toBe(true);
+    expect(
+      availableModelSwitch?.closest('.cloud-provider-model-item')?.contains(configuredPanel)
+    ).toBe(true);
     expect(cloudProvidersText).toContain('Llama 3.1 8B defaults');
     expect(cloudProvidersText).not.toContain('Configured model defaults');
+    expect(cloudProvidersText).not.toContain('Reset model defaults');
   });
 
   test('uses user-entered provider names when saving providers', async () => {
@@ -204,6 +207,44 @@ describe('cloud-provider settings controller', () => {
     );
   });
 
+  test('stores cloud-model thinking instructions and exposes the thinking controls', async () => {
+    const harness = createHarness();
+
+    await harness.controller.updateCloudModelThinkingPreference(
+      'provider-1',
+      'meta-llama/3.1-8b-instruct',
+      {
+        enabled: true,
+        enabledInstruction: 'Use deeper reasoning before answering.',
+        disabledInstruction: 'Answer directly without extra reasoning.',
+      }
+    );
+
+    expect(harness.updateCloudProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedModels: [
+          expect.objectContaining({
+            features: expect.objectContaining({
+              thinking: true,
+            }),
+            thinkingControl: {
+              defaultEnabled: true,
+              enabledInstruction: 'Use deeper reasoning before answering.',
+              disabledInstruction: 'Answer directly without extra reasoning.',
+            },
+          }),
+        ],
+      })
+    );
+    const thinkingToggle = /** @type {HTMLInputElement | null} */ (
+      harness.document.querySelector('input[data-cloud-model-thinking-toggle="true"]')
+    );
+    expect(thinkingToggle?.checked).toBe(true);
+    expect(harness.document.getElementById('cloudProvidersList')?.textContent).toContain(
+      'System prompt text when thinking is enabled'
+    );
+  });
+
   test('updates selected cloud-model tool support and rerenders the toggle state', async () => {
     const harness = createHarness();
 
@@ -219,9 +260,9 @@ describe('cloud-provider settings controller', () => {
         selectedModels: [
           expect.objectContaining({
             id: 'meta-llama/3.1-8b-instruct',
-            features: {
+            features: expect.objectContaining({
               toolCalling: true,
-            },
+            }),
           }),
         ],
       })

@@ -2686,6 +2686,16 @@
   border-color: var(--control-border);
 }
 
+.cloud-provider-model-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cloud-model-config-panel {
+  margin-inline-start: 0;
+}
+
 .form-control,
 .form-select {
   background-color: var(--control-bg);

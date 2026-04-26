@@ -99,8 +99,8 @@ export function bindSettingsEvents({
   setCloudProviderModelSelected = null,
   updateCloudModelFeaturePreference = null,
   updateCloudModelGenerationPreference = null,
+  updateCloudModelThinkingPreference = null,
   updateCloudModelRateLimitPreference = null,
-  resetCloudModelGenerationPreference = null,
   saveCorsProxyPreference,
   clearCorsProxyPreference,
   setCorsProxyFeedback,
@@ -320,8 +320,8 @@ export function bindSettingsEvents({
     setCloudProviderModelSelected,
     updateCloudModelFeaturePreference,
     updateCloudModelGenerationPreference,
+    updateCloudModelThinkingPreference,
     updateCloudModelRateLimitPreference,
-    resetCloudModelGenerationPreference,
     setStatus,
   });
 

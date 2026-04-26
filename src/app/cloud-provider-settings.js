@@ -114,9 +114,10 @@ function createMetadataEntry(documentRef, list, label, value) {
 function normalizeStoredGenerationConfig(
   getStoredGenerationConfigForModel,
   getModelGenerationLimits,
-  modelId
+  modelId,
+  fallbackLimits = null
 ) {
-  const limits = getModelGenerationLimits(modelId);
+  const limits = fallbackLimits || getModelGenerationLimits(modelId);
   const storedConfig =
     typeof getStoredGenerationConfigForModel === 'function'
       ? getStoredGenerationConfigForModel(modelId)
@@ -159,11 +160,31 @@ function cloudModelToolCallingEnabled(model) {
   return model?.features?.toolCalling === true;
 }
 
+function cloudModelThinkingEnabled(model) {
+  return Boolean(model?.thinkingControl);
+}
+
 function buildCloudModelToolCallingHelpText(model) {
   if (cloudModelSupportsDetectedToolCalling(model)) {
     return 'Provider metadata suggests this model supports tool or function calling. Leave this on to include built-in tool instructions in the computed system prompt for this model.';
   }
   return 'Provider metadata did not confirm tool or function calling. Turn this on only when you know the model can follow prompt-directed JSON tool calls.';
+}
+
+function normalizeCloudModelThinkingInput(candidate) {
+  const enabled = candidate?.enabled === true || candidate?.enabled === 'true';
+  const enabledInstruction =
+    typeof candidate?.enabledInstruction === 'string' ? candidate.enabledInstruction.trim() : '';
+  const disabledInstruction =
+    typeof candidate?.disabledInstruction === 'string' ? candidate.disabledInstruction.trim() : '';
+  if (!enabled || (!enabledInstruction && !disabledInstruction)) {
+    return null;
+  }
+  return {
+    defaultEnabled: true,
+    ...(enabledInstruction ? { enabledInstruction } : {}),
+    ...(disabledInstruction ? { disabledInstruction } : {}),
+  };
 }
 
 function toRateLimitWindowParts(rateLimit) {
@@ -283,7 +304,8 @@ export function createCloudProviderSettingsController({
     const { config, limits } = normalizeStoredGenerationConfig(
       getStoredGenerationConfigForModel,
       getModelGenerationLimits,
-      modelId
+      modelId,
+      model.generation
     );
     const panelId = buildConfiguredModelPanelId(provider.id, model.id);
 
@@ -313,6 +335,74 @@ export function createCloudProviderSettingsController({
         'This model is preconfigured by the app. It stays in the picker, and its shipped endpoint, base defaults, and rate limit are managed here.';
       body.appendChild(managedNote);
     }
+
+    const thinkingToggleWrapper = documentRef.createElement('div');
+    thinkingToggleWrapper.className = 'settings-control-group';
+    const thinkingToggleRow = documentRef.createElement('div');
+    thinkingToggleRow.className = 'form-check form-switch';
+    const thinkingToggle = documentRef.createElement('input');
+    const thinkingToggleId = buildConfiguredModelFeatureToggleId(provider.id, model.id, 'thinking');
+    const thinkingEnabled = cloudModelThinkingEnabled(model);
+    thinkingToggle.className = 'form-check-input';
+    thinkingToggle.type = 'checkbox';
+    thinkingToggle.role = 'switch';
+    thinkingToggle.id = thinkingToggleId;
+    thinkingToggle.checked = thinkingEnabled;
+    thinkingToggle.dataset.cloudModelThinkingToggle = 'true';
+    thinkingToggle.dataset.cloudProviderId = provider.id;
+    thinkingToggle.dataset.cloudRemoteModelId = model.id;
+    thinkingToggle.dataset.cloudRemoteModelDisplayName = model.displayName;
+    thinkingToggleRow.appendChild(thinkingToggle);
+    const thinkingLabel = documentRef.createElement('label');
+    thinkingLabel.className = 'form-check-label';
+    thinkingLabel.htmlFor = thinkingToggleId;
+    thinkingLabel.textContent = 'Enable thinking control';
+    thinkingToggleRow.appendChild(thinkingLabel);
+    thinkingToggleWrapper.appendChild(thinkingToggleRow);
+    const thinkingHelp = documentRef.createElement('p');
+    thinkingHelp.className = 'form-text mb-0';
+    thinkingHelp.textContent =
+      'Adds model-specific thinking instructions to the system prompt when the conversation thinking setting is on or off.';
+    thinkingToggleWrapper.appendChild(thinkingHelp);
+    body.appendChild(thinkingToggleWrapper);
+
+    [
+      {
+        key: 'enabledInstruction',
+        label: 'System prompt text when thinking is enabled',
+        value: model.thinkingControl?.enabledInstruction || '',
+        placeholder: 'Example: Use extended reasoning before answering.',
+      },
+      {
+        key: 'disabledInstruction',
+        label: 'System prompt text when thinking is disabled',
+        value: model.thinkingControl?.disabledInstruction || '',
+        placeholder: 'Example: Answer directly without hidden reasoning.',
+      },
+    ].forEach((field) => {
+      const wrapper = documentRef.createElement('div');
+      wrapper.className = 'settings-control-group';
+
+      const label = documentRef.createElement('label');
+      label.className = 'form-label';
+      const inputId = `${panelId}-thinking-${field.key}`;
+      label.htmlFor = inputId;
+      label.textContent = field.label;
+      wrapper.appendChild(label);
+
+      const textarea = documentRef.createElement('textarea');
+      textarea.id = inputId;
+      textarea.className = 'form-control';
+      textarea.rows = 2;
+      textarea.value = field.value;
+      textarea.placeholder = field.placeholder;
+      textarea.disabled = !thinkingEnabled;
+      textarea.dataset.cloudModelThinkingSetting = field.key;
+      textarea.dataset.cloudRemoteModelDisplayName = model.displayName;
+      wrapper.appendChild(textarea);
+
+      body.appendChild(wrapper);
+    });
 
     const toolCallingToggleWrapper = documentRef.createElement('div');
     toolCallingToggleWrapper.className = 'settings-control-group';
@@ -521,15 +611,6 @@ export function createCloudProviderSettingsController({
     unitWrapper.appendChild(unitSelect);
     body.appendChild(unitWrapper);
 
-    const resetButton = documentRef.createElement('button');
-    resetButton.type = 'button';
-    resetButton.className = 'btn btn-outline-secondary btn-sm align-self-start';
-    resetButton.textContent = 'Reset model defaults';
-    resetButton.dataset.cloudModelReset = 'true';
-    resetButton.dataset.cloudProviderId = provider.id;
-    resetButton.dataset.cloudRemoteModelId = model.id;
-    body.appendChild(resetButton);
-
     container.appendChild(body);
   }
 
@@ -729,7 +810,9 @@ export function createCloudProviderSettingsController({
         const configuredModel = selectedModelsById.get(model.id) || null;
         const isManagedModel = configuredModel?.managed === true;
         const wrapper = documentRef.createElement('div');
-        wrapper.className = 'form-check form-switch';
+        wrapper.className = 'cloud-provider-model-item';
+        const switchRow = documentRef.createElement('div');
+        switchRow.className = 'form-check form-switch';
 
         const toggle = documentRef.createElement('input');
         toggle.className = 'form-check-input';
@@ -742,13 +825,14 @@ export function createCloudProviderSettingsController({
         toggle.dataset.cloudProviderId = provider.id;
         toggle.dataset.cloudRemoteModelId = model.id;
         toggle.dataset.cloudRemoteModelDisplayName = model.displayName;
-        wrapper.appendChild(toggle);
+        switchRow.appendChild(toggle);
 
         const label = documentRef.createElement('label');
         label.className = 'form-check-label';
         label.htmlFor = toggle.id;
         label.textContent = model.displayName;
-        wrapper.appendChild(label);
+        switchRow.appendChild(label);
+        wrapper.appendChild(switchRow);
 
         const help = documentRef.createElement('p');
         help.className = 'form-text mb-0';
@@ -962,6 +1046,46 @@ export function createCloudProviderSettingsController({
     return nextProvider;
   }
 
+  async function updateCloudModelThinkingPreference(providerId, remoteModelId, nextThinking) {
+    if (typeof updateCloudProvider !== 'function') {
+      throw new Error('Cloud model settings are unavailable.');
+    }
+    const existingProvider = getCloudProviderById(appState.cloudProviders, providerId);
+    if (!existingProvider) {
+      throw new Error('The selected cloud provider could not be found.');
+    }
+    const existingModel = existingProvider.selectedModels.find(
+      (model) => model.id === remoteModelId
+    );
+    if (!existingModel) {
+      throw new Error('The selected remote model could not be found.');
+    }
+    const thinkingControl = normalizeCloudModelThinkingInput(nextThinking);
+    const nextProvider = await updateCloudProvider({
+      ...existingProvider,
+      selectedModels: existingProvider.selectedModels.map((model) => {
+        if (model.id !== remoteModelId) {
+          return model;
+        }
+        const nextModel = {
+          ...model,
+          features: {
+            ...(model.features || {}),
+            thinking: Boolean(thinkingControl),
+          },
+        };
+        if (thinkingControl) {
+          nextModel.thinkingControl = thinkingControl;
+        } else {
+          delete nextModel.thinkingControl;
+        }
+        return nextModel;
+      }),
+    });
+    await reloadCloudProvidersFromStorage();
+    return nextProvider;
+  }
+
   async function updateCloudModelRateLimitPreference(providerId, remoteModelId, nextRateLimit) {
     if (typeof updateCloudProvider !== 'function') {
       throw new Error('Cloud model settings are unavailable.');
@@ -1013,12 +1137,6 @@ export function createCloudProviderSettingsController({
     return sanitizedConfig;
   }
 
-  function resetCloudModelGenerationPreference(providerId, remoteModelId) {
-    const catalogModelId = buildCloudModelId(providerId, remoteModelId);
-    const defaultConfig = buildDefaultGenerationConfig(getModelGenerationLimits(catalogModelId));
-    return updateCloudModelGenerationPreference(providerId, remoteModelId, defaultConfig);
-  }
-
   renderCloudProviderPreferences();
   clearCloudProviderFeedback();
 
@@ -1028,13 +1146,13 @@ export function createCloudProviderSettingsController({
     clearCloudProviderFeedback,
     refreshCloudProviderPreference,
     removeCloudProviderPreference,
-    resetCloudModelGenerationPreference,
     restoreCloudProvidersFromStorage,
     saveCloudProviderSecretPreference,
     setCloudProviderFeedback,
     setCloudProviderModelSelected,
     updateCloudModelFeaturePreference,
     updateCloudModelGenerationPreference,
+    updateCloudModelThinkingPreference,
     updateCloudModelRateLimitPreference,
   };
 }

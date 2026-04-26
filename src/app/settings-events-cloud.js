@@ -26,6 +26,22 @@ function readCloudModelRateLimitFromPanel(panel) {
   return values;
 }
 
+function readCloudModelThinkingFromPanel(panel) {
+  if (!(panel instanceof HTMLElement)) {
+    return null;
+  }
+  const values = {};
+  const toggle = panel.querySelector('input[data-cloud-model-thinking-toggle="true"]');
+  values.enabled = toggle instanceof HTMLInputElement ? toggle.checked : false;
+  panel.querySelectorAll('textarea[data-cloud-model-thinking-setting]').forEach((textarea) => {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      return;
+    }
+    values[textarea.dataset.cloudModelThinkingSetting] = textarea.value;
+  });
+  return values;
+}
+
 function hasCompleteRateLimit(rateLimit) {
   return Boolean(
     rateLimit?.maxRequests?.trim() &&
@@ -58,8 +74,8 @@ export function bindCloudProviderSettingsEvents({
   setCloudProviderModelSelected,
   updateCloudModelFeaturePreference,
   updateCloudModelGenerationPreference,
+  updateCloudModelThinkingPreference,
   updateCloudModelRateLimitPreference,
-  resetCloudModelGenerationPreference,
   setStatus,
 }) {
   async function handleCloudProviderAdd() {
@@ -267,6 +283,76 @@ export function bindCloudProviderSettingsEvents({
       }
 
       if (
+        (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) &&
+        (target.dataset.cloudModelThinkingToggle === 'true' ||
+          typeof target.dataset.cloudModelThinkingSetting === 'string')
+      ) {
+        const panel = target.closest('[data-cloud-model-config="true"]');
+        const thinking = readCloudModelThinkingFromPanel(panel);
+        const providerId =
+          panel instanceof HTMLElement && typeof panel.dataset.cloudProviderId === 'string'
+            ? panel.dataset.cloudProviderId
+            : '';
+        const remoteModelId =
+          panel instanceof HTMLElement && typeof panel.dataset.cloudRemoteModelId === 'string'
+            ? panel.dataset.cloudRemoteModelId
+            : '';
+        const remoteModelDisplayName =
+          target instanceof HTMLElement &&
+          typeof target.dataset.cloudRemoteModelDisplayName === 'string' &&
+          target.dataset.cloudRemoteModelDisplayName.trim()
+            ? target.dataset.cloudRemoteModelDisplayName.trim()
+            : remoteModelId;
+        if (!thinking || !providerId || !remoteModelId) {
+          return;
+        }
+        if (typeof updateCloudModelThinkingPreference !== 'function') {
+          setStatus('Cloud model thinking settings are unavailable.');
+          return;
+        }
+        if (
+          target instanceof HTMLInputElement &&
+          target.dataset.cloudModelThinkingToggle === 'true'
+        ) {
+          panel
+            ?.querySelectorAll('textarea[data-cloud-model-thinking-setting]')
+            .forEach((textarea) => {
+              if (textarea instanceof HTMLTextAreaElement) {
+                textarea.disabled = !target.checked;
+              }
+            });
+        }
+        if (
+          thinking.enabled &&
+          !thinking.enabledInstruction?.trim() &&
+          !thinking.disabledInstruction?.trim()
+        ) {
+          setStatus(
+            'Enter at least one thinking system-prompt instruction to enable thinking control.'
+          );
+          return;
+        }
+        target.disabled = true;
+        void updateCloudModelThinkingPreference(providerId, remoteModelId, thinking)
+          .then(
+            () => {
+              setStatus(
+                thinking.enabled
+                  ? `Thinking control enabled for ${remoteModelDisplayName}.`
+                  : `Thinking control disabled for ${remoteModelDisplayName}.`
+              );
+            },
+            (error) => {
+              setStatus(error instanceof Error ? error.message : String(error));
+            }
+          )
+          .finally(() => {
+            target.disabled = false;
+          });
+        return;
+      }
+
+      if (
         target instanceof HTMLInputElement &&
         typeof target.dataset.cloudModelSetting === 'string'
       ) {
@@ -398,24 +484,6 @@ export function bindCloudProviderSettingsEvents({
             removeButton.disabled = false;
           });
         return;
-      }
-
-      const resetButton = target.closest('button[data-cloud-model-reset="true"]');
-      if (resetButton instanceof HTMLButtonElement) {
-        const providerId =
-          typeof resetButton.dataset.cloudProviderId === 'string'
-            ? resetButton.dataset.cloudProviderId
-            : '';
-        const remoteModelId =
-          typeof resetButton.dataset.cloudRemoteModelId === 'string'
-            ? resetButton.dataset.cloudRemoteModelId
-            : '';
-        try {
-          resetCloudModelGenerationPreference(providerId, remoteModelId);
-          setStatus('Cloud model defaults reset.');
-        } catch (error) {
-          setStatus(error instanceof Error ? error.message : String(error));
-        }
       }
     });
   }
