@@ -60,8 +60,50 @@ describe('cloud provider helpers', () => {
       endpointHost: 'api.openai.com',
       displayName: 'api.openai.com',
       supportsTopK: false,
+      requiresProxy: false,
     });
     expect(result.availableModels.map((model) => model.id)).toEqual(['gpt-4.1-mini', 'gpt-4o-mini']);
+  });
+
+  test('flags a provider as proxy-required when /models needs CORS proxy fallback', async () => {
+    const fetchRef = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(
+        new globalThis.Response(
+          JSON.stringify({
+            data: [{ id: 'remote-model' }],
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+            },
+          }
+        )
+      );
+
+    const result = await inspectOpenAiCompatibleEndpoint('https://provider.example/v1', 'sk-test', {
+      fetchRef,
+      proxyUrl: 'https://proxy.example/?url=',
+    });
+
+    expect(fetchRef).toHaveBeenNthCalledWith(
+      1,
+      'https://provider.example/v1/models',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(fetchRef).toHaveBeenNthCalledWith(
+      2,
+      'https://proxy.example/?url=https://provider.example/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer sk-test',
+        }),
+      })
+    );
+    expect(result.requiresProxy).toBe(true);
   });
 
   test('detects tool support from provider model metadata when it is advertised', () => {
@@ -116,6 +158,7 @@ describe('cloud provider helpers', () => {
         displayName: 'OpenRouter',
         hasSecret: true,
         supportsTopK: true,
+        requiresProxy: true,
         availableModels: [
           {
             id: 'meta-llama/3.1-8b-instruct',
@@ -153,6 +196,7 @@ describe('cloud provider helpers', () => {
           apiBaseUrl: 'https://openrouter.ai/api/v1',
           remoteModelId: 'meta-llama/3.1-8b-instruct',
           supportsTopK: true,
+          requiresProxy: true,
         }),
       }),
     ]);

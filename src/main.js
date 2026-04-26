@@ -2166,6 +2166,9 @@ function buildConversationRuntimeConfigForPrompt(conversation = null, prompt = n
           minP: wllamaSettings.minP,
         }
       : {}),
+    ...(model?.engine?.type === 'openai-compatible' && appState.corsProxyUrl
+      ? { proxyUrl: appState.corsProxyUrl }
+      : {}),
   };
 }
 
@@ -4292,6 +4295,7 @@ const cloudProviderSettingsController = createCloudProviderSettingsController({
   inspectCloudProviderEndpoint: (endpoint, apiKey) =>
     inspectOpenAiCompatibleEndpoint(endpoint, apiKey, {
       fetchRef: baseFetchRef,
+      proxyUrl: appState.corsProxyUrl,
     }),
   loadCloudProviders: loadStoredCloudProviders,
   saveCloudProvider: saveStoredCloudProvider,

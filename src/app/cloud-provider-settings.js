@@ -682,6 +682,14 @@ export function createCloudProviderSettingsController({
         'Top K',
         provider.supportsTopK === true ? 'Sent when configured' : 'Not sent for this provider'
       );
+      createMetadataEntry(
+        documentRef,
+        metadata,
+        'Network route',
+        provider.requiresProxy === true
+          ? 'Uses the saved CORS proxy for cloud requests'
+          : 'Uses direct browser requests unless CORS fallback is needed'
+      );
       body.appendChild(metadata);
 
       const availableModelsGroup = documentRef.createElement('div');

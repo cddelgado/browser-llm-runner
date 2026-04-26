@@ -220,6 +220,120 @@ describe('openai-compatible.worker', () => {
     });
   });
 
+  test('routes generation through the proxy when the provider requires it', async () => {
+    const fetchMock = /** @type {ReturnType<typeof vi.fn>} */ (globalThis.fetch);
+    fetchMock.mockResolvedValue(
+      createSseResponse(['data: {"choices":[{"delta":{"content":"proxied"}}]}\n\n', 'data: [DONE]\n\n'])
+    );
+
+    await import('../../src/workers/openai-compatible.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    workerSelf.dispatch('message', {
+      type: 'init',
+      payload: {
+        engineType: 'openai-compatible',
+        modelId: 'provider/model',
+        runtime: {
+          providerId: 'provider-1',
+          apiBaseUrl: 'https://example.test/v1',
+          remoteModelId: 'provider/model',
+          requiresProxy: true,
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    workerSelf.postMessage.mockClear();
+
+    workerSelf.dispatch('message', {
+      type: 'generate',
+      payload: {
+        requestId: 'request-proxy',
+        prompt: [{ role: 'user', content: 'Use proxy.' }],
+        generationConfig: {
+          maxContextTokens: 256,
+          maxOutputTokens: 64,
+          temperature: 0.6,
+          topP: 0.95,
+        },
+        runtime: {
+          proxyUrl: 'https://proxy.example/?url=',
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://proxy.example/?url=https://example.test/v1/chat/completions',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-api-key',
+        }),
+      })
+    );
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'complete',
+      payload: { requestId: 'request-proxy', text: 'proxied' },
+    });
+  });
+
+  test('retries generation through the proxy when a direct request is CORS-blocked', async () => {
+    const fetchMock = /** @type {ReturnType<typeof vi.fn>} */ (globalThis.fetch);
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(
+        createSseResponse(['data: {"choices":[{"delta":{"content":"fallback"}}]}\n\n', 'data: [DONE]\n\n'])
+      );
+
+    await import('../../src/workers/openai-compatible.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    workerSelf.dispatch('message', {
+      type: 'init',
+      payload: {
+        engineType: 'openai-compatible',
+        modelId: 'provider/model',
+        runtime: {
+          providerId: 'provider-1',
+          apiBaseUrl: 'https://example.test/v1',
+          remoteModelId: 'provider/model',
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    workerSelf.postMessage.mockClear();
+
+    workerSelf.dispatch('message', {
+      type: 'generate',
+      payload: {
+        requestId: 'request-proxy-fallback',
+        prompt: [{ role: 'user', content: 'Fallback.' }],
+        generationConfig: {
+          maxContextTokens: 256,
+          maxOutputTokens: 64,
+          temperature: 0.6,
+          topP: 0.95,
+        },
+        runtime: {
+          proxyUrl: 'https://proxy.example/?url=',
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://example.test/v1/chat/completions');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      'https://proxy.example/?url=https://example.test/v1/chat/completions'
+    );
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'complete',
+      payload: { requestId: 'request-proxy-fallback', text: 'fallback' },
+    });
+  });
+
   test('blocks remote generation when the browser-local rate limit is exhausted', async () => {
     consumeCloudModelRateLimitMock.mockResolvedValue({
       allowed: false,

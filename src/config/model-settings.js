@@ -163,6 +163,7 @@ function normalizeRuntime(rawRuntime) {
       ? rawRuntime.remoteModelId.trim()
       : '';
   const supportsTopK = rawRuntime?.supportsTopK === true;
+  const requiresProxy = rawRuntime?.requiresProxy === true;
   const modelUrl =
     typeof rawRuntime?.modelUrl === 'string' && rawRuntime.modelUrl.trim()
       ? rawRuntime.modelUrl.trim()
@@ -199,6 +200,7 @@ function normalizeRuntime(rawRuntime) {
     ...(apiBaseUrl ? { apiBaseUrl } : {}),
     ...(remoteModelId ? { remoteModelId } : {}),
     ...(supportsTopK ? { supportsTopK: true } : {}),
+    ...(requiresProxy ? { requiresProxy: true } : {}),
     ...(rateLimit ? { rateLimit } : {}),
     ...(modelUrl ? { modelUrl } : {}),
     ...(parallelDownloads ? { parallelDownloads } : {}),

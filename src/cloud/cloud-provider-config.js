@@ -192,6 +192,7 @@ export function normalizeCloudProviderConfig(provider) {
     preconfigured,
     hasSecret,
     supportsTopK: provider?.supportsTopK === true,
+    requiresProxy: provider?.requiresProxy === true,
     importedAt: normalizeTimestamp(provider?.importedAt) || Date.now(),
     updatedAt: normalizeTimestamp(provider?.updatedAt) || Date.now(),
     availableModels: [],
@@ -337,6 +338,8 @@ export function mergeCloudProviderConfigs(preconfiguredProviders, storedProvider
               importedAt: storedProvider.importedAt,
               updatedAt: storedProvider.updatedAt,
               hasSecret: storedProvider.hasSecret === true,
+              requiresProxy:
+                storedProvider.requiresProxy === true || provider.requiresProxy === true,
             }
           : {}),
         availableModels,
@@ -389,6 +392,7 @@ export function buildRuntimeModelCatalog(providers) {
           apiBaseUrl: provider.endpoint,
           remoteModelId: model.id,
           supportsTopK: model.supportsTopK === true,
+          ...(provider.requiresProxy === true ? { requiresProxy: true } : {}),
           ...(model.rateLimit ? { rateLimit: model.rateLimit } : {}),
         },
       };

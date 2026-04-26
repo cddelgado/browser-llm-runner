@@ -3,11 +3,14 @@ import {
   buildOpenAiCompatibleChatCompletionsUrl,
   inferOpenAiCompatibleMaxOutputTokensField,
 } from '../cloud/openai-compatible.js';
+import { buildCorsProxyRequestUrl, getStoredCorsProxyUrl } from '../llm/browser-fetch.js';
 import { consumeCloudModelRateLimit } from '../state/cloud-rate-limit-store.js';
 import { getCloudProviderSecret } from '../state/cloud-provider-store.js';
 
 let currentConfig = null;
 let activeGeneration = null;
+const CORS_ERROR_MESSAGE_PATTERN =
+  /failed to fetch|load failed|networkerror|network request failed|fetch failed/i;
 
 function toErrorMessage(value) {
   if (value instanceof Error) {
@@ -24,6 +27,16 @@ function isAbortError(error) {
   return globalThis.DOMException && error instanceof globalThis.DOMException
     ? error.name === 'AbortError'
     : error?.name === 'AbortError';
+}
+
+function isLikelyCorsBlockedError(error) {
+  if (isAbortError(error)) {
+    return false;
+  }
+  if (error instanceof TypeError) {
+    return true;
+  }
+  return CORS_ERROR_MESSAGE_PATTERN.test(toErrorMessage(error));
 }
 
 function formatRetryAfter(retryAfterMs) {
@@ -229,7 +242,7 @@ async function generate(payload) {
     }
     post('status', { message: 'Sending request to remote provider...' });
     const apiKey = await getCloudProviderSecret(requestRuntime.providerId);
-    const response = await fetch(buildOpenAiCompatibleChatCompletionsUrl(requestRuntime.apiBaseUrl), {
+    const requestInit = {
       method: 'POST',
       headers: {
         Accept: 'application/json, text/event-stream',
@@ -238,7 +251,28 @@ async function generate(payload) {
       },
       body: JSON.stringify(buildRequestPayload(currentConfig, { ...payload, runtime: requestRuntime })),
       signal: controller.signal,
-    });
+    };
+    const directUrl = buildOpenAiCompatibleChatCompletionsUrl(requestRuntime.apiBaseUrl);
+    const normalizedProxyUrl = getStoredCorsProxyUrl(requestRuntime.proxyUrl);
+    let response;
+    try {
+      response = await fetch(
+        requestRuntime.requiresProxy === true && normalizedProxyUrl
+          ? buildCorsProxyRequestUrl(normalizedProxyUrl, directUrl)
+          : directUrl,
+        requestInit
+      );
+    } catch (error) {
+      if (
+        requestRuntime.requiresProxy !== true &&
+        normalizedProxyUrl &&
+        isLikelyCorsBlockedError(error)
+      ) {
+        response = await fetch(buildCorsProxyRequestUrl(normalizedProxyUrl, directUrl), requestInit);
+      } else {
+        throw error;
+      }
+    }
 
     if (!response.ok) {
       const payloadJson = await parseJsonSafely(response.clone());

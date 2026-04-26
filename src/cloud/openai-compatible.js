@@ -1,7 +1,11 @@
+import { buildCorsProxyRequestUrl, getStoredCorsProxyUrl } from '../llm/browser-fetch.js';
+
 export const OPENAI_COMPATIBLE_PROVIDER_TYPE = 'openai-compatible';
 export const OPENAI_COMPATIBLE_PROVIDER_LABEL = 'OpenAI-compatible';
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+const CORS_ERROR_MESSAGE_PATTERN =
+  /failed to fetch|load failed|networkerror|network request failed|fetch failed/i;
 const TOOL_CALLING_CAPABILITY_TOKENS = new Set([
   'tool',
   'tools',
@@ -215,10 +219,36 @@ function extractProviderErrorMessage(payload) {
   return '';
 }
 
+function normalizeInlineErrorMessage(error) {
+  const message =
+    error instanceof Error && typeof error.message === 'string' ? error.message.trim() : '';
+  return message || String(error || 'Unknown network error.');
+}
+
+function isLikelyCorsBlockedError(error) {
+  if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
+    return false;
+  }
+  if (error instanceof TypeError) {
+    return true;
+  }
+  return CORS_ERROR_MESSAGE_PATTERN.test(normalizeInlineErrorMessage(error));
+}
+
+function buildOpenAiCompatibleInspectionRequest(apiKey) {
+  return {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+  };
+}
+
 export async function inspectOpenAiCompatibleEndpoint(
   endpoint,
   apiKey,
-  { fetchRef = globalThis.fetch } = {}
+  { fetchRef = globalThis.fetch, proxyUrl = '' } = {}
 ) {
   const normalizedEndpoint = normalizeOpenAiCompatibleEndpoint(endpoint);
   const normalizedApiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
@@ -229,19 +259,30 @@ export async function inspectOpenAiCompatibleEndpoint(
     throw new Error('Browser fetch is unavailable.');
   }
 
+  const modelsUrl = buildOpenAiCompatibleModelsUrl(normalizedEndpoint);
+  const normalizedProxyUrl = getStoredCorsProxyUrl(proxyUrl);
   let response;
+  let requiresProxy = false;
   try {
-    response = await fetchRef(buildOpenAiCompatibleModelsUrl(normalizedEndpoint), {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${normalizedApiKey}`,
-      },
-    });
+    response = await fetchRef(modelsUrl, buildOpenAiCompatibleInspectionRequest(normalizedApiKey));
   } catch (error) {
-    throw new Error(
-      `The provider could not be reached from this browser. Confirm the endpoint is correct and that it allows direct cross-origin browser requests. (${error instanceof Error ? error.message : String(error)})`
-    );
+    if (normalizedProxyUrl && isLikelyCorsBlockedError(error)) {
+      try {
+        response = await fetchRef(
+          buildCorsProxyRequestUrl(normalizedProxyUrl, modelsUrl),
+          buildOpenAiCompatibleInspectionRequest(normalizedApiKey)
+        );
+        requiresProxy = true;
+      } catch (proxyError) {
+        throw new Error(
+          `The provider could not be reached directly from this browser, and the configured CORS proxy also failed. (${normalizeInlineErrorMessage(proxyError)})`
+        );
+      }
+    } else {
+      throw new Error(
+        `The provider could not be reached from this browser. Confirm the endpoint is correct and that it allows direct cross-origin browser requests, or save a CORS proxy in Settings -> Proxy. (${normalizeInlineErrorMessage(error)})`
+      );
+    }
   }
 
   const payload = await parseJsonSafely(response.clone());
@@ -275,6 +316,7 @@ export async function inspectOpenAiCompatibleEndpoint(
     endpointHost: new URL(normalizedEndpoint).host.toLowerCase(),
     displayName: toProviderDisplayName(normalizedEndpoint),
     supportsTopK: inferOpenAiCompatibleTopKSupport(normalizedEndpoint),
+    requiresProxy,
     availableModels: models,
   };
 }

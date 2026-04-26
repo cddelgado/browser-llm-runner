@@ -25,6 +25,7 @@ module.exports = defineConfig({
   use: {
     baseURL,
     trace: 'retain-on-failure',
+    serviceWorkers: 'block',
   },
   projects: [
     {

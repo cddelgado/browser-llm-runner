@@ -47,8 +47,8 @@ Inference is selected through the engine client boundary and executes through a 
 - ONNX models may provide mode-specific runtime hints such as `runtime.dtypes.webgpu` and `runtime.dtypes.cpu`.
 - ONNX model entries may also pin `runtime.revision` so Hub downloads stay on an exact model snapshot.
 - `wllama` model entries may provide runtime hints such as `runtime.modelUrl`, `runtime.parallelDownloads`, and `runtime.allowOffline`.
-- Browser-saved cloud models use runtime hints such as `runtime.providerId`, `runtime.apiBaseUrl`, `runtime.remoteModelId`, and optional `runtime.supportsTopK` to drive the OpenAI-compatible worker.
-- The OpenAI-compatible worker keeps two request profiles: strict OpenAI-hosted endpoints suppress `top_k` and send `max_completion_tokens` on `/chat/completions`, while broader compatible endpoints keep the looser `max_tokens` request field.
+- Browser-saved cloud models use runtime hints such as `runtime.providerId`, `runtime.apiBaseUrl`, `runtime.remoteModelId`, optional `runtime.supportsTopK`, and optional `runtime.requiresProxy` to drive the OpenAI-compatible worker.
+- The OpenAI-compatible worker keeps two request profiles: strict OpenAI-hosted endpoints suppress `top_k` and send `max_completion_tokens` on `/chat/completions`, while broader compatible endpoints keep the looser `max_tokens` request field. If a provider was flagged as proxy-required during `/models` inspection, `/chat/completions` is sent through the saved CORS proxy immediately; otherwise the worker uses direct fetch first and retries through the saved proxy after a likely CORS failure.
 
 The resolved backend is shown in the status region in the main UI.
 Initialization is user-triggered on first message send in the chat workspace.

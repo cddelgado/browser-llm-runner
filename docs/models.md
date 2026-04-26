@@ -54,6 +54,7 @@ Model support is configured in `src/config/models.json`:
   - `providerPreconfigured` (runtime-only flag used for picker/settings messaging around app-managed cloud models)
   - `apiBaseUrl` / `remoteModelId` (OpenAI-compatible worker endpoint/model routing)
   - `supportsTopK` (`true` only when the configured cloud provider should receive `top_k`)
+  - `requiresProxy` (`true` when the provider's model-list probe required the saved CORS proxy, so chat requests should use it immediately)
   - `rateLimit.maxRequests` / `rateLimit.windowMs` (runtime-only browser-local request cap for OpenAI-compatible cloud models)
 - `models[].thinkingControl`: optional model-specific reasoning control metadata:
   - `defaultEnabled` (`false` only when the model should default to non-thinking mode in this app)
