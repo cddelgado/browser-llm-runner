@@ -5,7 +5,7 @@ export const REMOTE_MODEL_GENERATION_LIMITS = Object.freeze({
   defaultMaxOutputTokens: 1024,
   maxOutputTokens: 131072,
   defaultMaxContextTokens: 8192,
-  maxContextTokens: 131072,
+  maxContextTokens: 4194304,
   minTemperature: 0.0,
   maxTemperature: 2.0,
   defaultTemperature: 0.7,
@@ -119,15 +119,13 @@ function normalizeAvailableModelEntry(entry) {
 
 function normalizeAvailableModels(value) {
   const seenModelIds = new Set();
-  return (Array.isArray(value) ? value : [])
-    .map(normalizeAvailableModelEntry)
-    .filter((entry) => {
-      if (!entry || seenModelIds.has(entry.id)) {
-        return false;
-      }
-      seenModelIds.add(entry.id);
-      return true;
-    });
+  return (Array.isArray(value) ? value : []).map(normalizeAvailableModelEntry).filter((entry) => {
+    if (!entry || seenModelIds.has(entry.id)) {
+      return false;
+    }
+    seenModelIds.add(entry.id);
+    return true;
+  });
 }
 
 function normalizeSelectedModelEntry(entry, availableModels, provider) {
@@ -147,7 +145,8 @@ function normalizeSelectedModelEntry(entry, availableModels, provider) {
     displayName,
     generation: normalizeGenerationLimits(entry?.generation || REMOTE_MODEL_GENERATION_LIMITS),
     supportsTopK:
-      entry?.supportsTopK === true || (entry?.supportsTopK !== false && provider.supportsTopK === true),
+      entry?.supportsTopK === true ||
+      (entry?.supportsTopK !== false && provider.supportsTopK === true),
     detectedFeatures,
     features: normalizeCloudModelFeatures(
       entry?.features,
@@ -239,7 +238,11 @@ export function getCloudProviderById(providers, providerId) {
   if (!normalizedProviderId) {
     return null;
   }
-  return normalizeCloudProviderConfigs(providers).find((provider) => provider.id === normalizedProviderId) || null;
+  return (
+    normalizeCloudProviderConfigs(providers).find(
+      (provider) => provider.id === normalizedProviderId
+    ) || null
+  );
 }
 
 function mergeAvailableModels(baseProvider, storedProvider) {
@@ -295,8 +298,7 @@ function mergeSelectedModels(baseProvider, storedProvider, availableModels) {
     }
     const normalizedModel = normalizeSelectedModelEntry(model, availableModels, {
       ...baseProvider,
-      supportsTopK:
-        storedProvider?.supportsTopK === true || baseProvider?.supportsTopK === true,
+      supportsTopK: storedProvider?.supportsTopK === true || baseProvider?.supportsTopK === true,
     });
     if (!normalizedModel) {
       return;
@@ -322,7 +324,9 @@ export function mergeCloudProviderConfigs(preconfiguredProviders, storedProvider
     }))
   );
   const normalizedStoredProviders = normalizeCloudProviderConfigs(storedProviders);
-  const storedProvidersById = new Map(normalizedStoredProviders.map((provider) => [provider.id, provider]));
+  const storedProvidersById = new Map(
+    normalizedStoredProviders.map((provider) => [provider.id, provider])
+  );
   const mergedProviders = [];
   const seenProviderIds = new Set();
 

@@ -13,7 +13,7 @@ Model support is configured in `src/config/models.json`:
 `src/config/cloud-models.json` is the app-managed cloud-model source file:
 
 - `providers[]`
-  - OpenAI-compatible provider metadata such as `id`, `endpoint`, `displayName`, and optional `links`
+  - OpenAI-compatible provider metadata such as `id`, `endpoint`, `displayName`, and optional `links`; browser-saved providers can use a user-entered `displayName` instead of the endpoint host
   - `links.createAccountUrl`, `links.createTokenUrl`, and `links.dataSecurityUrl` drive the provider actions shown in `Settings -> Cloud Providers`
 - `providers[].selectedModels[]`
   - fixed predefined remote models the app should expose
@@ -55,7 +55,7 @@ Model support is configured in `src/config/models.json`:
   - `apiBaseUrl` / `remoteModelId` (OpenAI-compatible worker endpoint/model routing)
   - `supportsTopK` (`true` only when the configured cloud provider should receive `top_k`)
   - `requiresProxy` (`true` when the provider's model-list probe required the saved CORS proxy, so chat requests should use it immediately)
-  - `rateLimit.maxRequests` / `rateLimit.windowMs` (runtime-only browser-local request cap for OpenAI-compatible cloud models)
+  - `rateLimit.maxRequests` / `rateLimit.windowMs` (runtime-only browser-local request cap for OpenAI-compatible cloud models; provider settings let users enter the window in seconds, minutes, hours, days, or weeks)
 - `models[].thinkingControl`: optional model-specific reasoning control metadata:
   - `defaultEnabled` (`false` only when the model should default to non-thinking mode in this app)
   - `runtimeParameter` (currently `enable_thinking` when the worker should pass a runtime switch)
@@ -83,7 +83,7 @@ Model support is configured in `src/config/models.json`:
   - `defaultTopK`
   - `defaultTopP`
   - `defaultRepetitionPenalty` (optional runtime-supported default for Transformers.js generation)
-  - These are app-side browser safety caps, not necessarily the model's theoretical upstream context/output limits.
+  - For local models, these are app-side browser safety caps, not necessarily the model's theoretical upstream context/output limits. For remote OpenAI-compatible models, the default app cap allows multi-million-token context settings because upstream providers can expose much larger windows than local browser runtimes.
 - `thinkingTags`: optional per-model tags used to separate internal thoughts from final response
   during streaming (for example `<think>` and `</think>`)
   - `stripLeadingText`: optional first-line marker removed from extracted thought text after the opening tag
@@ -329,12 +329,13 @@ Current models in Settings:
   - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
   - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
 - Configured cloud models:
-  - can come either from app-managed `src/config/cloud-models.json` entries or from browser-saved providers added in `Settings -> Cloud Providers`
+  - can come either from app-managed `src/config/cloud-models.json` entries or from browser-saved, user-named providers added in `Settings -> Cloud Providers`
   - are added to the same picker used by local models for `New Conversation` and `New Agent`, under a separate `Cloud Models` heading
   - always keep the conservative remote-friendly runtime assumptions in this app: streaming on, thinking off, and no multimodal input until a provider/runtime path is explicitly verified
   - now preserve any tool/function support that can be inferred from the provider's `/models` metadata, and each selected remote model also exposes a user-controlled `Enable built-in tools` toggle in `Settings -> Cloud Providers`
   - use the app's generic JSON prompt-tool profile (`{"name":"tool_name","parameters":{...}}`) when that built-in-tools toggle is enabled for the selected remote model
-  - can also carry a browser-local request cap (`rateLimit`) so the browser blocks excess requests before another remote API call is sent
+  - show enabled-model defaults directly under each provider model switch instead of in a separate configured-model list
+  - can also carry a browser-local request cap (`rateLimit`) so the browser blocks excess requests before another remote API call is sent; the settings UI supports second, minute, hour, day, and week windows and stores the normalized value as `windowMs`
 
 Notes:
 
@@ -350,7 +351,7 @@ Notes:
 - Model capability flags describe what a model can support; the image/audio/video UI is only enabled when the runtime also declares `multimodalGeneration: true`.
 - Audio input is upload-only. The app does not expose live recording.
 - Video input should stay disabled until the worker path is validated end-to-end in the browser runtime.
-- Settings fields for maximum output/context tokens are numeric, step in 8, and disabled until a model is loaded.
+- Settings fields for maximum output/context tokens are numeric, step in 8, and disabled until a model is loaded. Remote OpenAI-compatible model context settings can be raised into the millions of tokens; prompt trimming remains approximate because the browser app does not ship each provider tokenizer.
 - Token fields show an estimated words value based on `tokens * 0.75`.
 - Temperature is numeric, step in 0.1, and disabled until a model is loaded.
 - Top K is numeric, step in 1, and uses a per-model default from `models[].generation.defaultTopK`.

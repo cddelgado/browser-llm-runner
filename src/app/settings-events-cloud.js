@@ -17,8 +17,8 @@ function readCloudModelRateLimitFromPanel(panel) {
     return null;
   }
   const values = {};
-  panel.querySelectorAll('input[data-cloud-model-rate-limit]').forEach((input) => {
-    if (!(input instanceof HTMLInputElement)) {
+  panel.querySelectorAll('[data-cloud-model-rate-limit]').forEach((input) => {
+    if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLSelectElement)) {
       return;
     }
     values[input.dataset.cloudModelRateLimit] = input.value;
@@ -26,8 +26,25 @@ function readCloudModelRateLimitFromPanel(panel) {
   return values;
 }
 
+function hasCompleteRateLimit(rateLimit) {
+  return Boolean(
+    rateLimit?.maxRequests?.trim() &&
+    (rateLimit?.windowValue?.trim() || rateLimit?.windowMinutes?.trim()) &&
+    rateLimit?.windowUnit?.trim()
+  );
+}
+
+function isEmptyRateLimit(rateLimit) {
+  return (
+    !rateLimit?.maxRequests?.trim() &&
+    !rateLimit?.windowValue?.trim() &&
+    !rateLimit?.windowMinutes?.trim()
+  );
+}
+
 export function bindCloudProviderSettingsEvents({
   cloudProviderForm,
+  cloudProviderNameInput,
   cloudProviderEndpointInput,
   cloudProviderApiKeyInput,
   addCloudProviderButton,
@@ -47,9 +64,13 @@ export function bindCloudProviderSettingsEvents({
 }) {
   async function handleCloudProviderAdd() {
     const endpoint =
-      cloudProviderEndpointInput instanceof HTMLInputElement ? cloudProviderEndpointInput.value : '';
+      cloudProviderEndpointInput instanceof HTMLInputElement
+        ? cloudProviderEndpointInput.value
+        : '';
     const apiKey =
       cloudProviderApiKeyInput instanceof HTMLInputElement ? cloudProviderApiKeyInput.value : '';
+    const providerName =
+      cloudProviderNameInput instanceof HTMLInputElement ? cloudProviderNameInput.value : '';
     if (addCloudProviderButton instanceof HTMLButtonElement) {
       addCloudProviderButton.disabled = true;
     }
@@ -57,7 +78,10 @@ export function bindCloudProviderSettingsEvents({
       setCloudProviderFeedback('Testing cloud provider...', 'info');
     }
     try {
-      const provider = await addCloudProvider(endpoint, apiKey);
+      const provider = await addCloudProvider(endpoint, apiKey, providerName);
+      if (cloudProviderNameInput instanceof HTMLInputElement) {
+        cloudProviderNameInput.value = '';
+      }
       if (cloudProviderEndpointInput instanceof HTMLInputElement) {
         cloudProviderEndpointInput.value = '';
       }
@@ -93,6 +117,14 @@ export function bindCloudProviderSettingsEvents({
 
   if (cloudProviderEndpointInput instanceof HTMLInputElement) {
     cloudProviderEndpointInput.addEventListener('input', () => {
+      if (typeof clearCloudProviderFeedback === 'function') {
+        clearCloudProviderFeedback();
+      }
+    });
+  }
+
+  if (cloudProviderNameInput instanceof HTMLInputElement) {
+    cloudProviderNameInput.addEventListener('input', () => {
       if (typeof clearCloudProviderFeedback === 'function') {
         clearCloudProviderFeedback();
       }
@@ -209,7 +241,12 @@ export function bindCloudProviderSettingsEvents({
             : remoteModelId;
         const featureKey = target.dataset.cloudModelFeature;
         target.disabled = true;
-        void updateCloudModelFeaturePreference(providerId, remoteModelId, featureKey, target.checked)
+        void updateCloudModelFeaturePreference(
+          providerId,
+          remoteModelId,
+          featureKey,
+          target.checked
+        )
           .then(
             () => {
               setStatus(
@@ -256,7 +293,7 @@ export function bindCloudProviderSettingsEvents({
       }
 
       if (
-        target instanceof HTMLInputElement &&
+        (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) &&
         typeof target.dataset.cloudModelRateLimit === 'string'
       ) {
         const panel = target.closest('[data-cloud-model-config="true"]');
@@ -270,6 +307,18 @@ export function bindCloudProviderSettingsEvents({
             ? panel.dataset.cloudRemoteModelId
             : '';
         if (!rateLimit || !providerId || !remoteModelId) {
+          return;
+        }
+        const targetValue = typeof target.value === 'string' ? target.value.trim() : '';
+        const shouldDisableIncompleteRateLimit = !targetValue;
+        if (
+          !hasCompleteRateLimit(rateLimit) &&
+          !isEmptyRateLimit(rateLimit) &&
+          !shouldDisableIncompleteRateLimit
+        ) {
+          setStatus(
+            'Enter both the request count and window length to save a cloud model rate limit.'
+          );
           return;
         }
         target.disabled = true;

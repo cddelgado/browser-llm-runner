@@ -56,12 +56,12 @@ Student-facing browser chat UI with local model inference.
   - per-server accordions with metadata, refresh/remove actions, and per-command toggles
   - disabled MCP servers and disabled MCP commands are omitted from the computed system prompt and rejected by the local tool-execution loop
 - `Settings -> Cloud Providers` includes:
-  - adding browser-reachable OpenAI-compatible endpoints by testing `GET /models` before save
+  - adding browser-reachable OpenAI-compatible endpoints with an optional user-entered provider name by testing `GET /models` before save
   - if that model-list test looks CORS-blocked and a proxy is saved, retrying through the proxy and marking that provider so future cloud requests use the proxy immediately
   - app-managed predefined cloud providers from `src/config/cloud-models.json`; their managed models stay in the picker and cannot be removed by the user
   - storing API keys in dedicated browser-local IndexedDB storage with WebCrypto encryption when the browser supports it, plus an explicit warning that browser-only secret storage is imperfect and saved keys cannot be shown again
-  - per-provider accordions with refresh/remove actions, API-key update forms, optional provider links (`Create account`, `Create token`, `Data security`), available-model toggles, and nested configured-model accordions for browser-local defaults such as context size, output tokens, temperature, Top P, and Top K where supported
-  - per-selected-model browser-local request caps so cloud models can be rate-limited before the browser sends another remote request
+  - per-provider accordions with refresh/remove actions, API-key update forms, optional provider links (`Create account`, `Create token`, `Data security`), available-model toggles, and inline enabled-model defaults for context size, output tokens, temperature, Top P, and Top K where supported
+  - per-selected-model browser-local request caps with second, minute, hour, day, or week windows so cloud models can be rate-limited before the browser sends another remote request
   - selected remote models preserve any tool/function support detected from provider metadata, and each selected model also exposes an explicit `Enable built-in tools` toggle so users can opt into prompt-based tool calling when they know the model supports it
   - predefined cloud models can also ship app-managed default generation parameters and fixed rate limits from `src/config/cloud-models.json`
   - strict OpenAI-hosted endpoints use the stricter OpenAI request profile (`max_completion_tokens`, no `top_k`), while broader compatible endpoints keep the looser `max_tokens` path
@@ -106,7 +106,7 @@ Student-facing browser chat UI with local model inference.
 - The bundled ONNX Bonsai 8B experimental entry now uses `q1` on both WebGPU and CPU.
 - Token controls in Settings:
   - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
-  - Values are constrained by per-model limits from `src/config/models.json`, use `step=8`, and reflect the app's browser-safe caps rather than every model's theoretical upstream context window.
+  - Local-model values are constrained by per-model limits from `src/config/models.json`, use `step=8`, and reflect the app's browser-safe caps rather than every model's theoretical upstream context window; remote cloud-model context settings allow multi-million-token provider limits and are trimmed approximately before request send.
   - Models can also apply stricter backend-specific caps when one runtime path needs a smaller browser-safe budget.
   - Each token field shows an estimated word count (`tokens * 0.75`).
   - User overrides are saved per model in browser storage and restored when that model is selected again.
@@ -268,7 +268,7 @@ Student-facing browser chat UI with local model inference.
 
 ## Supported models
 
-In addition to the bundled local model catalog, the app can ship predefined cloud providers/models from `src/config/cloud-models.json`, and users can still add their own browser-reachable OpenAI-compatible providers from `Settings -> Cloud Providers`. Any selected remote models are exposed in the same picker on the New Conversation and New Agent screens under `Cloud Models`.
+In addition to the bundled local model catalog, the app can ship predefined cloud providers/models from `src/config/cloud-models.json`, and users can still add their own named, browser-reachable OpenAI-compatible providers from `Settings -> Cloud Providers`. Any selected remote models are exposed in the same picker on the New Conversation and New Agent screens under `Cloud Models`, and each enabled remote model is configured directly below its provider model switch.
 
 - `huggingworld/gemma-4-E2B-it-ONNX` (default)
   - Uses the Transformers.js worker path in this app.

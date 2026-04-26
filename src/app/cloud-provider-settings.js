@@ -1,4 +1,7 @@
-import { buildDefaultGenerationConfig, sanitizeGenerationConfig } from '../config/generation-config.js';
+import {
+  buildDefaultGenerationConfig,
+  sanitizeGenerationConfig,
+} from '../config/generation-config.js';
 import {
   buildCloudModelId,
   REMOTE_MODEL_GENERATION_LIMITS,
@@ -7,12 +10,29 @@ import {
   getCloudProviderById,
 } from '../cloud/cloud-provider-config.js';
 
-const RATE_LIMIT_WINDOW_MINUTE_MS = 60 * 1000;
+const RATE_LIMIT_UNITS = Object.freeze({
+  seconds: 1000,
+  minutes: 60 * 1000,
+  hours: 60 * 60 * 1000,
+  days: 24 * 60 * 60 * 1000,
+  weeks: 7 * 24 * 60 * 60 * 1000,
+});
+const RATE_LIMIT_UNIT_OPTIONS = Object.freeze([
+  ['seconds', 'Seconds'],
+  ['minutes', 'Minutes'],
+  ['hours', 'Hours'],
+  ['days', 'Days'],
+  ['weeks', 'Weeks'],
+]);
 
 function buildAlertClasses(variant) {
   return [
     'alert',
-    variant === 'danger' ? 'alert-danger' : variant === 'success' ? 'alert-success' : 'alert-secondary',
+    variant === 'danger'
+      ? 'alert-warning'
+      : variant === 'success'
+        ? 'alert-success'
+        : 'alert-secondary',
     'py-2',
     'px-3',
     'mb-0',
@@ -33,7 +53,8 @@ function captureAccordionUiState(documentRef, container) {
       .filter(Boolean)
   );
   const activeElement =
-    documentRef.activeElement instanceof HTMLElement && container.contains(documentRef.activeElement)
+    documentRef.activeElement instanceof HTMLElement &&
+    container.contains(documentRef.activeElement)
       ? documentRef.activeElement
       : null;
   return {
@@ -43,7 +64,11 @@ function captureAccordionUiState(documentRef, container) {
   };
 }
 
-function restoreAccordionUiState(documentRef, container, { expandedPanelIds, focusedElementId, scrollTop }) {
+function restoreAccordionUiState(
+  documentRef,
+  container,
+  { expandedPanelIds, focusedElementId, scrollTop }
+) {
   if (!(container instanceof HTMLElement)) {
     return;
   }
@@ -86,7 +111,11 @@ function createMetadataEntry(documentRef, list, label, value) {
   list.appendChild(description);
 }
 
-function normalizeStoredGenerationConfig(getStoredGenerationConfigForModel, getModelGenerationLimits, modelId) {
+function normalizeStoredGenerationConfig(
+  getStoredGenerationConfigForModel,
+  getModelGenerationLimits,
+  modelId
+) {
   const limits = getModelGenerationLimits(modelId);
   const storedConfig =
     typeof getStoredGenerationConfigForModel === 'function'
@@ -114,10 +143,6 @@ function buildConfiguredModelPanelId(providerId, modelId) {
   return `cloudConfiguredModelPanel-${providerId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-${modelId.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
 }
 
-function buildConfiguredModelHeadingId(providerId, modelId) {
-  return `cloudConfiguredModelHeading-${providerId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-${modelId.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
-}
-
 function buildConfiguredModelFeatureToggleId(providerId, modelId, featureKey) {
   return `cloudConfiguredModelFeature-${providerId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-${modelId.replace(/[^a-zA-Z0-9_-]+/g, '-')}-${featureKey.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
 }
@@ -141,25 +166,45 @@ function buildCloudModelToolCallingHelpText(model) {
   return 'Provider metadata did not confirm tool or function calling. Turn this on only when you know the model can follow prompt-directed JSON tool calls.';
 }
 
-function toRateLimitWindowMinutes(rateLimit) {
+function toRateLimitWindowParts(rateLimit) {
   if (!Number.isInteger(rateLimit?.windowMs) || rateLimit.windowMs <= 0) {
-    return '';
+    return {
+      value: '',
+      unit: 'minutes',
+    };
   }
-  return String(Math.max(1, Math.round(rateLimit.windowMs / RATE_LIMIT_WINDOW_MINUTE_MS)));
+  const matchingUnit =
+    RATE_LIMIT_UNIT_OPTIONS.map(([unit]) => unit)
+      .reverse()
+      .find(
+        (unit) =>
+          rateLimit.windowMs >= RATE_LIMIT_UNITS[unit] &&
+          rateLimit.windowMs % RATE_LIMIT_UNITS[unit] === 0
+      ) || 'seconds';
+  return {
+    value: String(Math.max(1, Math.round(rateLimit.windowMs / RATE_LIMIT_UNITS[matchingUnit]))),
+    unit: matchingUnit,
+  };
 }
 
 function normalizeRateLimitInput(candidate) {
   const maxRequests = Number.parseInt(String(candidate?.maxRequests ?? ''), 10);
-  const windowMinutes = Number.parseInt(String(candidate?.windowMinutes ?? ''), 10);
+  const windowValue = Number.parseInt(
+    String(candidate?.windowValue ?? candidate?.windowMinutes ?? ''),
+    10
+  );
+  const windowUnit = Object.prototype.hasOwnProperty.call(RATE_LIMIT_UNITS, candidate?.windowUnit)
+    ? candidate.windowUnit
+    : 'minutes';
   if (!Number.isInteger(maxRequests) || maxRequests <= 0) {
     return null;
   }
-  if (!Number.isInteger(windowMinutes) || windowMinutes <= 0) {
+  if (!Number.isInteger(windowValue) || windowValue <= 0) {
     return null;
   }
   return {
     maxRequests,
-    windowMs: windowMinutes * RATE_LIMIT_WINDOW_MINUTE_MS,
+    windowMs: windowValue * RATE_LIMIT_UNITS[windowUnit],
   };
 }
 
@@ -230,279 +275,262 @@ export function createCloudProviderSettingsController({
     return applyCloudProviders(providers);
   }
 
-  function renderConfiguredModelAccordion(documentRef, provider, container) {
+  function renderConfiguredModelPanel(documentRef, provider, model, container) {
     if (!(container instanceof HTMLElement)) {
       return;
     }
+    const modelId = buildCloudModelId(provider.id, model.id);
+    const { config, limits } = normalizeStoredGenerationConfig(
+      getStoredGenerationConfigForModel,
+      getModelGenerationLimits,
+      modelId
+    );
+    const panelId = buildConfiguredModelPanelId(provider.id, model.id);
 
-    if (!provider.selectedModels.length) {
-      const emptyState = documentRef.createElement('p');
-      emptyState.className = 'text-body-secondary mb-0';
-      emptyState.textContent = 'Select one or more models above to configure browser-local defaults.';
-      container.appendChild(emptyState);
-      return;
+    const body = documentRef.createElement('div');
+    body.id = panelId;
+    body.className = 'cloud-model-config-panel border rounded p-3 mt-2 d-flex flex-column gap-3';
+    body.dataset.cloudModelConfig = 'true';
+    body.dataset.cloudProviderId = provider.id;
+    body.dataset.cloudRemoteModelId = model.id;
+    body.dataset.cloudCatalogModelId = modelId;
+
+    const heading = documentRef.createElement('h5');
+    heading.className = 'h6 mb-0';
+    heading.textContent = `${model.displayName} defaults`;
+    body.appendChild(heading);
+
+    const intro = documentRef.createElement('p');
+    intro.className = 'form-text mt-0 mb-0';
+    intro.textContent =
+      'These defaults stay local to this browser. Context size is enforced approximately for remote models.';
+    body.appendChild(intro);
+
+    if (model.managed) {
+      const managedNote = documentRef.createElement('div');
+      managedNote.className = 'alert alert-secondary py-2 px-3 mb-0';
+      managedNote.textContent =
+        'This model is preconfigured by the app. It stays in the picker, and its shipped endpoint, base defaults, and rate limit are managed here.';
+      body.appendChild(managedNote);
     }
 
-    const nestedAccordion = documentRef.createElement('div');
-    nestedAccordion.className = 'accordion settings-accordion';
+    const toolCallingToggleWrapper = documentRef.createElement('div');
+    toolCallingToggleWrapper.className = 'settings-control-group';
+    const toolCallingToggleRow = documentRef.createElement('div');
+    toolCallingToggleRow.className = 'form-check form-switch';
+    const toolCallingToggle = documentRef.createElement('input');
+    const toolCallingToggleId = buildConfiguredModelFeatureToggleId(
+      provider.id,
+      model.id,
+      'toolCalling'
+    );
+    toolCallingToggle.className = 'form-check-input';
+    toolCallingToggle.type = 'checkbox';
+    toolCallingToggle.role = 'switch';
+    toolCallingToggle.id = toolCallingToggleId;
+    toolCallingToggle.checked = cloudModelToolCallingEnabled(model);
+    toolCallingToggle.dataset.cloudModelFeature = 'toolCalling';
+    toolCallingToggle.dataset.cloudProviderId = provider.id;
+    toolCallingToggle.dataset.cloudRemoteModelId = model.id;
+    toolCallingToggle.dataset.cloudRemoteModelDisplayName = model.displayName;
+    toolCallingToggleRow.appendChild(toolCallingToggle);
+    const toolCallingLabel = documentRef.createElement('label');
+    toolCallingLabel.className = 'form-check-label';
+    toolCallingLabel.htmlFor = toolCallingToggleId;
+    toolCallingLabel.textContent = 'Enable built-in tools';
+    toolCallingToggleRow.appendChild(toolCallingLabel);
+    toolCallingToggleWrapper.appendChild(toolCallingToggleRow);
+    const toolCallingHelp = documentRef.createElement('p');
+    toolCallingHelp.className = 'form-text mb-0';
+    toolCallingHelp.textContent = buildCloudModelToolCallingHelpText(model);
+    toolCallingToggleWrapper.appendChild(toolCallingHelp);
+    body.appendChild(toolCallingToggleWrapper);
 
-    provider.selectedModels.forEach((model) => {
-      const modelId = buildCloudModelId(provider.id, model.id);
-      const { config, limits } = normalizeStoredGenerationConfig(
-        getStoredGenerationConfigForModel,
-        getModelGenerationLimits,
-        modelId
-      );
-      const headingId = buildConfiguredModelHeadingId(provider.id, model.id);
-      const panelId = buildConfiguredModelPanelId(provider.id, model.id);
-      const accordionItem = documentRef.createElement('div');
-      accordionItem.className = 'accordion-item';
+    const fields = [
+      {
+        key: 'maxOutputTokens',
+        label: 'Maximum output tokens',
+        type: 'number',
+        inputMode: 'numeric',
+        value: String(config.maxOutputTokens),
+        min: '8',
+        step: '8',
+        max: String(limits.maxOutputTokens),
+      },
+      {
+        key: 'maxContextTokens',
+        label: 'Context size (short-term memory)',
+        type: 'number',
+        inputMode: 'numeric',
+        value: String(config.maxContextTokens),
+        min: '8',
+        step: '8',
+        max: String(limits.maxContextTokens),
+      },
+      {
+        key: 'temperature',
+        label: 'Temperature',
+        type: 'number',
+        inputMode: 'decimal',
+        value: config.temperature.toFixed(1),
+        min: limits.minTemperature.toFixed(1),
+        max: limits.maxTemperature.toFixed(1),
+        step: '0.1',
+      },
+      {
+        key: 'topP',
+        label: 'Top P',
+        type: 'number',
+        inputMode: 'decimal',
+        value: config.topP.toFixed(2),
+        min: '0.00',
+        max: '1.00',
+        step: '0.05',
+      },
+      {
+        key: 'topK',
+        label: 'Top K',
+        type: 'number',
+        inputMode: 'numeric',
+        value: String(config.topK),
+        min: '5',
+        step: '1',
+        disabled: model.supportsTopK !== true,
+        helpText:
+          model.supportsTopK === true
+            ? ''
+            : 'This provider is using the safer OpenAI-style request profile, so top_k is not sent.',
+      },
+    ];
 
-      const header = documentRef.createElement('h5');
-      header.className = 'accordion-header';
-      header.id = headingId;
+    fields.forEach((field) => {
+      const wrapper = documentRef.createElement('div');
+      wrapper.className = 'settings-control-group';
 
-      const headerButton = documentRef.createElement('button');
-      headerButton.className = 'accordion-button collapsed';
-      headerButton.type = 'button';
-      headerButton.setAttribute('data-bs-toggle', 'collapse');
-      headerButton.setAttribute('data-bs-target', `#${panelId}`);
-      headerButton.setAttribute('aria-expanded', 'false');
-      headerButton.setAttribute('aria-controls', panelId);
+      const label = documentRef.createElement('label');
+      label.className = 'form-label';
+      const inputId = `${panelId}-${field.key}`;
+      label.htmlFor = inputId;
+      label.textContent = field.label;
+      wrapper.appendChild(label);
 
-      const summary = documentRef.createElement('span');
-      summary.className = 'mcp-server-summary';
-      const title = documentRef.createElement('span');
-      title.textContent = model.displayName;
-      summary.appendChild(title);
-      const subtitle = documentRef.createElement('small');
-      subtitle.textContent = model.id;
-      summary.appendChild(subtitle);
-      headerButton.appendChild(summary);
-      header.appendChild(headerButton);
-      accordionItem.appendChild(header);
+      const input = documentRef.createElement('input');
+      input.id = inputId;
+      input.className = 'form-control';
+      input.type = field.type;
+      input.inputMode = field.inputMode;
+      input.value = field.value;
+      input.min = field.min;
+      if (field.max) {
+        input.max = field.max;
+      }
+      input.step = field.step;
+      input.disabled = field.disabled === true;
+      input.dataset.cloudModelSetting = field.key;
+      wrapper.appendChild(input);
 
-      const collapse = documentRef.createElement('div');
-      collapse.id = panelId;
-      collapse.className = 'accordion-collapse collapse';
-      collapse.setAttribute('aria-labelledby', headingId);
-
-      const body = documentRef.createElement('div');
-      body.className = 'accordion-body d-flex flex-column gap-3';
-      body.dataset.cloudModelConfig = 'true';
-      body.dataset.cloudProviderId = provider.id;
-      body.dataset.cloudRemoteModelId = model.id;
-      body.dataset.cloudCatalogModelId = modelId;
-
-      const intro = documentRef.createElement('p');
-      intro.className = 'form-text mt-0 mb-0';
-      intro.textContent =
-        'These defaults stay local to this browser. Context size is enforced approximately for remote models.';
-      body.appendChild(intro);
-
-      if (model.managed) {
-        const managedNote = documentRef.createElement('div');
-        managedNote.className = 'alert alert-secondary py-2 px-3 mb-0';
-        managedNote.textContent =
-          'This model is preconfigured by the app. It stays in the picker, and its shipped endpoint, base defaults, and rate limit are managed here.';
-        body.appendChild(managedNote);
+      if (field.helpText) {
+        const help = documentRef.createElement('p');
+        help.className = 'form-text mb-0';
+        help.textContent = field.helpText;
+        wrapper.appendChild(help);
       }
 
-      const toolCallingToggleWrapper = documentRef.createElement('div');
-      toolCallingToggleWrapper.className = 'settings-control-group';
-      const toolCallingToggleRow = documentRef.createElement('div');
-      toolCallingToggleRow.className = 'form-check form-switch';
-      const toolCallingToggle = documentRef.createElement('input');
-      const toolCallingToggleId = buildConfiguredModelFeatureToggleId(
-        provider.id,
-        model.id,
-        'toolCalling'
-      );
-      toolCallingToggle.className = 'form-check-input';
-      toolCallingToggle.type = 'checkbox';
-      toolCallingToggle.role = 'switch';
-      toolCallingToggle.id = toolCallingToggleId;
-      toolCallingToggle.checked = cloudModelToolCallingEnabled(model);
-      toolCallingToggle.dataset.cloudModelFeature = 'toolCalling';
-      toolCallingToggle.dataset.cloudProviderId = provider.id;
-      toolCallingToggle.dataset.cloudRemoteModelId = model.id;
-      toolCallingToggle.dataset.cloudRemoteModelDisplayName = model.displayName;
-      toolCallingToggleRow.appendChild(toolCallingToggle);
-      const toolCallingLabel = documentRef.createElement('label');
-      toolCallingLabel.className = 'form-check-label';
-      toolCallingLabel.htmlFor = toolCallingToggleId;
-      toolCallingLabel.textContent = 'Enable built-in tools';
-      toolCallingToggleRow.appendChild(toolCallingLabel);
-      toolCallingToggleWrapper.appendChild(toolCallingToggleRow);
-      const toolCallingHelp = documentRef.createElement('p');
-      toolCallingHelp.className = 'form-text mb-0';
-      toolCallingHelp.textContent = buildCloudModelToolCallingHelpText(model);
-      toolCallingToggleWrapper.appendChild(toolCallingHelp);
-      body.appendChild(toolCallingToggleWrapper);
-
-      const fields = [
-        {
-          key: 'maxOutputTokens',
-          label: 'Maximum output tokens',
-          type: 'number',
-          inputMode: 'numeric',
-          value: String(config.maxOutputTokens),
-          min: '8',
-          step: '8',
-        },
-        {
-          key: 'maxContextTokens',
-          label: 'Context size (short-term memory)',
-          type: 'number',
-          inputMode: 'numeric',
-          value: String(config.maxContextTokens),
-          min: '8',
-          step: '8',
-        },
-        {
-          key: 'temperature',
-          label: 'Temperature',
-          type: 'number',
-          inputMode: 'decimal',
-          value: config.temperature.toFixed(1),
-          min: limits.minTemperature.toFixed(1),
-          max: limits.maxTemperature.toFixed(1),
-          step: '0.1',
-        },
-        {
-          key: 'topP',
-          label: 'Top P',
-          type: 'number',
-          inputMode: 'decimal',
-          value: config.topP.toFixed(2),
-          min: '0.00',
-          max: '1.00',
-          step: '0.05',
-        },
-        {
-          key: 'topK',
-          label: 'Top K',
-          type: 'number',
-          inputMode: 'numeric',
-          value: String(config.topK),
-          min: '5',
-          step: '1',
-          disabled: model.supportsTopK !== true,
-          helpText:
-            model.supportsTopK === true
-              ? ''
-              : 'This provider is using the safer OpenAI-style request profile, so top_k is not sent.',
-        },
-      ];
-
-      fields.forEach((field) => {
-        const wrapper = documentRef.createElement('div');
-        wrapper.className = 'settings-control-group';
-
-        const label = documentRef.createElement('label');
-        label.className = 'form-label';
-        const inputId = `${panelId}-${field.key}`;
-        label.htmlFor = inputId;
-        label.textContent = field.label;
-        wrapper.appendChild(label);
-
-        const input = documentRef.createElement('input');
-        input.id = inputId;
-        input.className = 'form-control';
-        input.type = field.type;
-        input.inputMode = field.inputMode;
-        input.value = field.value;
-        input.min = field.min;
-        if (field.max) {
-          input.max = field.max;
-        }
-        input.step = field.step;
-        input.disabled = field.disabled === true;
-        input.dataset.cloudModelSetting = field.key;
-        wrapper.appendChild(input);
-
-        if (field.helpText) {
-          const help = documentRef.createElement('p');
-          help.className = 'form-text mb-0';
-          help.textContent = field.helpText;
-          wrapper.appendChild(help);
-        }
-
-        body.appendChild(wrapper);
-      });
-
-      const rateLimitHeading = documentRef.createElement('p');
-      rateLimitHeading.className = 'form-label mb-1';
-      rateLimitHeading.textContent = 'Browser-local rate limit';
-      body.appendChild(rateLimitHeading);
-
-      const rateLimitHelp = documentRef.createElement('p');
-      rateLimitHelp.className = 'form-text mt-0 mb-0';
-      rateLimitHelp.textContent = model.managed
-        ? 'This model uses the app-managed request cap below so a shared free API does not get exhausted accidentally.'
-        : 'Add a browser-local request cap for this model to avoid exhausting a free API key. Leave either field blank to disable rate limiting.';
-      body.appendChild(rateLimitHelp);
-
-      [
-        {
-          key: 'maxRequests',
-          label: 'Requests per window',
-          type: 'number',
-          inputMode: 'numeric',
-          value: model.rateLimit?.maxRequests ? String(model.rateLimit.maxRequests) : '',
-          min: '1',
-          step: '1',
-        },
-        {
-          key: 'windowMinutes',
-          label: 'Window length (minutes)',
-          type: 'number',
-          inputMode: 'numeric',
-          value: toRateLimitWindowMinutes(model.rateLimit),
-          min: '1',
-          step: '1',
-        },
-      ].forEach((field) => {
-        const wrapper = documentRef.createElement('div');
-        wrapper.className = 'settings-control-group';
-
-        const label = documentRef.createElement('label');
-        label.className = 'form-label';
-        const inputId = `${panelId}-rateLimit-${field.key}`;
-        label.htmlFor = inputId;
-        label.textContent = field.label;
-        wrapper.appendChild(label);
-
-        const input = documentRef.createElement('input');
-        input.id = inputId;
-        input.className = 'form-control';
-        input.type = field.type;
-        input.inputMode = field.inputMode;
-        input.value = field.value;
-        input.min = field.min;
-        input.step = field.step;
-        input.disabled = model.managed === true;
-        input.dataset.cloudModelRateLimit = field.key;
-        wrapper.appendChild(input);
-
-        body.appendChild(wrapper);
-      });
-
-      const resetButton = documentRef.createElement('button');
-      resetButton.type = 'button';
-      resetButton.className = 'btn btn-outline-secondary btn-sm align-self-start';
-      resetButton.textContent = 'Reset model defaults';
-      resetButton.dataset.cloudModelReset = 'true';
-      resetButton.dataset.cloudProviderId = provider.id;
-      resetButton.dataset.cloudRemoteModelId = model.id;
-      body.appendChild(resetButton);
-
-      collapse.appendChild(body);
-      accordionItem.appendChild(collapse);
-      nestedAccordion.appendChild(accordionItem);
+      body.appendChild(wrapper);
     });
 
-    container.appendChild(nestedAccordion);
+    const rateLimitHeading = documentRef.createElement('p');
+    rateLimitHeading.className = 'form-label mb-1';
+    rateLimitHeading.textContent = 'Browser-local rate limit';
+    body.appendChild(rateLimitHeading);
+
+    const rateLimitHelp = documentRef.createElement('p');
+    rateLimitHelp.className = 'form-text mt-0 mb-0';
+    rateLimitHelp.textContent = model.managed
+      ? 'This model uses the app-managed request cap below so a shared free API does not get exhausted accidentally.'
+      : 'Add a browser-local request cap for this model to avoid exhausting a free API key. Leave either field blank to disable rate limiting.';
+    body.appendChild(rateLimitHelp);
+
+    const rateLimitWindow = toRateLimitWindowParts(model.rateLimit);
+    [
+      {
+        key: 'maxRequests',
+        label: 'Requests per window',
+        type: 'number',
+        inputMode: 'numeric',
+        value: model.rateLimit?.maxRequests ? String(model.rateLimit.maxRequests) : '',
+        min: '1',
+        step: '1',
+      },
+      {
+        key: 'windowValue',
+        label: 'Window length',
+        type: 'number',
+        inputMode: 'numeric',
+        value: rateLimitWindow.value,
+        min: '1',
+        step: '1',
+      },
+    ].forEach((field) => {
+      const wrapper = documentRef.createElement('div');
+      wrapper.className = 'settings-control-group';
+
+      const label = documentRef.createElement('label');
+      label.className = 'form-label';
+      const inputId = `${panelId}-rateLimit-${field.key}`;
+      label.htmlFor = inputId;
+      label.textContent = field.label;
+      wrapper.appendChild(label);
+
+      const input = documentRef.createElement('input');
+      input.id = inputId;
+      input.className = 'form-control';
+      input.type = field.type;
+      input.inputMode = field.inputMode;
+      input.value = field.value;
+      input.min = field.min;
+      input.step = field.step;
+      input.disabled = model.managed === true;
+      input.dataset.cloudModelRateLimit = field.key;
+      wrapper.appendChild(input);
+
+      body.appendChild(wrapper);
+    });
+
+    const unitWrapper = documentRef.createElement('div');
+    unitWrapper.className = 'settings-control-group';
+    const unitLabel = documentRef.createElement('label');
+    unitLabel.className = 'form-label';
+    const unitInputId = `${panelId}-rateLimit-windowUnit`;
+    unitLabel.htmlFor = unitInputId;
+    unitLabel.textContent = 'Window unit';
+    unitWrapper.appendChild(unitLabel);
+
+    const unitSelect = documentRef.createElement('select');
+    unitSelect.id = unitInputId;
+    unitSelect.className = 'form-select';
+    unitSelect.disabled = model.managed === true;
+    unitSelect.dataset.cloudModelRateLimit = 'windowUnit';
+    RATE_LIMIT_UNIT_OPTIONS.forEach(([value, label]) => {
+      const option = documentRef.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      option.selected = value === rateLimitWindow.unit;
+      unitSelect.appendChild(option);
+    });
+    unitWrapper.appendChild(unitSelect);
+    body.appendChild(unitWrapper);
+
+    const resetButton = documentRef.createElement('button');
+    resetButton.type = 'button';
+    resetButton.className = 'btn btn-outline-secondary btn-sm align-self-start';
+    resetButton.textContent = 'Reset model defaults';
+    resetButton.dataset.cloudModelReset = 'true';
+    resetButton.dataset.cloudProviderId = provider.id;
+    resetButton.dataset.cloudRemoteModelId = model.id;
+    body.appendChild(resetButton);
+
+    container.appendChild(body);
   }
 
   function renderCloudProviderPreferences() {
@@ -577,7 +605,7 @@ export function createCloudProviderSettingsController({
       actionGroup.className = 'd-flex flex-wrap gap-2';
       const refreshButton = documentRef.createElement('button');
       refreshButton.type = 'button';
-      refreshButton.className = 'btn btn-outline-primary btn-sm';
+      refreshButton.className = 'btn btn-outline-secondary btn-sm';
       refreshButton.textContent = 'Refresh models';
       refreshButton.dataset.cloudProviderRefresh = 'true';
       refreshButton.dataset.cloudProviderId = provider.id;
@@ -585,7 +613,7 @@ export function createCloudProviderSettingsController({
       if (!provider.preconfigured) {
         const removeButton = documentRef.createElement('button');
         removeButton.type = 'button';
-        removeButton.className = 'btn btn-outline-danger btn-sm';
+        removeButton.className = 'btn btn-outline-secondary btn-sm';
         removeButton.textContent = 'Remove provider';
         removeButton.dataset.cloudProviderRemove = 'true';
         removeButton.dataset.cloudProviderId = provider.id;
@@ -674,14 +702,6 @@ export function createCloudProviderSettingsController({
 
       const metadata = documentRef.createElement('dl');
       metadata.className = 'mcp-server-metadata mb-0';
-      createMetadataEntry(documentRef, metadata, 'Type', 'OpenAI-compatible');
-      createMetadataEntry(documentRef, metadata, 'Endpoint', provider.endpoint);
-      createMetadataEntry(
-        documentRef,
-        metadata,
-        'Top K',
-        provider.supportsTopK === true ? 'Sent when configured' : 'Not sent for this provider'
-      );
       createMetadataEntry(
         documentRef,
         metadata,
@@ -737,23 +757,14 @@ export function createCloudProviderSettingsController({
           : model.id;
         wrapper.appendChild(help);
 
+        if (configuredModel) {
+          renderConfiguredModelPanel(documentRef, provider, configuredModel, wrapper);
+        }
+
         availableModelsList.appendChild(wrapper);
       });
       availableModelsGroup.appendChild(availableModelsList);
       body.appendChild(availableModelsGroup);
-
-      const configuredModelsGroup = documentRef.createElement('div');
-      const configuredModelsHeading = documentRef.createElement('p');
-      configuredModelsHeading.className = 'form-label mb-1';
-      configuredModelsHeading.textContent = 'Configured model defaults';
-      configuredModelsGroup.appendChild(configuredModelsHeading);
-      const configuredModelsHelp = documentRef.createElement('p');
-      configuredModelsHelp.className = 'form-text mt-0 mb-2';
-      configuredModelsHelp.textContent =
-        'Adjust per-model browser-local defaults for context size, output length, temperature, Top P, and Top K where supported. Cloud models can also carry a browser-local request cap.';
-      configuredModelsGroup.appendChild(configuredModelsHelp);
-      renderConfiguredModelAccordion(documentRef, provider, configuredModelsGroup);
-      body.appendChild(configuredModelsGroup);
 
       collapse.appendChild(body);
       accordionItem.appendChild(collapse);
@@ -767,11 +778,15 @@ export function createCloudProviderSettingsController({
     return reloadCloudProvidersFromStorage();
   }
 
-  async function addCloudProvider(endpoint, apiKey) {
-    if (typeof inspectCloudProviderEndpoint !== 'function' || typeof saveCloudProvider !== 'function') {
+  async function addCloudProvider(endpoint, apiKey, displayName = '') {
+    if (
+      typeof inspectCloudProviderEndpoint !== 'function' ||
+      typeof saveCloudProvider !== 'function'
+    ) {
       throw new Error('Cloud-provider import is unavailable.');
     }
     const inspectedProvider = await inspectCloudProviderEndpoint(endpoint, apiKey);
+    const normalizedDisplayName = typeof displayName === 'string' ? displayName.trim() : '';
     if (
       normalizeCloudProviderConfigs(appState.cloudProviders).some(
         (provider) => provider.endpoint === inspectedProvider.endpoint
@@ -782,6 +797,7 @@ export function createCloudProviderSettingsController({
     const savedProvider = await saveCloudProvider(
       {
         ...inspectedProvider,
+        ...(normalizedDisplayName ? { displayName: normalizedDisplayName } : {}),
         hasSecret: true,
         selectedModels: [],
       },
@@ -833,11 +849,13 @@ export function createCloudProviderSettingsController({
     const nextProvider = await updateCloudProvider({
       ...existingProvider,
       ...refreshedMetadata,
+      displayName: existingProvider.displayName,
       selectedModels: existingProvider.selectedModels
         .filter((model) => model.managed === true || availableModelsById.has(model.id))
         .map((model) => ({
           ...model,
-          displayName: availableModelsById.get(model.id)?.displayName || model.displayName || model.id,
+          displayName:
+            availableModelsById.get(model.id)?.displayName || model.displayName || model.id,
         })),
     });
     await reloadCloudProvidersFromStorage();
@@ -870,11 +888,15 @@ export function createCloudProviderSettingsController({
     if (!existingProvider) {
       throw new Error('The selected cloud provider could not be found.');
     }
-    const availableModel = existingProvider.availableModels.find((model) => model.id === remoteModelId);
+    const availableModel = existingProvider.availableModels.find(
+      (model) => model.id === remoteModelId
+    );
     if (!availableModel) {
       throw new Error('The selected remote model could not be found.');
     }
-    const existingSelectedModel = existingProvider.selectedModels.find((model) => model.id === remoteModelId);
+    const existingSelectedModel = existingProvider.selectedModels.find(
+      (model) => model.id === remoteModelId
+    );
     if (selected !== true && existingSelectedModel?.managed === true) {
       throw new Error('This app-managed cloud model cannot be removed from the picker.');
     }
@@ -885,12 +907,13 @@ export function createCloudProviderSettingsController({
           {
             id: availableModel.id,
             displayName: availableModel.displayName,
-            generation:
-              existingSelectedModel?.generation || REMOTE_MODEL_GENERATION_LIMITS,
+            generation: existingSelectedModel?.generation || REMOTE_MODEL_GENERATION_LIMITS,
             supportsTopK: existingProvider.supportsTopK === true,
             detectedFeatures: availableModel.detectedFeatures,
             features: existingSelectedModel?.features || availableModel.detectedFeatures,
-            ...(existingSelectedModel?.rateLimit ? { rateLimit: existingSelectedModel.rateLimit } : {}),
+            ...(existingSelectedModel?.rateLimit
+              ? { rateLimit: existingSelectedModel.rateLimit }
+              : {}),
             ...(existingSelectedModel?.managed ? { managed: true } : {}),
           },
         ]
@@ -915,7 +938,9 @@ export function createCloudProviderSettingsController({
     if (!existingProvider) {
       throw new Error('The selected cloud provider could not be found.');
     }
-    const existingModel = existingProvider.selectedModels.find((model) => model.id === remoteModelId);
+    const existingModel = existingProvider.selectedModels.find(
+      (model) => model.id === remoteModelId
+    );
     if (!existingModel) {
       throw new Error('The selected remote model could not be found.');
     }
@@ -930,7 +955,7 @@ export function createCloudProviderSettingsController({
                 [featureKey]: enabled === true,
               },
             }
-            : model
+          : model
       ),
     });
     await reloadCloudProvidersFromStorage();
@@ -945,7 +970,9 @@ export function createCloudProviderSettingsController({
     if (!existingProvider) {
       throw new Error('The selected cloud provider could not be found.');
     }
-    const existingModel = existingProvider.selectedModels.find((model) => model.id === remoteModelId);
+    const existingModel = existingProvider.selectedModels.find(
+      (model) => model.id === remoteModelId
+    );
     if (!existingModel) {
       throw new Error('The selected remote model could not be found.');
     }

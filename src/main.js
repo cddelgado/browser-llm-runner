@@ -251,7 +251,8 @@ const BUILT_IN_ORCHESTRATIONS = [
   {
     id: 'fix-response',
     name: 'Fix Response',
-    description: 'Critiques, revises, and validates a response before streaming a corrected variant.',
+    description:
+      'Critiques, revises, and validates a response before streaming a corrected variant.',
     usageLabel: 'Used by the transcript Fix action.',
     definition: fixResponseOrchestration,
   },
@@ -317,10 +318,18 @@ mathJaxWindow.MathJax.startup = {
   typeset: false,
 };
 
-const themeSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('themeSelect'));
-const showThinkingToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('showThinkingToggle'));
-const enableToolCallingToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('enableToolCallingToggle'));
-const toolSettingsList = /** @type {HTMLElement | null} */ (document.getElementById('toolSettingsList'));
+const themeSelect = /** @type {HTMLSelectElement | null} */ (
+  document.getElementById('themeSelect')
+);
+const showThinkingToggle = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('showThinkingToggle')
+);
+const enableToolCallingToggle = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('enableToolCallingToggle')
+);
+const toolSettingsList = /** @type {HTMLElement | null} */ (
+  document.getElementById('toolSettingsList')
+);
 const orchestrationEditorHeading = /** @type {HTMLElement | null} */ (
   document.getElementById('orchestrationEditorHeading')
 );
@@ -375,102 +384,273 @@ const customOrchestrationsList = /** @type {HTMLElement | null} */ (
 const builtInOrchestrationsList = /** @type {HTMLElement | null} */ (
   document.getElementById('builtInOrchestrationsList')
 );
-const skillPackageForm = /** @type {HTMLFormElement | null} */ (document.getElementById('skillPackageForm'));
-const skillPackageInput = /** @type {HTMLInputElement | null} */ (document.getElementById('skillPackageInput'));
-const addSkillPackageButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('addSkillPackageButton'));
-const skillPackageAddFeedback = /** @type {HTMLElement | null} */ (document.getElementById('skillPackageAddFeedback'));
+const skillPackageForm = /** @type {HTMLFormElement | null} */ (
+  document.getElementById('skillPackageForm')
+);
+const skillPackageInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('skillPackageInput')
+);
+const addSkillPackageButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('addSkillPackageButton')
+);
+const skillPackageAddFeedback = /** @type {HTMLElement | null} */ (
+  document.getElementById('skillPackageAddFeedback')
+);
 const skillsList = /** @type {HTMLElement | null} */ (document.getElementById('skillsList'));
-const cloudProviderForm = /** @type {HTMLFormElement | null} */ (document.getElementById('cloudProviderForm'));
-const cloudProviderEndpointInput = /** @type {HTMLInputElement | null} */ (document.getElementById('cloudProviderEndpointInput'));
-const cloudProviderApiKeyInput = /** @type {HTMLInputElement | null} */ (document.getElementById('cloudProviderApiKeyInput'));
-const addCloudProviderButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('addCloudProviderButton'));
-const cloudProviderAddFeedback = /** @type {HTMLElement | null} */ (document.getElementById('cloudProviderAddFeedback'));
-const cloudProvidersList = /** @type {HTMLElement | null} */ (document.getElementById('cloudProvidersList'));
-const corsProxyForm = /** @type {HTMLFormElement | null} */ (document.getElementById('corsProxyForm'));
-const corsProxyInput = /** @type {HTMLInputElement | null} */ (document.getElementById('corsProxyInput'));
-const saveCorsProxyButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('saveCorsProxyButton'));
-const clearCorsProxyButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('clearCorsProxyButton'));
-const corsProxyFeedback = /** @type {HTMLElement | null} */ (document.getElementById('corsProxyFeedback'));
-const mcpServerEndpointForm = /** @type {HTMLFormElement | null} */ (document.getElementById('mcpServerEndpointForm'));
-const mcpServerEndpointInput = /** @type {HTMLInputElement | null} */ (document.getElementById('mcpServerEndpointInput'));
-const addMcpServerButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('addMcpServerButton'));
-const mcpServerAddFeedback = /** @type {HTMLElement | null} */ (document.getElementById('mcpServerAddFeedback'));
-const mcpServersList = /** @type {HTMLElement | null} */ (document.getElementById('mcpServersList'));
-const renderMathMlToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('renderMathMlToggle'));
-const defaultSystemPromptInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('defaultSystemPromptInput'));
-const exportConversationsButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('exportConversationsButton'));
-const deleteConversationsButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('deleteConversationsButton'));
-const conversationLanguageSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('conversationLanguageSelect'));
-const conversationLanguageHelp = /** @type {HTMLElement | null} */ (document.getElementById('conversationLanguageHelp'));
-const enableModelThinkingToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('enableModelThinkingToggle'));
-const enableModelThinkingHelp = /** @type {HTMLElement | null} */ (document.getElementById('enableModelThinkingHelp'));
-const modelSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('modelSelect'));
+const cloudProviderForm = /** @type {HTMLFormElement | null} */ (
+  document.getElementById('cloudProviderForm')
+);
+const cloudProviderNameInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('cloudProviderNameInput')
+);
+const cloudProviderEndpointInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('cloudProviderEndpointInput')
+);
+const cloudProviderApiKeyInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('cloudProviderApiKeyInput')
+);
+const addCloudProviderButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('addCloudProviderButton')
+);
+const cloudProviderAddFeedback = /** @type {HTMLElement | null} */ (
+  document.getElementById('cloudProviderAddFeedback')
+);
+const cloudProvidersList = /** @type {HTMLElement | null} */ (
+  document.getElementById('cloudProvidersList')
+);
+const corsProxyForm = /** @type {HTMLFormElement | null} */ (
+  document.getElementById('corsProxyForm')
+);
+const corsProxyInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('corsProxyInput')
+);
+const saveCorsProxyButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('saveCorsProxyButton')
+);
+const clearCorsProxyButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('clearCorsProxyButton')
+);
+const corsProxyFeedback = /** @type {HTMLElement | null} */ (
+  document.getElementById('corsProxyFeedback')
+);
+const mcpServerEndpointForm = /** @type {HTMLFormElement | null} */ (
+  document.getElementById('mcpServerEndpointForm')
+);
+const mcpServerEndpointInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('mcpServerEndpointInput')
+);
+const addMcpServerButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('addMcpServerButton')
+);
+const mcpServerAddFeedback = /** @type {HTMLElement | null} */ (
+  document.getElementById('mcpServerAddFeedback')
+);
+const mcpServersList = /** @type {HTMLElement | null} */ (
+  document.getElementById('mcpServersList')
+);
+const renderMathMlToggle = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('renderMathMlToggle')
+);
+const defaultSystemPromptInput = /** @type {HTMLTextAreaElement | null} */ (
+  document.getElementById('defaultSystemPromptInput')
+);
+const exportConversationsButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('exportConversationsButton')
+);
+const deleteConversationsButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('deleteConversationsButton')
+);
+const conversationLanguageSelect = /** @type {HTMLSelectElement | null} */ (
+  document.getElementById('conversationLanguageSelect')
+);
+const conversationLanguageHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('conversationLanguageHelp')
+);
+const enableModelThinkingToggle = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('enableModelThinkingToggle')
+);
+const enableModelThinkingHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('enableModelThinkingHelp')
+);
+const modelSelect = /** @type {HTMLSelectElement | null} */ (
+  document.getElementById('modelSelect')
+);
 const modelCardList = /** @type {HTMLElement | null} */ (document.getElementById('modelCardList'));
-const backendSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('backendSelect'));
-const cpuThreadsInput = /** @type {HTMLInputElement | null} */ (document.getElementById('cpuThreadsInput'));
-const clearModelDownloadsButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('clearModelDownloadsButton'));
-const clearModelDownloadsHelp = /** @type {HTMLElement | null} */ (document.getElementById('clearModelDownloadsHelp'));
-const maxOutputTokensInput = /** @type {HTMLInputElement | null} */ (document.getElementById('maxOutputTokensInput'));
-const maxContextTokensInput = /** @type {HTMLInputElement | null} */ (document.getElementById('maxContextTokensInput'));
-const temperatureInput = /** @type {HTMLInputElement | null} */ (document.getElementById('temperatureInput'));
-const resetContextTokensButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('resetContextTokensButton'));
-const resetTemperatureButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('resetTemperatureButton'));
-const resetTopKButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('resetTopKButton'));
-const resetTopPButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('resetTopPButton'));
+const backendSelect = /** @type {HTMLSelectElement | null} */ (
+  document.getElementById('backendSelect')
+);
+const cpuThreadsInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('cpuThreadsInput')
+);
+const clearModelDownloadsButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('clearModelDownloadsButton')
+);
+const clearModelDownloadsHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('clearModelDownloadsHelp')
+);
+const maxOutputTokensInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('maxOutputTokensInput')
+);
+const maxContextTokensInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('maxContextTokensInput')
+);
+const temperatureInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('temperatureInput')
+);
+const resetContextTokensButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('resetContextTokensButton')
+);
+const resetTemperatureButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('resetTemperatureButton')
+);
+const resetTopKButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('resetTopKButton')
+);
+const resetTopPButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('resetTopPButton')
+);
 const topKInput = /** @type {HTMLInputElement | null} */ (document.getElementById('topKInput'));
 const topPInput = /** @type {HTMLInputElement | null} */ (document.getElementById('topPInput'));
-const wllamaSettingsSection = /** @type {HTMLElement | null} */ (document.getElementById('wllamaSettingsSection'));
-const wllamaPromptCacheToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('wllamaPromptCacheToggle'));
-const wllamaPromptCacheHelp = /** @type {HTMLElement | null} */ (document.getElementById('wllamaPromptCacheHelp'));
-const wllamaBatchSizeInput = /** @type {HTMLInputElement | null} */ (document.getElementById('wllamaBatchSizeInput'));
-const wllamaBatchSizeHelp = /** @type {HTMLElement | null} */ (document.getElementById('wllamaBatchSizeHelp'));
-const wllamaMinPInput = /** @type {HTMLInputElement | null} */ (document.getElementById('wllamaMinPInput'));
-const wllamaMinPHelp = /** @type {HTMLElement | null} */ (document.getElementById('wllamaMinPHelp'));
-const maxOutputTokensHelp = /** @type {HTMLElement | null} */ (document.getElementById('maxOutputTokensHelp'));
-const maxContextTokensHelp = /** @type {HTMLElement | null} */ (document.getElementById('maxContextTokensHelp'));
-const temperatureHelp = /** @type {HTMLElement | null} */ (document.getElementById('temperatureHelp'));
+const wllamaSettingsSection = /** @type {HTMLElement | null} */ (
+  document.getElementById('wllamaSettingsSection')
+);
+const wllamaPromptCacheToggle = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('wllamaPromptCacheToggle')
+);
+const wllamaPromptCacheHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('wllamaPromptCacheHelp')
+);
+const wllamaBatchSizeInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('wllamaBatchSizeInput')
+);
+const wllamaBatchSizeHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('wllamaBatchSizeHelp')
+);
+const wllamaMinPInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('wllamaMinPInput')
+);
+const wllamaMinPHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('wllamaMinPHelp')
+);
+const maxOutputTokensHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('maxOutputTokensHelp')
+);
+const maxContextTokensHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('maxContextTokensHelp')
+);
+const temperatureHelp = /** @type {HTMLElement | null} */ (
+  document.getElementById('temperatureHelp')
+);
 const topKHelp = /** @type {HTMLElement | null} */ (document.getElementById('topKHelp'));
 const topPHelp = /** @type {HTMLElement | null} */ (document.getElementById('topPHelp'));
 const statusRegion = /** @type {HTMLElement | null} */ (document.getElementById('statusRegion'));
-const statusRegionHeading = /** @type {HTMLElement | null} */ (document.getElementById('statusRegionHeading'));
-const statusRegionMessage = /** @type {HTMLElement | null} */ (document.getElementById('statusRegionMessage'));
-const skipLinkElements = /** @type {HTMLElement[]} */ (Array.from(document.querySelectorAll('.skip-link[data-skip-target]')));
+const statusRegionHeading = /** @type {HTMLElement | null} */ (
+  document.getElementById('statusRegionHeading')
+);
+const statusRegionMessage = /** @type {HTMLElement | null} */ (
+  document.getElementById('statusRegionMessage')
+);
+const skipLinkElements = /** @type {HTMLElement[]} */ (
+  Array.from(document.querySelectorAll('.skip-link[data-skip-target]'))
+);
 const appChrome = /** @type {HTMLElement | null} */ (document.querySelector('.app-chrome'));
-const startConversationButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('startConversationButton'));
+const startConversationButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('startConversationButton')
+);
 const debugLogPanel = /** @type {HTMLElement | null} */ (document.getElementById('debugLogPanel'));
-const modelLoadFeedback = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadFeedback'));
-const transcriptModelLoadFeedbackHost = /** @type {HTMLElement | null} */ (document.getElementById('transcriptModelLoadFeedbackHost'));
-const modelLoadProgressWrap = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadProgressWrap'));
-const modelLoadProgressLabel = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadProgressLabel'));
-const modelLoadProgressValue = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadProgressValue'));
-const modelLoadProgressBar = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadProgressBar'));
-const modelLoadProgressSummary = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadProgressSummary'));
-const modelLoadCurrentFileLabel = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadCurrentFileLabel'));
-const modelLoadCurrentFileValue = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadCurrentFileValue'));
-const modelLoadCurrentFileBar = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadCurrentFileBar'));
-const modelLoadError = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadError'));
-const modelLoadErrorSummary = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadErrorSummary'));
-const modelLoadErrorDetails = /** @type {HTMLElement | null} */ (document.getElementById('modelLoadErrorDetails'));
+const modelLoadFeedback = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadFeedback')
+);
+const transcriptModelLoadFeedbackHost = /** @type {HTMLElement | null} */ (
+  document.getElementById('transcriptModelLoadFeedbackHost')
+);
+const modelLoadProgressWrap = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadProgressWrap')
+);
+const modelLoadProgressLabel = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadProgressLabel')
+);
+const modelLoadProgressValue = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadProgressValue')
+);
+const modelLoadProgressBar = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadProgressBar')
+);
+const modelLoadProgressSummary = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadProgressSummary')
+);
+const modelLoadCurrentFileLabel = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadCurrentFileLabel')
+);
+const modelLoadCurrentFileValue = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadCurrentFileValue')
+);
+const modelLoadCurrentFileBar = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadCurrentFileBar')
+);
+const modelLoadError = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadError')
+);
+const modelLoadErrorSummary = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadErrorSummary')
+);
+const modelLoadErrorDetails = /** @type {HTMLElement | null} */ (
+  document.getElementById('modelLoadErrorDetails')
+);
 const sendButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('sendButton'));
-const conversationList = /** @type {HTMLElement | null} */ (document.getElementById('conversationList'));
-const newConversationBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('newConversationBtn'));
-const newAgentBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('newAgentBtn'));
+const conversationList = /** @type {HTMLElement | null} */ (
+  document.getElementById('conversationList')
+);
+const newConversationBtn = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('newConversationBtn')
+);
+const newAgentBtn = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('newAgentBtn')
+);
 const chatForm = /** @type {HTMLFormElement | null} */ (document.querySelector('.composer'));
-const imageAttachmentInput = /** @type {HTMLInputElement | null} */ (document.getElementById('imageAttachmentInput'));
-const composerAttachmentTray = /** @type {HTMLElement | null} */ (document.getElementById('composerAttachmentTray'));
-const addImagesButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('addImagesButton'));
-const attachReferenceMenuItem = /** @type {HTMLElement | null} */ (document.getElementById('attachReferenceMenuItem'));
-const attachWorkWithMenuItem = /** @type {HTMLElement | null} */ (document.getElementById('attachWorkWithMenuItem'));
-const messageInput = /** @type {HTMLTextAreaElement | null} */ (document.getElementById('messageInput'));
-const chatTranscript = /** @type {HTMLElement | null} */ (document.getElementById('chatTranscript'));
-const chatTranscriptWrap = /** @type {HTMLElement | null} */ (document.getElementById('chatTranscriptWrap'));
-const chatTranscriptStart = /** @type {HTMLElement | null} */ (document.getElementById('chatTranscriptStart'));
-const chatTranscriptEnd = /** @type {HTMLElement | null} */ (document.getElementById('chatTranscriptEnd'));
+const imageAttachmentInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('imageAttachmentInput')
+);
+const composerAttachmentTray = /** @type {HTMLElement | null} */ (
+  document.getElementById('composerAttachmentTray')
+);
+const addImagesButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('addImagesButton')
+);
+const attachReferenceMenuItem = /** @type {HTMLElement | null} */ (
+  document.getElementById('attachReferenceMenuItem')
+);
+const attachWorkWithMenuItem = /** @type {HTMLElement | null} */ (
+  document.getElementById('attachWorkWithMenuItem')
+);
+const messageInput = /** @type {HTMLTextAreaElement | null} */ (
+  document.getElementById('messageInput')
+);
+const chatTranscript = /** @type {HTMLElement | null} */ (
+  document.getElementById('chatTranscript')
+);
+const chatTranscriptWrap = /** @type {HTMLElement | null} */ (
+  document.getElementById('chatTranscriptWrap')
+);
+const chatTranscriptStart = /** @type {HTMLElement | null} */ (
+  document.getElementById('chatTranscriptStart')
+);
+const chatTranscriptEnd = /** @type {HTMLElement | null} */ (
+  document.getElementById('chatTranscriptEnd')
+);
 const taskListTray = /** @type {HTMLElement | null} */ (document.getElementById('taskListTray'));
-const jumpToTopButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('jumpToTopButton'));
-const jumpToPreviousUserButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('jumpToPreviousUserButton'));
-const jumpToNextModelButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('jumpToNextModelButton'));
-const jumpToLatestButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('jumpToLatestButton'));
+const jumpToTopButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('jumpToTopButton')
+);
+const jumpToPreviousUserButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('jumpToPreviousUserButton')
+);
+const jumpToNextModelButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('jumpToNextModelButton')
+);
+const jumpToLatestButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('jumpToLatestButton')
+);
 const chatMain = /** @type {HTMLElement | null} */ (document.querySelector('.chat-main'));
 let isTaskListTrayExpanded = false;
 let reinitializeInferenceSettings = async () => {};
@@ -498,15 +678,27 @@ const agentFollowUpCountdown = document.getElementById('agentFollowUpCountdown')
 const agentFollowUpCountdownText = document.getElementById('agentFollowUpCountdownText');
 const agentFollowUpAutomationHelp = document.getElementById('agentFollowUpAutomationHelp');
 const agentFollowUpCountdownLive = document.getElementById('agentFollowUpCountdownLive');
-const chatTitleInput = /** @type {HTMLInputElement | null} */ (document.getElementById('chatTitleInput'));
-const saveChatTitleBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('saveChatTitleBtn'));
-const cancelChatTitleBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('cancelChatTitleBtn'));
-const openKeyboardShortcutsButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('openKeyboardShortcutsButton'));
+const chatTitleInput = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('chatTitleInput')
+);
+const saveChatTitleBtn = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('saveChatTitleBtn')
+);
+const cancelChatTitleBtn = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('cancelChatTitleBtn')
+);
+const openKeyboardShortcutsButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('openKeyboardShortcutsButton')
+);
 const openKeyboardShortcutsMobileButton = /** @type {HTMLButtonElement | null} */ (
   document.getElementById('openKeyboardShortcutsMobileButton')
 );
-const keyboardShortcutsModal = /** @type {HTMLElement | null} */ (document.getElementById('keyboardShortcutsModal'));
-const conversationPanelCollapseButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('conversationPanelCollapseButton'));
+const keyboardShortcutsModal = /** @type {HTMLElement | null} */ (
+  document.getElementById('keyboardShortcutsModal')
+);
+const conversationPanelCollapseButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('conversationPanelCollapseButton')
+);
 const conversationPanelCollapseButtonText = document.getElementById(
   'conversationPanelCollapseButtonText'
 );
@@ -532,15 +724,27 @@ const agentPromptFields = document.getElementById('agentPromptFields');
 const agentPromptNameInput = document.getElementById('agentPromptNameInput');
 const agentPromptPersonalityInput = document.getElementById('agentPromptPersonalityInput');
 const saveConversationSystemPromptBtn = document.getElementById('saveConversationSystemPromptBtn');
-const openSettingsButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('openSettingsButton'));
-const closeSettingsButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('closeSettingsButton'));
-const enableSingleKeyShortcutsToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('enableSingleKeyShortcutsToggle'));
-const transcriptViewSelect = /** @type {HTMLSelectElement | null} */ (document.getElementById('transcriptViewSelect'));
+const openSettingsButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('openSettingsButton')
+);
+const closeSettingsButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('closeSettingsButton')
+);
+const enableSingleKeyShortcutsToggle = /** @type {HTMLInputElement | null} */ (
+  document.getElementById('enableSingleKeyShortcutsToggle')
+);
+const transcriptViewSelect = /** @type {HTMLSelectElement | null} */ (
+  document.getElementById('transcriptViewSelect')
+);
 const settingsPage = document.getElementById('settingsPage');
 const terminalPanel = document.getElementById('terminalPanel');
 const terminalHost = document.getElementById('terminalHost');
-const closeTerminalButton = /** @type {HTMLButtonElement | null} */ (document.getElementById('closeTerminalButton'));
-const settingsTabContainer = /** @type {HTMLElement | null} */ (document.querySelector('.settings-tabs'));
+const closeTerminalButton = /** @type {HTMLButtonElement | null} */ (
+  document.getElementById('closeTerminalButton')
+);
+const settingsTabContainer = /** @type {HTMLElement | null} */ (
+  document.querySelector('.settings-tabs')
+);
 const settingsTabButtons = settingsTabContainer
   ? Array.from(settingsTabContainer.querySelectorAll('[data-settings-tab]'))
   : [];
@@ -1419,7 +1623,11 @@ function getEffectiveWllamaSettingsForModel(modelId, generationConfig = null) {
   }
   return (
     getStoredWllamaSettingsForModel(normalizedModelId, generationConfig) ||
-    sanitizeWllamaSettingsForModel(normalizedModelId, buildDefaultWllamaSettings(), generationConfig)
+    sanitizeWllamaSettingsForModel(
+      normalizedModelId,
+      buildDefaultWllamaSettings(),
+      generationConfig
+    )
   );
 }
 
@@ -1477,7 +1685,10 @@ function renderWllamaSettingsHelpText(settings, generationConfig) {
   }
 }
 
-function syncWllamaSettingsFromModel(modelId, { useDefaults = true, generationConfig = null } = {}) {
+function syncWllamaSettingsFromModel(
+  modelId,
+  { useDefaults = true, generationConfig = null } = {}
+) {
   const normalizedModelId = normalizeModelId(modelId);
   renderWllamaSettingsVisibility(normalizedModelId);
   renderClearModelDownloadsHelp(normalizedModelId);
@@ -1486,7 +1697,8 @@ function syncWllamaSettingsFromModel(modelId, { useDefaults = true, generationCo
   }
 
   const effectiveGenerationConfig =
-    generationConfig || sanitizeGenerationConfigForModel(normalizedModelId, appState.activeGenerationConfig);
+    generationConfig ||
+    sanitizeGenerationConfigForModel(normalizedModelId, appState.activeGenerationConfig);
   const settings = useDefaults
     ? getEffectiveWllamaSettingsForModel(normalizedModelId, effectiveGenerationConfig)
     : buildWllamaSettingsFromUI(normalizedModelId, effectiveGenerationConfig);
@@ -2138,7 +2350,10 @@ function buildConversationRuntimeConfigForPrompt(conversation = null, prompt = n
   const thinkingControl = model?.thinkingControl || null;
   const thinkingEnabled = getConversationThinkingEnabled(conversation);
   const baseRuntime = { ...runtime };
-  const generationConfig = sanitizeGenerationConfigForModel(modelId, appState.activeGenerationConfig);
+  const generationConfig = sanitizeGenerationConfigForModel(
+    modelId,
+    appState.activeGenerationConfig
+  );
   const wllamaSettings = getEffectiveWllamaSettingsForModel(modelId, generationConfig);
   delete baseRuntime.multimodalGeneration;
   return {
@@ -3132,7 +3347,11 @@ function buildPromptForActiveConversation(
     }
   );
   return buildPromptForConversationLeaf(conversation, leafMessageId, {
-    systemPromptSuffix: [systemPromptSuffix, semanticMemoryPromptSection, 'Below is your conversation with the user.']
+    systemPromptSuffix: [
+      systemPromptSuffix,
+      semanticMemoryPromptSection,
+      'Below is your conversation with the user.',
+    ]
       .filter((part) => typeof part === 'string' && part.trim())
       .join('\n\n'),
   });
@@ -3733,14 +3952,12 @@ function updateRegenerateButtons() {
     const responseActions = item.querySelector('.response-actions');
     if (responseActions) {
       responseActions.classList.toggle('d-none', hideActions);
-      responseActions
-        .querySelectorAll('.regenerate-response-btn')
-        .forEach((button) => {
-          if (button instanceof HTMLButtonElement) {
-            button.classList.toggle('d-none', isAgentThread);
-            button.disabled = disabled || hideActions || isAgentThread;
-          }
-        });
+      responseActions.querySelectorAll('.regenerate-response-btn').forEach((button) => {
+        if (button instanceof HTMLButtonElement) {
+          button.classList.toggle('d-none', isAgentThread);
+          button.disabled = disabled || hideActions || isAgentThread;
+        }
+      });
       const prevButton = responseActions.querySelector('.response-variant-prev');
       const nextButton = responseActions.querySelector('.response-variant-next');
       const variantNav = responseActions.querySelector('.response-variant-nav');
@@ -3862,9 +4079,13 @@ async function clearSelectedModelDownloads() {
   }
   if (selectedModel.engine?.type === 'wllama') {
     const runtime =
-      selectedModel.runtime && typeof selectedModel.runtime === 'object' ? selectedModel.runtime : {};
+      selectedModel.runtime && typeof selectedModel.runtime === 'object'
+        ? selectedModel.runtime
+        : {};
     const modelUrl =
-      typeof runtime.modelUrl === 'string' && runtime.modelUrl.trim() ? runtime.modelUrl.trim() : '';
+      typeof runtime.modelUrl === 'string' && runtime.modelUrl.trim()
+        ? runtime.modelUrl.trim()
+        : '';
     if (!modelUrl) {
       setStatus('Selected model is missing its GGUF cache key.');
       return;
@@ -3891,13 +4112,14 @@ async function clearSelectedModelDownloads() {
       );
       const hadCachedFiles = cachedUrls.some((url) =>
         cacheEntriesBefore.some(
-          (entry) =>
-            cachedNames.includes(entry.name) || entry.metadata?.originalURL === url
+          (entry) => cachedNames.includes(entry.name) || entry.metadata?.originalURL === url
         )
       );
 
       if (!hadCachedFiles) {
-        setStatus(`No cached files were found for ${selectedModel.displayName || selectedModelId}.`);
+        setStatus(
+          `No cached files were found for ${selectedModel.displayName || selectedModelId}.`
+        );
         appendDebug(`No cached wllama files were found for ${selectedModelId}.`);
         return;
       }
@@ -3905,9 +4127,7 @@ async function clearSelectedModelDownloads() {
       for (const currentUrl of cachedUrls) {
         await manager.cacheManager.delete(currentUrl);
       }
-      setStatus(
-        `Cleared cached files for ${selectedModel.displayName || selectedModelId}.`
-      );
+      setStatus(`Cleared cached files for ${selectedModel.displayName || selectedModelId}.`);
       appendDebug(`Cleared cached wllama files for ${selectedModelId}.`);
       return;
     } catch (error) {
@@ -4523,7 +4743,10 @@ function recordAgentActivity(conversation, options) {
 }
 
 function ensureAgentConversationSummaryBeforeSend(conversation, userMessage) {
-  return agentAutomationController?.ensureSummaryBeforeSend(conversation, userMessage) || Promise.resolve(true);
+  return (
+    agentAutomationController?.ensureSummaryBeforeSend(conversation, userMessage) ||
+    Promise.resolve(true)
+  );
 }
 
 function toggleAgentPauseState() {
@@ -4775,6 +4998,7 @@ bindSettingsEvents({
   addSkillPackageButton,
   skillsList,
   cloudProviderForm,
+  cloudProviderNameInput,
   cloudProviderEndpointInput,
   cloudProviderApiKeyInput,
   addCloudProviderButton,

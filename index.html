@@ -140,8 +140,8 @@
                 </span>
                 <span id="agentFollowUpAutomationHelp" class="visually-hidden">
                   Automatic agent heartbeats can send a proactive follow-up after the conversation
-                  has been quiet. Each heartbeat is written into the transcript. The countdown
-                  shows when the next heartbeat runs.
+                  has been quiet. Each heartbeat is written into the transcript. The countdown shows
+                  when the next heartbeat runs.
                 </span>
                 <button
                   id="pauseAgentBtn"
@@ -152,11 +152,7 @@
                   data-bs-toggle="tooltip"
                   data-bs-title="Pause agent"
                 >
-                  <i
-                    class="bi bi-pause-fill"
-                    aria-hidden="true"
-                    data-agent-toggle-icon="true"
-                  ></i>
+                  <i class="bi bi-pause-fill" aria-hidden="true" data-agent-toggle-icon="true"></i>
                 </button>
                 <span
                   id="agentFollowUpCountdownLive"
@@ -605,7 +601,9 @@
             tabindex="-1"
           >
             <div class="settings-page-inner">
-              <div class="settings-page-header d-flex justify-content-between align-items-start gap-3 mb-3">
+              <div
+                class="settings-page-header d-flex justify-content-between align-items-start gap-3 mb-3"
+              >
                 <div>
                   <h2 id="settingsPageTitle" class="h4 mb-1">Settings</h2>
                   <p class="small text-body-secondary mb-0">Saving is automatic.</p>
@@ -1249,6 +1247,19 @@
                     <h3 class="h6 mb-0" id="settingsCloudProvidersHeading">Cloud Providers</h3>
                     <div class="settings-control-group">
                       <form id="cloudProviderForm" class="mcp-server-form">
+                        <label class="form-label" for="cloudProviderNameInput">
+                          Provider name
+                        </label>
+                        <div class="input-group mb-3">
+                          <input
+                            id="cloudProviderNameInput"
+                            class="form-control"
+                            type="text"
+                            autocomplete="organization"
+                            placeholder="Class OpenAI key"
+                            aria-describedby="cloudProviderHelp cloudProviderStorageHelp cloudProviderAddFeedback"
+                          />
+                        </div>
                         <label class="form-label" for="cloudProviderEndpointInput">
                           OpenAI-compatible endpoint
                         </label>
@@ -1289,7 +1300,11 @@
                           browser-only storage is not perfect. After you save a key, the full value
                           cannot be shown again. Remove and re-add the provider to replace it.
                         </div>
-                        <div id="cloudProviderAddFeedback" class="d-none mt-3" aria-live="polite"></div>
+                        <div
+                          id="cloudProviderAddFeedback"
+                          class="d-none mt-3"
+                          aria-live="polite"
+                        ></div>
                       </form>
                     </div>
                     <div class="settings-control-group">
@@ -1297,9 +1312,8 @@
                         Configured cloud providers
                       </p>
                       <p class="form-text mt-0">
-                        Select the provider models you want exposed in the chat picker, then expand
-                        the configured-model accordions to set browser-local defaults for context
-                        size, temperature, Top P, Top K, and output length.
+                        Select the provider models you want exposed in the chat picker. Enabled
+                        models show their browser-local defaults directly under the model switch.
                       </p>
                       <div
                         id="cloudProvidersList"
@@ -1325,8 +1339,8 @@
                           </p>
                           <p class="form-text mt-0 mb-0">
                             Saved custom orchestrations stay local to this browser. After you save
-                            one, send <code>/command optional text</code> in the composer to run
-                            it. Useful template variables include <code>{{userInput}}</code>,
+                            one, send <code>/command optional text</code> in the composer to run it.
+                            Useful template variables include <code>{{userInput}}</code>,
                             <code>{{slashCommand}}</code>, and
                             <code>{{conversationTranscript}}</code>.
                           </p>
@@ -1390,7 +1404,9 @@
                             JSON definition
                           </label>
                           <div class="orchestration-step-editor mb-3">
-                            <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                            <div
+                              class="d-flex flex-wrap align-items-start justify-content-between gap-3"
+                            >
                               <div>
                                 <p class="form-label mb-1">Steps</p>
                                 <p class="form-text mt-0 mb-0" id="orchestrationStepEditorHelp">

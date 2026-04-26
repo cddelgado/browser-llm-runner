@@ -2640,6 +2640,21 @@
   --bs-btn-disabled-border-color: var(--primary-btn-border);
 }
 
+.btn-outline-primary,
+.btn-outline-danger {
+  --bs-btn-color: var(--ink-strong);
+  --bs-btn-border-color: var(--control-border);
+  --bs-btn-hover-color: var(--ink-strong);
+  --bs-btn-hover-bg: var(--surface-muted);
+  --bs-btn-hover-border-color: var(--focus-ring);
+  --bs-btn-focus-shadow-rgb: 134, 169, 209;
+  --bs-btn-active-color: var(--ink-strong);
+  --bs-btn-active-bg: var(--surface-muted);
+  --bs-btn-active-border-color: var(--focus-ring);
+  --bs-btn-disabled-color: var(--ink-muted);
+  --bs-btn-disabled-border-color: var(--control-border);
+}
+
 .tooltip {
   --bs-tooltip-bg: #1f2328;
   --bs-tooltip-color: #ffffff;

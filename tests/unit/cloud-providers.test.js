@@ -29,18 +29,19 @@ describe('cloud provider helpers', () => {
   });
 
   test('inspects an OpenAI-compatible endpoint by reading /models', async () => {
-    const fetchRef = vi.fn(async () =>
-      new globalThis.Response(
-        JSON.stringify({
-          data: [{ id: 'gpt-4o-mini' }, { id: 'gpt-4.1-mini' }],
-        }),
-        {
-          status: 200,
-          headers: {
-            'content-type': 'application/json',
-          },
-        }
-      )
+    const fetchRef = vi.fn(
+      async () =>
+        new globalThis.Response(
+          JSON.stringify({
+            data: [{ id: 'gpt-4o-mini' }, { id: 'gpt-4.1-mini' }],
+          }),
+          {
+            status: 200,
+            headers: {
+              'content-type': 'application/json',
+            },
+          }
+        )
     );
 
     const result = await inspectOpenAiCompatibleEndpoint('https://api.openai.com/v1', 'sk-test', {
@@ -62,7 +63,10 @@ describe('cloud provider helpers', () => {
       supportsTopK: false,
       requiresProxy: false,
     });
-    expect(result.availableModels.map((model) => model.id)).toEqual(['gpt-4.1-mini', 'gpt-4o-mini']);
+    expect(result.availableModels.map((model) => model.id)).toEqual([
+      'gpt-4.1-mini',
+      'gpt-4o-mini',
+    ]);
   });
 
   test('flags a provider as proxy-required when /models needs CORS proxy fallback', async () => {
@@ -181,6 +185,9 @@ describe('cloud provider helpers', () => {
       expect.objectContaining({
         id: buildCloudModelId('provider-1', 'meta-llama/3.1-8b-instruct'),
         displayName: 'Llama 3.1 8B',
+        generation: expect.objectContaining({
+          maxContextTokens: 4194304,
+        }),
         engine: { type: 'openai-compatible' },
         features: expect.objectContaining({
           toolCalling: true,
@@ -341,9 +348,9 @@ describe('cloud provider helpers', () => {
       role: 'user',
       content: 'Latest question',
     });
-    expect(normalized.some((message) => message.content.includes('[Tool result: web_lookup]'))).toBe(
-      true
-    );
+    expect(
+      normalized.some((message) => message.content.includes('[Tool result: web_lookup]'))
+    ).toBe(true);
     expect(normalized.some((message) => message.content.includes('Old question'))).toBe(false);
   });
 

@@ -52,12 +52,18 @@ function createHarness({
   globalThis.HTMLInputElement = dom.window.HTMLInputElement;
 
   let currentProviders = [...providers];
-  const initialProviders = preconfiguredProviders.length ? preconfiguredProviders : currentProviders;
+  const initialProviders = preconfiguredProviders.length
+    ? preconfiguredProviders
+    : currentProviders;
   const appState = createAppState({ cloudProviders: initialProviders });
   const updateCloudProvider = vi.fn(async (provider) => {
     currentProviders = currentProviders
       .filter((candidate) => candidate.id !== provider.id)
       .concat(provider);
+    return provider;
+  });
+  const saveCloudProvider = vi.fn(async (provider) => {
+    currentProviders = currentProviders.concat(provider);
     return provider;
   });
   const saveCloudProviderSecret = vi.fn(async () => true);
@@ -71,7 +77,7 @@ function createHarness({
     cloudProvidersList: document.getElementById('cloudProvidersList'),
     inspectCloudProviderEndpoint: vi.fn(),
     loadCloudProviders: vi.fn(async () => currentProviders),
-    saveCloudProvider: vi.fn(),
+    saveCloudProvider,
     saveCloudProviderSecret,
     updateCloudProvider,
     removeCloudProvider: vi.fn(),
@@ -89,6 +95,7 @@ function createHarness({
     document,
     appState,
     controller,
+    saveCloudProvider,
     saveCloudProviderSecret,
     updateCloudProvider,
     onProvidersChanged,
@@ -107,6 +114,93 @@ describe('cloud-provider settings controller', () => {
     expect(toggle?.checked).toBe(false);
     expect(harness.document.getElementById('cloudProvidersList')?.textContent).toContain(
       'Provider metadata suggests this model supports tool or function calling.'
+    );
+  });
+
+  test('renders selected cloud-model defaults directly under the model switch', () => {
+    const harness = createHarness();
+
+    const availableModelSwitch = harness.document.querySelector(
+      '.form-check.form-switch input[data-cloud-provider-model-toggle="true"]'
+    );
+    const configuredPanel = harness.document.querySelector('[data-cloud-model-config="true"]');
+    const cloudProvidersText =
+      harness.document.getElementById('cloudProvidersList')?.textContent || '';
+
+    expect(availableModelSwitch).not.toBeNull();
+    expect(availableModelSwitch?.closest('.form-check')?.contains(configuredPanel)).toBe(true);
+    expect(cloudProvidersText).toContain('Llama 3.1 8B defaults');
+    expect(cloudProvidersText).not.toContain('Configured model defaults');
+  });
+
+  test('uses user-entered provider names when saving providers', async () => {
+    const harness = createHarness({ providers: [] });
+    const inspectCloudProviderEndpoint = vi.fn(async () => ({
+      id: 'provider-2',
+      type: 'openai-compatible',
+      endpoint: 'https://api.example/v1',
+      endpointHost: 'api.example',
+      displayName: 'api.example',
+      availableModels: [],
+      selectedModels: [],
+    }));
+    const controller = createCloudProviderSettingsController({
+      appState: harness.appState,
+      documentRef: harness.document,
+      cloudProviderAddFeedback: harness.document.getElementById('cloudProviderAddFeedback'),
+      cloudProvidersList: harness.document.getElementById('cloudProvidersList'),
+      inspectCloudProviderEndpoint,
+      loadCloudProviders: vi.fn(async () => []),
+      saveCloudProvider: harness.saveCloudProvider,
+      saveCloudProviderSecret: harness.saveCloudProviderSecret,
+      updateCloudProvider: harness.updateCloudProvider,
+      removeCloudProvider: vi.fn(),
+      getCloudProviderSecret: vi.fn(),
+      getStoredGenerationConfigForModel: vi.fn(() => null),
+      persistGenerationConfigForModel: vi.fn(),
+      getModelGenerationLimits: vi.fn(() => REMOTE_MODEL_GENERATION_LIMITS),
+      syncGenerationSettingsFromModel: vi.fn(),
+      getSelectedModelId: vi.fn(() => ''),
+    });
+
+    await controller.addCloudProvider('https://api.example/v1', 'sk-test', 'Course Provider');
+
+    expect(harness.saveCloudProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayName: 'Course Provider',
+      }),
+      { apiKey: 'sk-test' }
+    );
+  });
+
+  test('stores cloud-model rate limits with non-minute window units', async () => {
+    const harness = createHarness();
+
+    const rateLimit = await harness.controller.updateCloudModelRateLimitPreference(
+      'provider-1',
+      'meta-llama/3.1-8b-instruct',
+      {
+        maxRequests: '20',
+        windowValue: '2',
+        windowUnit: 'days',
+      }
+    );
+
+    expect(rateLimit).toEqual({
+      maxRequests: 20,
+      windowMs: 172800000,
+    });
+    expect(harness.updateCloudProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedModels: [
+          expect.objectContaining({
+            rateLimit: {
+              maxRequests: 20,
+              windowMs: 172800000,
+            },
+          }),
+        ],
+      })
     );
   });
 
@@ -180,8 +274,6 @@ describe('cloud-provider settings controller', () => {
     expect(providerText).toContain('Data security');
     expect(providerText).toContain('cannot be removed here');
     expect(managedToggle?.disabled).toBe(true);
-    expect(
-      harness.document.querySelector('button[data-cloud-provider-remove="true"]')
-    ).toBeNull();
+    expect(harness.document.querySelector('button[data-cloud-provider-remove="true"]')).toBeNull();
   });
 });

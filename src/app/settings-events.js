@@ -32,6 +32,7 @@ export function bindSettingsEvents({
   addSkillPackageButton = null,
   skillsList = null,
   cloudProviderForm = null,
+  cloudProviderNameInput = null,
   cloudProviderEndpointInput = null,
   cloudProviderApiKeyInput = null,
   addCloudProviderButton = null,
@@ -305,6 +306,7 @@ export function bindSettingsEvents({
 
   bindCloudProviderSettingsEvents({
     cloudProviderForm,
+    cloudProviderNameInput,
     cloudProviderEndpointInput,
     cloudProviderApiKeyInput,
     addCloudProviderButton,
@@ -389,7 +391,9 @@ export function bindSettingsEvents({
   if (deleteConversationsButton instanceof HTMLButtonElement) {
     deleteConversationsButton.addEventListener('click', async () => {
       if (isUiBusy()) {
-        setStatus('Wait for the current conversation task to finish before deleting conversations.');
+        setStatus(
+          'Wait for the current conversation task to finish before deleting conversations.'
+        );
         return;
       }
       const confirmed =

@@ -8,8 +8,9 @@ describe('settings markup', () => {
   test('orders quick settings tabs in the expected sequence', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
     const dom = new JSDOM(html);
-    const tabOrder = Array.from(dom.window.document.querySelectorAll('.settings-tabs [data-settings-tab]'))
-      .map((button) => button.getAttribute('data-settings-tab'));
+    const tabOrder = Array.from(
+      dom.window.document.querySelectorAll('.settings-tabs [data-settings-tab]')
+    ).map((button) => button.getAttribute('data-settings-tab'));
 
     expect(tabOrder).toEqual([
       'system',
@@ -33,9 +34,7 @@ describe('settings markup', () => {
     expect(cpuThreadsInput).not.toBeNull();
     expect(cpuThreadsInput?.getAttribute('type')).toBe('number');
     expect(cpuThreadsInput?.getAttribute('aria-describedby')).toBe('cpuThreadsHelp');
-    expect(dom.window.document.getElementById('cpuThreadsHelp')?.textContent).toContain(
-      'wllama'
-    );
+    expect(dom.window.document.getElementById('cpuThreadsHelp')?.textContent).toContain('wllama');
   });
 
   test('registers the COOP/COEP service worker helper from index.html', () => {
@@ -53,10 +52,11 @@ describe('settings markup', () => {
     const dom = new JSDOM(html);
 
     expect(dom.window.document.getElementById('cloudProviderForm')).not.toBeNull();
+    expect(dom.window.document.getElementById('cloudProviderNameInput')).not.toBeNull();
     expect(dom.window.document.getElementById('cloudProviderEndpointInput')).not.toBeNull();
-    expect(dom.window.document.getElementById('cloudProviderApiKeyInput')?.getAttribute('type')).toBe(
-      'password'
-    );
+    expect(
+      dom.window.document.getElementById('cloudProviderApiKeyInput')?.getAttribute('type')
+    ).toBe('password');
     expect(dom.window.document.getElementById('cloudProvidersList')).not.toBeNull();
     expect(dom.window.document.getElementById('cloudProviderStorageHelp')?.textContent).toContain(
       'cannot be shown again'
