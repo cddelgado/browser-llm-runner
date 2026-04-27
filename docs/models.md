@@ -356,9 +356,9 @@ Notes:
 - Model capability flags describe what a model can support; the image/audio/video UI is only enabled when the runtime also declares `multimodalGeneration: true`.
 - Audio input is upload-only. The app does not expose live recording.
 - Video input should stay disabled until the worker path is validated end-to-end in the browser runtime.
-- Settings fields for maximum output/context tokens are numeric, step in 8, and disabled until a model is loaded. Remote OpenAI-compatible model context settings can be raised into the millions of tokens; prompt trimming remains approximate because the browser app does not ship each provider tokenizer.
+- Settings fields for maximum output/context tokens are numeric, step in 8, and remain editable before model load so users can set per-model defaults before starting a conversation. Remote OpenAI-compatible model context settings can be raised into the millions of tokens; prompt trimming remains approximate because the browser app does not ship each provider tokenizer.
 - Token fields show an estimated words value based on `tokens * 0.75`.
-- Temperature is numeric, step in 0.1, and disabled until a model is loaded.
+- Temperature is numeric, step in 0.1, and remains editable before model load.
 - Top K is numeric, step in 1, and uses a per-model default from `models[].generation.defaultTopK`.
 - Top P (nucleus sampling) is numeric, min 0.00, max 1.00, step in 0.05, and uses a per-model default from `models[].generation.defaultTopP`.
 - `repetition_penalty` is applied from per-model defaults when configured and supported by the installed runtime; `wllama` models also expose a dedicated `Min P` field in `Settings -> Model`, while other upstream-only knobs such as `presence_penalty` are still not exposed in this app.

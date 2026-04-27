@@ -1,5 +1,3 @@
-import { isEngineReady } from '../state/app-state.js';
-
 function refreshPromptPreview(refreshConversationSystemPromptPreview) {
   if (typeof refreshConversationSystemPromptPreview === 'function') {
     refreshConversationSystemPromptPreview();
@@ -7,7 +5,6 @@ function refreshPromptPreview(refreshConversationSystemPromptPreview) {
 }
 
 export function bindModelSettingsEvents({
-  appState,
   renderMathMlToggle,
   enableSingleKeyShortcutsToggle,
   transcriptViewSelect,
@@ -182,7 +179,7 @@ export function bindModelSettingsEvents({
 
   if (resetContextTokensButton instanceof HTMLButtonElement) {
     resetContextTokensButton.addEventListener('click', () => {
-      if (!isEngineReady(appState) || !(maxContextTokensInput instanceof HTMLInputElement)) {
+      if (!(maxContextTokensInput instanceof HTMLInputElement)) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);
@@ -194,7 +191,7 @@ export function bindModelSettingsEvents({
 
   if (resetTemperatureButton instanceof HTMLButtonElement) {
     resetTemperatureButton.addEventListener('click', () => {
-      if (!isEngineReady(appState) || !(temperatureInput instanceof HTMLInputElement)) {
+      if (!(temperatureInput instanceof HTMLInputElement)) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);
@@ -214,7 +211,7 @@ export function bindModelSettingsEvents({
 
   if (resetTopKButton instanceof HTMLButtonElement) {
     resetTopKButton.addEventListener('click', () => {
-      if (!isEngineReady(appState) || !(topKInput instanceof HTMLInputElement)) {
+      if (!(topKInput instanceof HTMLInputElement)) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);
@@ -226,7 +223,7 @@ export function bindModelSettingsEvents({
 
   if (resetTopPButton instanceof HTMLButtonElement) {
     resetTopPButton.addEventListener('click', () => {
-      if (!isEngineReady(appState) || !(topPInput instanceof HTMLInputElement)) {
+      if (!(topPInput instanceof HTMLInputElement)) {
         return;
       }
       const selectedModel = normalizeModelId(modelSelect?.value || defaultModelId);

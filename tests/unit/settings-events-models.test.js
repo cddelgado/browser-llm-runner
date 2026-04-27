@@ -224,8 +224,9 @@ describe('settings-events-models', () => {
     expect(harness.deps.reinitializeEngineFromSettings).toHaveBeenCalledTimes(2);
   });
 
-  test('generation reset buttons restore model defaults when the engine is ready', () => {
+  test('generation reset buttons restore model defaults before the engine is ready', () => {
     const harness = createHarness();
+    harness.appState.modelReady = false;
     const modelSelect = /** @type {HTMLSelectElement} */ (harness.elements.modelSelect);
     const maxContextTokensInput = /** @type {HTMLInputElement} */ (
       harness.elements.maxContextTokensInput

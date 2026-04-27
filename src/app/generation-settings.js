@@ -477,7 +477,7 @@ export function createGenerationSettingsController({
   }
 
   function updateGenerationSettingsEnabledState() {
-    const disabled = !isEngineReady();
+    const disabled = false;
     if (maxOutputTokensInput) {
       maxOutputTokensInput.disabled = disabled;
     }

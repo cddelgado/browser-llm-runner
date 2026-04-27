@@ -297,14 +297,14 @@ describe('generation-settings controller', () => {
     );
   });
 
-  test('disables generation controls until the engine is ready', () => {
+  test('keeps generation controls editable before the engine is ready', () => {
     const harness = createHarness({ isEngineReady: false });
 
     harness.controller.updateGenerationSettingsEnabledState();
 
-    expect(getInput(harness.document, 'maxOutputTokensInput').disabled).toBe(true);
-    expect(getInput(harness.document, 'resetTopPButton').disabled).toBe(true);
-    expect(getInput(harness.document, 'wllamaBatchSizeInput').disabled).toBe(true);
+    expect(getInput(harness.document, 'maxOutputTokensInput').disabled).toBe(false);
+    expect(getInput(harness.document, 'resetTopPButton').disabled).toBe(false);
+    expect(getInput(harness.document, 'wllamaBatchSizeInput').disabled).toBe(false);
 
     harness.flags.isEngineReady = true;
     harness.controller.updateGenerationSettingsEnabledState();

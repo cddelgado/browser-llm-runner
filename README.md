@@ -180,7 +180,7 @@ The README should stay a front door. Detailed behavior, architecture, failure, a
   - Models can also apply stricter backend-specific caps when one runtime path needs a smaller browser-safe budget.
   - Each token field shows an estimated word count (`tokens * 0.75`).
   - User overrides are saved per model in browser storage and restored when that model is selected again.
-  - Fields are disabled until a model is loaded.
+  - Fields remain editable before the first conversation starts so users can set per-model generation defaults before model load.
   - `Context size (short-term memory)` includes a `Reset to model default` link that applies the selected model default when clicked.
   - On local engine paths, `Context size` is the total prompt-plus-response window. Workers reserve `Maximum output tokens` inside that window, then left-truncate older prompt tokens before generation so runtime memory growth does not exceed the selected context size.
   - On the `wllama` engine path, `Context size` is also applied at model-load time as `n_ctx`.

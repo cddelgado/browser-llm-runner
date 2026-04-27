@@ -326,7 +326,6 @@ export function bindSettingsEvents({
   });
 
   bindModelSettingsEvents({
-    appState,
     renderMathMlToggle,
     enableSingleKeyShortcutsToggle,
     transcriptViewSelect,
