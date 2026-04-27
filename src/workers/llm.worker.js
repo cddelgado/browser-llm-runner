@@ -132,6 +132,60 @@ function postGenerationActivity(requestId) {
   });
 }
 
+function getGenerationBackendLabel() {
+  return backendInUse ? backendInUse.toUpperCase() : 'MODEL';
+}
+
+function postGenerationPhaseStatus(generationState, message) {
+  if (!generationState || !message || generationState.lastStatusMessage === message) {
+    return;
+  }
+  generationState.lastStatusMessage = message;
+  postStatus(message);
+}
+
+function postPreparingPromptStatus(generationState, mode = 'text') {
+  const backendLabel = getGenerationBackendLabel();
+  const promptLabel = mode === 'multimodal' ? 'multimodal prompt' : 'prompt';
+  postGenerationPhaseStatus(generationState, `Preparing ${promptLabel} (${backendLabel})...`);
+}
+
+function postPrefillStatus(generationState) {
+  const backendLabel = getGenerationBackendLabel();
+  postGenerationPhaseStatus(
+    generationState,
+    loadedBackendDevice === 'wasm'
+      ? 'Running CPU prompt prefill. Waiting for the first token...'
+      : `Running prompt prefill (${backendLabel})...`
+  );
+}
+
+function markGeneratedToken(generationState) {
+  if (!generationState) {
+    return;
+  }
+  generationState.generatedTokenCount += 1;
+  postGenerationActivity(generationState.requestId);
+  if (!generationState.firstGeneratedTokenAnnounced) {
+    generationState.firstGeneratedTokenAnnounced = true;
+    postGenerationPhaseStatus(
+      generationState,
+      `First token generated (${getGenerationBackendLabel()}). Waiting for printable text...`
+    );
+  }
+}
+
+function markPrintableGenerationOutput(generationState) {
+  if (!generationState || generationState.printableOutputAnnounced) {
+    return;
+  }
+  generationState.printableOutputAnnounced = true;
+  postGenerationPhaseStatus(
+    generationState,
+    `Streaming response (${getGenerationBackendLabel()})...`
+  );
+}
+
 function getTimestamp() {
   if (typeof globalThis.performance?.now === 'function') {
     return globalThis.performance.now();
@@ -169,6 +223,7 @@ function queueBufferedToken(generationState, text) {
   if (!generationState || !nextText) {
     return;
   }
+  markPrintableGenerationOutput(generationState);
   generationState.bufferedText += nextText;
   const now = getTimestamp();
   const elapsed =
@@ -202,6 +257,10 @@ function createGenerationState(requestId) {
     flushTimerId: null,
     lastFlushAt: 0,
     cancelRequested: false,
+    generatedTokenCount: 0,
+    firstGeneratedTokenAnnounced: false,
+    printableOutputAnnounced: false,
+    lastStatusMessage: '',
   };
   activeGenerationState = generationState;
   return generationState;
@@ -596,7 +655,7 @@ function buildMultimodalStreamerOptions(tokenizerInstance, runtime = {}, onText 
     skip_special_tokens: shouldSkipSpecialTokensInMultimodalOutput(runtime),
     callback_function: onText,
     token_callback_function: () => {
-      postGenerationActivity(activeGenerationState?.requestId || '');
+      markGeneratedToken(activeGenerationState);
     },
   });
 }
@@ -1363,15 +1422,17 @@ async function invokeTextGeneration(
         queueBufferedToken(generationState, text);
       },
       token_callback_function: () => {
-        postGenerationActivity(generationState.requestId);
+        markGeneratedToken(generationState);
       },
     });
 
+    postPrefillStatus(generationState);
     generationOutput = await textGenerationModel.generate({
       ...modelGenerationOptions,
       streamer,
     });
   } else {
+    postPrefillStatus(generationState);
     generationOutput = await textGenerationModel.generate({
       ...modelGenerationOptions,
     });
@@ -1781,6 +1842,7 @@ async function generate(payload) {
     };
 
     if (runtime.multimodalGeneration) {
+      postPreparingPromptStatus(generationState, 'multimodal');
       await clearTextGenerationPrefixCache();
       const multimodalProcessor = await ensureMultimodalProcessor(
         loadedModelId || payload.modelId,
@@ -1845,6 +1907,7 @@ async function generate(payload) {
           maxLength: maxLength || '(runtime default)',
         });
 
+        postPrefillStatus(generationState);
         if (TextStreamer) {
           const streamer = buildMultimodalStreamerOptions(tokenizer, runtime, (text) => {
             streamedText += text;
@@ -1891,6 +1954,7 @@ async function generate(payload) {
       if (!ENABLE_TEXT_GENERATION_PREFIX_CACHE) {
         await clearTextGenerationPrefixCache();
       }
+      postPreparingPromptStatus(generationState, 'text');
       const preparedTextInputs = prepareTextGenerationInputs(
         tokenizer,
         formattedPrompt,

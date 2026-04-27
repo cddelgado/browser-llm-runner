@@ -426,6 +426,18 @@ describe('llm.worker init regression', () => {
         requestId: 'request-1',
       },
     });
+    const statusMessages = workerSelf.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => message?.type === 'status')
+      .map((message) => message.payload?.message);
+    expect(statusMessages).toEqual([
+      'Generating (CPU). First response may take several minutes on CPU...',
+      'Preparing prompt (CPU)...',
+      'Running CPU prompt prefill. Waiting for the first token...',
+      'First token generated (CPU). Waiting for printable text...',
+      'Streaming response (CPU)...',
+      'Complete (CPU)',
+    ]);
     const firstGenerateCall = /** @type {any} */ (textModel.generate.mock.calls[0]?.[0]);
     expect(firstGenerateCall?.return_dict_in_generate).toBeUndefined();
     expect(workerSelf.postMessage).toHaveBeenCalledWith({
