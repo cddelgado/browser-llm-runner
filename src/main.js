@@ -30,6 +30,7 @@ import { bindShellEvents } from './app/shell-events.js';
 import { bindSettingsEvents } from './app/settings-events.js';
 import { createShortcutHandlers } from './app/shortcut-events.js';
 import { applyStatusRegion } from './app/status-region.js';
+import { createTranscriptContentRenderer } from './app/transcript-content-renderer.js';
 import { createTranscriptNavigationController } from './app/transcript-navigation.js';
 import { createTranscriptActions } from './app/transcript-actions.js';
 import { bindTranscriptEvents } from './app/transcript-events.js';
@@ -208,7 +209,6 @@ import {
 } from './state/cloud-provider-store.js';
 import { PRECONFIGURED_CLOUD_PROVIDERS } from './config/preconfigured-cloud-providers.js';
 import { renderConversationListView } from './ui/conversation-list-view.js';
-import { loadMarkdownRenderer, renderPlainTextMarkdownFallback } from './ui/markdown-renderer.js';
 import { createTranscriptView } from './ui/transcript-view.js';
 import { renderTaskListTray } from './ui/task-list-tray.js';
 import {
@@ -287,37 +287,7 @@ const AGENT_SUMMARY_TRIGGER_RATIO = 0.9;
 const AGENT_SUMMARY_MIN_MESSAGES = 8;
 const DEBUG_LOG_PAGE_SIZE = 20;
 const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24;
-const MARKDOWN_LINK_REL = 'noopener noreferrer nofollow';
-const MATHJAX_TYPESET_DEBOUNCE_MS = 150;
 const ROUTE_NEW_AGENT = 'new-agent';
-const MATH_DELIMITER_PATTERN = /(^|[^\\])(\$\$|\$|\\\(|\\\[|\\begin\{)/;
-const MATH_BLOCK_LINE_PATTERN = /(^|\n)\[\s*\n([\s\S]*?)\n\](?=\n|$)/g;
-const MATH_DISPLAY_DELIMITER_PATTERN = /\\\[([\s\S]*?)\\\]/g;
-const MATH_INLINE_DELIMITER_PATTERN = /\\\(([\s\S]*?)\\\)/g;
-
-const mathJaxWindow = /** @type {Window & typeof globalThis & { MathJax?: any }} */ (window);
-
-mathJaxWindow.MathJax = mathJaxWindow.MathJax || {};
-mathJaxWindow.MathJax.tex = {
-  ...(mathJaxWindow.MathJax.tex || {}),
-  inlineMath: [
-    ['$', '$'],
-    ['\\(', '\\)'],
-  ],
-  displayMath: [
-    ['$$', '$$'],
-    ['\\[', '\\]'],
-  ],
-  processEscapes: true,
-};
-mathJaxWindow.MathJax.options = {
-  ...(mathJaxWindow.MathJax.options || {}),
-  skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-};
-mathJaxWindow.MathJax.startup = {
-  ...(mathJaxWindow.MathJax.startup || {}),
-  typeset: false,
-};
 
 const themeSelect = /** @type {HTMLSelectElement | null} */ (
   document.getElementById('themeSelect')
@@ -765,10 +735,6 @@ const engine = new LLMEngineClient();
 let pythonRuntime = null;
 let pythonRuntimeLoadPromise = null;
 let composerAttachmentModulePromise = null;
-let markdownRenderer = null;
-let markdownRendererLoadPromise = null;
-let hasQueuedMarkdownRendererRefresh = false;
-let hasLoggedMarkdownRendererError = false;
 let agentFollowUpCountdownIntervalId = null;
 let lastAgentFollowUpAnnouncementKey = '';
 let agentAutomationController = null;
@@ -819,51 +785,6 @@ async function loadComposerAttachmentModule() {
   return composerAttachmentModulePromise;
 }
 
-function queueMarkdownRendererRefresh() {
-  if (hasQueuedMarkdownRendererRefresh) {
-    return;
-  }
-  hasQueuedMarkdownRendererRefresh = true;
-  flushQueuedMarkdownRendererRefresh();
-}
-
-function flushQueuedMarkdownRendererRefresh() {
-  if (!hasQueuedMarkdownRendererRefresh || isGeneratingResponse(appState)) {
-    return;
-  }
-  hasQueuedMarkdownRendererRefresh = false;
-  renderTranscript();
-}
-
-async function ensureMarkdownRendererLoaded() {
-  if (markdownRenderer) {
-    return markdownRenderer;
-  }
-  if (!markdownRendererLoadPromise) {
-    markdownRendererLoadPromise = loadMarkdownRenderer({
-      linkRel: MARKDOWN_LINK_REL,
-    })
-      .then((loadedRenderer) => {
-        markdownRenderer = loadedRenderer;
-        queueMarkdownRendererRefresh();
-        return loadedRenderer;
-      })
-      .catch((error) => {
-        markdownRendererLoadPromise = null;
-        if (!hasLoggedMarkdownRendererError) {
-          appendDebug(
-            `Markdown renderer failed to load: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          );
-          hasLoggedMarkdownRendererError = true;
-        }
-        throw error;
-      });
-  }
-  return markdownRendererLoadPromise;
-}
-
 const MAX_DEBUG_ENTRIES = 240;
 const ROUTE_HOME = 'home';
 const ROUTE_CHAT = 'chat';
@@ -884,7 +805,6 @@ const SHORTCUT_KEY = {
   settings: 's',
   title: 't',
 };
-const mathTypesetTimers = new WeakMap();
 const PRE_CHAT_STATUS_HINT_DEFAULT = 'Send your first message to load the selected model.';
 const PRE_CHAT_STATUS_HINT_EXISTING_CONVERSATION = 'To see your conversation, load a model first.';
 const PRE_CHAT_STATUS_HINT_MODEL_READY =
@@ -907,6 +827,13 @@ const debugLogController = createDebugLogController({
   pageSize: DEBUG_LOG_PAGE_SIZE,
   triggerDownload,
   setStatus,
+});
+const transcriptContentRenderer = createTranscriptContentRenderer({
+  appState,
+  windowRef: window,
+  appendDebug,
+  isGeneratingResponse: () => isGeneratingResponse(appState),
+  renderTranscript: () => renderTranscript(),
 });
 const baseFetchRef = typeof fetch === 'function' ? fetch.bind(globalThis) : null;
 const corsAwareFetch = createCorsAwareFetch({
@@ -1347,28 +1274,7 @@ async function handleMessageCopyAction(messageId, copyType) {
 }
 
 function extractMathMlFromElement(element) {
-  if (!(element instanceof HTMLElement)) {
-    return '';
-  }
-  const mathMlNodes = Array.from(element.querySelectorAll('mjx-assistive-mml math'));
-  const fallbackNodes = mathMlNodes.length
-    ? []
-    : Array.from(element.querySelectorAll('math')).filter(
-        (mathNode) => !mathNode.parentElement?.closest('math')
-      );
-  const nodesToSerialize = mathMlNodes.length ? mathMlNodes : fallbackNodes;
-  if (!nodesToSerialize.length) {
-    return '';
-  }
-  const XMLSerializerClass = element.ownerDocument?.defaultView?.XMLSerializer;
-  if (typeof XMLSerializerClass !== 'function') {
-    return '';
-  }
-  const serializer = new XMLSerializerClass();
-  return nodesToSerialize
-    .map((node) => serializer.serializeToString(node).trim())
-    .filter(Boolean)
-    .join('\n\n');
+  return transcriptContentRenderer.extractMathMlFromElement(element);
 }
 
 function formatInteger(value) {
@@ -1381,111 +1287,19 @@ function formatWordEstimateFromTokens(tokenCount) {
 }
 
 function renderModelMarkdown(content) {
-  const normalizedContent = appState.renderMathMl
-    ? normalizeMathDelimitersForMarkdown(String(content || ''))
-    : String(content || '');
-  if (!normalizedContent) {
-    return '';
-  }
-  if (markdownRenderer) {
-    return markdownRenderer.render(normalizedContent);
-  }
-  void ensureMarkdownRendererLoaded();
-  return renderPlainTextMarkdownFallback(normalizedContent);
-}
-
-function normalizeMathDelimitersForMarkdown(content) {
-  if (!content) {
-    return '';
-  }
-  return content
-    .replace(MATH_DISPLAY_DELIMITER_PATTERN, (_match, expression) => `\n$$\n${expression}\n$$\n`)
-    .replace(MATH_INLINE_DELIMITER_PATTERN, (_match, expression) => `$${expression}$`)
-    .replace(
-      MATH_BLOCK_LINE_PATTERN,
-      (_match, leading, expression) => `${leading}$$\n${expression}\n$$`
-    );
-}
-
-function containsMathDelimiters(text) {
-  return MATH_DELIMITER_PATTERN.test(String(text || ''));
+  return transcriptContentRenderer.renderModelMarkdown(content);
 }
 
 function ensureMathJaxLoaded() {
-  if (!appState.renderMathMl) {
-    return Promise.resolve();
-  }
-  if (mathJaxWindow.MathJax?.typesetPromise && mathJaxWindow.MathJax?.startup?.promise) {
-    return Promise.resolve();
-  }
-  if (!appState.mathJaxLoadPromise) {
-    appState.mathJaxLoadPromise = import('mathjax/es5/tex-mml-svg.js').catch((error) => {
-      if (!appState.hasLoggedMathJaxError) {
-        appendDebug(
-          `MathJax failed to load: ${error instanceof Error ? error.message : String(error)}`
-        );
-        appState.hasLoggedMathJaxError = true;
-      }
-    });
-  }
-  return appState.mathJaxLoadPromise;
+  return transcriptContentRenderer.ensureMathJaxLoaded();
 }
 
 async function typesetMathInElement(element) {
-  if (
-    !appState.renderMathMl ||
-    !(element instanceof HTMLElement) ||
-    !containsMathDelimiters(element.textContent)
-  ) {
-    return;
-  }
-  await ensureMathJaxLoaded();
-  const mathJax = mathJaxWindow.MathJax;
-  if (!mathJax?.typesetPromise || !mathJax.startup?.promise) {
-    return;
-  }
-  try {
-    await mathJax.startup.promise;
-    await mathJax.typesetPromise([element]);
-  } catch (error) {
-    if (!appState.hasLoggedMathJaxError) {
-      appendDebug(
-        `MathJax render failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-      appState.hasLoggedMathJaxError = true;
-    }
-  }
+  return transcriptContentRenderer.typesetMathInElement(element);
 }
 
 function scheduleMathTypeset(element, options = {}) {
-  if (
-    !appState.renderMathMl ||
-    !(element instanceof HTMLElement) ||
-    !containsMathDelimiters(element.textContent)
-  ) {
-    if (element instanceof HTMLElement) {
-      const timerId = mathTypesetTimers.get(element);
-      if (timerId !== undefined) {
-        window.clearTimeout(timerId);
-        mathTypesetTimers.delete(element);
-      }
-    }
-    return;
-  }
-  const timerId = mathTypesetTimers.get(element);
-  if (timerId !== undefined) {
-    window.clearTimeout(timerId);
-    mathTypesetTimers.delete(element);
-  }
-  if (options.immediate) {
-    void typesetMathInElement(element);
-    return;
-  }
-  const nextTimerId = window.setTimeout(() => {
-    mathTypesetTimers.delete(element);
-    void typesetMathInElement(element);
-  }, MATHJAX_TYPESET_DEBOUNCE_MS);
-  mathTypesetTimers.set(element, nextTimerId);
+  transcriptContentRenderer.scheduleMathTypeset(element, options);
 }
 
 function getBaseModelGenerationLimits(modelId) {
@@ -3018,7 +2832,7 @@ const transcriptView = createTranscriptView({
   getAgentDisplayName,
   renderModelMarkdown,
   scheduleMathTypeset,
-  shouldShowMathMlCopyAction: (content) => appState.renderMathMl && containsMathDelimiters(content),
+  shouldShowMathMlCopyAction: transcriptContentRenderer.shouldShowMathMlCopyAction,
   getToolDisplayName,
   getShowThinkingByDefault: () => appState.showThinkingByDefault,
   getActiveUserEditMessageId: () => getActiveUserEditMessageId(appState),
@@ -4633,7 +4447,7 @@ function handleCompletedModelMessage(conversation, message) {
   if (originatingUserMessage) {
     void semanticMemoryController?.rememberUserMessage(conversation, originatingUserMessage);
   }
-  flushQueuedMarkdownRendererRefresh();
+  transcriptContentRenderer.flushQueuedMarkdownRendererRefresh();
 }
 
 const appController = createAppController({
@@ -4697,7 +4511,7 @@ const appController = createAppController({
   applyPendingGenerationSettingsIfReady,
   markActiveIncompleteModelMessageComplete,
   onModelMessageComplete: handleCompletedModelMessage,
-  onGenerationSettled: flushQueuedMarkdownRendererRefresh,
+  onGenerationSettled: () => transcriptContentRenderer.flushQueuedMarkdownRendererRefresh(),
   streamUpdateIntervalMs: STREAM_UPDATE_INTERVAL_MS,
 });
 reinitializeInferenceSettings = () => appController.reinitializeEngineFromSettings();
