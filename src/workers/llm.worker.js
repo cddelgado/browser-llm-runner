@@ -1044,11 +1044,7 @@ function trimMultimodalMessagesToContextBudget(
   requestGenerationConfig,
   runtime = {}
 ) {
-  const maxContextTokens =
-    Number.isInteger(requestGenerationConfig?.maxContextTokens) &&
-    requestGenerationConfig.maxContextTokens > 0
-      ? requestGenerationConfig.maxContextTokens
-      : 0;
+  const promptBudgetTokens = getPromptTokenBudget(requestGenerationConfig);
   const workingMessages = Array.isArray(messages)
     ? messages.map((message) => ({ ...message }))
     : [];
@@ -1056,7 +1052,7 @@ function trimMultimodalMessagesToContextBudget(
   const countingTokenizer = processorInstance?.tokenizer || tokenizer;
   let promptTokens = countPromptTextTokens(countingTokenizer, promptText);
   const originalPromptTokens = promptTokens;
-  if (!maxContextTokens || !promptTokens || promptTokens <= maxContextTokens) {
+  if (!promptBudgetTokens || !promptTokens || promptTokens <= promptBudgetTokens) {
     return {
       messages: workingMessages,
       promptText,
@@ -1067,15 +1063,15 @@ function trimMultimodalMessagesToContextBudget(
   }
 
   const firstRemovableIndex = workingMessages[0]?.role === 'system' ? 1 : 0;
-  while (promptTokens > maxContextTokens && workingMessages.length - 1 > firstRemovableIndex) {
+  while (promptTokens > promptBudgetTokens && workingMessages.length - 1 > firstRemovableIndex) {
     workingMessages.splice(firstRemovableIndex, 1);
     promptText = buildMultimodalPromptText(processorInstance, workingMessages, runtime);
     promptTokens = countPromptTextTokens(countingTokenizer, promptText);
   }
 
-  if (promptTokens > maxContextTokens) {
+  if (promptTokens > promptBudgetTokens) {
     throw new Error(
-      `The current multimodal prompt needs about ${promptTokens} tokens, which exceeds the ${maxContextTokens}-token context budget even after older turns were trimmed. Increase Context size or reduce the current attachment-heavy turn.`
+      `The current multimodal prompt needs about ${promptTokens} tokens, which exceeds the ${promptBudgetTokens}-token prompt budget after reserving response tokens inside the selected context size. Increase Context size, lower Maximum output tokens, or reduce the current attachment-heavy turn.`
     );
   }
 
@@ -1219,14 +1215,55 @@ function buildGenerationOptions(requestGenerationConfig, runtime = {}) {
 
 export { buildGenerationOptions };
 
+function getGenerationConfigTokenLimit(requestGenerationConfig, key) {
+  return Number.isInteger(requestGenerationConfig?.[key]) && requestGenerationConfig[key] > 0
+    ? requestGenerationConfig[key]
+    : 0;
+}
+
+function getPromptTokenBudget(requestGenerationConfig) {
+  const maxContextTokens = getGenerationConfigTokenLimit(
+    requestGenerationConfig,
+    'maxContextTokens'
+  );
+  const maxOutputTokens = getGenerationConfigTokenLimit(requestGenerationConfig, 'maxOutputTokens');
+  if (!maxContextTokens) {
+    return 0;
+  }
+  if (!maxOutputTokens) {
+    return maxContextTokens;
+  }
+  return Math.max(1, maxContextTokens - maxOutputTokens);
+}
+
+export { getPromptTokenBudget };
+
+function resolveEffectiveMaxOutputTokens(promptTokens, requestGenerationConfig) {
+  const normalizedPromptTokens =
+    Number.isInteger(promptTokens) && promptTokens > 0 ? promptTokens : 0;
+  const maxContextTokens = getGenerationConfigTokenLimit(
+    requestGenerationConfig,
+    'maxContextTokens'
+  );
+  const maxOutputTokens = getGenerationConfigTokenLimit(requestGenerationConfig, 'maxOutputTokens');
+  if (!maxOutputTokens) {
+    return 0;
+  }
+  if (!maxContextTokens || !normalizedPromptTokens) {
+    return maxOutputTokens;
+  }
+  return Math.max(1, Math.min(maxOutputTokens, maxContextTokens - normalizedPromptTokens));
+}
+
+export { resolveEffectiveMaxOutputTokens };
+
 function resolveGenerationMaxLength(promptTokens, requestGenerationConfig) {
   const normalizedPromptTokens =
     Number.isInteger(promptTokens) && promptTokens > 0 ? promptTokens : 0;
-  const maxOutputTokens =
-    Number.isInteger(requestGenerationConfig?.maxOutputTokens) &&
-    requestGenerationConfig.maxOutputTokens > 0
-      ? requestGenerationConfig.maxOutputTokens
-      : 0;
+  const maxOutputTokens = resolveEffectiveMaxOutputTokens(
+    normalizedPromptTokens,
+    requestGenerationConfig
+  );
   if (!normalizedPromptTokens || !maxOutputTokens) {
     return 0;
   }
@@ -1341,11 +1378,7 @@ function prepareTextGenerationInputs(
   if (!tokenizerInstance || typeof tokenizerInstance.apply_chat_template !== 'function') {
     throw new Error('Text-generation tokenizer is missing apply_chat_template().');
   }
-  const requestedContextTokens =
-    Number.isInteger(requestGenerationConfig?.maxContextTokens) &&
-    requestGenerationConfig.maxContextTokens > 0
-      ? requestGenerationConfig.maxContextTokens
-      : 0;
+  const promptBudgetTokens = getPromptTokenBudget(requestGenerationConfig);
   const encodedInputs = tokenizerInstance.apply_chat_template(prompt, {
     ...buildTextChatTemplateOptions(runtime),
     tokenize: true,
@@ -1353,7 +1386,7 @@ function prepareTextGenerationInputs(
     return_dict: true,
   });
   const originalPromptTokens = getPromptTokenCount(encodedInputs?.input_ids);
-  if (!requestedContextTokens || originalPromptTokens <= requestedContextTokens) {
+  if (!promptBudgetTokens || originalPromptTokens <= promptBudgetTokens) {
     return {
       modelInputs: encodedInputs,
       originalPromptTokens,
@@ -1364,7 +1397,7 @@ function prepareTextGenerationInputs(
   const truncatedInputs = Object.fromEntries(
     Object.entries(encodedInputs).map(([key, value]) => [
       key,
-      leftTruncateEncodedValue(value, requestedContextTokens),
+      leftTruncateEncodedValue(value, promptBudgetTokens),
     ])
   );
   return {
@@ -1389,9 +1422,14 @@ async function invokeTextGeneration(
   let streamedText = '';
   const resolvedInputs = resolveTextGenerationModelInputs(preparedTextInputs);
   const retainGenerationMetadata = ENABLE_TEXT_GENERATION_PREFIX_CACHE;
+  const effectiveMaxOutputTokens = resolveEffectiveMaxOutputTokens(
+    preparedTextInputs.promptTokens,
+    requestGenerationConfig
+  );
   const modelGenerationOptions = {
     ...resolvedInputs.modelInputs,
     ...generationOptions,
+    ...(effectiveMaxOutputTokens > 0 ? { max_new_tokens: effectiveMaxOutputTokens } : {}),
     ...(resolveGenerationMaxLength(preparedTextInputs.promptTokens, requestGenerationConfig) > 0
       ? {
           max_length: resolveGenerationMaxLength(
@@ -1408,7 +1446,7 @@ async function invokeTextGeneration(
     backendInUse,
     loadedBackendDevice,
     promptTokens: preparedTextInputs.promptTokens,
-    maxNewTokens: requestGenerationConfig.maxOutputTokens,
+    maxNewTokens: modelGenerationOptions.max_new_tokens,
     maxLength: modelGenerationOptions.max_length || '(runtime default)',
     prefixCacheTokens: resolvedInputs.cachedPromptTokens,
   });
@@ -1893,8 +1931,13 @@ async function generate(payload) {
         });
         const promptTokens = getPromptTokenCount(modelInputs?.input_ids);
         const maxLength = resolveGenerationMaxLength(promptTokens, requestGenerationConfig);
+        const effectiveMaxOutputTokens = resolveEffectiveMaxOutputTokens(
+          promptTokens,
+          requestGenerationConfig
+        );
         const multimodalGenerationOptions = {
           ...generationOptions,
+          ...(effectiveMaxOutputTokens > 0 ? { max_new_tokens: effectiveMaxOutputTokens } : {}),
           ...(maxLength > 0 ? { max_length: maxLength } : {}),
         };
         logWorkerDebug('generate-invoke', {
@@ -1903,7 +1946,7 @@ async function generate(payload) {
           backendInUse,
           loadedBackendDevice,
           promptTokens,
-          maxNewTokens: requestGenerationConfig.maxOutputTokens,
+          maxNewTokens: multimodalGenerationOptions.max_new_tokens,
           maxLength: maxLength || '(runtime default)',
         });
 

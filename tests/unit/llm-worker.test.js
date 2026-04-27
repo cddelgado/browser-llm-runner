@@ -10,6 +10,8 @@ let getBackendAttemptOrder;
 let configureOnnxWasmBackend;
 let prepareTextGenerationInputs;
 let resolveGenerationMaxLength;
+let resolveEffectiveMaxOutputTokens;
+let getPromptTokenBudget;
 let resolveBackendLabel;
 let ONNX_WASM_PROXY_ENABLED;
 let ONNX_WASM_NUM_THREADS;
@@ -31,6 +33,8 @@ beforeAll(async () => {
     configureOnnxWasmBackend,
     prepareTextGenerationInputs,
     resolveGenerationMaxLength,
+    resolveEffectiveMaxOutputTokens,
+    getPromptTokenBudget,
     resolveBackendLabel,
     ONNX_WASM_PROXY_ENABLED,
     ONNX_WASM_NUM_THREADS,
@@ -184,8 +188,33 @@ describe('llm.worker generation options', () => {
     expect(
       resolveGenerationMaxLength(714, {
         maxOutputTokens: 1024,
+        maxContextTokens: 4096,
       })
     ).toBe(1738);
+  });
+
+  test('caps generated tokens so prompt plus response stays inside context size', () => {
+    expect(
+      resolveEffectiveMaxOutputTokens(1500, {
+        maxOutputTokens: 1024,
+        maxContextTokens: 2048,
+      })
+    ).toBe(548);
+    expect(
+      resolveGenerationMaxLength(1500, {
+        maxOutputTokens: 1024,
+        maxContextTokens: 2048,
+      })
+    ).toBe(2048);
+  });
+
+  test('reserves response tokens from the prompt budget', () => {
+    expect(
+      getPromptTokenBudget({
+        maxOutputTokens: 512,
+        maxContextTokens: 2048,
+      })
+    ).toBe(1536);
   });
 });
 
@@ -201,7 +230,7 @@ describe('llm.worker text prompt preparation', () => {
     const result = prepareTextGenerationInputs(
       tokenizer,
       [{ role: 'user', content: 'Hello there' }],
-      { maxContextTokens: 3 },
+      { maxContextTokens: 5, maxOutputTokens: 2 },
       {}
     );
 
@@ -218,9 +247,9 @@ describe('llm.worker text prompt preparation', () => {
 
   test('preserves full tokenized chat inputs when they already fit the configured budget', () => {
     const applyChatTemplate = vi.fn(() => ({
-        input_ids: [[11, 12, 13]],
-        attention_mask: [[1, 1, 1]],
-      }));
+      input_ids: [[11, 12, 13]],
+      attention_mask: [[1, 1, 1]],
+    }));
     const tokenizer = {
       apply_chat_template: applyChatTemplate,
     };
@@ -228,7 +257,7 @@ describe('llm.worker text prompt preparation', () => {
     const result = prepareTextGenerationInputs(
       tokenizer,
       [{ role: 'user', content: 'Hi' }],
-      { maxContextTokens: 8 },
+      { maxContextTokens: 8, maxOutputTokens: 4 },
       { enableThinking: true }
     );
 
@@ -281,7 +310,10 @@ describe('llm.worker multimodal prompt budgeting', () => {
       processor,
       [
         { role: 'system', content: 'You are helpful.' },
-        { role: 'user', content: [{ type: 'text', text: 'Older context that can be removed first.' }] },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Older context that can be removed first.' }],
+        },
         { role: 'assistant', content: 'Older answer that can be removed too.' },
         {
           role: 'user',
@@ -347,7 +379,7 @@ describe('llm.worker multimodal prompt budgeting', () => {
         { maxContextTokens: 5 },
         {}
       )
-    ).toThrow('exceeds the 5-token context budget');
+    ).toThrow('exceeds the 5-token prompt budget after reserving response tokens');
   });
 });
 

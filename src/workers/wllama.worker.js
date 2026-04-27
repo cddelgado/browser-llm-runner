@@ -91,7 +91,8 @@ function buildWllamaProgressCallback() {
   return ({ loaded, total }) => {
     const normalizedLoaded = Number.isFinite(loaded) && loaded >= 0 ? loaded : 0;
     const normalizedTotal = Number.isFinite(total) && total >= 0 ? total : 0;
-    const percent = normalizedTotal > 0 ? Math.round((normalizedLoaded / normalizedTotal) * 100) : 0;
+    const percent =
+      normalizedTotal > 0 ? Math.round((normalizedLoaded / normalizedTotal) * 100) : 0;
     postProgress({
       percent,
       message:
@@ -147,13 +148,10 @@ async function inspectFirstModelBlob(blobs) {
 
 async function createWllamaInstance(runtime = {}) {
   const { LoggerWithoutDebug, Wllama } = await loadWllamaLibrary();
-  return new Wllama(
-    buildWllamaAssetPaths(),
-    {
-      logger: LoggerWithoutDebug,
-      ...buildWllamaConstructorConfig(runtime),
-    }
-  );
+  return new Wllama(buildWllamaAssetPaths(), {
+    logger: LoggerWithoutDebug,
+    ...buildWllamaConstructorConfig(runtime),
+  });
 }
 
 async function clearCachedWllamaModel(instance, modelUrl) {
@@ -183,7 +181,13 @@ async function resolveWllamaModelBlobs(instance, modelUrl, extraConfig = {}) {
   };
 }
 
-async function loadConfiguredWllamaModel(instance, blobs, runtime, nextGenerationConfig, extraConfig = {}) {
+async function loadConfiguredWllamaModel(
+  instance,
+  blobs,
+  runtime,
+  nextGenerationConfig,
+  extraConfig = {}
+) {
   await instance.loadModel(
     blobs,
     buildWllamaLoadConfig(runtime, nextGenerationConfig, extraConfig)
@@ -260,7 +264,9 @@ function normalizeRuntimeConfig(rawRuntime) {
     ...(parallelDownloads ? { parallelDownloads } : {}),
     ...(cpuThreads ? { cpuThreads } : {}),
     ...(batchSize ? { batchSize } : {}),
-    ...(rawRuntime?.usePromptCache === false ? { usePromptCache: false } : { usePromptCache: true }),
+    ...(rawRuntime?.usePromptCache === false
+      ? { usePromptCache: false }
+      : { usePromptCache: true }),
     ...(minP > 0 ? { minP } : {}),
   };
 }
@@ -350,6 +356,19 @@ function getPromptTokenBudget(nextGenerationConfig) {
   return Math.max(1, maxContextTokens - maxOutputTokens);
 }
 
+function resolveEffectiveMaxOutputTokens(promptTokens, nextGenerationConfig) {
+  const normalizedPromptTokens = normalizePositiveInteger(promptTokens, 0);
+  const maxContextTokens = normalizePositiveInteger(nextGenerationConfig?.maxContextTokens, 0);
+  const maxOutputTokens = normalizePositiveInteger(nextGenerationConfig?.maxOutputTokens, 0);
+  if (!maxOutputTokens) {
+    return 0;
+  }
+  if (!maxContextTokens || !normalizedPromptTokens) {
+    return maxOutputTokens;
+  }
+  return Math.max(1, Math.min(maxOutputTokens, maxContextTokens - normalizedPromptTokens));
+}
+
 async function trimPromptToBudget(promptText, nextGenerationConfig) {
   const normalizedPromptText = typeof promptText === 'string' ? promptText : '';
   if (!wllama || !normalizedPromptText.trim()) {
@@ -433,12 +452,7 @@ async function initialize(payload) {
         `Downloaded model file is not a GGUF. Header=${resolvedModel.headerInfo.headerHex || 'empty'} ascii=${resolvedModel.headerInfo.headerAscii || ''}`
       );
     }
-    await loadConfiguredWllamaModel(
-      nextWllama,
-      resolvedModel.blobs,
-      runtime,
-      nextGenerationConfig
-    );
+    await loadConfiguredWllamaModel(nextWllama, resolvedModel.blobs, runtime, nextGenerationConfig);
   } catch (error) {
     if (shouldRetryWllamaModelLoad(error) && runtime.allowOffline !== true) {
       postProgress({
@@ -494,7 +508,9 @@ async function initialize(payload) {
         // Ignore cleanup failures after a load error.
       }
       if (shouldRetryWllamaModelLoad(error) && headerInfo?.isGguf) {
-        throw new Error(`${toErrorMessage(error)} (source blob header was valid GGUF: ${headerInfo.headerHex})`);
+        throw new Error(
+          `${toErrorMessage(error)} (source blob header was valid GGUF: ${headerInfo.headerHex})`
+        );
       }
       throw error;
     }
@@ -526,7 +542,9 @@ async function generate(payload) {
     throw new Error('A request id is required for generation.');
   }
 
-  const nextGenerationConfig = normalizeGenerationConfig(payload?.generationConfig || generationConfig);
+  const nextGenerationConfig = normalizeGenerationConfig(
+    payload?.generationConfig || generationConfig
+  );
   generationConfig = nextGenerationConfig;
   const abortController = new AbortController();
   activeGeneration = {
@@ -552,14 +570,16 @@ async function generate(payload) {
       stream: true,
       useCache: loadedRuntimeConfig.usePromptCache !== false,
       abortSignal: abortController.signal,
-      nPredict: nextGenerationConfig.maxOutputTokens,
+      nPredict: resolveEffectiveMaxOutputTokens(preparedPrompt.promptTokens, nextGenerationConfig),
       sampling: buildSamplingConfig(nextGenerationConfig, loadedRuntimeConfig),
     });
 
     let currentText = '';
     for await (const chunk of stream) {
       const nextText =
-        typeof chunk?.currentText === 'string' ? chunk.currentText : String(chunk?.currentText || '');
+        typeof chunk?.currentText === 'string'
+          ? chunk.currentText
+          : String(chunk?.currentText || '');
       if (!nextText) {
         continue;
       }

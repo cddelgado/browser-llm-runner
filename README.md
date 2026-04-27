@@ -182,9 +182,9 @@ The README should stay a front door. Detailed behavior, architecture, failure, a
   - User overrides are saved per model in browser storage and restored when that model is selected again.
   - Fields are disabled until a model is loaded.
   - `Context size (short-term memory)` includes a `Reset to model default` link that applies the selected model default when clicked.
-  - On the Transformers.js engine path, `Context size` is enforced as a hard prompt-token budget by left-truncating the oldest conversation tokens before generation, and `Maximum output tokens` is enforced separately as the generation cap.
-  - On the `wllama` engine path, `Context size` is applied at model-load time and the worker also trims the oldest prompt tokens before generation to keep the remaining prompt within the configured budget.
-  - On the Transformers.js multimodal path, the worker trims the oldest non-system turns before generation so image/audio prompts stay within the configured context budget; if the current multimodal turn alone is too large, generation fails with guidance to raise the context size or reduce attachments.
+  - On local engine paths, `Context size` is the total prompt-plus-response window. Workers reserve `Maximum output tokens` inside that window, then left-truncate older prompt tokens before generation so runtime memory growth does not exceed the selected context size.
+  - On the `wllama` engine path, `Context size` is also applied at model-load time as `n_ctx`.
+  - On the Transformers.js multimodal path, the worker trims the oldest non-system turns before generation so image/audio prompts stay within the prompt budget left after reserving response tokens; if the current multimodal turn alone is too large, generation fails with guidance to raise the context size, lower output tokens, or reduce attachments.
   - If changed during generation, updates are queued and applied after the current response finishes.
 - `Settings -> Model` also includes:
   - `Response language`, stored per conversation or pending pre-chat draft, with a warning when the selected language is not listed for the selected model in this app.

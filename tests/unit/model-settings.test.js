@@ -155,9 +155,9 @@ describe('model-settings availability', () => {
       })
     ).toMatchObject({
       defaultMaxOutputTokens: 1024,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 131072,
       defaultMaxContextTokens: 4096,
-      maxContextTokens: 4096,
+      maxContextTokens: 131072,
     });
 
     expect(
@@ -166,9 +166,9 @@ describe('model-settings availability', () => {
       })
     ).toMatchObject({
       defaultMaxOutputTokens: 1024,
-      maxOutputTokens: 2048,
+      maxOutputTokens: 131072,
       defaultMaxContextTokens: 4096,
-      maxContextTokens: 4096,
+      maxContextTokens: 131072,
     });
   });
 
@@ -179,7 +179,9 @@ describe('model-settings availability', () => {
     expect(MODEL_OPTIONS_BY_ID.get('LiquidAI/LFM2.5-1.2B-Thinking-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3.5-0.8B-ONNX')).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/gemma-3n-E2B-it-ONNX')).toBeUndefined();
-    expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')).toBeUndefined();
+    expect(
+      MODEL_OPTIONS_BY_ID.get('onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa')
+    ).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get(REMOVED_LLAMA_1B_MODEL_ID)).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get(REMOVED_QWEN_2B_MODEL_ID)).toBeUndefined();
     expect(MODEL_OPTIONS_BY_ID.get('onnx-community/Qwen3-1.7B-ONNX')).toBeUndefined();
