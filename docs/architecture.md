@@ -97,6 +97,7 @@ Conversation download behavior also belongs here: `src/app/conversation-download
 Conversation sidebar menu behavior also belongs here: `src/app/conversation-menu.js` owns menu open/close state, download submenu toggling, menu capability state, and action focus handoff while `src/app/conversation-list-events.js` only routes DOM events.
 Generation settings behavior also belongs here: `src/app/generation-settings.js` owns model generation/Wllama setting normalization, browser-local persistence, help text, and delayed-apply behavior while settings events only report user edits.
 Pre-chat workspace behavior also belongs here: `src/app/pre-chat-workspace.js` owns setup status hints, pre-chat action visibility, agent draft labels, composer visibility, and the small shell selectors around pending conversation type.
+Agent automation UI behavior also belongs here: `src/app/agent-automation-ui.js` owns the active-agent pause/resume control, heartbeat countdown text, coarse live-region announcements, and countdown timer lifecycle while `src/app/agent-automation.js` owns the follow-up and summary orchestration workflow.
 
 `src/llm/`
 

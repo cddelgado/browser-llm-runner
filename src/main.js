@@ -20,6 +20,7 @@ import {
   createAgentAutomationController,
   estimatePromptTokenCount,
 } from './app/agent-automation.js';
+import { createAgentAutomationUiController } from './app/agent-automation-ui.js';
 import {
   formatAttachmentSize,
   getAttachmentButtonAcceptValue,
@@ -706,9 +707,8 @@ const engine = new LLMEngineClient();
 let pythonRuntime = null;
 let pythonRuntimeLoadPromise = null;
 let composerAttachmentModulePromise = null;
-let agentFollowUpCountdownIntervalId = null;
-let lastAgentFollowUpAnnouncementKey = '';
 let agentAutomationController = null;
+let agentAutomationUiController = null;
 let semanticMemoryController = null;
 const workspaceFileSystem = createWorkspaceFileSystem();
 const conversationWorkspaceFileSystems = new Map();
@@ -946,6 +946,28 @@ const preChatWorkspaceController = createPreChatWorkspaceController({
   getAgentDisplayName,
   setRegionVisibility,
   isUiBusy,
+});
+agentAutomationUiController = createAgentAutomationUiController({
+  appState,
+  agentAutomationControls,
+  pauseAgentBtn,
+  agentFollowUpCountdown,
+  agentFollowUpCountdownText,
+  agentFollowUpAutomationHelp,
+  agentFollowUpCountdownLive,
+  getActiveConversation,
+  getAgentDisplayName,
+  isUiBusy,
+  isFollowUpRunning: (conversation) =>
+    agentAutomationController?.isFollowUpRunning(conversation) === true,
+  toggleAgentPauseState,
+  initializeTooltips,
+  disposeTooltipFor: (element) => {
+    const tooltipInstance = Tooltip.getInstance(element);
+    if (tooltipInstance) {
+      tooltipInstance.dispose();
+    }
+  },
 });
 const {
   ensureModelVariantControlsVisible,
@@ -2647,177 +2669,12 @@ function setActiveConversationById(
   }
 }
 
-function shouldShowAgentAutomationControls(conversation = getActiveConversation()) {
-  return (
-    isAgentConversation(conversation) &&
-    !appState.isPreparingNewConversation &&
-    selectHasStartedWorkspace(appState) &&
-    !isSettingsView(appState)
-  );
-}
-
-function clearAgentFollowUpCountdownTimer() {
-  if (agentFollowUpCountdownIntervalId !== null) {
-    window.clearInterval(agentFollowUpCountdownIntervalId);
-    agentFollowUpCountdownIntervalId = null;
-  }
-}
-
-function startAgentFollowUpCountdownTimer() {
-  if (agentFollowUpCountdownIntervalId !== null) {
-    return;
-  }
-  agentFollowUpCountdownIntervalId = window.setInterval(() => {
-    updateAgentFollowUpCountdownUi();
-  }, 1000);
-}
-
-function formatAgentFollowUpCountdown(ms) {
-  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) {
-    return `${hours}h ${String(minutes).padStart(2, '0')}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-  }
-  return `${seconds}s`;
-}
-
-function formatAgentFollowUpAnnouncement(ms) {
-  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const parts = [];
-  if (hours > 0) {
-    parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
-  }
-  if (minutes > 0) {
-    parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
-  }
-  if (!hours && (!minutes || seconds > 0)) {
-    parts.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
-  }
-  return parts.join(' ');
-}
-
-function isAgentFollowUpRunning(conversation = getActiveConversation()) {
-  return agentAutomationController?.isFollowUpRunning(conversation) === true;
-}
-
 function updateAgentFollowUpCountdownUi() {
-  const activeConversation = getActiveConversation();
-  const showControls = shouldShowAgentAutomationControls(activeConversation);
-  if (
-    !(agentFollowUpCountdown instanceof HTMLElement) ||
-    !(agentFollowUpCountdownText instanceof HTMLElement)
-  ) {
-    clearAgentFollowUpCountdownTimer();
-    return;
-  }
-  if (!showControls || !activeConversation?.agent) {
-    agentFollowUpCountdown.classList.add('d-none');
-    agentFollowUpCountdownText.textContent = '--';
-    if (agentFollowUpCountdownLive instanceof HTMLElement) {
-      agentFollowUpCountdownLive.textContent = '';
-    }
-    lastAgentFollowUpAnnouncementKey = '';
-    clearAgentFollowUpCountdownTimer();
-    return;
-  }
-  agentFollowUpCountdown.classList.remove('d-none');
-  const isPaused = activeConversation.agent.paused === true;
-  const isRunning = isAgentFollowUpRunning(activeConversation);
-  const nextFollowUpAt = Number(activeConversation.agent.nextFollowUpAt) || 0;
-  let valueText = 'waiting';
-  let announcementText = '';
-  let announcementKey = `${activeConversation.id}:idle`;
-  const shouldTick =
-    !isPaused && !isRunning && Number.isFinite(nextFollowUpAt) && nextFollowUpAt > 0;
-
-  if (isPaused) {
-    valueText = 'paused';
-    announcementKey = `${activeConversation.id}:paused`;
-    announcementText = `${getAgentDisplayName(activeConversation)} automatic heartbeats are paused.`;
-  } else if (isRunning) {
-    valueText = 'sending now';
-    announcementKey = `${activeConversation.id}:running`;
-    announcementText = `${getAgentDisplayName(activeConversation)} is sending a heartbeat now.`;
-  } else if (shouldTick) {
-    const remainingMs = Math.max(0, nextFollowUpAt - Date.now());
-    valueText = remainingMs <= 1000 ? 'due now' : `in ${formatAgentFollowUpCountdown(remainingMs)}`;
-    announcementKey = `${activeConversation.id}:scheduled:${Math.trunc(nextFollowUpAt / 1000)}`;
-    announcementText = `${getAgentDisplayName(activeConversation)} may send the next heartbeat in about ${formatAgentFollowUpAnnouncement(
-      remainingMs
-    )}.`;
-  } else {
-    valueText = 'scheduling...';
-    announcementKey = `${activeConversation.id}:scheduling`;
-    announcementText = `${getAgentDisplayName(activeConversation)} will schedule the next heartbeat after the current activity settles.`;
-  }
-
-  agentFollowUpCountdownText.textContent = valueText;
-  if (
-    agentFollowUpCountdownLive instanceof HTMLElement &&
-    announcementKey !== lastAgentFollowUpAnnouncementKey
-  ) {
-    agentFollowUpCountdownLive.textContent = announcementText;
-    lastAgentFollowUpAnnouncementKey = announcementKey;
-  }
-  if (shouldTick) {
-    startAgentFollowUpCountdownTimer();
-  } else {
-    clearAgentFollowUpCountdownTimer();
-  }
+  agentAutomationUiController?.updateAgentFollowUpCountdownUi();
 }
 
 function updatePauseAgentButton() {
-  if (!(pauseAgentBtn instanceof HTMLButtonElement)) {
-    clearAgentFollowUpCountdownTimer();
-    return;
-  }
-  const activeConversation = getActiveConversation();
-  const showButton = shouldShowAgentAutomationControls(activeConversation);
-  if (agentAutomationControls instanceof HTMLElement) {
-    agentAutomationControls.classList.toggle('d-none', !showButton);
-  } else {
-    pauseAgentBtn.classList.toggle('d-none', !showButton);
-  }
-  if (!showButton) {
-    pauseAgentBtn.disabled = true;
-    pauseAgentBtn.removeAttribute('aria-describedby');
-    updateAgentFollowUpCountdownUi();
-    return;
-  }
-  const isPaused = activeConversation?.agent?.paused === true;
-  pauseAgentBtn.disabled = isUiBusy();
-  pauseAgentBtn.setAttribute('aria-pressed', String(isPaused));
-  const buttonLabel = isPaused ? 'Resume agent' : 'Pause agent';
-  pauseAgentBtn.setAttribute('aria-label', buttonLabel);
-  pauseAgentBtn.setAttribute('data-bs-title', buttonLabel);
-  pauseAgentBtn.title = buttonLabel;
-  const describedBy = [agentFollowUpAutomationHelp, agentFollowUpCountdown]
-    .filter((element) => element instanceof HTMLElement)
-    .map((element) => element.id)
-    .join(' ');
-  if (describedBy) {
-    pauseAgentBtn.setAttribute('aria-describedby', describedBy);
-  } else {
-    pauseAgentBtn.removeAttribute('aria-describedby');
-  }
-  const icon = pauseAgentBtn.querySelector('[data-agent-toggle-icon="true"]');
-  if (icon instanceof HTMLElement) {
-    icon.className = `bi ${isPaused ? 'bi-play-fill' : 'bi-pause-fill'}`;
-  }
-  updateAgentFollowUpCountdownUi();
-  const tooltipInstance = Tooltip.getInstance(pauseAgentBtn);
-  if (tooltipInstance) {
-    tooltipInstance.dispose();
-  }
-  initializeTooltips(pauseAgentBtn.parentElement || pauseAgentBtn);
+  agentAutomationUiController?.updatePauseAgentButton();
 }
 
 function updateActionButtons() {
@@ -3908,11 +3765,7 @@ renderComposerAttachments();
 renderDebugLog();
 updateActionButtons();
 setActiveSettingsTab(appState.activeSettingsTab);
-if (pauseAgentBtn instanceof HTMLButtonElement) {
-  pauseAgentBtn.addEventListener('click', () => {
-    toggleAgentPauseState();
-  });
-}
+agentAutomationUiController?.bindEvents();
 if (agentNameInput instanceof HTMLInputElement) {
   agentNameInput.addEventListener('input', () => {
     appState.pendingAgentName = agentNameInput.value;

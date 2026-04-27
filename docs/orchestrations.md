@@ -56,7 +56,8 @@ This project uses transparent, JSON-defined orchestrations for small follow-up t
   - Nested paths such as `{{chunk.text}}` are supported.
   - Array values render as paragraph-separated text when possible, otherwise JSON.
 - The app renders prompt templates and sends prompt/forEach prompt steps through `LLMEngineClient` in order.
-- `src/state/app-controller.js` calls the orchestration runner for rename/fix flows plus custom slash-command orchestration runs, while `src/main.js` coordinates agent follow-up and summary-compaction runs around the active conversation lifecycle.
+- `src/state/app-controller.js` calls the orchestration runner for rename/fix flows plus custom slash-command orchestration runs, while `src/app/agent-automation.js` coordinates agent follow-up and summary-compaction runs around the active conversation lifecycle.
+- `src/app/agent-automation-ui.js` owns the active-agent header controls around those background runs: pause/resume state, the visible heartbeat countdown, and coarse live-region announcements.
 - Each completed step output is available to later steps via:
   - `{{previousStepOutput}}` and `{{lastStepOutput}}`
   - `{{step1Output}}`, `{{step2Output}}`, etc.
