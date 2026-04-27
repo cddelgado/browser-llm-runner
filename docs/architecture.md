@@ -93,6 +93,7 @@ Small accessibility-sensitive helpers such as status-region tone and live-region
 Debug-log state orchestration also belongs here: `src/app/debug-log.js` owns entry normalization, pagination state, and CSV export wiring while `src/ui/debug-log-view.js` owns the rendered markup.
 Transcript content orchestration also belongs here: `src/app/transcript-content-renderer.js` owns lazy Markdown loading, MathJax configuration/typesetting, and MathML extraction while `src/ui/transcript-view.js` owns transcript markup.
 Message-copy behavior also belongs here: `src/app/message-copy.js` owns clipboard fallback and copy-text assembly while transcript events and shortcuts only trigger the action.
+Conversation download behavior also belongs here: `src/app/conversation-downloads.js` owns browser blob downloads, active-branch JSON/Markdown download orchestration, and bulk archive export status while `src/main.js` only wires dependencies.
 
 `src/llm/`
 

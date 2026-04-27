@@ -7,6 +7,10 @@ import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import { bindComposerEvents } from './app/composer-events.js';
 import { createComposerRuntimeController } from './app/composer-runtime.js';
+import {
+  createConversationDownloadController,
+  triggerDownload,
+} from './app/conversation-downloads.js';
 import { createDebugLogController } from './app/debug-log.js';
 import { createMessageCopyController } from './app/message-copy.js';
 import { createCloudProviderSettingsController } from './app/cloud-provider-settings.js';
@@ -19,7 +23,6 @@ import {
   getAttachmentButtonAcceptValue,
   getAttachmentIconClass,
 } from './attachments/attachment-ui.js';
-import { buildBulkConversationExportZip } from './app/conversation-bulk-export.js';
 import { createConversationEditors } from './app/conversation-editors.js';
 import { createModelLoadFeedbackController } from './app/model-load-feedback.js';
 import { createSemanticMemoryController } from './app/semantic-memory.js';
@@ -118,10 +121,6 @@ import { normalizeMessageContentParts, setUserMessageText } from './state/conver
 import {
   CONVERSATION_TYPES,
   addMessageToConversation,
-  buildConversationDownloadMarkdown,
-  buildConversationDownloadPayload,
-  buildConversationJsonDownloadFileName,
-  buildConversationMarkdownDownloadFileName,
   buildPromptForConversationLeaf,
   createConversation as createConversationRecord,
   deriveConversationMenuCapabilities,
@@ -896,6 +895,26 @@ const {
   getAttachmentIconClass,
   formatAttachmentSize,
   setIconButtonContent,
+});
+const conversationDownloadController = createConversationDownloadController({
+  appState,
+  documentRef: document,
+  urlApi: window.URL,
+  getActiveConversation,
+  getConversationModelId,
+  getActiveTemperature: () =>
+    Number.isFinite(engine?.config?.generationConfig?.temperature)
+      ? Number(engine.config.generationConfig.temperature)
+      : Number(
+          appState.activeGenerationConfig?.temperature ??
+            DEFAULT_GENERATION_LIMITS.defaultTemperature
+        ),
+  getConversationSystemPromptSuffix,
+  getToolCallingContext,
+  getMessageArtifacts,
+  getStoredGenerationConfigForModel,
+  getModelGenerationLimits,
+  setStatus,
 });
 const {
   ensureModelVariantControlsVisible,
@@ -2884,33 +2903,6 @@ function isUiBusy() {
   return shouldDisableConversationControls(appState);
 }
 
-function buildActiveConversationExportPayload(activeConversation) {
-  const selectedModelId = getConversationModelId(activeConversation);
-  const temperature = Number.isFinite(engine?.config?.generationConfig?.temperature)
-    ? Number(engine.config.generationConfig.temperature)
-    : Number(
-        appState.activeGenerationConfig?.temperature ?? DEFAULT_GENERATION_LIMITS.defaultTemperature
-      );
-  const toolContext = getToolCallingContext(selectedModelId);
-  return buildConversationDownloadPayload(activeConversation, {
-    modelId: selectedModelId,
-    temperature,
-    systemPromptSuffix: getConversationSystemPromptSuffix(selectedModelId, activeConversation),
-    toolContext,
-  });
-}
-
-function triggerDownload(blob, fileName) {
-  const url = window.URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  window.URL.revokeObjectURL(url);
-}
-
 function buildPromptForActiveConversation(
   conversation,
   leafMessageId = conversation?.activeLeafMessageId
@@ -2947,56 +2939,15 @@ function buildPromptForActiveConversation(
 }
 
 function downloadActiveConversationBranchAsJson() {
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) {
-    setStatus('No active conversation to download.');
-    return;
-  }
-  const payload = buildActiveConversationExportPayload(activeConversation);
-  if (!payload.exchanges.length) {
-    setStatus('No messages to download on this branch.');
-    return;
-  }
-  const serialized = JSON.stringify(payload, null, 2);
-  const blob = new Blob([serialized], { type: 'application/json' });
-  triggerDownload(blob, buildConversationJsonDownloadFileName(activeConversation.name));
-  setStatus('Conversation downloaded as JSON.');
+  return conversationDownloadController.downloadActiveConversationBranchAsJson();
 }
 
 function downloadActiveConversationBranchAsMarkdown() {
-  const activeConversation = getActiveConversation();
-  if (!activeConversation) {
-    setStatus('No active conversation to download.');
-    return;
-  }
-  const payload = buildActiveConversationExportPayload(activeConversation);
-  if (!payload.exchanges.length) {
-    setStatus('No messages to download on this branch.');
-    return;
-  }
-  const markdownDocument = buildConversationDownloadMarkdown(payload);
-  const blob = new Blob([markdownDocument], { type: 'text/markdown;charset=utf-8' });
-  triggerDownload(blob, buildConversationMarkdownDownloadFileName(activeConversation.name));
-  setStatus('Conversation downloaded as Markdown.');
+  return conversationDownloadController.downloadActiveConversationBranchAsMarkdown();
 }
 
 function exportAllConversations() {
-  if (!appState.conversations.length) {
-    setStatus('No conversations to export.');
-    return;
-  }
-  const { archiveFileName, bytes } = buildBulkConversationExportZip({
-    appState,
-    getMessageArtifacts,
-    getConversationModelId,
-    getConversationSystemPromptSuffix,
-    getToolCallingContext,
-    getStoredGenerationConfigForModel,
-    getModelGenerationLimits,
-  });
-  const blob = new Blob([Uint8Array.from(bytes)], { type: 'application/zip' });
-  triggerDownload(blob, archiveFileName);
-  setStatus('Conversations exported as a zip archive.');
+  return conversationDownloadController.exportAllConversations();
 }
 
 async function deleteAllConversationStorage() {
