@@ -6,6 +6,7 @@ import 'bootstrap/js/dist/offcanvas';
 import Modal from 'bootstrap/js/dist/modal';
 import Tooltip from 'bootstrap/js/dist/tooltip';
 import { bindComposerEvents } from './app/composer-events.js';
+import { createConversationLanguageThinkingController } from './app/conversation-language-thinking.js';
 import { createComposerRuntimeController } from './app/composer-runtime.js';
 import {
   createConversationDownloadController,
@@ -50,13 +51,6 @@ import { createCorsAwareFetch, validateCorsProxyUrl } from './llm/browser-fetch.
 import { shouldUseMultimodalGenerationForPrompt } from './llm/runtime-config.js';
 import { expandWllamaModelUrls } from './llm/wllama-load.js';
 import { getEnabledMcpServerConfigs, inspectMcpServerEndpoint } from './llm/mcp-client.js';
-import {
-  buildFactCheckingPrompt,
-  buildLanguagePreferencePrompt,
-  buildMathRenderingFeaturePrompt,
-  buildOptionalFeaturePromptSection,
-  buildThinkingModePrompt,
-} from './llm/system-prompt.js';
 import { parseThinkingText } from './llm/thinking-parser.js';
 import {
   buildToolCallingSystemPrompt,
@@ -110,7 +104,6 @@ import {
   getUserVariantState,
   isAgentConversation,
   isHeartbeatMessage,
-  normalizeConversationLanguagePreference,
   normalizeConversationName,
   normalizeConversationType,
   normalizeConversationPromptMode,
@@ -709,6 +702,7 @@ let pythonRuntimeLoadPromise = null;
 let composerAttachmentModulePromise = null;
 let agentAutomationController = null;
 let agentAutomationUiController = null;
+let conversationLanguageThinkingController = null;
 let semanticMemoryController = null;
 const workspaceFileSystem = createWorkspaceFileSystem();
 const conversationWorkspaceFileSystems = new Map();
@@ -946,6 +940,24 @@ const preChatWorkspaceController = createPreChatWorkspaceController({
   getAgentDisplayName,
   setRegionVisibility,
   isUiBusy,
+});
+conversationLanguageThinkingController = createConversationLanguageThinkingController({
+  appState,
+  documentRef: document,
+  modelOptionsById: MODEL_OPTIONS_BY_ID,
+  defaultModelId: DEFAULT_MODEL,
+  modelSelect,
+  conversationLanguageSelect,
+  conversationLanguageHelp,
+  enableModelThinkingToggle,
+  enableModelThinkingHelp,
+  normalizeModelId,
+  getActiveConversation,
+  getConversationModelId,
+  getPendingConversationType,
+  getToolCallingContext,
+  getToolCallingSystemPromptSuffix,
+  queueConversationStateSave,
 });
 agentAutomationUiController = createAgentAutomationUiController({
   appState,
@@ -1366,105 +1378,18 @@ function getToolCallingSystemPromptSuffix(modelId) {
 }
 
 function getThinkingControlForModel(modelId) {
-  return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.thinkingControl || null;
-}
-
-function getLanguageSupportForModel(modelId) {
-  return MODEL_OPTIONS_BY_ID.get(normalizeModelId(modelId))?.languageSupport || null;
-}
-
-function getConversationLanguagePreference(conversation) {
-  return normalizeConversationLanguagePreference(
-    conversation ? conversation.languagePreference : appState.pendingConversationLanguagePreference
-  );
+  return conversationLanguageThinkingController?.getThinkingControlForModel(modelId) || null;
 }
 
 function getConversationThinkingEnabled(conversation) {
-  const modelId = conversation
-    ? getConversationModelId(conversation)
-    : normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
-  const defaultEnabled = getThinkingControlForModel(modelId)?.defaultEnabled !== false;
-  return normalizeConversationThinkingEnabled(
-    conversation ? conversation.thinkingEnabled : appState.pendingConversationThinkingEnabled,
-    defaultEnabled
-  );
-}
-
-function getSelectedLanguageMetadata(languagePreference) {
-  const normalizedPreference = normalizeConversationLanguagePreference(languagePreference);
-  if (normalizedPreference === 'auto') {
-    return {
-      code: 'auto',
-      label: 'Auto',
-      name: '',
-    };
-  }
-  const displayNames =
-    typeof Intl.DisplayNames === 'function'
-      ? new Intl.DisplayNames(['en'], { type: 'language' })
-      : null;
-  const code = normalizedPreference.toLowerCase();
-  const baseCode = code.split('-')[0];
-  const name = displayNames?.of(code) || displayNames?.of(baseCode) || code.toUpperCase();
-  return {
-    code,
-    label: `${name} (${code.toUpperCase()})`,
-    name,
-  };
-}
-
-function getOptionalFeatureSystemPromptSection(modelId, conversation = null) {
-  const languagePreference = getConversationLanguagePreference(conversation);
-  const thinkingControl = getThinkingControlForModel(modelId);
-  const toolContext = getToolCallingContext(modelId);
-  return buildOptionalFeaturePromptSection([
-    buildFactCheckingPrompt({
-      toolUseAvailable: toolContext.supported && toolContext.exposedToolNames.length > 0,
-    }),
-    buildMathRenderingFeaturePrompt({ renderMathMl: appState.renderMathMl }),
-    buildLanguagePreferencePrompt({
-      languageName:
-        languagePreference === 'auto' ? '' : getSelectedLanguageMetadata(languagePreference).name,
-    }),
-    buildThinkingModePrompt({
-      enabled: getConversationThinkingEnabled(conversation),
-      enabledInstruction: thinkingControl?.enabledInstruction,
-      disabledInstruction: thinkingControl?.disabledInstruction,
-    }),
-  ]);
+  return conversationLanguageThinkingController.getConversationThinkingEnabled(conversation);
 }
 
 function getConversationSystemPromptSuffix(modelId, conversation = null) {
-  return [
-    getOptionalFeatureSystemPromptSection(modelId, conversation),
-    getToolCallingSystemPromptSuffix(modelId),
-  ]
-    .map((section) => normalizeSystemPrompt(section))
-    .filter(Boolean)
-    .join('\n\n');
-}
-
-function getConversationLanguageWarningText(modelId, languagePreference) {
-  const normalizedPreference = normalizeConversationLanguagePreference(languagePreference);
-  if (normalizedPreference === 'auto') {
-    return 'Auto leaves language choice to your prompt and the model.';
-  }
-  const selectedLanguage = getSelectedLanguageMetadata(normalizedPreference);
-  const languageSupport = getLanguageSupportForModel(modelId);
-  const supportedTags = Array.isArray(languageSupport?.tags) ? languageSupport.tags : [];
-  const isExplicitlySupported = supportedTags.some(
-    (tag) => typeof tag?.code === 'string' && tag.code.toLowerCase() === selectedLanguage.code
+  return conversationLanguageThinkingController.getConversationSystemPromptSuffix(
+    modelId,
+    conversation
   );
-  if (isExplicitlySupported) {
-    return `${selectedLanguage.name} is listed for this model.`;
-  }
-  if (languageSupport?.hasMore === true) {
-    return `${selectedLanguage.name} is not listed in this app's model card preview. It may still work, but cool and scary things can happen.`;
-  }
-  if (supportedTags.length) {
-    return `${selectedLanguage.name} is not listed for this model. It may still work, but cool and scary things can happen.`;
-  }
-  return `This app does not have published language support metadata for the selected model. ${selectedLanguage.name} may work, but cool and scary things can happen.`;
 }
 
 function buildConversationRuntimeConfigForPrompt(conversation = null, prompt = null) {
@@ -1522,72 +1447,8 @@ function buildConversationRuntimeConfigForPrompt(conversation = null, prompt = n
   };
 }
 
-function getConversationLanguageOptions() {
-  const optionsByCode = new Map([['auto', { code: 'auto', label: 'Auto' }]]);
-  MODEL_OPTIONS_BY_ID.forEach((model) => {
-    const tags = Array.isArray(model?.languageSupport?.tags) ? model.languageSupport.tags : [];
-    tags.forEach((tag) => {
-      const code = typeof tag?.code === 'string' ? tag.code.trim().toLowerCase() : '';
-      const name = typeof tag?.name === 'string' ? tag.name.trim() : '';
-      if (!code || !name || optionsByCode.has(code)) {
-        return;
-      }
-      optionsByCode.set(code, {
-        code,
-        label: `${name} (${code.toUpperCase()})`,
-      });
-    });
-  });
-  return [...optionsByCode.values()].sort((left, right) => {
-    if (left.code === 'auto') {
-      return -1;
-    }
-    if (right.code === 'auto') {
-      return 1;
-    }
-    return left.label.localeCompare(right.label);
-  });
-}
-
 function syncConversationLanguageAndThinkingControls(conversation = getActiveConversation()) {
-  const modelId = conversation
-    ? getConversationModelId(conversation)
-    : normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
-  const languagePreference = getConversationLanguagePreference(conversation);
-  const thinkingControl = getThinkingControlForModel(modelId);
-  if (conversationLanguageSelect instanceof HTMLSelectElement) {
-    const options = getConversationLanguageOptions();
-    conversationLanguageSelect.replaceChildren();
-    options.forEach((option) => {
-      const node = document.createElement('option');
-      node.value = option.code;
-      node.textContent = option.label;
-      conversationLanguageSelect.appendChild(node);
-    });
-    if (!options.some((option) => option.code === languagePreference)) {
-      const selectedLanguage = getSelectedLanguageMetadata(languagePreference);
-      const node = document.createElement('option');
-      node.value = selectedLanguage.code;
-      node.textContent = selectedLanguage.label;
-      conversationLanguageSelect.appendChild(node);
-    }
-    conversationLanguageSelect.value = languagePreference;
-  }
-  if (conversationLanguageHelp instanceof HTMLElement) {
-    conversationLanguageHelp.textContent = getConversationLanguageWarningText(
-      modelId,
-      languagePreference
-    );
-  }
-  if (enableModelThinkingToggle instanceof HTMLInputElement) {
-    enableModelThinkingToggle.checked = getConversationThinkingEnabled(conversation);
-    enableModelThinkingToggle.disabled = !thinkingControl;
-  }
-  if (enableModelThinkingHelp instanceof HTMLElement) {
-    enableModelThinkingHelp.textContent = thinkingControl
-      ? "Uses the selected model's reasoning switch when one is available."
-      : 'This model does not expose a thinking switch in this app. This setting currently does nothing.';
-  }
+  conversationLanguageThinkingController.syncConversationLanguageAndThinkingControls(conversation);
 }
 
 function buildComputedConversationSystemPromptPreview({
@@ -1597,86 +1458,13 @@ function buildComputedConversationSystemPromptPreview({
   agentName = '',
   agentDescription = '',
 } = {}) {
-  const activeConversation = getActiveConversation();
-  const previewConversationType = normalizeConversationType(
-    conversationType || activeConversation?.conversationType || getPendingConversationType()
-  );
-  const modelId = activeConversation
-    ? getConversationModelId(activeConversation)
-    : normalizeModelId(modelSelect?.value || DEFAULT_MODEL);
-  const normalizedConversationPrompt = normalizeSystemPrompt(conversationPrompt);
-  const normalizedAppendConversationPrompt =
-    normalizeConversationPromptMode(appendConversationPrompt);
-  const normalizedAgentName = normalizeConversationName(agentName);
-  const normalizedAgentDescription = normalizeSystemPrompt(agentDescription);
-  const promptTarget = activeConversation
-    ? {
-        ...activeConversation,
-        name:
-          previewConversationType === CONVERSATION_TYPES.AGENT
-            ? normalizedAgentName ||
-              activeConversation?.agent?.name ||
-              activeConversation.name ||
-              'Agent'
-            : activeConversation.name,
-        conversationSystemPrompt: normalizedConversationPrompt,
-        appendConversationSystemPrompt: normalizedAppendConversationPrompt,
-        agent:
-          previewConversationType === CONVERSATION_TYPES.AGENT
-            ? {
-                ...(activeConversation.agent || {}),
-                name:
-                  normalizedAgentName ||
-                  activeConversation?.agent?.name ||
-                  activeConversation.name ||
-                  'Agent',
-                description: normalizedAgentDescription,
-              }
-            : activeConversation.agent,
-      }
-    : {
-        ...createConversationRecord({
-          id: 'conversation-system-prompt-preview',
-          name:
-            previewConversationType === CONVERSATION_TYPES.AGENT
-              ? normalizedAgentName || 'Agent'
-              : 'Prompt Preview',
-          modelId,
-          conversationType: previewConversationType,
-          systemPrompt: appState.defaultSystemPrompt,
-          languagePreference: appState.pendingConversationLanguagePreference,
-          thinkingEnabled: appState.pendingConversationThinkingEnabled,
-          agent:
-            previewConversationType === CONVERSATION_TYPES.AGENT
-              ? {
-                  name: normalizedAgentName || 'Agent',
-                  description: normalizedAgentDescription,
-                }
-              : null,
-        }),
-        conversationSystemPrompt: normalizedConversationPrompt,
-        appendConversationSystemPrompt: normalizedAppendConversationPrompt,
-      };
-  const systemPromptSuffix = [
-    getConversationSystemPromptSuffix(modelId, promptTarget),
-    'Below is your conversation with the user.',
-  ]
-    .map((section) => normalizeSystemPrompt(section))
-    .filter(Boolean)
-    .join('\n\n');
-  const promptMessages = buildPromptForConversationLeaf(
-    promptTarget,
-    promptTarget.activeLeafMessageId,
-    {
-      systemPromptSuffix,
-    }
-  );
-  return (
-    promptMessages.find(
-      (message) =>
-        message?.role === 'system' && typeof message.content === 'string' && message.content.trim()
-    )?.content || ''
-  );
+  return conversationLanguageThinkingController.buildComputedConversationSystemPromptPreview({
+    conversationPrompt,
+    appendConversationPrompt,
+    conversationType,
+    agentName,
+    agentDescription,
+  });
 }
 
 function detectToolCallsForModel(rawText, modelId) {
@@ -3264,31 +3052,11 @@ const {
 } = cloudProviderSettingsController;
 
 function applyConversationLanguagePreference(value, { persist = false } = {}) {
-  const normalizedValue = normalizeConversationLanguagePreference(value);
-  const activeConversation = getActiveConversation();
-  if (activeConversation) {
-    activeConversation.languagePreference = normalizedValue;
-    if (persist) {
-      queueConversationStateSave();
-    }
-  } else {
-    appState.pendingConversationLanguagePreference = normalizedValue;
-  }
-  syncConversationLanguageAndThinkingControls(activeConversation);
+  conversationLanguageThinkingController.applyConversationLanguagePreference(value, { persist });
 }
 
 function applyConversationThinkingPreference(value, { persist = false } = {}) {
-  const activeConversation = getActiveConversation();
-  const nextValue = normalizeConversationThinkingEnabled(value);
-  if (activeConversation) {
-    activeConversation.thinkingEnabled = nextValue;
-    if (persist) {
-      queueConversationStateSave();
-    }
-  } else {
-    appState.pendingConversationThinkingEnabled = nextValue;
-  }
-  syncConversationLanguageAndThinkingControls(activeConversation);
+  conversationLanguageThinkingController.applyConversationThinkingPreference(value, { persist });
 }
 
 async function restoreSkillPackagesFromStorage() {
