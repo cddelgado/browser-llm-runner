@@ -11,6 +11,7 @@ import {
   createConversationDownloadController,
   triggerDownload,
 } from './app/conversation-downloads.js';
+import { createConversationMenuController } from './app/conversation-menu.js';
 import { createDebugLogController } from './app/debug-log.js';
 import { createMessageCopyController } from './app/message-copy.js';
 import { createCloudProviderSettingsController } from './app/cloud-provider-settings.js';
@@ -123,7 +124,6 @@ import {
   addMessageToConversation,
   buildPromptForConversationLeaf,
   createConversation as createConversationRecord,
-  deriveConversationMenuCapabilities,
   deriveConversationName,
   findPreferredLeafForVariant,
   getConversationCardHeading,
@@ -917,6 +917,18 @@ const conversationDownloadController = createConversationDownloadController({
   setStatus,
 });
 const {
+  closeConversationMenus,
+  getConversationMenuState,
+  openConversationMenu,
+  runConversationMenuAction,
+  toggleConversationDownloadMenu,
+} = createConversationMenuController({
+  appState,
+  conversationList,
+  isUiBusy,
+  setActiveConversationById,
+});
+const {
   ensureModelVariantControlsVisible,
   focusSkipTarget,
   focusTranscriptBoundary,
@@ -1066,98 +1078,6 @@ function playEntranceAnimation(element, className = 'animate-in') {
 
 function isAnyModalOpen() {
   return Boolean(document.querySelector('.modal.show'));
-}
-
-function findConversationMenuButton(conversationId, selector) {
-  if (!conversationList || !conversationId) {
-    return null;
-  }
-  const item = Array.from(conversationList.querySelectorAll('.conversation-item')).find(
-    (candidate) =>
-      candidate instanceof HTMLElement && candidate.dataset.conversationId === conversationId
-  );
-  return item?.querySelector(selector) || null;
-}
-
-function closeConversationMenus({ restoreFocusTo = null } = {}) {
-  if (!(conversationList instanceof HTMLElement)) {
-    return;
-  }
-  conversationList.querySelectorAll('.conversation-item.menu-open').forEach((item) => {
-    item.classList.remove('menu-open');
-  });
-  conversationList.querySelectorAll('.conversation-menu').forEach((menu) => {
-    menu.classList.add('d-none');
-  });
-  conversationList.querySelectorAll('.conversation-submenu').forEach((menu) => {
-    menu.classList.add('d-none');
-  });
-  conversationList.querySelectorAll('.conversation-menu-toggle').forEach((button) => {
-    button.setAttribute('aria-expanded', 'false');
-  });
-  conversationList.querySelectorAll('.conversation-download-toggle').forEach((button) => {
-    button.setAttribute('aria-expanded', 'false');
-  });
-  if (restoreFocusTo instanceof HTMLElement) {
-    restoreFocusTo.focus();
-  }
-}
-
-function openConversationMenu(item, toggleButton) {
-  if (!(item instanceof HTMLElement) || !(toggleButton instanceof HTMLButtonElement)) {
-    return;
-  }
-  const menu = item.querySelector('.conversation-menu');
-  if (!(menu instanceof HTMLElement)) {
-    return;
-  }
-  const isOpen = item.classList.contains('menu-open');
-  closeConversationMenus();
-  if (isOpen) {
-    return;
-  }
-  item.classList.add('menu-open');
-  menu.classList.remove('d-none');
-  toggleButton.setAttribute('aria-expanded', 'true');
-}
-
-function toggleConversationDownloadMenu(item, toggleButton) {
-  if (!(item instanceof HTMLElement) || !(toggleButton instanceof HTMLButtonElement)) {
-    return;
-  }
-  const submenu = item.querySelector('.conversation-submenu');
-  if (!(submenu instanceof HTMLElement)) {
-    return;
-  }
-  const isOpen = !submenu.classList.contains('d-none');
-  submenu.classList.toggle('d-none', isOpen);
-  toggleButton.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-}
-
-function getConversationMenuState(conversation) {
-  const capabilities = deriveConversationMenuCapabilities(conversation);
-  return {
-    ...capabilities,
-    controlsDisabled: isUiBusy(),
-  };
-}
-
-function runConversationMenuAction(conversationId, actionButton, callback) {
-  if (!conversationId) {
-    return;
-  }
-  if (appState.activeConversationId !== conversationId) {
-    setActiveConversationById(conversationId);
-  }
-  closeConversationMenus();
-  const refreshedActionButton =
-    actionButton instanceof HTMLElement
-      ? findConversationMenuButton(
-          conversationId,
-          `.${Array.from(actionButton.classList).join('.')}`
-        )
-      : null;
-  callback(refreshedActionButton);
 }
 
 function getKeyboardShortcutsModalInstance() {

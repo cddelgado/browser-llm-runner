@@ -94,6 +94,7 @@ Debug-log state orchestration also belongs here: `src/app/debug-log.js` owns ent
 Transcript content orchestration also belongs here: `src/app/transcript-content-renderer.js` owns lazy Markdown loading, MathJax configuration/typesetting, and MathML extraction while `src/ui/transcript-view.js` owns transcript markup.
 Message-copy behavior also belongs here: `src/app/message-copy.js` owns clipboard fallback and copy-text assembly while transcript events and shortcuts only trigger the action.
 Conversation download behavior also belongs here: `src/app/conversation-downloads.js` owns browser blob downloads, active-branch JSON/Markdown download orchestration, and bulk archive export status while `src/main.js` only wires dependencies.
+Conversation sidebar menu behavior also belongs here: `src/app/conversation-menu.js` owns menu open/close state, download submenu toggling, menu capability state, and action focus handoff while `src/app/conversation-list-events.js` only routes DOM events.
 
 `src/llm/`
 
