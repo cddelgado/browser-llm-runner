@@ -70,6 +70,9 @@ function createHarness() {
             id="cloudModelThinkingDisabledExtraBody"
             data-cloud-model-thinking-setting="disabledExtraBody"
           >{"chat_template_kwargs":{"enable_thinking":false}}</textarea>
+          <div id="cloudModelThinkingField" class="d-none" data-cloud-model-thinking-field="true">
+            Thinking field
+          </div>
           <input
             id="cloudModelRateLimitRequests"
             type="number"
@@ -145,6 +148,7 @@ function createHarness() {
       exportCloudProviderButton: document.getElementById('exportCloudProviderButton'),
       cloudModelToolToggle: document.getElementById('cloudModelToolToggle'),
       cloudModelThinkingToggle: document.getElementById('cloudModelThinkingToggle'),
+      cloudModelThinkingField: document.getElementById('cloudModelThinkingField'),
       cloudModelRateLimitRequests: document.getElementById('cloudModelRateLimitRequests'),
     },
   };
@@ -219,6 +223,7 @@ describe('settings-events-cloud', () => {
     expect(harness.deps.setStatus).toHaveBeenCalledWith(
       'Thinking control enabled for Llama 3.1 8B.'
     );
+    expect(harness.elements.cloudModelThinkingField?.classList.contains('d-none')).toBe(false);
   });
 
   test('saves provider secrets through the delegated form handler', async () => {

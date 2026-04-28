@@ -410,6 +410,11 @@ export function bindCloudProviderSettingsEvents({
                 textarea.disabled = !target.checked;
               }
             });
+          panel?.querySelectorAll('[data-cloud-model-thinking-field="true"]').forEach((field) => {
+            if (field instanceof HTMLElement) {
+              field.classList.toggle('d-none', !target.checked);
+            }
+          });
         }
         if (
           thinking.enabled &&

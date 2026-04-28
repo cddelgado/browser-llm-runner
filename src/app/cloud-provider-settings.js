@@ -551,6 +551,8 @@ export function createCloudProviderSettingsController({
     ].forEach((field) => {
       const wrapper = documentRef.createElement('div');
       wrapper.className = 'settings-control-group';
+      wrapper.dataset.cloudModelThinkingField = 'true';
+      wrapper.classList.toggle('d-none', !thinkingEnabled);
 
       const label = documentRef.createElement('label');
       label.className = 'form-label';

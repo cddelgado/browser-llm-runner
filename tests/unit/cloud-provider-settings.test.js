@@ -147,6 +147,14 @@ describe('cloud-provider settings controller', () => {
     expect(cloudProvidersText).not.toContain('Reset model defaults');
   });
 
+  test('hides cloud-model thinking fields until thinking control is enabled', () => {
+    const harness = createHarness();
+
+    expect(
+      harness.document.querySelector('[data-cloud-model-thinking-field="true"]')?.classList
+    ).toContain('d-none');
+  });
+
   test('uses user-entered provider names when saving providers', async () => {
     const harness = createHarness({ providers: [] });
     const inspectCloudProviderEndpoint = vi.fn(async () => ({
