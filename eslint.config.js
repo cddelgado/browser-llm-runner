@@ -50,13 +50,27 @@ module.exports = [
     },
     rules: {
       'no-unused-vars': [
-        'warn',
+        'error',
         {
           argsIgnorePattern: '^_',
           caughtErrorsIgnorePattern: '^_',
         },
       ],
       'no-undef': 'error',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name='setAttribute'][arguments.0.value='aria-live'][arguments.1.value='assertive']",
+          message:
+            'Use the shared polite status-region pattern instead of assertive live announcements.',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='setAttribute'][arguments.0.value='role'][arguments.1.value='alert']",
+          message: 'Use role="status" for shared chat status updates unless a separate alert flow is documented.',
+        },
+      ],
     },
   },
   {

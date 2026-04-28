@@ -25,6 +25,7 @@ This document tracks security hardening decisions and known gaps that should sta
 ## Known hardening gap
 
 - The app does not yet ship with a Content Security Policy. This remains an explicit defense-in-depth task because model output is rendered into the transcript DOM after Markdown conversion. A future hardening pass should add a CSP compatible with GitHub Pages, MathJax, Bootstrap, workers, and local model loading.
+- The current MathJax bundle emits a Vite `eval` warning during build. Treat that as part of the CSP hardening task: either choose a MathJax path that avoids runtime code evaluation or document the minimum CSP exception before enabling a policy.
 
 ## Remaining accepted risk
 

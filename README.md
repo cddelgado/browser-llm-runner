@@ -65,359 +65,39 @@ This repo now treats human maintainability as part of the definition of done. Be
 - [`MAINTAINERS.md`](MAINTAINERS.md) for the repo-specific maintainer workflow and current refactor direction.
 - [`docs/architecture.md`](docs/architecture.md) for the architecture story and target shape.
 - [`docs/conventions.md`](docs/conventions.md) for local coding and documentation conventions.
+- [`docs/runtime-behavior.md`](docs/runtime-behavior.md) for user-visible behavior that crosses subsystem boundaries.
 - [`docs/failure-model.md`](docs/failure-model.md) for known failure surfaces and recovery expectations.
 - [`docs/change-guide.md`](docs/change-guide.md) for common change paths.
 - [`docs/maintainer-faq.md`](docs/maintainer-faq.md) for practical maintainer questions.
 
 The README should stay a front door. Detailed behavior, architecture, failure, and change-path documentation should live in focused docs and be linked from here.
 
-## Runtime behavior
+## Runtime Overview
 
-- Inference runs through an engine-driver layer selected from model config and user preferences; bundled local models use either the Transformers.js worker path for ONNX models or the `wllama` worker path for GGUF models, while configured cloud models use the OpenAI-compatible worker path.
-- Conversation turns are sent to the model as structured chat messages (`system`/`user`/`assistant`) rather than a flattened transcript string.
-- On initial load, the app shows a home screen with a `Start a conversation` action.
-- Clicking `Start a conversation` opens the chat workspace at `#/chat` with model selection, an empty composer, and no model load yet.
-- The selected model starts loading only after the first message is sent.
-- For multimodal models, the worker defers multimodal processor loading until the first generation request so image/audio preprocessing assets are not pulled in during initial model load.
-- Text-only chats on multimodal-capable models initialize through the lighter text-generation path first; the worker reloads the multimodal sessions only when the prompt actually contains image or audio inputs.
-- Each conversation stores its own selected model.
-- Changing the model for the active conversation updates that conversation only.
-- Switching to a saved conversation with a different model keeps the current model loaded until the next send for that conversation.
-- When that continued send needs a different model, the app unloads the previous worker, loads the conversation's model, and shows load progress at the bottom of the transcript view.
-- Clicking `New Conversation` returns the workspace to the pre-chat model picker without adding a sidebar item yet.
-- Clicking `New Agent` returns the workspace to a matching pre-chat flow with agent name and personality fields above the same model picker; the composer then prompts the user to say hello to that agent.
-- The pre-chat picker now renders separate `Local Models` and `Cloud Models` sections.
-- Typing `/picard` in the composer switches the workspace into a prefilled Picard-inspired agent draft, and typing `/picard <message>` starts that agent and sends `<message>` as the first hello.
-- Saved custom orchestrations can also be invoked from the composer with `/<command> ...`; those slash-command runs stay local, use the current conversation context, and require pending attachments to be cleared before send.
-- After leaving the launch screen, the `New Conversation` button remains visible in the top bar; it is disabled while a fresh conversation is being prepared.
-- Agent conversations show a person icon in the conversation list, expose an icon-only pause/resume header control with a visible next-heartbeat countdown while active, reset that heartbeat timer to 15 minutes after each exchange, write each heartbeat into the transcript as a visible `Heartbeat` turn, announce when a heartbeat ran but intentionally stayed quiet, keep empty/no-op heartbeat exchanges out of later inference context, and stop scheduled follow-ups as soon as that agent thread is no longer the loaded chat.
-- The app now keeps a browser-local semantic memory layer derived from prior user statements and agent summary nodes; once the active conversation prompt grows past the selected model's context limit, prompt assembly retrieves a compact set of relevant memories for the current user turn from that same conversation only instead of depending on the model to remember every durable fact or preference from raw transcript alone.
-- Uploaded attachments are prepared locally before send; while a file is still being read, converted, hashed, or stored into `/workspace`, send and attachment controls stay disabled so the turn cannot race ahead without the file.
-- From that pre-chat state, users can keep the currently loaded model or choose a different model card before sending the first message.
-- If a different model is selected for the next chat, the currently loaded model worker is unloaded before the replacement model is loaded.
-- During model load, the selected model card's visible progress bar resets for each file and reflects that file's own byte progress from `0` to `100`, while the summary text underneath tracks aggregate downloaded bytes across discovered model files.
-- The URL hash reflects the visible screen and active conversation:
-  - `#/` for setup/home
-  - `#/chat` for the pre-chat workspace with no selected conversation
-  - `#/chat/new-agent` for the agent pre-chat workspace
-  - `#/chat/<uuid>` for a selected conversation
-  - `#/chat/settings` when Settings is open
-  - `#/chat/<uuid>/system-prompt` while editing that conversation's custom prompt
-  - Browser back/forward navigation follows those screen transitions.
-- Header actions include a `Help` button that opens `help.html` in the current tab with student-focused guidance and a back button to return to the last chat.
-- Header actions include a `Keyboard shortcuts` button (`Ctrl+/`) so users can discover available keyboard actions.
-- Keyboard users get route-safe skip links that jump to the visible main content, application controls, conversations, transcript, composer, and settings regions without breaking hash-based routing.
-- The app shell uses a full-width `ClawsChat` banner above the main control bar, and the title/control strip stays visually minimized until the chat workspace is started while keyboard/help/settings remain available.
-- On phone widths (`<=767.98px`), the top bar switches to a two-row layout: `New conversation`, `New agent`, `Conversations`, and `Settings` stay visible on the first row, while `Help` and `Keyboard shortcuts` move into a mobile overflow menu.
-- On phone widths, the conversations panel stays offcanvas but expands to the full viewport width, transcript jump controls move into a compact dock above the composer, the composer switches to a 3-column touch layout, and Settings uses a single-column scroll flow with a horizontally scrollable tab strip plus a sticky header.
-- The footer shows the current release stamp (`2026.04.09-01`), copyright for Catarino David Delgado, and links to the GitHub repository and MIT license. On phone widths, that footer moves into the main scroll flow instead of reserving a fixed shell row.
-- `Settings -> Tools` includes:
-  - `Enable tool calling` to append tool-call instructions only when the selected conversation model supports tool calling
-  - per-tool toggles for each currently available built-in tool; disabled built-in tools are removed from the computed system prompt and ignored if a model still emits them
-- `Settings -> Proxy` includes:
-  - one optional prefix-style CORS proxy URL that is validated with an MCP `initialize` probe against `https://example-server.modelcontextprotocol.io/mcp` before it is saved
-  - query-string-style prefixes such as `https://proxy.example/?url=` are allowed and preserved as entered
-  - automatic retry through that proxy only when a direct cross-origin browser request appears blocked by CORS
-  - safety checks that skip proxy fallback for same-origin requests, remote proxying of local/private-network targets, and requests with explicit authorization headers
-- `Settings -> MCP Servers` includes:
-  - adding browser-reachable `https` MCP HTTP endpoints, or `http://localhost`, when they do not require OAuth or token-based authentication
-  - imported servers start disabled, and every discovered command starts disabled
-  - per-server accordions with metadata, refresh/remove actions, and per-command toggles
-  - disabled MCP servers and disabled MCP commands are omitted from the computed system prompt and rejected by the local tool-execution loop
-- `Settings -> Cloud Providers` includes:
-  - adding browser-reachable OpenAI-compatible endpoints with an optional user-entered provider name by testing `GET /models` before save
-  - if that model-list test looks CORS-blocked and a proxy is saved, retrying through the proxy and marking that provider so future cloud requests use the proxy immediately
-  - app-managed predefined cloud providers from `src/config/cloud-models.json`; their managed models stay in the picker and cannot be removed by the user
-  - storing API keys in dedicated browser-local IndexedDB storage with WebCrypto encryption when the browser supports it, plus an explicit warning that browser-only secret storage is imperfect and saved keys cannot be shown again
-  - per-provider accordions with refresh/remove actions, API-key update forms, optional provider links (`Create account`, `Create token`, `Data security`), available-model toggles, and inline enabled-model settings for cloud thinking prompt switches, thinking-specific extra request body JSON, context size, output tokens, temperature, Top P, and Top K where supported
-  - per-selected-model browser-local request caps with second, minute, hour, day, or week windows so cloud models can be rate-limited before the browser sends another remote request
-  - selected remote models preserve any tool/function support detected from provider metadata, and each selected model also exposes explicit `Enable built-in tools` and `Enable thinking control` settings so users can opt into prompt-based tool calling, model-specific thinking system-prompt switches, and OpenAI-compatible extra request body fields such as `{"chat_template_kwargs":{"enable_thinking":false}}`
-  - predefined cloud models can also ship app-managed default generation parameters and fixed rate limits from `src/config/cloud-models.json`
-  - strict OpenAI-hosted endpoints use the stricter OpenAI request profile (`max_completion_tokens`, no `top_k`), while broader compatible endpoints keep the looser `max_tokens` path
-  - selected cloud models are appended to the same New Conversation / New Agent picker used by bundled local models
-- `Settings -> Skills` includes:
-  - uploading local `.zip` skill packages into dedicated browser-local skills storage that is separate from `/workspace`, conversations, and MCP settings
-  - per-package accordions with a markdown-rendered `SKILL.md` preview, enable toggle, and remove action
-  - imports require exactly one `SKILL.md` file in the zip; other files may be present but are not exposed to the model
-  - imported skills start disabled and only appear in the system prompt after the user enables them
-- `Settings -> Orchestrations` includes:
-  - a browser-local editor for creating and updating custom orchestration JSON plus the slash command that invokes it
-  - a structured step editor for adding, editing, and removing orchestration steps while keeping the raw JSON visible for advanced fields
-  - per-step flow cues that show how each step output becomes available to later steps through `previousStepOutput`, `stepNOutput`, `stepNOutputs`, and any named `outputKey`
-  - import of one exported orchestration JSON file or an exported collection, and export of one orchestration or all saved custom orchestrations
-  - a saved custom-orchestration accordion with edit, export, and remove actions
-  - a separate built-in orchestration accordion that shows app-managed definitions for transparency but keeps them read-only
-- `Settings -> Conversation` includes:
-  - `Render MathML from LaTeX` to control transcript math rendering and the matching math-formatting prompt hint
-  - `Enable single-key transcript shortcuts` to disable focused transcript shortcuts like `E`, `B`, `R`, `F`, and `C`
-  - `Transcript view` with `Standard` and `Compact`
-  - `Export` to download a zip archive containing a full conversation-state snapshot plus per-conversation JSON, Markdown, and stored artifacts
-  - `Delete Conversations` to remove all saved conversations, their stored artifacts, and related local semantic memories from this browser
-- After model load completes, the full conversation header controls appear and response streaming begins.
-- If saved conversations exist, no conversation is auto-opened after load; users choose one from the conversation list.
-- The pre-chat panel is shown when no active conversation exists or when `New Conversation` is preparing a fresh chat; the bottom message composer keeps the same size before and after model load.
-- The agent pre-chat panel reuses the same model cards but adds `Agent name` and `Personality description` fields and hides per-conversation prompt customization.
-- If no active conversation exists, a new untitled conversation is created when the first message is sent.
-- New conversations get a UUID-backed route only after the first prompt is sent and the selected model has loaded.
-- Backend selection supports:
-  - `WebGPU`
-  - `CPU`
-- Selected cloud-provider models run through a browser fetch-backed OpenAI-compatible worker path instead of the local WebGPU/CPU runtimes; the backend selector is ignored for those models.
-- `WebGPU` mode prefers WebGPU and falls back to CPU/WASM for ONNX models that do not require WebGPU and do not opt out with `runtime.allowBackendFallback: false`.
-- CPU mode runs CPU-capable ONNX models through the browser ONNX Runtime WASM path and runs GGUF models through the bundled `wllama` WASM runtime. The ONNX worker keeps `useWasmCache` enabled, uses app-bundled ONNX Runtime WASM assets instead of the default CDN path, keeps ONNX Runtime's extra proxy worker disabled because inference is already inside the app's LLM worker, and lets `Settings -> System -> CPU threads` control `onnx.wasm.numThreads` plus the explicit `wllama` thread hint (`0` keeps each engine on its own auto policy). On secure static hosts, the app also registers a same-origin COOP/COEP service worker so `wllama` can use multithreaded WASM when the browser allows `SharedArrayBuffer`; otherwise it falls back to single-thread WASM. Selecting a CPU-only GGUF model automatically switches the backend preference to `CPU` before load.
-- If a generation request stops producing worker activity for 90 seconds, the engine client terminates that worker and surfaces a recoverable timeout instead of leaving the UI stuck indefinitely. CPU/WASM local-model generation gets a 300-second first-token warmup window because the first Llama 3.2 CPU inference can spend several minutes in prompt prefill before printable text streams.
-- During local generation, the status region reports coarse phases such as prompt preparation, prompt prefill, first generated token, and printable response streaming so long CPU waits do not look idle. These updates stay coarse and do not announce every streamed token.
-- If WebGPU loses the active graphics device before any response tokens are shown, the engine client disposes the lost worker, reloads the same model on CPU once, and retries that generation automatically.
-- If `Stop generating` is pressed while that automatic CPU recovery is still initializing, the pending request is canceled and the retry is not resumed.
-- If that automatic CPU retry is not possible or still fails, the app unloads the current worker, marks the model as not ready, and tells the user to retry, switch to CPU mode, or reload the page if the browser/driver keeps dropping the device.
-- On the Transformers.js text path, the worker now loads `AutoTokenizer` + `AutoModelForCausalLM` directly, skips the extra pipeline retokenization pass, and intentionally clears prompt-cache state between turns because `past_key_values` reuse was retaining too much browser memory in practice.
-- The bundled ONNX Gemma 4 E2B entry now points at `huggingworld/gemma-4-E2B-it-ONNX`, runs through the Transformers.js worker path on WebGPU only, and is disabled whenever the app is in CPU mode or no usable WebGPU adapter is available.
-- The bundled ONNX Llama 3.2 3B entry now uses `q4` on both WebGPU and CPU.
-- The bundled ONNX Bonsai 8B experimental entry now uses `q1` on both WebGPU and CPU.
-- Token controls in Settings:
-  - `Maximum output tokens` and `Context size (short-term memory)` are model-aware integer fields.
-  - Local-model values are constrained by per-model limits from `src/config/models.json`, use `step=8`, and reflect the app's browser-safe caps rather than every model's theoretical upstream context window; remote cloud-model context settings allow multi-million-token provider limits and are trimmed approximately before request send.
-  - Models can also apply stricter backend-specific caps when one runtime path needs a smaller browser-safe budget.
-  - Each token field shows an estimated word count (`tokens * 0.75`).
-  - User overrides are saved per model in browser storage and restored when that model is selected again.
-  - Fields remain editable before the first conversation starts so users can set per-model generation defaults before model load.
-  - `Context size (short-term memory)` includes a `Reset to model default` link that applies the selected model default when clicked.
-  - On local engine paths, `Context size` is the total prompt-plus-response window. Workers reserve `Maximum output tokens` inside that window, then left-truncate older prompt tokens before generation so runtime memory growth does not exceed the selected context size.
-  - On the `wllama` engine path, `Context size` is also applied at model-load time as `n_ctx`.
-  - On the Transformers.js multimodal path, the worker trims the oldest non-system turns before generation so image/audio prompts stay within the prompt budget left after reserving response tokens; if the current multimodal turn alone is too large, generation fails with guidance to raise the context size, lower output tokens, or reduce attachments.
-  - If changed during generation, updates are queued and applied after the current response finishes.
-- `Settings -> Model` also includes:
-  - `Response language`, stored per conversation or pending pre-chat draft, with a warning when the selected language is not listed for the selected model in this app.
-  - `Enable model thinking when supported`, stored per conversation or pending pre-chat draft, which only affects models with a configured thinking-control contract.
-  - For `wllama` GGUF models only: `Reuse prompt cache between turns`, `Prompt batch size`, and `Min P`, stored per model and applied through the local CPU/WASM `wllama` runtime. Prompt-cache reuse now defaults off, auto-disables above `2048` context tokens, and prompt batch size is capped to a smaller browser-safe range.
-- Temperature control in Settings:
-  - `Temperature (Creativity)` is model-aware and constrained by per-model `minTemperature`, `maxTemperature`, and `defaultTemperature`.
-  - Values use `step=0.1`.
-  - User overrides are saved per model in browser storage and restored when that model is selected again.
-  - The field is disabled until a model is loaded.
-  - `Temperature (Creativity)` includes a `Reset to model default` link that applies the selected model default when clicked.
-  - If changed during generation, updates are queued and applied after the current response finishes.
-- Sampling controls in Settings:
-  - `Top K (Predictability)` uses `step=1` and loads a model-specific default from `src/config/models.json`.
-  - `Top P (Strangeness)` (nucleus sampling) uses min `0.00`, max `1.00`, and `step=0.05`, with a model-specific default from `src/config/models.json`.
-  - `Top K` and `Top P` are persisted per model, like temperature and token limits.
-  - The runtime also applies per-model `repetition_penalty` defaults where supported. `Min P` is now exposed only for `wllama` models in the same `Settings -> Model` panel; other engine-specific sampling knobs remain intentionally hidden until the app has a verified runtime contract for them.
-- The selected backend and model are stored in `localStorage`.
-- Cloud provider metadata is stored in browser IndexedDB, and provider API keys are stored separately in encrypted browser-local IndexedDB records when WebCrypto key storage is available.
-- Model files are downloaded on first load and cached in-browser for reuse.
-  - Transformers.js-backed models use the Transformers.js browser cache.
-  - `wllama`-backed GGUF models use the browser-local `wllama` model cache.
-  - `Settings -> System -> Clear Downloaded Model Files` clears the selected local Transformers.js or `wllama` model from its engine-specific browser cache without guessing at cache internals.
-- `Settings -> Debug` shows a paginated debug log (20 entries per page, newest first) with CSV export, including proxy validation, MCP transport diagnostics, and one complete raw model-output blob per visible model turn, preserved before transcript parsing or tool-call folding.
-- Conversation list and transcript are state-driven (no placeholder messages).
-- On desktop widths, the conversation list can be collapsed from a border-mounted toggle to give the active chat more space; the preference is saved locally.
-- Chat and setup status notices use Bootstrap alert patterns with headings so updates are announced in context.
-- The transcript includes helper links at both the start and end to jump to the transcript start, transcript end, or message input.
-- The transcript includes a note that each exchange has a heading so assistive technologies can index the conversation structure.
-- The transcript shows the speaker label and a simple local date/time stamp together above each visible user and model exchange.
-- Long transcripts use a spacer-backed sliding render window so older exchanges can scroll back into view without keeping the entire conversation mounted in the DOM.
-- Agent conversations can insert visible summary nodes into the transcript when older context is compacted; those nodes keep relisted uploaded files alongside the memory summary while prompt assembly drops older pre-summary turns.
-- Conversations are persisted locally in browser IndexedDB and restored on reload.
-- Semantic memory records are also persisted locally in IndexedDB as separate browser-only records keyed by normalized idea, semantic anchors, semantic paths, and provenance back to the originating conversation/message.
-- Legacy conversation snapshots are migrated automatically into the current normalized IndexedDB layout on load.
-- Saved conversation state includes stable IDs and forward-compatible metadata for future export/import:
-  - message `content.parts` and `content.llmRepresentation` (verbatim LLM-facing text)
-  - per-message `artifactRefs` for attachment metadata
-  - model-message `toolCalls` metadata when emitted tool calls are detected
-  - `tool` role messages for tool execution results
-  - collection-level `artifacts` for text/binary artifacts (binary stored as base64 plus hash metadata)
-- IndexedDB persistence stores conversations, message nodes, and artifacts as separate records to avoid a single ever-growing snapshot entry.
-- Binary artifacts are stored once in IndexedDB as blob-backed records; repeated derived text payloads are gzip-compressed when the browser supports `CompressionStream`.
-- The composer supports local attachments:
-  - The `+` composer control opens an attachment menu with `Attach for Reference` and `Attach to Work With`.
-  - `Attach for Reference` targets the current curated document formats, including images plus `.txt`, `.csv`, `.md`, `.html`, `.htm`, `.css`, `.js`, and `.pdf`.
-  - `Attach to Work With` opens an unfiltered picker, while the current ingestion pipeline still accepts the same supported attachment formats underneath.
-  - Attached filenames are normalized immediately into lowercase shell-safe names before they enter the workspace or prompt pipeline, and that canonical name is what the user sees afterward.
-  - `Attach to Work With` stages supported text-backed files into `/workspace` and tells the model the workspace path, but does not include the extracted file body in the prompt by default.
-  - Images can be attached from either menu path when the selected model supports image input.
-  - Text attachments currently support `.txt`, `.csv`, `.md`, `.html`, `.htm`, `.css`, and `.js` files.
-  - HTML attachments (`.html`, `.htm`) are converted locally into Markdown before they are added to the user prompt.
-  - PDF attachments (`.pdf`) are parsed locally in-browser and converted into page-aware extracted text before being added to the user prompt.
-  - PDF importing is parser-first and deterministic in the current implementation; OCR is not available yet, so image-only PDFs are rejected.
-  - Text-backed attachments preserve a normalized representation in conversation state so future features can reuse the same conversion output for search/memory ingestion without re-parsing the source file.
-  - Selected attachments appear as removable cards above the composer before send.
-  - Sent attachments are restored with the conversation transcript on reload.
-- Every uploaded attachment is also written into the browser's Origin Private File System (OPFS) behind a conversation-scoped linux-style `/workspace/...` path for future workspace tools.
-  - Attachment records preserve that `/workspace/...` path metadata so future local commands can address uploaded files without reaching into UI-only state.
-  - The visible attachment filename and `/workspace/...` basename now match the same canonical shell-safe upload name.
-  - Text-file and PDF attachments include a collapsible `Model sees` preview in the transcript so users can inspect the exact prompt text derived from the file, including the file's `/workspace/...` path when available.
-- Document-prep orchestration support is now built into the orchestration runtime for future attachment pipelines.
-  - Orchestrations are no longer limited to linear prompt-only flows.
-  - The runtime now supports prompt steps plus utility steps for deterministic preparation and chunk pipelines: `transform`, `forEach`, and `join`.
-  - This is intended for parser-first, LLM-guided conversions such as future PDF-to-Markdown attachment preparation.
-- New conversations start untitled and are automatically renamed after the first model response based on conversation content.
-- Automatic conversation renaming now runs through a one-step orchestration loaded from `src/config/orchestrations/rename-chat.json`.
-- Rename and fix orchestrations can now declare orchestration-level or step-level `generationConfig` caps so small follow-up tasks do not inherit the full chat token budget.
-- Agent conversations can also run a background heartbeat orchestration while loaded and unpaused; each heartbeat tells the model when the user has not replied since the last heartbeat so it can avoid repeating the same prompt, and those conversations use a separate summarization orchestration to compact older prompt context when the active branch approaches its context limit.
-- Conversation title editing is disabled until that automatic model-generated title is available and is available from the active conversation's sidebar kebab menu.
-- The conversation list reveals a kebab actions menu on hover/focus for each conversation instead of a direct delete icon.
-- Conversation menu actions such as `Edit prompt` and `Delete` remain available while background orchestrations (for example automatic conversation renaming) are running; only active model loading/generation locks those controls.
-- `Edit prompt` now also opens for agent conversations, where it shows editable agent name and personality fields plus the exact computed system prompt preview used for that agent thread.
-- After the first completed model response on the visible branch, that kebab menu includes a nested `Download` submenu.
-- Download submenu options:
-  - `JSON (.llm.json) File`: exports only the currently visible branch as `<conversation-name>.llm.json` with top-level `conversation` metadata (`name`, `startedAt`, `exportedAt`), the conversation's `model`, `temperature`, optional `systemPrompt` (when present on that conversation), optional `toolCalling` metadata when tool calling is enabled at export time, and an `exchanges` array containing per-exchange `heading`, explicit created-at ISO/ms fields plus UTC date/time fields, model `toolCalls`, and tool-result metadata including structured `toolResultData` when present.
-  - `Markdown (.md) File`: exports the visible branch as `<conversation-name>.md` with conversation metadata (started/exported UTC times, the conversation's model, temperature), optional tool-calling metadata when enabled at export time, optional `## System prompt` section (when present), and one section per exchange including UTC date/time lines, model tool-call metadata, and tool-result details, including structured `toolResultData` when present.
-- `Settings -> Conversation -> Export` downloads one zip archive containing:
-  - `storage/conversations.llm.json` with the full local conversation snapshot
-  - one folder per saved conversation with that conversation's `.llm.json` and `.md` exports
-  - an `artifacts/manifest.json` file plus the stored artifact payloads for that conversation
-- Model load progress UI collapses after successful initialization.
-- Model outputs wrapped in model-configured thinking tags (for example `<think>...</think>`) are shown in collapsible "Thinking" sections at the point they occurred within the model turn during streaming.
-  - Gemma 4 channel-style reasoning output (`<|channel>thought ... <channel|>`) is normalized into the same thinking UI without feeding that reasoning back into later turns.
-- Model responses are rendered as Markdown (via `markdown-it`) in the transcript.
-- Expanded visible thinking sections use the same Markdown rendering path as model responses.
-- `Settings -> Conversation -> Render MathML from LaTeX` controls whether LaTeX-delimited math is rendered in the transcript with MathJax (`$...$`, `$$...$$`, `\(...\)`, `\[...\]`).
-- When `Render MathML from LaTeX` is enabled, the effective system prompt adds math-formatting guidance telling the model to format math in LaTeX with proper delimiters.
-- `Settings -> Conversation -> Show thinking` controls whether thought sections are expanded by default (`off` by default).
-- `Settings -> Conversation -> Default system prompt` sets an optional system prompt for newly created conversations only.
-  - Existing conversations are not retroactively changed.
-  - New generations in a conversation use that conversation's captured system prompt.
-- Agent conversations still use that captured default system prompt, but they ignore per-conversation custom prompt overrides and instead append a fixed agent identity block (name, tool/tasklist behavior, privacy, destructive-action guardrails), personality context, and any latest summary node.
-- When prompt-driven feature guidance is enabled, the effective system prompt appends that guidance before any tool-calling instructions.
-- The effective system prompt also appends conversation-level language steering when a response language is selected and model-specific thinking-mode switch instructions when the selected model exposes them.
-- When tool calling is enabled and the active conversation model supports it, a model-specific tool-calling instruction block is appended after the effective conversation system prompt and any enabled feature guidance.
-- Browser-saved cloud models that have `Enable built-in tools` turned on use a generic JSON prompt profile (`{"name":"tool_name","parameters":{...}}`), and the detector also accepts `arguments` when a remote model emits that key instead.
-- When one or more enabled uploaded skill packages exist, that tool-calling block also includes `read_skill` plus an `Available Agent Skills` section listing each skill name and description.
-- When one or more configured MCP servers are enabled and have enabled commands, that tool-calling block includes `list_mcp_server_commands` and `call_mcp_server_command` in the model-specific tool inventory, with the enabled MCP server inventory rendered in that same model-specific list style.
-- Those MCP helper tools run through the same tool harness as built-in tools and are not user-toggled in `Settings -> Tools`; their availability is derived from enabled MCP servers and enabled commands.
-- Tool-calling behavior, transcript presentation, export semantics, the current built-in, skill, and MCP tool surfaces are documented in `docs/tools.md`.
-- The current built-in tool catalog exposed to models includes date/time lookup, current location lookup, the `web_lookup` URL/search tool, a `tasklist` planner whose latest state is derived from inline tasklist tool results on the visible conversation branch, a `write_python_file` tool for longer `/workspace/*.py` scripts, and a browser-local `run_shell_command` tool that exposes a documented GNU/Linux-like command subset over `/workspace`.
-- When one or more enabled uploaded skill packages exist, the model also gets the implicit `read_skill` tool, which returns the stored `SKILL.md` content wrapped with an explicit "this is the skill information" cue plus a follow-up prompt to apply it.
-- When enabled MCP servers exist, the model also gets the MCP helper tools `list_mcp_server_commands` and `call_mcp_server_command`; those helpers expose only enabled servers and enabled commands.
-- The preferred MCP path remains `list_mcp_server_commands` then `call_mcp_server_command`; if a model emits a direct enabled MCP command name anyway, the runtime treats it as an alias only when exactly one enabled server exposes that command name.
-- The fetch-backed `web_lookup` page/search tool is exposed to models when enabled in `Settings -> Tools`.
-  - `web_lookup` accepts one `input` string and returns a compact `{"status","body","message"}` envelope.
-  - If `input` is a direct `https` URL, `web_lookup` returns MIME type, title, and a summary excerpt in markdown inside `body`.
-  - If `input` is a search query, `web_lookup` fetches DuckDuckGo result data directly through the browser/proxy-aware fetch helper and returns concise search results in `body`.
-  - Failed `web_lookup` responses use `status: "failed"` plus retry guidance in `message`.
-  - `web_lookup`, shell `curl`, reverse-geocoding fetches, and MCP HTTP requests share the same browser fetch helper, which can retry through the validated proxy setting only after a likely CORS block.
-  - The shell tool keeps a conversation-local current working directory, defaults it to `/workspace`, and resolves relative paths from that pointer.
-  - `run_shell_command` now documents `shell` as its shell-text argument.
-  - The tool harness now also tolerates stringified JSON-object `arguments` or `parameters` payloads when a model emits them that way.
-  - Shell-command input is sanitized before execution: oversized commands, control characters, fenced blocks, and nested tool-call payloads are rejected.
-  - Shell-tool responses exposed to the model and transcript use a compact `{"status":"successful"|"failed","body":"...","message":"..."}` envelope, and the `body` is plain human-readable text rather than a schema dump.
-  - When `run_shell_command` is invoked, an embedded read-only xterm terminal opens with the active chat workspace, shows the shell prompt plus command/output, marks pending commands inline, shows non-zero exit statuses inline, can be manually closed until the next shell command reopens it, and uses the right-side split panel on desktop widths or a full-screen sheet on phone widths.
-  - The conversation sidebar auto-collapses while that terminal is open, and switching to a conversation with no shell terminal history closes the terminal automatically.
-  - `docs/tools.md` also defines the implementation standard future shell commands must meet before they are added to this subset.
-  - The shell subset includes `help` so the model can inspect command-specific usage without leaving the shell tool.
-  - The shell subset includes `paste`, `join`, and `column` for common line-merging, key-join, and table-alignment tasks over workspace text files.
-  - The shell subset includes a single-command `sed` MVP for common line printing, deletion, substitution, and in-place text edits under `/workspace`.
-  - The shell subset includes a basic `file` command that classifies directories plus common text and binary file types under `/workspace`.
-  - The shell subset includes a line-based `diff` command with unified-style emulated output for comparing two text files under `/workspace`.
-  - The shell subset includes a browser-backed `curl` subset for `URL`, bare host-style HTTPS shortcuts such as `wttr.in/...`, `-s`, `-I`, `-X`, repeated `-H`, `-d`, and `/workspace`-bounded `-o` with `/tmp` accepted as an alias for `/workspace/tmp`.
-  - The shell subset includes a delegated `python` command for `python /workspace/script.py` and short `python -c "..."` execution through a browser-local Pyodide worker.
-  - The shell subset includes `tee` so pipeline output can be written safely into `/workspace` files without enabling shell redirection.
-  - Larger Python source is expected to flow through `write_python_file`, which also mirrors a meaningful file-write entry into the read-only terminal before later `python` execution appears there.
-  - The shell subset now supports text-only `|` pipelines for a small stdin-aware command subset, including `tee`, while command chaining such as `;` and `&&` remains unsupported.
-- When a model emits a complete tool call during streaming, generation is interrupted immediately, the tool executes before the turn continues, and the visible transcript folds that tool request/result plus any resumed narration back into the same model response card in the order they occurred instead of rendering separate transcript nodes.
-- The active conversation's sidebar kebab menu includes `Edit conversation system prompt`:
-  - Set optional per-conversation instructions.
-  - `Append after default prompt` is enabled by default; when enabled, the conversation prompt is appended after the conversation's captured default prompt.
-  - When `Append after default prompt` is disabled, the conversation prompt replaces the conversation's captured default prompt.
-  - The captured default prompt for a conversation does not change after that conversation is created.
-- The pre-chat `ChatClaws` panel also exposes conversation prompt editing for the currently selected conversation.
-- Each user message and model response includes a copy action; model response copy excludes thought text and preserves the model's original LaTeX source.
-- Math-rendered model responses also expose a dedicated `Copy MathML` action for the rendered MathML.
-- The Thinking section includes a dedicated copy action to copy thoughts only.
-- Keyboard shortcuts cover the primary workspace actions (start/new conversation, help, settings, send/stop, load model, downloads, transcript jumps) plus focused transcript actions (edit, branch, regenerate, fix, copy, and branch/response variant navigation).
-- The keyboard shortcuts dialog and `help.html` keep the global and focused transcript shortcut tables aligned, including the `Shift+Enter` composer newline behavior and the setting that can disable single-key transcript shortcuts.
-- Composer keyboard behavior uses `Enter` to send and `Shift+Enter` to insert a new line.
-- Each model response includes a `Regenerate` button. Regeneration creates a new response variation at that turn, keeps prior variations, and lets users navigate alternatives with left/right controls and an `x/y` indicator.
-- Each focused model response still supports `Fix` from the transcript shortcut (`F`). `Fix` runs a multi-step orchestration from `src/config/orchestrations/fix-response.json` (critique -> revise -> validate) before streaming a corrected variant at that turn.
-- Each user message now supports branch-aware editing controls:
-  - `Edit` opens inline editing for that user message.
-  - `Save` (floppy icon) commits the edit and removes all later turns on that branch from that point forward.
-  - `Branch` (terminal-split icon) opens branch-edit mode at that turn. A sibling user-message branch is only created when `Save` is used with changed text; canceling or saving unchanged text creates no branch.
-  - If multiple user branches exist at the same turn, left/right controls and an `x/y` indicator let users switch between those branch variants.
-- Agent conversations hide per-turn editing, branch creation, regenerate/fix actions, and variant navigation so those histories stay linear from the user's perspective.
+The app starts on a launch screen and moves into a hash-routed chat workspace. It does not load a model until the first message is sent. Conversation routes, settings routes, and help pages must work under a GitHub Pages repository subpath.
 
-## Supported models
+Inference runs through the engine-client boundary. Bundled local models use worker-backed Transformers.js or `wllama` paths; configured cloud models use the OpenAI-compatible worker path only after the user configures a provider. Streaming responses update the transcript incrementally, while a separate polite status region announces coarse progress and errors.
 
-In addition to the bundled local model catalog, the app can ship predefined cloud providers/models from `src/config/cloud-models.json`, and users can still add their own named, browser-reachable OpenAI-compatible providers from `Settings -> Cloud Providers`. Any selected remote models are exposed in the same picker on the New Conversation and New Agent screens under `Cloud Models`, and each enabled remote model is configured directly below its provider model switch.
+For the full user-visible runtime story, see [`docs/runtime-behavior.md`](docs/runtime-behavior.md). For focused subsystem details, see:
 
-- `huggingworld/gemma-4-E2B-it-ONNX` (default)
-  - Uses the Transformers.js worker path in this app.
-  - Uses `q4f16` on WebGPU only, with external ONNX data loading.
-  - Is unavailable in CPU mode and when the browser has no usable WebGPU adapter.
-  - Enables multimodal generation for image and audio input in the current worker path.
-  - Reuses the existing lazy multimodal processor load path so preprocessing assets are not pulled during initial model load.
-  - Uses runtime `enable_thinking` and parses Gemma's `<|channel>...<channel|>` reasoning into the transcript thinking section.
-  - Uses Gemma's special-token tool-call format supported by this app.
-- `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-  - Uses `q4` on WebGPU only in this app.
-  - Stays WebGPU-only because direct Transformers.js CPU/WASM probes for this package load successfully but fail at the first `OrtRun()` with `std::bad_alloc`.
-- `onnx-community/Llama-3.2-1B-Instruct-onnx-web-gqa`
-  - Uses `q4f16` on WebGPU and CPU in this app.
-  - Provides the tested Transformers.js CPU/WASM Llama path for browsers without WebGPU.
-- `onnx-community/Bonsai-8B-ONNX`
-  - Uses the Transformers.js worker path in this app.
-  - Experimental ONNX entry using `q1` on WebGPU and CPU in this app.
-  - Relies on the upstream model config for exact ONNX external-data shard counts across dtypes instead of forcing one app-level shard count.
-  - Parses `<think>...</think>` reasoning into the transcript thinking section.
-  - Uses tagged JSON tool calls inside `<tool_call>...</tool_call>` when tool calling is enabled.
-- `LiquidAI/LFM2.5-1.2B-Thinking-GGUF`
-  - Uses the `wllama` worker path in this app.
-  - Loads the pinned `LFM2.5-1.2B-Thinking-Q4_K_M.gguf` quant from `LiquidAI/LFM2.5-1.2B-Thinking-GGUF`.
-  - Runs as a text-only CPU/WASM GGUF model in this app, using multithreaded `wllama` when cross-origin isolation is available and otherwise falling back to single-thread WASM.
-  - Parses `<think>...</think>` reasoning into the transcript thinking section.
-  - Does not currently enable tool calling or multimodal input in this app.
-- Legacy stored IDs are automatically remapped to the supported model:
-  - `onnx-community/gemma-4-E2B-it-ONNX` -> `huggingworld/gemma-4-E2B-it-ONNX`
-  - `onnx-community/Llama-3.2-3B-Instruct-ONNX` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
-  - `Xenova/distilgpt2` -> `onnx-community/Llama-3.2-3B-Instruct-onnx-web`
+- [`docs/engine-selection.md`](docs/engine-selection.md) for WebGPU/CPU/cloud selection and fallback behavior.
+- [`docs/models.md`](docs/models.md) for the model catalog and supported-model checklist.
+- [`docs/tools.md`](docs/tools.md) for built-in tools, MCP behavior, and the browser-local shell subset.
+- [`docs/orchestrations.md`](docs/orchestrations.md) for app-managed and user-authored orchestration flows.
+- [`docs/conversation-domain.md`](docs/conversation-domain.md) for conversation trees, branches, exports, and prompt shaping.
+- [`docs/ui-views.md`](docs/ui-views.md) for transcript, settings, help, and accessibility-facing view conventions.
 
-For `Llama 3.2 3B` specifically, the app keeps the browser-oriented `onnx-web` repo id for WebGPU. The full ONNX repo remains a legacy alias only because its browser load path was not reliable in this app: the full repo needs explicit `.onnx_data` shard counts and still hit `std::bad_alloc` during CPU session creation in direct browser probes, while the `onnx-web` package hit `std::bad_alloc` during CPU generation through Transformers.js.
+## Supported Models
 
-- Model support configuration lives in `src/config/models.json`:
-- `models`: options shown in the pre-chat model card picker
-- `models[].displayName`: friendly name shown on the card
-- `models[].languageSupport`: user-facing language tags shown on the card, with a publisher-linked `and more` suffix when needed
-- `models[].repositoryUrl`: model details link used from the card footer
-- `models[].unavailableReason`: optional fixed reason that keeps a model visible in the picker but disabled in this app
-  - `models[].features`: normalized capability flags (`streaming`, `thinking`, `imageInput`, `audioInput`, `videoInput`)
-- `models[].runtime`: per-model runtime hints (optional `dtypes.webgpu`, optional `dtypes.cpu`, optional `enableThinking`, optional `requiresWebGpu`, optional `multimodalGeneration`, optional `preferMultimodalForText`, optional `useExternalDataFormat`)
-  - `models[].inputLimits`: optional per-media limits such as `maxImageInputs` and `maxAudioInputs`
-  - `models[].thinkingControl`: optional model-specific reasoning control metadata (`defaultEnabled`, optional `runtimeParameter`, optional `enabledInstruction`, optional `disabledInstruction`)
-  - `models[].generation`: per-model defaults and limits for output/context tokens, temperature, `defaultTopK`, `defaultTopP`, and optional runtime-supported defaults such as `defaultRepetitionPenalty`
-  - `defaultModelId`: fallback/default selection
-  - `legacyAliases`: stored legacy IDs remapped at runtime
-- Orchestration definitions are JSON files for transparency:
-  - `src/config/orchestrations/rename-chat.json`
-  - `src/config/orchestrations/fix-response.json`
-  - `src/config/orchestrations/pdf-to-markdown.json`
-    - Example document-prep orchestration for future parser-first PDF ingestion
-  - Orchestration steps can now be:
-    - `prompt` for model-generated text
-    - `transform` for deterministic local preparation such as chunking
-    - `forEach` for per-item prompt execution over prepared arrays
-    - `join` for merging array outputs into a later prompt or final result
+The bundled local model catalog and its browser-safe limits live in `src/config/models.json`. App-managed cloud provider defaults live in `src/config/cloud-models.json`, and user-added OpenAI-compatible providers are stored in this browser.
 
-## Security notes
+Model behavior changes should update [`docs/models.md`](docs/models.md) and, when backend behavior changes, [`docs/engine-selection.md`](docs/engine-selection.md). Do not commit model weights.
 
-- Precise location tool use now shows a one-time awareness prompt before first use. If declined, the app falls back to a coarse location label with no coordinates.
-- Transformers.js is bundled from the locally installed package rather than imported from a CDN at runtime.
-- Browser-local Python execution currently loads Pyodide assets from the pinned `https://cdn.jsdelivr.net/pyodide/v0.29.3/full/` distribution at runtime.
-- Optional CORS proxy support uses a validated prefix-style proxy URL from `Settings -> Proxy`; validation now sends an MCP `initialize` probe to `https://example-server.modelcontextprotocol.io/mcp`, accepts the reference server's auth challenge as proof that the proxied MCP transport is browser-readable, and retries only after a likely CORS failure. Same-origin requests and remote proxying of local/private-network targets are left on the normal browser path; non-cloud browser-networked features also avoid proxying explicit authorization headers.
-- OpenAI-compatible cloud providers are tested with an authenticated `GET /models` call. If that model-list request needs the saved proxy because of CORS, the provider is marked as proxy-required and later authenticated `/chat/completions` requests use the proxy immediately. Other cloud providers still use direct browser requests first and retry through the saved proxy only after a likely CORS failure.
-- Cloud-provider API keys are stored in dedicated IndexedDB records with WebCrypto encryption when available. This is better than plain browser storage, but it is still browser-only protection rather than a hardware-backed or server-side secret vault.
-- MCP server support uses browser fetch directly. Only `https` endpoints, or `http://localhost`, are accepted, and servers that require OAuth or token-based authentication are rejected when detected. When an enabled MCP command is called, that command's arguments are sent to the configured MCP endpoint.
-- Attachment ingestion uses browser-local limits before large files are read into memory:
-  - text files: 5 MB max, truncated to 400,000 characters
-  - images: 15 MB max, 40,000,000 pixels max
-  - audio files: 25 MB max, decoded locally to mono 16 kHz waveform data when the selected model supports audio input
-  - PDFs: 20 MB max, truncated to 120,000 characters after extraction
-- Audio input is upload-only. The app does not expose live recording.
-- Video input is not currently exposed because the supported browser runtime paths are not reliable enough yet.
-- The app still does not ship with a CSP. This is a documented hardening gap for a future pass.
-- The bundled Transformers.js models in `src/config/models.json` are pinned to explicit Hugging Face revisions, and the bundled `wllama` LFM2.5 GGUF entry uses a pinned Hugging Face `resolve/<commit>/...` URL, so browser caches stay stable across redeploys until the catalog is intentionally updated.
-- The app also ships a same-origin `coi-serviceworker.js` helper so secure static-host deployments such as GitHub Pages can add COOP/COEP headers and unlock `SharedArrayBuffer`-backed `wllama` multithreading after the first load/reload.
+## Security Notes
 
-See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
+The app is privacy-preserving by default: prompts, model outputs, conversations, and uploaded files stay browser-local unless the user explicitly configures a remote cloud provider or MCP endpoint.
+
+Tracked security posture and accepted risks live in [`docs/security.md`](docs/security.md) and [`docs/failure-model.md`](docs/failure-model.md). Current notable risks include the lack of a CSP, pinned external runtime/model assets, browser-only cloud-provider secret storage, and user-configured network surfaces for cloud providers, proxies, and MCP servers.
 
 ## Scripts
 
@@ -431,27 +111,11 @@ See [`docs/security.md`](docs/security.md) for the tracked hardening notes.
 - `pnpm test:e2e`
 - `pnpm test:a11y`
 
-## Architecture notes
+## Architecture Notes
 
-- Conversation tree and export domain logic live in `src/state/conversation-model.js`, with message content normalization and LLM-facing prompt shaping extracted to `src/state/conversation-content.js`.
-- Centralized runtime state and selectors live in `src/state/app-state.js`.
-- App control flow for generation, stop, rename, and fix actions lives in `src/state/app-controller.js`.
-- Agent heartbeat scheduling, follow-up orchestration, and agent-thread summary compaction live in `src/app/agent-automation.js`.
-- Browser-local semantic memory extraction, retrieval, and conversation-linked cleanup live in `src/memory/semantic-memory.js`, `src/app/semantic-memory.js`, and `src/state/semantic-memory-store.js`.
-- Orchestration prompt templating, nested placeholder rendering, utility-step execution, and chunk-pipeline support live in `src/llm/orchestration-runner.js`.
-- Browser-local custom orchestration normalization/import-export helpers live in `src/orchestrations/custom-orchestrations.js`, and saved orchestration storage lives in `src/state/orchestration-store.js`.
-- Settings persistence and cross-domain wiring live in `src/app/preferences.js`, with tool/MCP settings extracted to `src/app/preferences-tooling.js`, orchestration editor/state logic extracted to `src/app/preferences-orchestrations.js`, and model/backend picker logic extracted to `src/app/preferences-models.js`.
-- Settings page event wiring lives in `src/app/settings-events.js`, with tool/network handlers extracted to `src/app/settings-events-tooling.js`, orchestration handlers extracted to `src/app/settings-events-orchestrations.js`, and conversation/model handlers extracted to `src/app/settings-events-models.js`.
-- Bulk conversation archive export lives in `src/app/conversation-bulk-export.js`.
-- Transcript and conversation-list DOM rendering live in `src/ui/`.
-- Transcript navigation/skip-link behavior, model-load feedback, composer attachment/runtime state, and workspace side-panel controllers live in `src/app/`.
-- Responsive viewport-height synchronization for the shell and mobile offcanvas/layout behavior lives in `src/app/viewport-layout.js`.
-- `src/main.js` remains the app shell for routing, page-level visibility, persistence hookup, and wiring dependencies into those modules.
-- See `docs/conversation-domain.md`, `docs/app-state.md`, `docs/app-controller.md`, `docs/orchestrations.md`, `docs/semantic-memory.md`, and `docs/ui-views.md` for the current boundaries.
-- See `docs/architecture.md`, `docs/conventions.md`, `docs/failure-model.md`, `docs/change-guide.md`, and `docs/maintainer-faq.md` for the repo-wide maintainer story and target direction.
-- See `docs/tools.md` for current built-in and MCP tool-calling behavior plus the remaining `SKILL.md` planning.
-- See `docs/web-search-hypothesis.md` for the current low-bandwidth, mobile-assisted search design hypothesis.
-- See `docs/models.md` for the model catalog schema and the contributor checklist for adding, disabling, replacing, or retiring models.
+`src/main.js` is the composition root. Browser-facing controllers live in `src/app/`, DOM renderers in `src/ui/`, conversation/state logic in `src/state/`, model/runtime boundaries in `src/llm/`, and worker entrypoints in `src/workers/`.
+
+The detailed architecture story and current refactor direction are in [`docs/architecture.md`](docs/architecture.md). The most important current maintainability investments are still behavior-preserving extraction of `src/main.js`, `src/llm/shell-command-tool.js`, `src/llm/tool-calling.js`, `src/styles.css`, and the largest matching test files.
 
 ## Orchestrations
 

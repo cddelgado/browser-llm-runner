@@ -1186,13 +1186,15 @@ export function createTranscriptView(dependencies) {
           : 'model-message'
     }`;
     item.dataset.messageId = message.id;
+    const messageIdAttribute = escapeHtml(message.id);
+    const cardHeadingMarkup = escapeHtml(cardHeading);
 
     if (message.role === 'model') {
       const canMutateModelTurn = !isAgentThread;
       const variantState = getModelVariantState(activeConversation, message);
       const variantLabel = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
       item.innerHTML = `
-        <h3 class="visually-hidden">${cardHeading}</h3>
+        <h3 class="visually-hidden">${cardHeadingMarkup}</h3>
         ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble">
           <div class="model-turn-timeline"></div>
@@ -1201,7 +1203,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary regenerate-response-btn${canMutateModelTurn ? '' : ' d-none'}"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Regenerate response"
             aria-keyshortcuts="R"
             data-bs-toggle="tooltip"
@@ -1213,7 +1215,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary copy-message-btn"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Copy response"
             aria-keyshortcuts="C"
             data-copy-type="response"
@@ -1226,7 +1228,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary copy-mathml-btn d-none"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Copy MathML"
             data-copy-type="mathml"
             data-bs-toggle="tooltip"
@@ -1238,7 +1240,7 @@ export function createTranscriptView(dependencies) {
             <button
               type="button"
               class="btn btn-sm btn-outline-primary response-variant-prev"
-              data-message-id="${message.id}"
+              data-message-id="${messageIdAttribute}"
               aria-label="Previous regenerated response"
               aria-keyshortcuts="["
               data-bs-toggle="tooltip"
@@ -1252,7 +1254,7 @@ export function createTranscriptView(dependencies) {
             <button
               type="button"
               class="btn btn-sm btn-outline-primary response-variant-next"
-              data-message-id="${message.id}"
+              data-message-id="${messageIdAttribute}"
               aria-label="Next regenerated response"
               aria-keyshortcuts="]"
               data-bs-toggle="tooltip"
@@ -1323,7 +1325,7 @@ export function createTranscriptView(dependencies) {
       const variantLabel = `${Math.max(variantState.index + 1, 1)}/${Math.max(variantState.total, 1)}`;
       const isEditing = canMutateUserTurn && getActiveUserEditMessageId() === message.id;
       item.innerHTML = `
-        <h3 class="visually-hidden">${cardHeading}</h3>
+        <h3 class="visually-hidden">${cardHeadingMarkup}</h3>
         ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble mb-0"></div>
         <textarea
@@ -1335,7 +1337,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary edit-user-message-btn${isEditing || !canMutateUserTurn ? ' d-none' : ''}"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Edit message"
             aria-keyshortcuts="E"
             data-bs-toggle="tooltip"
@@ -1347,7 +1349,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary save-user-message-btn${isEditing && canMutateUserTurn ? '' : ' d-none'}"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Save edited message"
             aria-keyshortcuts="Control+Enter"
             data-bs-toggle="tooltip"
@@ -1359,7 +1361,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary cancel-user-edit-btn${isEditing && canMutateUserTurn ? '' : ' d-none'}"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Cancel editing message"
             aria-keyshortcuts="Escape"
             data-bs-toggle="tooltip"
@@ -1371,7 +1373,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary branch-user-message-btn${isEditing || !canMutateUserTurn ? ' d-none' : ''}"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Branch from this user message"
             aria-keyshortcuts="B"
             data-bs-toggle="tooltip"
@@ -1383,7 +1385,7 @@ export function createTranscriptView(dependencies) {
           <button
             type="button"
             class="btn btn-sm btn-outline-primary copy-message-btn${isEditing ? ' d-none' : ''}"
-            data-message-id="${message.id}"
+            data-message-id="${messageIdAttribute}"
             aria-label="Copy message"
             aria-keyshortcuts="C"
             data-copy-type="message"
@@ -1397,7 +1399,7 @@ export function createTranscriptView(dependencies) {
             <button
               type="button"
               class="btn btn-sm btn-outline-primary user-variant-prev"
-              data-message-id="${message.id}"
+              data-message-id="${messageIdAttribute}"
               aria-label="Previous user branch"
               aria-keyshortcuts="["
               data-bs-toggle="tooltip"
@@ -1411,7 +1413,7 @@ export function createTranscriptView(dependencies) {
             <button
               type="button"
               class="btn btn-sm btn-outline-primary user-variant-next"
-              data-message-id="${message.id}"
+              data-message-id="${messageIdAttribute}"
               aria-label="Next user branch"
               aria-keyshortcuts="]"
               data-bs-toggle="tooltip"
@@ -1481,7 +1483,7 @@ export function createTranscriptView(dependencies) {
       }
     } else if (message.role === 'summary') {
       item.innerHTML = `
-        <h3 class="visually-hidden">${cardHeading}</h3>
+        <h3 class="visually-hidden">${cardHeadingMarkup}</h3>
         ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble"></div>
       `;
@@ -1491,12 +1493,12 @@ export function createTranscriptView(dependencies) {
       }
     } else {
       item.innerHTML = `
-        <h3 class="visually-hidden">${cardHeading}</h3>
+        <h3 class="visually-hidden">${cardHeadingMarkup}</h3>
         ${buildMessageMetaMarkup(message, activeConversation)}
         <div class="message-bubble">
           <section class="response-region">
             <h3 class="visually-hidden">Tool result</h3>
-            <p class="mb-2"><strong>Tool:</strong> ${message.toolName || 'Unknown tool'}</p>
+            <p class="mb-2"><strong>Tool:</strong> ${escapeHtml(message.toolName || 'Unknown tool')}</p>
             <div class="response-content"></div>
           </section>
         </div>

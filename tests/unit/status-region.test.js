@@ -22,8 +22,8 @@ describe('status-region', () => {
     expect(getStatusTone('Copy failed.')).toMatchObject({
       heading: 'Chat error',
       variant: 'danger',
-      role: 'alert',
-      live: 'assertive',
+      role: 'status',
+      live: 'polite',
     });
     expect(getStatusTone('Loading model files...')).toMatchObject({
       variant: 'warning',
@@ -49,8 +49,8 @@ describe('status-region', () => {
 
     expect(region?.classList.contains('d-none')).toBe(false);
     expect(region?.classList.contains('alert-danger')).toBe(true);
-    expect(region?.getAttribute('role')).toBe('alert');
-    expect(region?.getAttribute('aria-live')).toBe('assertive');
+    expect(region?.getAttribute('role')).toBe('status');
+    expect(region?.getAttribute('aria-live')).toBe('polite');
     expect(heading?.textContent).toBe('Setup status');
     expect(message?.textContent).toBe('Copy failed.');
   });

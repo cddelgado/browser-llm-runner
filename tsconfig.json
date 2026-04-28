@@ -8,6 +8,10 @@
     "checkJs": true,
     "noEmit": true,
     "strict": false,
+    "alwaysStrict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitThis": true,
+    "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM", "WebWorker"]
   },

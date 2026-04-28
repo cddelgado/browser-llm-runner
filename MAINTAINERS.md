@@ -62,6 +62,7 @@ Future work should reduce those files by extracting cohesive modules behind stab
 - `docs/architecture.md`: architecture story and target shape.
 - `docs/conventions.md`: local coding, documentation, UI, state, and test conventions.
 - `docs/operations.md`: install, run, test, troubleshoot, reset, and deploy.
+- `docs/runtime-behavior.md`: user-visible chat, settings, storage, tool, and cancellation behavior that crosses subsystem boundaries.
 - `docs/failure-model.md`: how the app can fail and how maintainers should recover.
 - `docs/change-guide.md`: common change paths.
 - `docs/maintainer-faq.md`: practical answers for future maintainers.
@@ -132,4 +133,3 @@ Bad refactors for this repo:
 - New abstractions without a specific maintenance problem.
 - Moving DOM, state, worker, and persistence concerns into a single "service" because it looks cleaner.
 - Introducing a framework to hide complexity instead of reducing it.
-

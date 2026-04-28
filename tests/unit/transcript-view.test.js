@@ -243,6 +243,25 @@ describe('transcript-view', () => {
     );
   });
 
+  test('escapes stored message identifiers and headings before template rendering', () => {
+    const harness = createViewHarness();
+    const maliciousId = 'model-1" data-injected="true';
+    harness.conversation.messageNodes[1].id = maliciousId;
+    harness.conversation.activeLeafMessageId = maliciousId;
+    const view = createDefaultTranscriptView(harness, {
+      getConversationCardHeading: () => 'Model <script>Response</script>',
+    });
+
+    view.renderTranscript({ scrollToBottom: false });
+
+    expect(harness.container.querySelector('[data-injected="true"]')).toBeNull();
+    expect(harness.container.querySelector('.model-message')?.dataset.messageId).toBe(maliciousId);
+    expect(harness.container.querySelector('.model-message h3')?.textContent).toBe(
+      'Model <script>Response</script>'
+    );
+    expect(harness.container.querySelector('.model-message h3 script')).toBeNull();
+  });
+
   test('renders the active model display name in standard chat message headers', () => {
     const harness = createViewHarness();
     const view = createDefaultTranscriptView(harness, {

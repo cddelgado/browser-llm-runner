@@ -14,7 +14,7 @@ export function getStatusTone(message) {
     return { heading: 'Chat status', variant: 'secondary', role: 'status', live: 'polite' };
   }
   if (/error|failed|unable|cannot|no active|copy failed/i.test(normalized)) {
-    return { heading: 'Chat error', variant: 'danger', role: 'alert', live: 'assertive' };
+    return { heading: 'Chat error', variant: 'danger', role: 'status', live: 'polite' };
   }
   if (/loading|preparing|stopping|please wait|apply after current response/i.test(normalized)) {
     return { heading: 'Chat status', variant: 'warning', role: 'status', live: 'polite' };
