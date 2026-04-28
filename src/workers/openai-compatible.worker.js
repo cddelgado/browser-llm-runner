@@ -1,4 +1,8 @@
-import { normalizeOpenAiCompatiblePromptMessages, extractOpenAiCompatibleResponseText, extractOpenAiCompatibleStreamText } from '../cloud/openai-compatible-prompt.js';
+import {
+  normalizeOpenAiCompatiblePromptMessages,
+  extractOpenAiCompatibleResponseText,
+  extractOpenAiCompatibleStreamParts,
+} from '../cloud/openai-compatible-prompt.js';
 import {
   buildOpenAiCompatibleChatCompletionsUrl,
   inferOpenAiCompatibleMaxOutputTokensField,
@@ -11,6 +15,8 @@ let currentConfig = null;
 let activeGeneration = null;
 const CORS_ERROR_MESSAGE_PATTERN =
   /failed to fetch|load failed|networkerror|network request failed|fetch failed/i;
+const REMOTE_REASONING_OPEN_TAG = '<think>';
+const REMOTE_REASONING_CLOSE_TAG = '</think>';
 
 function toErrorMessage(value) {
   if (value instanceof Error) {
@@ -147,6 +153,41 @@ async function streamEventSource(response, requestId) {
   const decoder = new globalThis.TextDecoder();
   let rawBuffer = '';
   let fullText = '';
+  let isReasoningOpen = false;
+
+  function appendGeneratedText(text) {
+    if (!text) {
+      return;
+    }
+    fullText += text;
+    post('token', { requestId, text });
+  }
+
+  function appendStreamParts(parsedChunk) {
+    const { contentText, reasoningText } = extractOpenAiCompatibleStreamParts(parsedChunk);
+    if (reasoningText) {
+      if (!isReasoningOpen) {
+        isReasoningOpen = true;
+        appendGeneratedText(REMOTE_REASONING_OPEN_TAG);
+      }
+      appendGeneratedText(reasoningText);
+    }
+    if (contentText) {
+      if (isReasoningOpen) {
+        isReasoningOpen = false;
+        appendGeneratedText(REMOTE_REASONING_CLOSE_TAG);
+      }
+      appendGeneratedText(contentText);
+    }
+  }
+
+  function closeReasoningIfNeeded() {
+    if (!isReasoningOpen) {
+      return;
+    }
+    isReasoningOpen = false;
+    appendGeneratedText(REMOTE_REASONING_CLOSE_TAG);
+  }
 
   while (true) {
     const { value, done } = await reader.read();
@@ -168,6 +209,7 @@ async function streamEventSource(response, requestId) {
 
       for (const dataLine of dataLines) {
         if (dataLine === '[DONE]') {
+          closeReasoningIfNeeded();
           return fullText;
         }
         let parsedChunk = null;
@@ -176,11 +218,7 @@ async function streamEventSource(response, requestId) {
         } catch {
           parsedChunk = null;
         }
-        const nextText = extractOpenAiCompatibleStreamText(parsedChunk);
-        if (nextText) {
-          fullText += nextText;
-          post('token', { requestId, text: nextText });
-        }
+        appendStreamParts(parsedChunk);
       }
       boundaryMatch = rawBuffer.match(/\r?\n\r?\n/);
     }
@@ -195,17 +233,14 @@ async function streamEventSource(response, requestId) {
     if (trailingDataLine && trailingDataLine !== '[DONE]') {
       try {
         const parsedChunk = JSON.parse(trailingDataLine);
-        const nextText = extractOpenAiCompatibleStreamText(parsedChunk);
-        if (nextText) {
-          fullText += nextText;
-          post('token', { requestId, text: nextText });
-        }
+        appendStreamParts(parsedChunk);
       } catch {
         // Ignore trailing parse errors.
       }
     }
   }
 
+  closeReasoningIfNeeded();
   return fullText;
 }
 

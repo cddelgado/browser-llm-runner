@@ -26,6 +26,10 @@ const OPENAI_COMPATIBLE_PROMPT_TOOL_CALLING_PROFILE = Object.freeze({
   nameKey: 'name',
   argumentsKey: 'parameters',
 });
+const OPENAI_COMPATIBLE_REASONING_TAGS = Object.freeze({
+  open: '<think>',
+  close: '</think>',
+});
 const CLOUD_PROVIDER_LINK_KEYS = Object.freeze([
   'createAccountUrl',
   'createTokenUrl',
@@ -457,6 +461,7 @@ export function buildRuntimeModelCatalog(providers) {
           videoInput: false,
         },
         ...(thinkingEnabled ? { thinkingControl: model.thinkingControl } : {}),
+        ...(thinkingEnabled ? { thinkingTags: OPENAI_COMPATIBLE_REASONING_TAGS } : {}),
         ...(toolCallingEnabled
           ? { toolCalling: OPENAI_COMPATIBLE_PROMPT_TOOL_CALLING_PROFILE }
           : {}),

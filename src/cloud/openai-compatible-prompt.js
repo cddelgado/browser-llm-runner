@@ -135,19 +135,39 @@ function extractStreamTextFromDelta(delta) {
   return '';
 }
 
-export function extractOpenAiCompatibleStreamText(chunk) {
-  const choice = Array.isArray(chunk?.choices) ? chunk.choices[0] : null;
-  if (!choice) {
-    return '';
+function extractReasoningTextFromMessage(message) {
+  if (typeof message?.reasoning_content === 'string') {
+    return message.reasoning_content;
   }
-  const deltaText = extractStreamTextFromDelta(choice.delta);
-  if (deltaText) {
-    return deltaText;
-  }
-  if (typeof choice.text === 'string') {
-    return choice.text;
+  if (typeof message?.reasoning === 'string') {
+    return message.reasoning;
   }
   return '';
+}
+
+function extractReasoningTextFromDelta(delta) {
+  return extractReasoningTextFromMessage(delta);
+}
+
+export function extractOpenAiCompatibleStreamParts(chunk) {
+  const choice = Array.isArray(chunk?.choices) ? chunk.choices[0] : null;
+  if (!choice) {
+    return {
+      contentText: '',
+      reasoningText: '',
+    };
+  }
+  const contentText =
+    extractStreamTextFromDelta(choice.delta) || (typeof choice.text === 'string' ? choice.text : '');
+  return {
+    contentText,
+    reasoningText: extractReasoningTextFromDelta(choice.delta),
+  };
+}
+
+export function extractOpenAiCompatibleStreamText(chunk) {
+  const parts = extractOpenAiCompatibleStreamParts(chunk);
+  return parts.contentText || parts.reasoningText;
 }
 
 export function extractOpenAiCompatibleResponseText(payload) {
@@ -155,11 +175,12 @@ export function extractOpenAiCompatibleResponseText(payload) {
   if (!choice) {
     return '';
   }
+  const reasoningText = extractReasoningTextFromMessage(choice?.message);
+  let contentText = '';
   if (typeof choice?.message?.content === 'string') {
-    return choice.message.content;
-  }
-  if (Array.isArray(choice?.message?.content)) {
-    return choice.message.content
+    contentText = choice.message.content;
+  } else if (Array.isArray(choice?.message?.content)) {
+    contentText = choice.message.content
       .map((entry) => {
         if (typeof entry === 'string') {
           return entry;
@@ -170,9 +191,11 @@ export function extractOpenAiCompatibleResponseText(payload) {
         return '';
       })
       .join('');
+  } else if (typeof choice.text === 'string') {
+    contentText = choice.text;
   }
-  if (typeof choice.text === 'string') {
-    return choice.text;
+  if (reasoningText) {
+    return `<think>${reasoningText}</think>${contentText}`;
   }
-  return '';
+  return contentText;
 }

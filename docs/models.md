@@ -86,6 +86,7 @@ Model support is configured in `src/config/models.json`:
 - `thinkingTags`: optional per-model tags used to separate internal thoughts from final response
   during streaming (for example `<think>` and `</think>`)
   - `stripLeadingText`: optional first-line marker removed from extracted thought text after the opening tag
+  - Configured OpenAI-compatible cloud models with thinking control use default `<think>` / `</think>` tags; the cloud worker maps separate `reasoning_content` response fields into that tagged stream.
 - `defaultModelId`: default model used for first load and invalid selections
 - `legacyAliases`: map of old stored IDs to canonical supported IDs
 
@@ -249,6 +250,8 @@ These feed transcript parsing in `src/main.js` and state/controller behavior dur
 
 If the model exposes thoughts in a way that does not fit the current tag-based parser, that is an app feature change, not just a config change. Gemma 4's channel-wrapped thinking works because the parser can also strip a configured leading label from the extracted thought text.
 
+Configured OpenAI-compatible cloud models that enable thinking control use the default `<think>` / `</think>` parser tags. Providers that return thoughts in a separate `reasoning_content` field are normalized by the cloud worker before the transcript parser sees the stream.
+
 ### Generation fields
 
 - `defaultMaxOutputTokens`
@@ -338,6 +341,7 @@ Current models in Settings:
   - now preserve any tool/function support that can be inferred from the provider's `/models` metadata, and each selected remote model also exposes user-controlled `Enable built-in tools` and `Enable thinking control` settings in `Settings -> Cloud Providers`
   - use the app's generic JSON prompt-tool profile (`{"name":"tool_name","parameters":{...}}`) when that built-in-tools toggle is enabled for the selected remote model
   - use user-entered thinking-control instructions as system-prompt additions when conversation-level thinking is enabled or disabled for that cloud model
+  - use default `<think>` / `</think>` thinking tags when thinking control is enabled; OpenAI-compatible `reasoning_content` response fields are converted into that same tagged stream
   - show enabled-model defaults directly under each provider model switch instead of in a separate configured-model list
   - can also carry a browser-local request cap (`rateLimit`) so the browser blocks excess requests before another remote API call is sent; the settings UI supports second, minute, hour, day, and week windows and stores the normalized value as `windowMs`
 

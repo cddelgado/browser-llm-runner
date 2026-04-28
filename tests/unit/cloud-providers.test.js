@@ -222,6 +222,10 @@ describe('cloud provider helpers', () => {
             },
           },
         },
+        thinkingTags: {
+          open: '<think>',
+          close: '</think>',
+        },
         toolCalling: {
           format: 'json',
           nameKey: 'name',
@@ -420,5 +424,15 @@ describe('cloud provider helpers', () => {
         choices: [{ message: { content: 'final answer' } }],
       })
     ).toBe('final answer');
+    expect(
+      extractOpenAiCompatibleStreamText({
+        choices: [{ delta: { reasoning_content: 'reasoning trace' } }],
+      })
+    ).toBe('reasoning trace');
+    expect(
+      extractOpenAiCompatibleResponseText({
+        choices: [{ message: { reasoning_content: 'reasoning trace', content: 'final answer' } }],
+      })
+    ).toBe('<think>reasoning trace</think>final answer');
   });
 });

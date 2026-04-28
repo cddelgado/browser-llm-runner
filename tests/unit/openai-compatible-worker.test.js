@@ -160,6 +160,71 @@ describe('openai-compatible.worker', () => {
     });
   });
 
+  test('wraps streamed remote reasoning content in thinking tags', async () => {
+    const fetchMock = /** @type {ReturnType<typeof vi.fn>} */ (globalThis.fetch);
+    fetchMock.mockResolvedValue(
+      createSseResponse([
+        'data: {"choices":[{"delta":{"reasoning_content":"First, reason."}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"Final answer."}}]}\n\n',
+        'data: [DONE]\n\n',
+      ])
+    );
+
+    await import('../../src/workers/openai-compatible.worker.js');
+    const workerSelf = /** @type {any} */ (globalThis.self);
+
+    workerSelf.dispatch('message', {
+      type: 'init',
+      payload: {
+        engineType: 'openai-compatible',
+        modelId: 'provider/model',
+        runtime: {
+          providerId: 'provider-1',
+          apiBaseUrl: 'https://example.test/v1',
+          remoteModelId: 'provider/model',
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    workerSelf.postMessage.mockClear();
+
+    workerSelf.dispatch('message', {
+      type: 'generate',
+      payload: {
+        requestId: 'request-reasoning',
+        prompt: [{ role: 'user', content: 'Think, then answer.' }],
+        generationConfig: {
+          maxContextTokens: 256,
+          maxOutputTokens: 64,
+          temperature: 0.6,
+          topP: 0.95,
+        },
+      },
+    });
+    await flushWorkerTasks();
+
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'token',
+      payload: { requestId: 'request-reasoning', text: '<think>' },
+    });
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'token',
+      payload: { requestId: 'request-reasoning', text: 'First, reason.' },
+    });
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'token',
+      payload: { requestId: 'request-reasoning', text: '</think>' },
+    });
+    expect(workerSelf.postMessage).toHaveBeenCalledWith({
+      type: 'complete',
+      payload: {
+        requestId: 'request-reasoning',
+        text: '<think>First, reason.</think>Final answer.',
+      },
+    });
+  });
+
   test('aborts an in-flight remote generation when cancel is requested', async () => {
     const fetchMock = /** @type {ReturnType<typeof vi.fn>} */ (globalThis.fetch);
     fetchMock.mockImplementation((_url, options = {}) => {
